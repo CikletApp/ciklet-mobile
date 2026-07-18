@@ -1,36 +1,49 @@
 {
   "expo": {
-    "name": "ciklet-mobile",
+    "name": "Ciklet",
     "slug": "ciklet-mobile",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "cikletmobile",
-    "userInterfaceStyle": "automatic",
+    "scheme": "ciklet",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#111214",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.ciklet.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Sesli kanallarda konuşabilmek için mikrofon erişimi gerekir.",
+        "NSCameraUsageDescription": "Görüntülü görüşmelerde kamera erişimi gerekir.",
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
+      "package": "com.ciklet.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#111214",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#111214",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      "expo-secure-store",
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "audioType": "communication"
+          }
         }
       ]
     ],

@@ -1,56 +1,51 @@
-# Welcome to your Expo app 👋
+# Ciklet Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Ciklet'in Android + iOS istemcisi. Expo (SDK 57) + Expo Router + TypeScript.
 
-## Get started
+## Mimari bağlam
 
-1. Install dependencies
+| Bağımlılık | Ne için |
+|---|---|
+| `ciklet-web` API (`https://ciklet.xyz`) | Tüm veri + auth (`/api/mobile/auth`) |
+| `@ciklet/embedded-activities-sdk/types` | Paylaşılan tipler ve API/socket sözleşmeleri (GitHub'dan kurulur) |
+| LiveKit (`wss://ciklet.xyz/rtc`) | Sesli/görüntülü kanallar |
 
-   ```bash
-   npm install
-   ```
+Auth modeli: `/api/mobile/auth`'tan alınan NextAuth oturum token'ı SecureStore'da
+saklanır ve her HTTP isteği + Socket.IO el sıkışmasına **Cookie başlığı** olarak
+eklenir — sunucu tarafında hiçbir özel mobil rota yoktur, web ile aynı uçlar
+kullanılır.
 
-2. Start the app
+## Klasör düzeni
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+src/app/        Expo Router — sadece rota iskeleti
+src/api/        fetch istemcisi + TanStack Query hook'ları
+src/features/   ekran mantığı (chat/, voice/, ...)
+src/lib/        socket, livekit, storage, config
+src/stores/     Zustand (auth, ...)
+src/theme/      renk token'ları (tailwind.config ile eş)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Geliştirme
 
-### Other setup steps
+> **Önemli:** LiveKit native modül içerdiği için uygulama **Expo Go ile
+> çalışmaz**; development build gerekir.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm install
+cp .env.example .env        # LAN IP'ni yaz (localhost telefondan görünmez)
 
-## Learn more
+# İlk development build (bir kez; sonrasında sadece JS değişir):
+npx eas build --profile development --platform android
+# build biten .apk'yı cihaza kur, sonra:
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Yerel backend için: `ciklet-infra`'da `docker compose -f docker-compose.dev.yml up -d`
+ve `ciklet-web`'de `pnpm dev`.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Dağıtım
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- `npx eas build --profile preview` → test cihazlarına internal dağıtım
+- `npx eas build --profile production` → mağaza sürümü
+- JS-only değişiklikler: `npx eas update` (OTA)
