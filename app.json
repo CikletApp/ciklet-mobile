@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Ciklet",
-    "slug": "ciklet-mobile",
+    "slug": "ciklet",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -14,7 +14,10 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Sesli kanallarda konuşabilmek için mikrofon erişimi gerekir.",
         "NSCameraUsageDescription": "Görüntülü görüşmelerde kamera erişimi gerekir.",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -50,6 +53,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d7880e52-def6-478d-a5b1-34b734fd578d"
+      }
     }
   }
 }
