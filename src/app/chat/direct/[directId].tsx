@@ -5,6 +5,7 @@ import { isSelfDirect, useDirect, useDirectPeer } from "@/api/hooks";
 import { Avatar, Icon, IconButton, Pressable } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { displayNameOf } from "@/lib/format";
+import { useCallActions } from "@/realtime/use-call-events";
 import { colors, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -20,6 +21,10 @@ export default function DirectChatScreen() {
   const peer = useDirectPeer(direct);
 
   const isNotes = direct ? isSelfDirect(direct) : false;
+  const { placeCall } = useCallActions();
+
+  // Kendine arama anlamsız; not sohbetinde arama düğmeleri gizlenir.
+  const canCall = Boolean(peer) && !isNotes;
 
   return (
     <>
@@ -27,7 +32,27 @@ export default function DirectChatScreen() {
         options={{
           title: isNotes ? "Notlarım" : peer ? displayNameOf(peer) : "",
           headerRight: () => (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+              {canCall && peer ? (
+                <>
+                  <IconButton
+                    icon="phone"
+                    label="Sesli ara"
+                    background="transparent"
+                    tint={colors.muted}
+                    haptic="medium"
+                    onPress={() => placeCall(peer, directId, "audio")}
+                  />
+                  <IconButton
+                    icon="video"
+                    label="Görüntülü ara"
+                    background="transparent"
+                    tint={colors.muted}
+                    haptic="medium"
+                    onPress={() => placeCall(peer, directId, "video")}
+                  />
+                </>
+              ) : null}
               <IconButton
                 icon="search"
                 label="Sohbette ara"

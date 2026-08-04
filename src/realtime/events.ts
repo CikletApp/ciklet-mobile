@@ -49,6 +49,16 @@ export const ClientEvent = {
   GET_ACTIVE_VOICE_CHANNELS: "get_active_voice_channels",
   JOIN_VOICE_CHANNEL: "join_voice_channel",
   LEAVE_VOICE_CHANNEL: "leave_voice_channel",
+  /** `{ receiverId, type }` — arama başlat. */
+  INCOMING_CALL: "incoming_call",
+  /** `{ callerId, callId }` — gelen aramayı kabul et. */
+  CALL_ACCEPTED: "call_accepted",
+  /** `{ callerId, callId }` — gelen aramayı reddet. */
+  CALL_DENIED: "call_denied",
+  /** `{ receiverId, callId }` — kendi aramanı iptal et. */
+  CALL_CANCELLED: "call_cancelled",
+  /** Açılışta bekleyen davetleri iste (`pending_call_invites` döner). */
+  SYNC_CALL_STATE: "sync_call_state",
 } as const;
 
 // ── Sunucu → istemci ────────────────────────────────────────────────
@@ -72,10 +82,20 @@ export const ServerEvent = {
   FRIEND_REQUEST_UPDATED: "friend_request_updated",
   VOICE_CHANNEL_UPDATE: "voice_channel_update",
   ACTIVE_VOICE_CHANNELS: "active_voice_channels",
+  /** `{ caller, type, callId, expiresAt }` — sana arama geliyor. */
   INCOMING_CALL: "incoming_call",
+  /** `{ profile, callId }` — karşı taraf kabul etti. */
   CALL_ACCEPTED: "call_accepted",
+  /** `{ profile, callId }` — karşı taraf reddetti. */
   CALL_DENIED: "call_denied",
+  /** `{ caller, callId }` — arayan vazgeçti veya davet zaman aşımına uğradı. */
   CALL_CANCELLED: "call_cancelled",
+  /** `{ receiverId, reason }` — DM izinleri aramaya kapalı. */
+  CALL_REJECTED: "call_rejected",
+  /** `{ callId, status }` — başka cihazında yanıtladın. */
+  CALL_HANDLED_ELSEWHERE: "call_handled_elsewhere",
+  /** Açılışta bekleyen davetler. */
+  PENDING_CALL_INVITES: "pending_call_invites",
   ACTIVITY_UPDATE: "activity_update",
   ACTIVITY_SYNC: "activity_sync",
   ACTIVITY_ENDED: "activity_ended",

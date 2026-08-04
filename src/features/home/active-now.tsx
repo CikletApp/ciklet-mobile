@@ -1,25 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import { useFriends, useOpenDirect } from "@/api/hooks";
 import type { RichPresence, RichPresenceType } from "@/api/types";
-import { Avatar, Icon, Pressable } from "@/components/ui";
+import { Avatar, Pressable } from "@/components/ui";
 import { displayNameOf, formatElapsed } from "@/lib/format";
 import { usePresenceStore } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
- * "Şimdi Aktif" — mesaj listesinin üstünde çevrimiçi arkadaşlar.
+ * "Şimdi Aktif" — çevrimiçi arkadaşların yatay şeridi.
  *
- * Web'deki `ActiveNow` bir arkadaşı listeye almak için hem çevrimiçi
- * OLMASINI hem de zengin durum taşımasını şart koşuyor. Mobilde bu ölçüt
- * çoğu zaman boş liste üretirdi (zengin durum masaüstü istemcisinden
- * geliyor), bu yüzden burada çevrimiçi olmak yeterli — ama zengin durum
- * VARSA web'deki kartın aynısı çizilir: "<oyun> Oynuyor" ve geçen süre.
+ * Mobil öncelikli tasarım: web'deki dikey kart listesi telefonda mesaj
+ * listesini aşağı itiyordu. Burada her arkadaş sabit genişlikte kompakt bir
+ * kart; yatay kaydırılır ve ekranın en fazla ~%20'sini kaplar.
  *
- * Kimse çevrimiçi değilse bölüm hiç çizilmez; boş bir başlık yer kaplamamalı.
+ * Web'deki `ActiveNow` bir arkadaşı listeye almak için zengin durum da
+ * şart koşuyor; zengin durum masaüstünden geldiği için mobilde bu ölçüt
+ * çoğu zaman boş liste üretirdi. Burada çevrimiçi olmak yeterli, zengin
+ * durum VARSA ek satır olarak gösterilir.
  */
 const ACTIVE_STATUSES: PresenceStatus[] = [
   PresenceStatus.ONLINE,
@@ -27,7 +28,6 @@ const ACTIVE_STATUSES: PresenceStatus[] = [
   PresenceStatus.DND,
 ];
 
-/** Zengin durum türünün Türkçe fiili. */
 const ACTIVITY_VERB: Record<RichPresenceType, string> = {
   PLAYING: "Oynuyor",
   LISTENING: "Dinliyor",
@@ -38,6 +38,8 @@ const ACTIVITY_VERB: Record<RichPresenceType, string> = {
   COMPETING: "Yarışıyor",
 };
 
+const CARD_WIDTH = 168;
+
 export function ActiveNow() {
   const { accepted } = useFriends();
   const entries = usePresenceStore((s) => s.entries);
@@ -46,10 +48,7 @@ export function ActiveNow() {
   const active = useMemo(
     () =>
       accepted
-        .map((friend) => ({
-          friend,
-          entry: entries[friend.profile.id],
-        }))
+        .map((friend) => ({ friend, entry: entries[friend.profile.id] }))
         .filter(({ entry }) =>
           ACTIVE_STATUSES.includes(entry?.status ?? PresenceStatus.OFFLINE)
         ),
@@ -65,13 +64,17 @@ export function ActiveNow() {
           ...typography.overline,
           color: colors.muted,
           paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
+          paddingBottom: spacing.sm,
         }}
       >
         ŞİMDİ AKTİF — {active.length}
       </Text>
 
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg }}
+      >
         {active.map(({ friend, entry }) => (
           <Pressable
             key={friend.id}
@@ -85,93 +88,99 @@ export function ActiveNow() {
             accessibilityRole="button"
             accessibilityLabel={`${displayNameOf(friend.profile)} ile sohbet`}
             style={({ pressed }) => ({
+              width: CARD_WIDTH,
               padding: spacing.md,
               borderRadius: radii.lg,
               backgroundColor: colors.panel,
-              gap: spacing.md,
+              gap: spacing.sm,
               opacity: pressed ? 0.8 : 1,
             })}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <Avatar
                 profileId={friend.profile.id}
                 imageUrl={friend.profile.imageUrl}
                 fallbackText={friend.profile.username}
-                size={44}
+                size={32}
                 showPresence
                 backgroundColor={colors.panel}
               />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text
-                  style={{ ...typography.bodyStrong, color: colors.bright }}
-                  numberOfLines={1}
-                >
-                  {displayNameOf(friend.profile)}
-                </Text>
-                {entry?.activity?.name ? (
-                  <Text
-                    style={{ ...typography.caption, color: colors.accent }}
-                    numberOfLines={1}
-                  >
-                    {entry.activity.name}{" "}
-                    {ACTIVITY_VERB[entry.activity.type ?? "PLAYING"]}
-                  </Text>
-                ) : null}
-              </View>
+              <Text
+                style={{ ...typography.caption, fontWeight: "700", color: colors.bright, flex: 1 }}
+                numberOfLines={1}
+              >
+                {displayNameOf(friend.profile)}
+              </Text>
             </View>
 
-            {entry?.activity ? <ActivityCard activity={entry.activity} /> : null}
+            {entry?.activity ? (
+              <ActivityLine activity={entry.activity} />
+            ) : (
+              <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>
+                Çevrimiçi
+              </Text>
+            )}
           </Pressable>
         ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+/** Aktivite satırı — ad, fiil ve saniyede bir ilerleyen süre. */
+function ActivityLine({ activity }: { activity: RichPresence }) {
+  const elapsed = useElapsed(activity.startedAt);
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+      {activity.largeImageUrl || activity.appIconUrl ? (
+        <Avatar
+          imageUrl={activity.largeImageUrl ?? activity.appIconUrl}
+          fallbackText={activity.name}
+          size={26}
+          shape="squircle"
+          backgroundColor={colors.panel}
+        />
+      ) : null}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 11, lineHeight: 15, color: colors.accent }} numberOfLines={1}>
+          {activity.name} {ACTIVITY_VERB[activity.type ?? "PLAYING"]}
+        </Text>
+        {elapsed ? (
+          <Text style={{ fontSize: 11, lineHeight: 15, color: colors.success }}>
+            {elapsed}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
 }
 
-/** Aktivite alt kartı — kapak görseli, ad ve geçen süre. */
-function ActivityCard({ activity }: { activity: RichPresence }) {
-  const [, forceTick] = useState(0);
-
-  // Geçen süre saniyede bir tazelenir; sabit bir sayı "canlı" hissini
-  // yok eder. Yalnızca kart görünürken çalışır.
-  useEffect(() => {
-    if (!activity.startedAt) return;
-    const timer = setInterval(() => forceTick((n) => n + 1), 1000);
-    return () => clearInterval(timer);
-  }, [activity.startedAt]);
-
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-      <Avatar
-        imageUrl={activity.largeImageUrl ?? activity.appIconUrl}
-        fallbackText={activity.name}
-        size={40}
-        shape="squircle"
-        backgroundColor={colors.panel}
-      />
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text
-          style={{ ...typography.caption, fontWeight: "600", color: colors.bright }}
-          numberOfLines={1}
-        >
-          {activity.name}
-        </Text>
-
-        {activity.details ? (
-          <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
-            {activity.details}
-          </Text>
-        ) : null}
-
-        {activity.startedAt ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-            <Icon name="compass" size={12} color={colors.success} />
-            <Text style={{ ...typography.caption, color: colors.success }}>
-              {formatElapsed(activity.startedAt)} süre geçti
-            </Text>
-          </View>
-        ) : null}
-      </View>
-    </View>
+/**
+ * Geçen süreyi saniyede bir tazeler.
+ *
+ * Önceki sürüm kullanılmayan bir sayaç state'ini artırıp yeniden render
+ * beklemekteydi; değer okunmadığı için render atlanabiliyor ve sayaç
+ * donuyordu. Artık BİÇİMLENMİŞ METNİN KENDİSİ state'te tutuluyor —
+ * her tik gerçekten yeni bir değer üretir.
+ */
+function useElapsed(startedAt: number | undefined): string | null {
+  const [label, setLabel] = useState(() =>
+    startedAt ? `${formatElapsed(startedAt)} süre geçti` : null
   );
+
+  useEffect(() => {
+    if (!startedAt) {
+      setLabel(null);
+      return;
+    }
+    setLabel(`${formatElapsed(startedAt)} süre geçti`);
+    const timer = setInterval(
+      () => setLabel(`${formatElapsed(startedAt)} süre geçti`),
+      1000
+    );
+    return () => clearInterval(timer);
+  }, [startedAt]);
+
+  return label;
 }

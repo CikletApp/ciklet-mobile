@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { CallOverlay } from "@/features/call/call-overlay";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -88,6 +89,9 @@ export default function RootLayout() {
                 <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
               </Stack.Protected>
             </Stack>
+            {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
+                olursan ol görünmeli. */}
+            <CallOverlay />
           </RealtimeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

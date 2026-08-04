@@ -45,9 +45,25 @@ export interface UpdateProfileInput {
   friendReqServerMembers?: boolean;
 }
 
-/** ciklet-web: `src/app/api/members/mine/route.ts` */
+/**
+ * ciklet-web: `src/app/api/members/mine/route.ts`
+ *
+ * Prisma `include` kullandığı için Member'ın TÜM skaler alanları yanıtta
+ * gelir — sıralama ve klasör alanları dahil. Klasör sistemi mobilde bu
+ * alanlardan kurulur.
+ *
+ * ⚠️ Klasörün ADI ve RENGİ burada YOK ve `GET /api/folders` diye bir uç da
+ * yok (yalnızca POST/PATCH var). Bu yüzden mobil klasörleri gruplayabiliyor
+ * ama başlıklarını sunucudan okuyamıyor — bkz. docs/ROADMAP.md.
+ */
 export interface MembershipWithServer extends Member {
   server: { id: string; name: string; imageUrl: string };
+  /** Rayda sunucu sırası. */
+  order: number;
+  /** Klasöre aitse klasör kimliği. */
+  folderId: string | null;
+  /** Klasör içindeki sıra. */
+  orderInFolder: number | null;
 }
 
 /** `PATCH /api/members/[memberId]` — sunucuya özel profil alanları. */

@@ -6,6 +6,7 @@ import { usePresenceStore } from "@/stores/presence";
 import { useAuth } from "@/stores/auth";
 import { ClientEvent } from "./events";
 import { connectSocket, disconnectSocket, peekSocket } from "./socket";
+import { useCallEvents } from "./use-call-events";
 import { useMessageNotifications } from "./use-message-notifications";
 import { useSocialEvents } from "./use-social-events";
 
@@ -27,6 +28,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   useSocialEvents();
   // Arka plandayken gelen DM'ler için yerel bildirim.
   useMessageNotifications();
+  // Gelen/giden çağrılar — ekrandan bağımsız, kök düzeyde dinlenir.
+  useCallEvents();
 
   // ── Bağlantı ──────────────────────────────────────────────────────
   useEffect(() => {
