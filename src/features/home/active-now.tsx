@@ -142,15 +142,25 @@ function ActivityLine({ activity }: { activity: RichPresence }) {
           backgroundColor={colors.panel}
         />
       ) : null}
+      {/*
+        Ad ve fiil AYRI SATIRLARDA: tek satıra sığmadığında kırpılan şey
+        fiil oluyordu ("League of Legends O…") ve satır anlamsızlaşıyordu.
+        Fiil kısa süreyle birleşince ikinci satır hep sığar.
+      */}
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 11, lineHeight: 15, color: colors.accent }} numberOfLines={1}>
-          {activity.name} {ACTIVITY_VERB[activity.type ?? "PLAYING"]}
+        <Text
+          style={{ fontSize: 11, lineHeight: 15, color: colors.accent }}
+          numberOfLines={1}
+        >
+          {activity.name}
         </Text>
-        {elapsed ? (
-          <Text style={{ fontSize: 11, lineHeight: 15, color: colors.success }}>
-            {elapsed}
-          </Text>
-        ) : null}
+        <Text
+          style={{ fontSize: 11, lineHeight: 15, color: colors.success }}
+          numberOfLines={1}
+        >
+          {ACTIVITY_VERB[activity.type ?? "PLAYING"]}
+          {elapsed ? ` · ${elapsed}` : ""}
+        </Text>
       </View>
     </View>
   );
@@ -166,7 +176,7 @@ function ActivityLine({ activity }: { activity: RichPresence }) {
  */
 function useElapsed(startedAt: number | undefined): string | null {
   const [label, setLabel] = useState(() =>
-    startedAt ? `${formatElapsed(startedAt)} süre geçti` : null
+    startedAt ? formatElapsed(startedAt) : null
   );
 
   useEffect(() => {
@@ -174,11 +184,8 @@ function useElapsed(startedAt: number | undefined): string | null {
       setLabel(null);
       return;
     }
-    setLabel(`${formatElapsed(startedAt)} süre geçti`);
-    const timer = setInterval(
-      () => setLabel(`${formatElapsed(startedAt)} süre geçti`),
-      1000
-    );
+    setLabel(formatElapsed(startedAt));
+    const timer = setInterval(() => setLabel(formatElapsed(startedAt)), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
 
