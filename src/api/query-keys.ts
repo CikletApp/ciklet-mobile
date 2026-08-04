@@ -15,6 +15,9 @@ export const qk = {
    */
   memberships: ["memberships"] as const,
 
+  /** Sunucu klasörleri (ad, renk, sıra). */
+  folders: ["folders"] as const,
+
   /** Bir sunucunun kanalları. */
   channels: (serverId: string) => ["channels", serverId] as const,
 

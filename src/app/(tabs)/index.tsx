@@ -1,11 +1,14 @@
 import { useCallback, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { router } from "expo-router";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { hasUnread, useConversationList, useOpenDirect, useSelfDirect } from "@/api/hooks";
 import type { DirectSummary } from "@/api/types";
 import {
   Avatar,
+  BentoCard,
+  BentoShell,
   Button,
   EmptyState,
   IconButton,
@@ -20,31 +23,49 @@ import { ServerRail } from "@/features/home/server-rail";
 import { displayNameOf, formatRelativeShort } from "@/lib/format";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
 
 /**
- * Ana Sayfa — solda kalıcı sunucu rayı, sağda içerik.
+ * Ana Sayfa — bento düzeni: solda kalıcı sunucu rayı kartı, sağda içerik
+ * kartı, aralarında boşluk.
  *
  * İçerik seçime göre değişir: sunucu seçili değilse doğrudan mesajlar,
- * seçiliyse o sunucunun kanal listesi. Sunucuya girmek AYRI BİR EKRANA
- * GİTMEZ — ray her zaman görünür kalır, böylece sunucular arasında geçmek
- * için geri gitmek gerekmez.
+ * seçiliyse o sunucunun kanal listesi. Sunucuya girmek AYRI EKRANA GİTMEZ —
+ * ray her zaman görünür kalır. Panel geçişi çapraz solmayla yumuşatılır.
  */
 export default function HomeScreen() {
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
 
   return (
-    <Screen edges={["top", "left", "right"]}>
-      <View style={{ flex: 1, flexDirection: "row" }}>
-        <ServerRail
-          selectedServerId={selectedServerId}
-          onSelect={setSelectedServerId}
-        />
-        {selectedServerId ? (
-          <ChannelPanel serverId={selectedServerId} />
-        ) : (
-          <DirectPanel />
-        )}
-      </View>
+    <Screen edges={["top", "left", "right"]} style={{ backgroundColor: colors.deep }}>
+      <BentoShell>
+        <BentoCard style={{ flex: 0, width: 72 }} flush>
+          <ServerRail
+            selectedServerId={selectedServerId}
+            onSelect={setSelectedServerId}
+          />
+        </BentoCard>
+
+        <BentoCard flush>
+          {/*
+            Panel değişimi anlık yerine çapraz solmayla: rayda sunucu
+            değiştirmek sık bir eylem ve sert geçiş her seferinde göz
+            yoruyor. `key` ile eski panel çıkış animasyonunu tamamlar.
+          */}
+          <Animated.View
+            key={selectedServerId ?? "directs"}
+            entering={FadeIn.duration(180)}
+            exiting={FadeOut.duration(120)}
+            style={{ flex: 1 }}
+          >
+            {selectedServerId ? (
+              <ChannelPanel serverId={selectedServerId} />
+            ) : (
+              <DirectPanel />
+            )}
+          </Animated.View>
+        </BentoCard>
+      </BentoShell>
     </Screen>
   );
 }
@@ -86,11 +107,11 @@ function DirectPanel() {
             flexDirection: "row",
             alignItems: "center",
             gap: spacing.md,
-            marginHorizontal: spacing.sm,
-            paddingHorizontal: spacing.md,
+            marginHorizontal: spacing.xs,
+            paddingHorizontal: spacing.sm,
             paddingVertical: spacing.md,
             borderRadius: radii.md,
-            backgroundColor: pressed ? colors.panel : "transparent",
+            backgroundColor: pressed ? colors.raised : "transparent",
           })}
         >
           <Avatar
@@ -99,6 +120,7 @@ function DirectPanel() {
             fallbackText={peer.username}
             size={44}
             showPresence
+            backgroundColor={colors.bento}
           />
 
           <View style={{ flex: 1, gap: 2 }}>
@@ -137,7 +159,7 @@ function DirectPanel() {
           flexDirection: "row",
           alignItems: "center",
           gap: spacing.xs,
-          paddingHorizontal: spacing.lg,
+          paddingHorizontal: spacing.md,
           paddingVertical: spacing.md,
         }}
       >
@@ -184,7 +206,7 @@ function DirectPanel() {
                 style={{
                   ...typography.overline,
                   color: colors.muted,
-                  paddingHorizontal: spacing.lg,
+                  paddingHorizontal: spacing.md,
                   paddingBottom: spacing.sm,
                 }}
               >
@@ -192,7 +214,7 @@ function DirectPanel() {
               </Text>
             </View>
           }
-          contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
+          contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET }}
           ListEmptyComponent={
             <View style={{ paddingTop: spacing.xl }}>
               <EmptyState

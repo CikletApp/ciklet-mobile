@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Modal, Text, View } from "react-native";
-import { LiveKitRoom, useLocalParticipant, useParticipants } from "@livekit/react-native";
+import { LiveKitRoom, useParticipants } from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
 
 import { useDirects } from "@/api/hooks";
 import { Avatar, IconButton } from "@/components/ui";
+import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LIVEKIT_URL } from "@/lib/livekit";
 import { displayNameOf, formatElapsed } from "@/lib/format";
@@ -51,7 +52,7 @@ export function CallOverlay() {
     <Modal visible animationType="slide" statusBarTranslucent onRequestClose={hangUp}>
       <View style={{ flex: 1, backgroundColor: colors.deep }}>
         {isConnected && resolvedDirectId ? (
-          <ConnectedCall directId={resolvedDirectId} />
+          <ConnectedCall directId={resolvedDirectId} onHangUp={hangUp} />
         ) : (
           <View
             style={{
@@ -81,46 +82,51 @@ export function CallOverlay() {
           </View>
         )}
 
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "center",
-            gap: spacing["3xl"],
-            paddingBottom: spacing["4xl"],
-            paddingTop: spacing.lg,
-          }}
-        >
-          {isRinging ? (
-            <>
+        {/* Bağlı çağrıda kontroller LiveKit odasının içinde (CallStage) —
+            orada mikrofon ve hoparlör durumunu okuyabiliyorlar. Burada
+            yalnızca zil ve bekleme durumlarının düğmeleri var. */}
+        {isConnected ? null : (
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: spacing["3xl"],
+              paddingBottom: spacing["4xl"],
+              paddingTop: spacing.lg,
+            }}
+          >
+            {isRinging ? (
+              <>
+                <CallAction
+                  icon="close"
+                  label="Reddet"
+                  background={colors.danger}
+                  onPress={declineCall}
+                />
+                <CallAction
+                  icon="phone"
+                  label="Kabul et"
+                  background={colors.success}
+                  onPress={() => resolvedDirectId && acceptCall(resolvedDirectId)}
+                />
+              </>
+            ) : (
               <CallAction
                 icon="close"
-                label="Reddet"
+                label="İptal"
                 background={colors.danger}
-                onPress={declineCall}
+                onPress={hangUp}
               />
-              <CallAction
-                icon="phone"
-                label="Kabul et"
-                background={colors.success}
-                onPress={() => resolvedDirectId && acceptCall(resolvedDirectId)}
-              />
-            </>
-          ) : (
-            <CallAction
-              icon="close"
-              label={isConnected ? "Görüşmeyi bitir" : "İptal"}
-              background={colors.danger}
-              onPress={hangUp}
-            />
-          )}
-        </View>
+            )}
+          </View>
+        )}
       </View>
     </Modal>
   );
 }
 
 /** Bağlı çağrı — LiveKit odası. */
-function ConnectedCall({ directId }: { directId: string }) {
+function ConnectedCall({ directId, onHangUp }: { directId: string; onHangUp: () => void }) {
   const { token, error } = useVoiceToken(directId);
 
   useKeepAwake();
@@ -152,59 +158,48 @@ function ConnectedCall({ directId }: { directId: string }) {
       video={false}
       options={{ adaptiveStream: true, dynacast: true }}
     >
-      <CallStage />
+      <CallStage onHangUp={onHangUp} />
     </LiveKitRoom>
   );
 }
 
-function CallStage() {
+function CallStage({ onHangUp }: { onHangUp: () => void }) {
   const session = useCall((s) => s.session);
-  const muted = useCall((s) => s.muted);
-  const setMuted = useCall((s) => s.setMuted);
-  const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
   const elapsed = useCallTimer(session?.startedAt);
 
   const speaking = participants.some((p) => p.isSpeaking && !p.isLocal);
 
-  const toggleMute = async () => {
-    if (!localParticipant) return;
-    const next = !muted;
-    await localParticipant.setMicrophoneEnabled(!next);
-    setMuted(next);
-  };
-
   return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg }}>
-      <View
-        style={{
-          padding: 4,
-          borderRadius: radii.full,
-          borderWidth: 3,
-          borderColor: speaking ? colors.success : "transparent",
-        }}
-      >
-        <Avatar
-          imageUrl={session?.peer.imageUrl}
-          fallbackText={session?.peer.username}
-          size={112}
-          backgroundColor={colors.deep}
-        />
+    <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg }}>
+        <View
+          style={{
+            padding: 4,
+            borderRadius: radii.full,
+            borderWidth: 3,
+            borderColor: speaking ? colors.success : "transparent",
+          }}
+        >
+          <Avatar
+            imageUrl={session?.peer.imageUrl}
+            fallbackText={session?.peer.username}
+            size={112}
+            backgroundColor={colors.deep}
+          />
+        </View>
+
+        <Text style={{ ...typography.displayLg, color: colors.bright }}>
+          {session ? displayNameOf(session.peer) : ""}
+        </Text>
+        <Text style={{ ...typography.body, color: colors.muted }}>{elapsed}</Text>
       </View>
 
-      <Text style={{ ...typography.displayLg, color: colors.bright }}>
-        {session ? displayNameOf(session.peer) : ""}
-      </Text>
-      <Text style={{ ...typography.body, color: colors.muted }}>{elapsed}</Text>
-
-      <IconButton
-        icon={muted ? "bell-off" : "volume"}
-        label={muted ? "Mikrofonu aç" : "Mikrofonu kapat"}
-        onPress={toggleMute}
-        size={56}
-        background={muted ? colors.danger : colors.panel}
-        tint={muted ? colors.bright : colors.text}
-      />
+      {/* Sessize alma ve hoparlör LiveKit odasının İÇİNDE olmak zorunda —
+          kontroller odanın kendi durumunu okuyor. */}
+      <View style={{ paddingBottom: spacing["4xl"] }}>
+        <CallControls onHangUp={onHangUp} />
+      </View>
     </View>
   );
 }

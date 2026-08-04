@@ -1,5 +1,14 @@
-import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Text, TextInput, View } from "react-native";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  Text,
+  TextInput,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 
 import { ApiError } from "@/api/client";
 import { useChatMessages, type ChatKind } from "@/api/hooks";
@@ -58,6 +67,34 @@ export function ChatView({
   useChatStream(chatId);
 
   const [draft, setDraft] = useState("");
+  const composerRef = useRef<TextInput>(null);
+  /** Kaydırma yönünü anlamak için son dikey konum. */
+  const lastOffset = useRef(0);
+
+  /**
+   * Sohbete girer girmez klavye açılır — mesaj yazmak birincil eylem.
+   * Kısa gecikme ekran geçiş animasyonunun bitmesini bekler; animasyon
+   * sırasında odaklanınca klavye yarı yolda takılıyor.
+   */
+  useEffect(() => {
+    const timer = setTimeout(() => composerRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [chatId]);
+
+  /**
+   * Kullanıcı ESKİ mesajlara doğru kaydırdığında klavye kapanır ve yazma
+   * çubuğu aşağı iner — okurken ekranın yarısı klavyeyle kaplı olmamalı.
+   * Liste ters (`inverted`) olduğu için ARTAN offset geçmişe gitmek demek.
+   */
+  const onScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const y = event.nativeEvent.contentOffset.y;
+      const goingBack = y > lastOffset.current + 12;
+      lastOffset.current = y;
+      if (goingBack) Keyboard.dismiss();
+    },
+    []
+  );
 
   const messages = useMemo(
     () => data?.pages.flatMap((page) => page.items) ?? [],
@@ -132,6 +169,8 @@ export function ChatView({
         }}
         onEndReachedThreshold={0.5}
         keyboardDismissMode="interactive"
+        onScroll={onScroll}
+        scrollEventThrottle={64}
         /**
          * Uzun sohbetlerde bellek ve kare süresi ayarı. Değerler ölçülerek
          * değil, mesaj satırının yüksekliği (~56pt) ve tipik ekran boyu
@@ -209,6 +248,7 @@ export function ChatView({
       ) : null}
 
       <Composer
+        ref={composerRef}
         value={draft}
         onChangeText={onChangeDraft}
         onSend={onSend}
@@ -219,17 +259,15 @@ export function ChatView({
 }
 
 /** Mesaj yazma çubuğu. */
-function Composer({
-  value,
-  onChangeText,
-  onSend,
-  placeholder,
-}: {
-  value: string;
-  onChangeText: (text: string) => void;
-  onSend: () => void;
-  placeholder: string;
-}) {
+const Composer = forwardRef<
+  TextInput,
+  {
+    value: string;
+    onChangeText: (text: string) => void;
+    onSend: () => void;
+    placeholder: string;
+  }
+>(function Composer({ value, onChangeText, onSend, placeholder }, ref) {
   const canSend = value.trim().length > 0;
 
   return (
@@ -255,6 +293,7 @@ function Composer({
       />
 
       <TextInput
+        ref={ref}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -286,4 +325,4 @@ function Composer({
       />
     </View>
   );
-}
+});

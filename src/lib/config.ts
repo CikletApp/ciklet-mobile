@@ -31,12 +31,21 @@ export const API_BASE_URL = normalizeBase(
 );
 
 /**
- * LiveKit sinyal adresi. Üretimde nginx `/rtc` yolunu SFU'ya proxy'ler;
- * medya ayrı portlardan (UDP 7882 / TCP 7881) doğrudan akar.
+ * LiveKit sinyal adresi — **YOL EKLENMEZ**.
+ *
+ * `livekit-client` sunucu adresine `/rtc` yolunu KENDİSİ ekliyor
+ * (`appendUrlPath(urlObj, 'rtc')`). Buraya `/rtc` yazıldığında istek
+ * `wss://ciklet.xyz/rtc/rtc` adresine gidiyor, nginx onu `livekit:7880`
+ * üzerinde bulunmayan bir yola iletiyor ve **bağlantı hiç kurulmuyordu** —
+ * hem DM aramaları hem sesli kanallar bu yüzden çalışmıyordu.
+ *
+ * Doğru değer köktür: `wss://ciklet.xyz`. Üretimde nginx'in `/rtc`
+ * location'ı istemcinin eklediği yolu yakalayıp SFU'ya iletir; medya ayrı
+ * portlardan (UDP 7882 / TCP 7881) doğrudan akar.
  */
 export const LIVEKIT_URL =
   clean(process.env.EXPO_PUBLIC_LIVEKIT_URL) ??
-  `${API_BASE_URL.replace(/^http/, "ws")}/rtc`;
+  API_BASE_URL.replace(/^http/, "ws");
 
 /** Tek bir HTTP isteğinin üst sınırı. Askıda kalan istek arayüzü kilitler. */
 export const REQUEST_TIMEOUT_MS = 15_000;

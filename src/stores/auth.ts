@@ -5,6 +5,7 @@ import * as apiClient from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { clearPersistedCache } from "@/api/query-client";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
+import { unregisterPushToken } from "@/lib/notifications";
 
 /**
  * Oturum durumu — uygulamanın tek kimlik kaynağı.
@@ -74,6 +75,8 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    // Token'ı ÖNCE düşür: çıkıştan sonra kimlik başlığı kalmaz.
+    await unregisterPushToken().catch(() => {});
     await apiClient.logout();
     // Diskteki cache de silinmeli; aksi halde bir sonraki kullanıcı
     // uygulamayı açtığında bir öncekinin sohbet listesini görür.

@@ -6,6 +6,7 @@
  */
 export * from "./use-profile";
 export * from "./use-servers";
+export * from "./use-folders";
 export * from "./use-directs";
 export * from "./use-friends";
 export * from "./use-messages";

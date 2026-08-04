@@ -7,6 +7,7 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { Screen } from "@/components/ui/screen";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
 
 /**
  * "Sen" sekmesi — profil özeti ve hesap kısayolları.
@@ -20,7 +21,7 @@ export default function MeScreen() {
 
   return (
     <Screen edges={["top", "left", "right"]}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: FLOATING_TAB_INSET, gap: spacing.lg }}>
         {/* Banner + avatar */}
         <View>
           <View

@@ -1,5 +1,9 @@
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+
+import { api } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
 
 import { colors } from "@/theme/tokens";
 
@@ -78,16 +82,48 @@ export async function clearBadge() {
 }
 
 /**
- * Push token kaydı — backend ucu eklenene kadar devre dışı.
+ * Expo push token'ını alıp sunucuya kaydeder.
  *
- * Uygulanacak hâli:
- *   const token = await Notifications.getExpoPushTokenAsync({ projectId });
- *   await api("/api/push/register", { method: "POST", body: { token, platform } });
+ * Uygulama TAMAMEN KAPALIYKEN gelen arama/mesaj bildirimi yalnızca bu
+ * kayıtla mümkün; soket süreçle birlikte ölüyor.
+ *
+ * ⚠️ `POST /api/push/register` ucu ciklet-web'de HENÜZ YOK
+ * (bkz. docs/CIKLET-WEB-GOREVLERI.md, Görev 1). Uç gelmeden bu çağrı 404/405
+ * döner ve SESSİZCE yutulur — uygulama çalışmaya devam eder. Uç
+ * yayınlandığı anda ek mobil değişiklik gerekmeden çalışır.
  */
 export async function registerPushToken(): Promise<void> {
-  if (__DEV__) {
-    console.info(
-      "[bildirim] Push kaydı atlandı: ciklet-web'de token kayıt ucu yok."
-    );
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) return;
+
+    const { data: token } = await Notifications.getExpoPushTokenAsync({
+      projectId,
+    });
+    if (!token) return;
+
+    await api(endpoints.pushRegister, {
+      method: "POST",
+      body: { token, platform: Platform.OS },
+    });
+  } catch (err) {
+    // Uç yoksa veya izin verilmediyse bildirim kaydı yapılamaz; bu
+    // uygulamanın çalışmasını engellemez.
+    if (__DEV__) console.info("[bildirim] push kaydı yapılamadı:", err);
+  }
+}
+
+/** Çıkışta token'ı sunucudan düşür — sonraki kullanıcı bildirim almasın. */
+export async function unregisterPushToken(): Promise<void> {
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) return;
+    const { data: token } = await Notifications.getExpoPushTokenAsync({
+      projectId,
+    });
+    if (!token) return;
+    await api(endpoints.pushRegister, { method: "DELETE", body: { token } });
+  } catch {
+    /* Uç yoksa yapacak bir şey yok. */
   }
 }

@@ -60,6 +60,10 @@ export interface ThemePalette {
   bubbleOther: string;
   /** Zengin durum vurgusu ("… Oynuyor"). */
   accent: string;
+  /** Bento kartlarının yüzeyi (web: --bento-item). */
+  bento: string;
+  /** Bento kartlarının ince kenarlığı. */
+  bentoBorder: string;
 }
 
 export type ThemeId = "night" | "mist" | "oled" | "light";
@@ -86,6 +90,8 @@ const night: ThemePalette = {
   bubbleOwn: hsl(74, 100, 40, 0.18),
   bubbleOther: hsl(225, 6, 16),
   accent: "#45f3ff",
+  bento: "#232428",
+  bentoBorder: "rgba(250, 250, 250, 0.05)",
 };
 
 /** Sis — yumuşak, gri tonlu koyu tema. */
@@ -109,6 +115,8 @@ const mist: ThemePalette = {
   bubbleOwn: hsl(74, 100, 42, 0.2),
   bubbleOther: hsl(225, 6, 27),
   accent: "#45f3ff",
+  bento: "#383a40",
+  bentoBorder: "rgba(250, 250, 250, 0.06)",
 };
 
 /** Zifir — OLED ekranlarda pil dostu saf siyah. */
@@ -133,6 +141,8 @@ const oled: ThemePalette = {
   bubbleOwn: hsl(74, 100, 42, 0.2),
   bubbleOther: hsl(0, 0, 9),
   accent: "#45f3ff",
+  bento: "#0e0e0e",
+  bentoBorder: "rgba(250, 250, 250, 0.07)",
 };
 
 /** Aydınlık. */
@@ -157,6 +167,8 @@ const light: ThemePalette = {
   bubbleOwn: "rgba(152, 203, 0, 0.22)",
   bubbleOther: "#ececed",
   accent: "#0f7f8c",
+  bento: "#eaeaea",
+  bentoBorder: "rgba(0, 0, 0, 0.05)",
 };
 
 export const themes: Record<ThemeId, ThemePalette> = { night, mist, oled, light };
@@ -189,6 +201,10 @@ export const radii = {
   md: 10,
   lg: 14,
   xl: 20,
+  /** Bento kart yarıçapı — web'deki bento-item-radius (16px). */
+  bento: 16,
+  /** Bento kabuğunun dış yarıçapı — web'deki bento-wrapper-radius. */
+  bentoWrapper: 28,
   full: 9999,
 } as const;
 

@@ -24,6 +24,12 @@ export const endpoints = {
     refresh: "/api/mobile/auth/refresh",
   },
 
+  /**
+   * Push token kaydı. ⚠️ ciklet-web'de HENÜZ YOK —
+   * bkz. docs/CIKLET-WEB-GOREVLERI.md Görev 1.
+   */
+  pushRegister: "/api/push/register",
+
   // ── Profil ────────────────────────────────────────────────────────
   currentProfile: "/api/current-profile",
   accountUsername: "/api/account/username",
@@ -46,6 +52,22 @@ export const endpoints = {
   serverActivities: (serverId: string) =>
     `/api/servers/${encodeURIComponent(serverId)}/activities`,
   invite: (code: string) => `/api/i/${encodeURIComponent(code)}`,
+
+  // ── Sunucu klasörleri ─────────────────────────────────────────────
+  /** GET: klasörler (ad, renk, sıra). ciklet-web'e mobil için eklendi. */
+  folders: "/api/folders",
+  folder: (folderId: string) => `/api/folders/${encodeURIComponent(folderId)}`,
+  /** PATCH `{ serverIds }` — klasör İÇİNDEKİ sıra. */
+  folderReorder: (folderId: string) =>
+    `/api/folders/${encodeURIComponent(folderId)}/reorder`,
+  folderAdd: (folderId: string) =>
+    `/api/folders/${encodeURIComponent(folderId)}/add`,
+  folderRemove: (folderId: string) =>
+    `/api/folders/${encodeURIComponent(folderId)}/remove`,
+  /** PATCH `{ items: [{type:'folder'|'server', id}] }` — kök sıralama. */
+  sidebarReorder: "/api/sidebar/reorder",
+  /** PATCH `{ serverIds }` — klasörsüz sunucuların sırası. */
+  serversReorder: "/api/servers/reorder",
 
   // ── Üyelikler ─────────────────────────────────────────────────────
   /** Kullanıcının sunucu listesinin TEK kaynağı (server alanı gömülü gelir). */

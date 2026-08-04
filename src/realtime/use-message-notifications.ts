@@ -3,7 +3,12 @@ import { AppState } from "react-native";
 import { router } from "expo-router";
 import * as Notifications from "expo-notifications";
 
-import { clearBadge, notifyMessage, setupNotifications } from "@/lib/notifications";
+import {
+  clearBadge,
+  notifyMessage,
+  registerPushToken,
+  setupNotifications,
+} from "@/lib/notifications";
 import { useAuth } from "@/stores/auth";
 import { ServerEvent } from "./events";
 import { getSocket } from "./socket";
@@ -32,7 +37,11 @@ export function useMessageNotifications() {
     if (status !== "signedIn") return;
     let cancelled = false;
     void setupNotifications().then((ok) => {
-      if (!cancelled) granted.current = ok;
+      if (cancelled) return;
+      granted.current = ok;
+      // İzin varsa push token'ını sunucuya bildir — uygulama tamamen
+      // kapalıyken bildirim almanın tek yolu bu.
+      if (ok) void registerPushToken();
     });
     return () => {
       cancelled = true;

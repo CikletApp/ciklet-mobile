@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { LiveKitRoom, useLocalParticipant, useParticipants } from "@livekit/react-native";
+import { LiveKitRoom, useParticipants } from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
 
 import { useChannel, useServerSummary } from "@/api/hooks";
@@ -9,10 +9,10 @@ import {
   Avatar,
   Button,
   EmptyState,
-  IconButton,
   Screen,
   ScreenLoader,
 } from "@/components/ui";
+import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceSession } from "@/features/voice/use-voice-session";
 import { LIVEKIT_URL } from "@/lib/livekit";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
@@ -114,11 +114,7 @@ function VoiceRoomBody({
   onLeave: () => void;
 }) {
   const participants = useVoice((s) => s.participants);
-  const setMuted = useVoice((s) => s.setMuted);
-  const muted = useVoice((s) => s.muted);
-  const { localParticipant } = useLocalParticipant();
   const livekitParticipants = useParticipants();
-  const [busy, setBusy] = useState(false);
 
   // Konuşan kimlikleri LiveKit'ten gelir; kimlik olarak `identity`
   // kullanılıyor ve Ciklet token'ı bunu kullanıcı adına ayarlıyor.
@@ -129,22 +125,6 @@ function VoiceRoomBody({
       ),
     [livekitParticipants]
   );
-
-  const toggleMute = async () => {
-    if (!localParticipant || busy) return;
-    setBusy(true);
-    try {
-      const next = !muted;
-      await localParticipant.setMicrophoneEnabled(!next);
-      setMuted(next);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Ekran kapanırken mikrofon durumunu sıfırla; sonraki oturum sessiz
-  // başlamamalı.
-  useEffect(() => () => setMuted(false), [setMuted]);
 
   return (
     <Screen>
@@ -201,31 +181,8 @@ function VoiceRoomBody({
           )}
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "center",
-            gap: spacing.xl,
-            paddingBottom: spacing.lg,
-          }}
-        >
-          <IconButton
-            icon={muted ? "bell-off" : "volume"}
-            label={muted ? "Mikrofonu aç" : "Mikrofonu kapat"}
-            onPress={toggleMute}
-            size={56}
-            background={muted ? colors.danger : colors.panel}
-            tint={muted ? colors.bright : colors.text}
-          />
-          <IconButton
-            icon="close"
-            label="Kanaldan ayrıl"
-            onPress={onLeave}
-            size={56}
-            background={colors.danger}
-            tint={colors.bright}
-            haptic="warning"
-          />
+        <View style={{ paddingBottom: spacing.lg }}>
+          <CallControls onHangUp={onLeave} hangUpLabel="Kanaldan ayrıl" />
         </View>
       </View>
     </Screen>
