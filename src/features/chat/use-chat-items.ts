@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 
 import { isSameDay, shouldGroupMessages } from "@/lib/format";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
@@ -31,6 +32,19 @@ export function authorIdOf(message: ChatMessagePayload): string {
     : message.profile.id;
 }
 
+/**
+ * Sistem mesajı mı (çağrı kaydı, aktivite daveti).
+ *
+ * Bunlar ayrı bir kart olarak çizilir ve GRUPLAMAYI BÖLER: sistem mesajı
+ * teknik olarak bir üyeye ait olduğu için, hemen ardından gelen normal
+ * mesaj aynı yazara sahip sayılıp başlığını (avatar + ad) kaybediyordu —
+ * cihaz testinde "Cevapsız arama gerçekleşti"nin altındaki mesaj sahipsiz
+ * görünüyordu.
+ */
+function isSystemMessage(message: ChatMessagePayload): boolean {
+  return message.type !== MessageType.DEFAULT;
+}
+
 export function useChatItems(
   messages: ChatMessagePayload[],
   /** Geçmişin sonuna ulaşıldıysa en eski mesajın da tarih ayracı olur. */
@@ -54,6 +68,8 @@ export function useChatItems(
         grouped:
           !dayChanged &&
           Boolean(older) &&
+          !isSystemMessage(message) &&
+          !isSystemMessage(older!) &&
           shouldGroupMessages(
             older ? authorIdOf(older) : undefined,
             older?.createdAt,
