@@ -193,6 +193,22 @@ dayanıklılıkla çalışması.
 
 ---
 
+## ⚠️ ciklet-web'de kapatılması gereken boşluklar
+
+Dört fazın uygulanması sırasında tespit edildi. Hiçbiri mobil tarafında
+çözülemez; **backend değişikliği gerektirir**. Mobil, her birinde sessizce
+bozulmak yerine kullanıcıya açık mesaj gösterir.
+
+| # | Boşluk | Etki | Gereken |
+| --- | --- | --- | --- |
+| 1 | **Grup DM yok.** `Direct` modeli `profileOneId`/`profileTwoId` ile birebir sohbete kilitli. | "Yeni Grup" akışı hiç yapılamıyor. | Yeni model (`GroupDirect` + `GroupDirectMember`) ve uçları. |
+| 2 | **Davetle katılımın API ucu yok.** İş, sunucu bileşeni sayfasında yapılıyor (`app/(invite)/(routes)/i/[inviteCode]/page.tsx`). `POST /api/servers/[id]/join` yalnızca `isPublic` sunucular için çalışıyor. | Mobilden gizli sunucuya davetle katılınamıyor. | O sayfadaki mantığın `POST /api/i/[code]/join` gibi bir uca taşınması. |
+| 3 | **Push token kayıt ucu yok.** | Uygulama KAPALIYKEN bildirim gelmiyor; yalnızca arka planda soket ayaktayken yerel bildirim var. | `POST /api/push/register` + mesaj/çağrı olaylarında Expo Push API'sine gönderim yapan sunucu işi. |
+| 4 | **`/api/directs` slim profil dönüyor**, SDK tipi tam `PublicProfile` vaat ediyor. | Tip yalanı; DM'den açılan profilde zengin alanlar boş. | Ya uç `PROFILE_PUBLIC_SELECT` kullanmalı, ya SDK tipi daraltılmalı (mobil ikincisini yaptı). |
+| 5 | **SDK gerçek zamanlı sözleşmesi sunucuyla uyuşmuyordu** (`chatRoom`, `PresenceUpdatePayload`, `presence:batch`). | Canlı mesaj ve presence hiç çalışmıyordu. | `ciklet-sdk` kaynağı düzeltildi; **yayınlanması** gerekiyor (mobil şimdilik kendi kopyasını taşıyor). |
+
+---
+
 ## Ek: Doğrulanmış backend sözleşmesi
 
 ### HTTP

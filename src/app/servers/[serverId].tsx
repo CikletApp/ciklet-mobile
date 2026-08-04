@@ -68,17 +68,21 @@ const CHANNEL_ICON: Record<string, IconName> = {
 
 function ChannelRow({ serverId, channel }: { serverId: string; channel: Channel }) {
   const isText = channel.type === ChannelType.TEXT;
+  const isAudio = channel.type === ChannelType.AUDIO;
+  // Görüntülü kanal mobilde henüz yok; ses altyapısı paylaşılıyor ama
+  // video yayın/izleme yüzeyi ayrı bir iş.
+  const enabled = isText || isAudio;
 
   return (
     <Pressable
       onPress={() => {
-        // Ses/görüntü kanallarına katılım Faz 4 (LiveKit); şimdilik yalnızca
-        // metin kanalları sohbet ekranına götürür.
         if (isText) {
           router.push(`/chat/channel/${channel.id}?serverId=${serverId}`);
+        } else if (isAudio) {
+          router.push(`/voice/${channel.id}?serverId=${serverId}`);
         }
       }}
-      disabled={!isText}
+      disabled={!enabled}
       accessibilityRole="button"
       accessibilityLabel={`${channel.name} kanalı`}
       style={({ pressed }) => ({
@@ -90,7 +94,7 @@ function ChannelRow({ serverId, channel }: { serverId: string; channel: Channel 
         paddingVertical: spacing.md,
         borderRadius: radii.md,
         backgroundColor: pressed ? colors.panel : "transparent",
-        opacity: isText ? 1 : 0.5,
+        opacity: enabled ? 1 : 0.5,
       })}
     >
       <Icon
@@ -101,7 +105,7 @@ function ChannelRow({ serverId, channel }: { serverId: string; channel: Channel 
       <Text style={{ ...typography.body, color: colors.text, flex: 1 }} numberOfLines={1}>
         {channel.name}
       </Text>
-      {!isText ? (
+      {!enabled ? (
         <Text style={{ ...typography.caption, color: colors.muted }}>Yakında</Text>
       ) : null}
     </Pressable>

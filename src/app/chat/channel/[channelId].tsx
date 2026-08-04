@@ -1,7 +1,9 @@
-import { Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { useChannel } from "@/api/hooks";
+import { IconButton } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
+import { colors } from "@/theme/tokens";
 
 /**
  * Kanal sohbeti. `serverId` sorgu parametresi olarak taşınır: mesaj
@@ -17,7 +19,24 @@ export default function ChannelChatScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: channel ? `# ${channel.name}` : "" }} />
+      <Stack.Screen
+        options={{
+          title: channel ? `# ${channel.name}` : "",
+          headerRight: () => (
+            <IconButton
+              icon="compass"
+              label="Aktiviteler"
+              background="transparent"
+              tint={colors.muted}
+              onPress={() =>
+                router.push(
+                  `/activities?chatId=${channelId}&serverId=${serverId ?? ""}`
+                )
+              }
+            />
+          ),
+        }}
+      />
       <ChatView
         kind="channel"
         chatId={channelId}

@@ -135,6 +135,21 @@ export function ChatView({
         onEndReachedThreshold={0.5}
         keyboardDismissMode="interactive"
         /**
+         * Uzun sohbetlerde bellek ve kare süresi ayarı. Değerler ölçülerek
+         * değil, mesaj satırının yüksekliği (~56pt) ve tipik ekran boyu
+         * baz alınarak seçildi; cihazda profillenmeleri gerekir.
+         *
+         * NOT: `@shopify/flash-list` bilinçli olarak KULLANILMADI —
+         * v2 tersine (inverted) listelerde farklı davranıyor ve fiziksel
+         * cihazda doğrulanmadan geçilmesi sohbet kaydırmasında regresyon
+         * riski taşıyor.
+         */
+        initialNumToRender={16}
+        maxToRenderPerBatch={12}
+        windowSize={11}
+        removeClippedSubviews
+        updateCellsBatchingPeriod={50}
+        /**
          * Ters listede "header" görsel olarak EN ALTTA durur — bekleyen
          * mesajların doğru yeri burası (en yeni içerik altta).
          */

@@ -13,6 +13,7 @@ import {
   type RichPresencePayload,
 } from "./events";
 import { connectSocket, disconnectSocket, peekSocket } from "./socket";
+import { useMessageNotifications } from "./use-message-notifications";
 import { useSocialEvents } from "./use-social-events";
 
 /**
@@ -37,6 +38,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   // Sohbet ekranından bağımsız sosyal olaylar (arkadaşlık, yeni DM).
   useSocialEvents();
+  // Arka plandayken gelen DM'ler için yerel bildirim.
+  useMessageNotifications();
 
   // ── Bağlantı + presence dinleyicileri ─────────────────────────────
   useEffect(() => {
