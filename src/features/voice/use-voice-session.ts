@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { PermissionsAndroid, Platform } from "react-native";
 import { AudioSession } from "@livekit/react-native";
 
 import { ApiError } from "@/api/client";
@@ -29,6 +30,35 @@ interface VoiceSessionState {
   error: string | null;
 }
 
+/** Kullanıcı mikrofon iznini reddetti — sunucu hatasından ayrı ele alınır. */
+class MicrophoneDeniedError extends Error {
+  constructor() {
+    super("Mikrofon izni verilmedi");
+    this.name = "MicrophoneDeniedError";
+  }
+}
+
+/**
+ * Android çalışma zamanı mikrofon izni.
+ *
+ * iOS'ta `true` döner: orada izin, sistem mikrofonu ilk kullandığında
+ * `NSMicrophoneUsageDescription` ile sorulur; önden istemek mümkün değildir.
+ */
+async function ensureMicrophonePermission(): Promise<boolean> {
+  if (Platform.OS !== "android") return true;
+
+  const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+  if (await PermissionsAndroid.check(permission)) return true;
+
+  const result = await PermissionsAndroid.request(permission, {
+    title: "Mikrofon izni",
+    message: "Sesli kanallarda konuşabilmek için mikrofon erişimi gerekir.",
+    buttonPositive: "İzin ver",
+    buttonNegative: "Vazgeç",
+  });
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+}
+
 export function useVoiceSession(session: ActiveVoice | null) {
   const profile = useAuth((s) => s.profile);
   const joinStore = useVoice((s) => s.join);
@@ -50,6 +80,15 @@ export function useVoiceSession(session: ActiveVoice | null) {
 
     (async () => {
       try {
+        // Android'de mikrofon izni ÇALIŞMA ZAMANINDA istenmeli. LiveKit
+        // bunu kendisi yapmaz; izin verilmeden oda kurulursa bağlantı açılır
+        // ama kimse bizi duymaz — sessiz ve teşhisi zor bir arıza.
+        // iOS'ta izin, mikrofon ilk kullanıldığında sistem tarafından sorulur
+        // (NSMicrophoneUsageDescription app.json'da tanımlı).
+        if (!(await ensureMicrophonePermission())) {
+          throw new MicrophoneDeniedError();
+        }
+
         await AudioSession.startAudioSession();
         const token = await fetchRoomToken(session.roomId, profile.username);
         if (cancelled) return;
@@ -61,11 +100,13 @@ export function useVoiceSession(session: ActiveVoice | null) {
           token: null,
           status: "error",
           error:
-            err instanceof ApiError
-              ? err.status === 403
-                ? "Bu kanala katılma yetkin yok."
-                : err.message
-              : "Ses bağlantısı kurulamadı.",
+            err instanceof MicrophoneDeniedError
+              ? "Sesli kanala katılmak için mikrofon izni gerekiyor. Ayarlar → Uygulamalar → Ciklet üzerinden verebilirsin."
+              : err instanceof ApiError
+                ? err.status === 403
+                  ? "Bu kanala katılma yetkin yok."
+                  : err.message
+                : "Ses bağlantısı kurulamadı.",
         });
         await AudioSession.stopAudioSession().catch(() => {});
       }

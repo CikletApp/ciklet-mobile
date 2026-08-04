@@ -60,6 +60,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk.ps1",
     "doctor": "npx expo-doctor"
   },
   "private": true
