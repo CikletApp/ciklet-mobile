@@ -51,6 +51,7 @@ export type IconName =
   | "shield"
   | "bell-off"
   | "link"
+  | "bookmark"
   | "more";
 
 interface IconProps {
@@ -131,6 +132,7 @@ const PATHS: Record<IconName, string[]> = {
     "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11.8 5",
     "M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
   ],
+  bookmark: ["M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"],
   more: [],
 };
 

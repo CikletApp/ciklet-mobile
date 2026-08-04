@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { FlatList, Text, View } from "react-native";
 import { router } from "expo-router";
 
-import { hasUnread, useDirects, useMyServers, useUnreadCounts } from "@/api/hooks";
+import { hasUnread, useConversationList, useMyServers, useUnreadCounts } from "@/api/hooks";
 import type { DirectSummary } from "@/api/types";
 import {
   Avatar,
@@ -16,6 +16,7 @@ import {
   UnreadBadge,
 } from "@/components/ui";
 import { ActiveNow } from "@/features/home/active-now";
+import { QuickLinks } from "@/features/home/quick-links";
 import { displayNameOf, formatRelativeShort } from "@/lib/format";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -28,7 +29,9 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * zorlar. Ray dar tutulur (72pt), böylece liste okunur genişlikte kalır.
  */
 export default function HomeScreen() {
-  const { data: directs, isLoading, refetch, isRefetching } = useDirects();
+  // Not sohbeti ("Notlarım") listeden ayrılır — kullanıcı kendini
+  // sohbet listesinde görmemeli; web de böyle davranıyor.
+  const { conversations, isLoading, refetch, isRefetching } = useConversationList();
   const myId = useAuth((s) => s.profile?.id);
 
   const renderDirect = useCallback(
@@ -129,19 +132,30 @@ export default function HomeScreen() {
             <ListSkeleton />
           ) : (
             <FlatList
-              data={directs ?? []}
+              data={conversations}
               keyExtractor={(d) => d.id}
               renderItem={renderDirect}
               refreshing={isRefetching}
               onRefresh={refetch}
-              ListHeaderComponent={<ActiveNow />}
-              contentContainerStyle={
-                (directs?.length ?? 0) === 0
-                  ? undefined
-                  : { paddingBottom: spacing["3xl"] }
+              ListHeaderComponent={
+                <View>
+                  <QuickLinks />
+                  <ActiveNow />
+                  <Text
+                    style={{
+                      ...typography.overline,
+                      color: colors.muted,
+                      paddingHorizontal: spacing.lg,
+                      paddingBottom: spacing.sm,
+                    }}
+                  >
+                    DİREKT MESAJLAR
+                  </Text>
+                </View>
               }
+              contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
               ListEmptyComponent={
-                <View style={{ paddingTop: spacing["4xl"] }}>
+                <View style={{ paddingTop: spacing.xl }}>
                   <EmptyState
                     icon="message"
                     title="Henüz sohbet yok"

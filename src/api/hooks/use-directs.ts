@@ -26,6 +26,38 @@ export function useDirects() {
 }
 
 /**
+ * Kendinle sohbet ("Notlarım").
+ *
+ * ciklet-web `getOrCreateDirect`'te `profileAId === profileBId` durumunu
+ * bilerek serbest bırakıyor — kişisel not defteri özelliği bu. Web bunu
+ * DM listesinden GİZLEYİP ayrı bir "Notlarım" satırı olarak gösteriyor
+ * (directs-sidebar.tsx); mobil de aynısını yapar, aksi halde kullanıcı
+ * mesaj listesinde kendini görüyor.
+ */
+export function isSelfDirect(direct: DirectSummary): boolean {
+  return direct.profileOne.id === direct.profileTwo.id;
+}
+
+/** Kendi not sohbetin — henüz açılmadıysa `undefined`. */
+export function useSelfDirect() {
+  const query = useDirects();
+  return {
+    ...query,
+    data: query.data?.find(isSelfDirect),
+  };
+}
+
+/** DM listesi — not sohbeti hariç. */
+export function useConversationList() {
+  const query = useDirects();
+  const conversations = useMemo(
+    () => (query.data ?? []).filter((direct) => !isSelfDirect(direct)),
+    [query.data]
+  );
+  return { ...query, conversations };
+}
+
+/**
  * Sohbetin "karşı taraf"ını çözer. İki profil alanından hangisinin karşı
  * taraf olduğu oturum sahibine bağlıdır; bu hesap her liste satırında
  * tekrarlanmasın diye burada yapılır.

@@ -1,23 +1,31 @@
 import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { useDirect, useDirectPeer } from "@/api/hooks";
-import { Avatar, IconButton, Pressable } from "@/components/ui";
+import { isSelfDirect, useDirect, useDirectPeer } from "@/api/hooks";
+import { Avatar, Icon, IconButton, Pressable } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { displayNameOf } from "@/lib/format";
-import { colors, spacing } from "@/theme/tokens";
+import { colors, radii, spacing } from "@/theme/tokens";
 
-/** Doğrudan mesaj sohbeti (1:1). */
+/**
+ * Doğrudan mesaj sohbeti (1:1).
+ *
+ * Kendinle açılmış sohbet "Notlarım"dır — web'de de böyle adlandırılıyor
+ * (chat-header.tsx). Karşı taraf sen olduğun için başlıkta kullanıcı adı
+ * yerine bu etiket ve bir yer imi ikonu gösterilir.
+ */
 export default function DirectChatScreen() {
   const { directId } = useLocalSearchParams<{ directId: string }>();
   const { data: direct } = useDirect(directId);
   const peer = useDirectPeer(direct);
 
+  const isNotes = direct ? isSelfDirect(direct) : false;
+
   return (
     <>
       <Stack.Screen
         options={{
-          title: peer ? displayNameOf(peer) : "",
+          title: isNotes ? "Notlarım" : peer ? displayNameOf(peer) : "",
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <IconButton
@@ -27,7 +35,20 @@ export default function DirectChatScreen() {
                 tint={colors.muted}
                 onPress={() => router.push("/search")}
               />
-              {peer ? (
+              {isNotes ? (
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: radii.full,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.panel,
+                  }}
+                >
+                  <Icon name="bookmark" size={16} color={colors.brand} />
+                </View>
+              ) : peer ? (
                 <Pressable
                   onPress={() => router.push(`/profile/${peer.id}`)}
                   accessibilityRole="button"
@@ -50,7 +71,13 @@ export default function DirectChatScreen() {
       <ChatView
         kind="direct"
         chatId={directId}
-        placeholder={peer ? `@${peer.username} kullanıcısına yaz` : "Mesaj yaz"}
+        placeholder={
+          isNotes
+            ? "Kendine bir not yaz"
+            : peer
+              ? `@${peer.username} kullanıcısına yaz`
+              : "Mesaj yaz"
+        }
       />
     </>
   );
