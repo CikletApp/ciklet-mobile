@@ -1,67 +1,72 @@
-import { useMemo } from "react";
-import { Pressable, SectionList, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import { SectionList, Text, View } from "react-native";
 import { router, Stack } from "expo-router";
 
 import {
-  displayName,
   useAcceptFriendRequest,
   useFriends,
   useOpenDirect,
   useRemoveFriend,
   type FriendEntry,
 } from "@/api/hooks";
-import { Avatar } from "@/components/ui/avatar";
-import { Icon } from "@/components/ui/icon";
-import { EmptyState, Screen } from "@/components/ui/screen";
-import { colors, radii, spacing, typography } from "@/theme/tokens";
+import {
+  Avatar,
+  Button,
+  EmptyState,
+  IconButton,
+  ListRow,
+  ListSkeleton,
+  Pressable,
+  Screen,
+  SegmentedTabs,
+} from "@/components/ui";
+import { displayNameOf, initialOf } from "@/lib/format";
+import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
  * Arkadaş listesi.
  *
- * Bekleyen istekler en üstte ayrı bölümde; kabul edilmiş arkadaşlar
- * baş harfe göre bölümlenir (Türkçe sıralama — `localeCompare(…, "tr")`,
- * aksi halde ı/i, ö/o, ş/s yanlış yere düşer).
+ * Üç sekme: Arkadaşlar / Bekleyen / Gönderilen. Bekleyen istekler ayrı bir
+ * sekmede çünkü liste içinde karıştırıldığında kabul/reddet düğmeleri
+ * yanlışlıkla dokunulabilecek kadar yakın duruyor.
+ *
+ * Kabul edilmiş arkadaşlar baş harfe göre bölümlenir; sıralama Türkçe
+ * yerel ayarıyla yapılır (aksi halde ı/i, ö/o, ş/s yanlış yere düşer).
  */
+type Tab = "friends" | "incoming" | "outgoing";
+
 export default function FriendsScreen() {
-  const { accepted, incoming, isLoading } = useFriends();
+  const [tab, setTab] = useState<Tab>("friends");
+  const { accepted, incoming, outgoing, isLoading } = useFriends();
   const openDirect = useOpenDirect();
   const acceptRequest = useAcceptFriendRequest();
   const removeFriend = useRemoveFriend();
 
   const sections = useMemo(() => {
-    const result: { title: string; kind: "request" | "friend"; data: FriendEntry[] }[] =
-      [];
-
-    if (incoming.length > 0) {
-      result.push({
-        title: `ARKADAŞLIK İSTEKLERİ — ${incoming.length}`,
-        kind: "request",
-        data: incoming,
-      });
+    if (tab === "incoming") {
+      return incoming.length ? [{ title: "SENİ EKLEMEK İSTEYENLER", data: incoming }] : [];
+    }
+    if (tab === "outgoing") {
+      return outgoing.length ? [{ title: "YANIT BEKLEYENLER", data: outgoing }] : [];
     }
 
     const buckets = new Map<string, FriendEntry[]>();
     for (const entry of accepted) {
-      const letter = displayName(entry.profile).charAt(0).toLocaleUpperCase("tr");
+      const letter = initialOf(displayNameOf(entry.profile));
       const bucket = buckets.get(letter);
       if (bucket) bucket.push(entry);
       else buckets.set(letter, [entry]);
     }
 
-    for (const [letter, data] of [...buckets].sort(([a], [b]) =>
-      a.localeCompare(b, "tr")
-    )) {
-      result.push({ title: letter, kind: "friend", data });
-    }
+    return [...buckets]
+      .sort(([a], [b]) => a.localeCompare(b, "tr"))
+      .map(([title, data]) => ({ title, data }));
+  }, [tab, accepted, incoming, outgoing]);
 
-    return result;
-  }, [accepted, incoming]);
-
-  const onOpenChat = (profileId: string) => {
+  const onOpenChat = (profileId: string) =>
     openDirect.mutate(profileId, {
       onSuccess: (direct) => router.push(`/chat/direct/${direct.id}`),
     });
-  };
 
   return (
     <Screen>
@@ -70,7 +75,7 @@ export default function FriendsScreen() {
           headerRight: () => (
             <Pressable
               onPress={() => router.push("/friends/add")}
-              hitSlop={8}
+              haptic="light"
               accessibilityRole="button"
               accessibilityLabel="Arkadaş ekle"
             >
@@ -82,33 +87,31 @@ export default function FriendsScreen() {
         }}
       />
 
-      {sections.length === 0 ? (
+      <SegmentedTabs
+        items={[
+          { id: "friends" as const, label: "Arkadaşlar", count: accepted.length },
+          { id: "incoming" as const, label: "Bekleyen", count: incoming.length },
+          { id: "outgoing" as const, label: "Gönderilen", count: outgoing.length },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {isLoading ? (
+        <ListSkeleton />
+      ) : sections.length === 0 ? (
         <EmptyState
           icon="users"
-          title={isLoading ? "Yükleniyor…" : "Henüz arkadaşın yok"}
-          description={
-            isLoading ? undefined : "Kullanıcı adıyla arama yaparak arkadaş ekleyebilirsin."
-          }
+          title={EMPTY_TITLE[tab]}
+          description={EMPTY_DESCRIPTION[tab]}
           action={
-            isLoading ? undefined : (
-              <Pressable
+            tab === "friends" ? (
+              <Button
+                label="Arkadaş Ekle"
+                icon="user-plus"
                 onPress={() => router.push("/friends/add")}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.sm,
-                  paddingHorizontal: spacing.xl,
-                  paddingVertical: spacing.md,
-                  borderRadius: radii.full,
-                  backgroundColor: colors.brand,
-                }}
-              >
-                <Icon name="user-plus" size={18} color={colors.onBrand} />
-                <Text style={{ ...typography.bodyStrong, color: colors.onBrand }}>
-                  Arkadaş Ekle
-                </Text>
-              </Pressable>
-            )
+              />
+            ) : undefined
           }
         />
       ) : (
@@ -124,20 +127,35 @@ export default function FriendsScreen() {
                 color: colors.muted,
                 paddingHorizontal: spacing.lg,
                 paddingTop: spacing.lg,
-                paddingBottom: spacing.sm,
+                paddingBottom: spacing.xs,
               }}
             >
               {section.title}
             </Text>
           )}
-          renderItem={({ item, section }) => (
-            <FriendRow
-              entry={item}
-              pending={section.kind === "request"}
+          renderItem={({ item }) => (
+            <ListRow
+              title={displayNameOf(item.profile)}
+              subtitle={`@${item.profile.username}`}
               onPress={() => router.push(`/profile/${item.profile.id}`)}
-              onMessage={() => onOpenChat(item.profile.id)}
-              onAccept={() => acceptRequest.mutate(item.id)}
-              onReject={() => removeFriend.mutate(item.id)}
+              chevron={false}
+              leading={
+                <Avatar
+                  profileId={item.profile.id}
+                  imageUrl={item.profile.imageUrl}
+                  fallbackText={item.profile.username}
+                  size={44}
+                  showPresence
+                />
+              }
+              trailing={
+                <RowActions
+                  tab={tab}
+                  onMessage={() => onOpenChat(item.profile.id)}
+                  onAccept={() => acceptRequest.mutate(item.id)}
+                  onRemove={() => removeFriend.mutate(item.id)}
+                />
+              }
             />
           )}
         />
@@ -146,96 +164,68 @@ export default function FriendsScreen() {
   );
 }
 
-function FriendRow({
-  entry,
-  pending,
-  onPress,
+function RowActions({
+  tab,
   onMessage,
   onAccept,
-  onReject,
+  onRemove,
 }: {
-  entry: FriendEntry;
-  pending: boolean;
-  onPress: () => void;
+  tab: Tab;
   onMessage: () => void;
   onAccept: () => void;
-  onReject: () => void;
+  onRemove: () => void;
 }) {
-  const { profile } = entry;
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={displayName(profile)}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        gap: spacing.md,
-        marginHorizontal: spacing.sm,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.md,
-        borderRadius: radii.md,
-        backgroundColor: pressed ? colors.panel : "transparent",
-      })}
-    >
-      <Avatar
-        profileId={profile.id}
-        imageUrl={profile.imageUrl}
-        fallbackText={profile.username}
-        size={40}
-        showPresence
-      />
-
-      <View style={{ flex: 1 }}>
-        <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
-          {displayName(profile)}
-        </Text>
-        <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
-          @{profile.username}
-        </Text>
+  if (tab === "incoming") {
+    return (
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <IconButton
+          icon="check"
+          label="Kabul et"
+          tint={colors.success}
+          onPress={onAccept}
+          haptic="success"
+        />
+        <IconButton
+          icon="close"
+          label="Reddet"
+          tint={colors.danger}
+          onPress={onRemove}
+          haptic="warning"
+        />
       </View>
+    );
+  }
 
-      {pending ? (
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <IconButton icon="check" tint={colors.success} onPress={onAccept} label="Kabul et" />
-          <IconButton icon="close" tint={colors.danger} onPress={onReject} label="Reddet" />
-        </View>
-      ) : (
-        <IconButton icon="message" tint={colors.muted} onPress={onMessage} label="Mesaj gönder" />
-      )}
-    </Pressable>
-  );
-}
+  if (tab === "outgoing") {
+    return (
+      <IconButton
+        icon="close"
+        label="İsteği geri al"
+        tint={colors.muted}
+        onPress={onRemove}
+        haptic="warning"
+      />
+    );
+  }
 
-function IconButton({
-  icon,
-  tint,
-  onPress,
-  label,
-}: {
-  icon: Parameters<typeof Icon>[0]["name"];
-  tint: string;
-  onPress: () => void;
-  label: string;
-}) {
   return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({
-        width: 36,
-        height: 36,
-        borderRadius: radii.full,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: colors.panel,
-        opacity: pressed ? 0.7 : 1,
-      })}
-    >
-      <Icon name={icon} size={18} color={tint} />
-    </Pressable>
+    <IconButton
+      icon="message"
+      label="Mesaj gönder"
+      tint={colors.muted}
+      onPress={onMessage}
+    />
   );
 }
+
+const EMPTY_TITLE: Record<Tab, string> = {
+  friends: "Henüz arkadaşın yok",
+  incoming: "Bekleyen istek yok",
+  outgoing: "Gönderilmiş istek yok",
+};
+
+const EMPTY_DESCRIPTION: Record<Tab, string> = {
+  friends: "Kullanıcı adıyla arama yaparak arkadaş ekleyebilirsin.",
+  incoming: "Sana arkadaşlık isteği geldiğinde burada görünecek.",
+  outgoing: "Gönderdiğin istekler yanıtlanana kadar burada bekler.",
+};

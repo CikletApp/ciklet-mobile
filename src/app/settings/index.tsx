@@ -1,19 +1,24 @@
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 
 import { useCurrentProfile } from "@/api/hooks";
-import { Icon, type IconName } from "@/components/ui/icon";
-import { Screen } from "@/components/ui/screen";
+import {
+  Avatar,
+  Divider,
+  ListGroup,
+  ListRow,
+  Screen,
+  SectionHeader,
+} from "@/components/ui";
+import { displayNameOf } from "@/lib/format";
 import { CLIENT_VERSION } from "@/lib/device";
 import { disconnectSocket } from "@/realtime/socket";
 import { useAuth } from "@/stores/auth";
-import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
  * Ayarlar.
  *
- * Faz 1'de gezinme iskeleti ve çıkış akışı çalışır; alt ekranlar (hesap,
- * gizlilik, görünüm, dil, bildirimler, oturumlar) Faz 2/3'te doldurulur.
  * Hazır olmayan satırlar devre dışı gösterilir — tıklanıp boş ekrana
  * düşmek, kapalı olduğunu görmekten daha kötü bir deneyim.
  */
@@ -37,100 +42,86 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.xl }}>
-        <Group title="HESAP AYARLARI">
-          <Row
-            icon="user"
-            label="Hesap"
-            detail={profile?.username ? `@${profile.username}` : undefined}
-            onPress={() => router.push("/profile/edit")}
-          />
-          <Row icon="shield" label="Gizlilik ve Güvenlik" disabled />
-          <Row icon="link" label="Bağlantılar" disabled />
-          <Row icon="users" label="Arkadaşlık İstekleri" onPress={() => router.push("/friends")} />
-        </Group>
+      <ScrollView contentContainerStyle={{ paddingBottom: spacing["3xl"] }}>
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+          <ListGroup>
+            <ListRow
+              title={profile ? displayNameOf(profile) : "—"}
+              subtitle={profile ? `@${profile.username}` : undefined}
+              leading={
+                <Avatar
+                  profileId={profile?.id}
+                  imageUrl={profile?.imageUrl}
+                  fallbackText={profile?.username}
+                  size={44}
+                  showPresence
+                  backgroundColor={colors.panel}
+                />
+              }
+              onPress={() => router.push("/profile/edit")}
+              accessibilityHint="Profilini düzenle"
+            />
+          </ListGroup>
+        </View>
 
-        <Group title="UYGULAMA AYARLARI">
-          <Row icon="volume" label="Ses" disabled />
-          <Row icon="compass" label="Görünüm" detail="Gece" disabled />
-          <Row icon="bell" label="Bildirimler" disabled />
-        </Group>
+        <SectionHeader title="HESAP AYARLARI" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <ListGroup>
+            <ListRow
+              icon="user"
+              title="Hesap"
+              detail={profile?.email ?? undefined}
+              onPress={() => router.push("/profile/edit")}
+            />
+            <Divider inset={52} />
+            <ListRow icon="shield" title="Gizlilik ve Güvenlik" disabled />
+            <Divider inset={52} />
+            <ListRow
+              icon="users"
+              title="Arkadaşlık İstekleri"
+              onPress={() => router.push("/friends")}
+            />
+            <Divider inset={52} />
+            <ListRow icon="link" title="Bağlantılar" disabled />
+          </ListGroup>
+        </View>
 
-        <Group title="OTURUM">
-          <Row icon="logout" label="Çıkış Yap" tint={colors.danger} onPress={onLogout} />
-        </Group>
+        <SectionHeader title="UYGULAMA AYARLARI" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <ListGroup>
+            <ListRow icon="volume" title="Ses" disabled />
+            <Divider inset={52} />
+            <ListRow icon="compass" title="Görünüm" detail="Gece" disabled />
+            <Divider inset={52} />
+            <ListRow icon="bell" title="Bildirimler" disabled />
+          </ListGroup>
+        </View>
+
+        <SectionHeader title="OTURUM" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <ListGroup>
+            <ListRow
+              icon="logout"
+              iconTint={colors.danger}
+              titleColor={colors.danger}
+              title="Çıkış Yap"
+              onPress={onLogout}
+              chevron={false}
+            />
+          </ListGroup>
+        </View>
 
         <Text
           style={{
             ...typography.caption,
             color: colors.muted,
             textAlign: "center",
+            paddingTop: spacing.xl,
           }}
         >
           Ciklet {CLIENT_VERSION}
         </Text>
       </ScrollView>
     </Screen>
-  );
-}
-
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <Text style={{ ...typography.overline, color: colors.muted }}>{title}</Text>
-      <View
-        style={{
-          borderRadius: radii.lg,
-          backgroundColor: colors.panel,
-          overflow: "hidden",
-        }}
-      >
-        {children}
-      </View>
-    </View>
-  );
-}
-
-function Row({
-  icon,
-  label,
-  detail,
-  onPress,
-  disabled,
-  tint = colors.text,
-}: {
-  icon: IconName;
-  label: string;
-  detail?: string;
-  onPress?: () => void;
-  disabled?: boolean;
-  tint?: string;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled || !onPress}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: disabled || !onPress }}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        minHeight: 52,
-        backgroundColor: pressed ? colors.raised : "transparent",
-        opacity: disabled ? 0.45 : 1,
-      })}
-    >
-      <Icon name={icon} size={20} color={tint} />
-      <Text style={{ ...typography.body, color: tint, flex: 1 }}>{label}</Text>
-      {detail ? (
-        <Text style={{ ...typography.caption, color: colors.muted }}>{detail}</Text>
-      ) : null}
-      {!disabled && onPress ? (
-        <Icon name="chevron-right" size={16} color={colors.muted} />
-      ) : null}
-    </Pressable>
   );
 }

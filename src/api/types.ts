@@ -59,6 +59,46 @@ export interface UpdateMemberProfileInput {
   serverBannerColor?: string | null;
 }
 
+/**
+ * ciklet-web: `src/lib/direct.ts` → `getDirects()`
+ *
+ * ⚠️ SDK'daki `DirectWithProfiles` bu ucu YANLIŞ tarif ediyor: tam
+ * `PublicProfile` vaat ediyor ama uç yalnızca beş alan seçiyor
+ * (`presenceStatus`, `bannerColor`, `pronouns`, `bio`, `isBot` YOK).
+ * Presence zaten soketten geliyor; liste için bu alanlara gerek de yok.
+ * Tip burada gerçeğe göre daraltılır — aksi halde var olmayan alanlara
+ * yaslanan arayüz sessizce boş render eder.
+ */
+export interface DirectPeer {
+  id: string;
+  username: string;
+  name: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+}
+
+export interface DirectReadState {
+  id: string;
+  profileId: string;
+  directId: string | null;
+  channelId: string | null;
+  messageId: string;
+  lastReadAt: string;
+}
+
+export interface DirectSummary {
+  id: string;
+  profileOneId: string;
+  profileTwoId: string;
+  latestMessageId: string | null;
+  /** Sıralama ve önizleme zamanı için; mesaj İÇERİĞİ bu uçta gelmez. */
+  latestMessageAt: string | null;
+  profileOne: DirectPeer;
+  profileTwo: DirectPeer;
+  /** Yalnızca oturum sahibinin okuma durumu (uç `where: { profileId }` ile filtreler). */
+  readStates?: DirectReadState[];
+}
+
 /** ciklet-web: `src/app/api/search/route.ts` */
 export interface SearchResults {
   servers: { id: string; name: string; imageUrl: string }[];

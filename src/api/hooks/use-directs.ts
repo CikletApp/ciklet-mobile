@@ -1,15 +1,12 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  Direct,
-  DirectWithProfiles,
-  PublicProfile,
-} from "@ciklet/embedded-activities-sdk/types";
+import type { Direct } from "@ciklet/embedded-activities-sdk/types";
 
 import { useAuth } from "@/stores/auth";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
+import type { DirectPeer, DirectSummary } from "../types";
 
 /**
  * Doğrudan mesaj sohbetleri.
@@ -17,22 +14,25 @@ import { qk } from "../query-keys";
  * ⚠️ Şema BİREBİR sohbete kilitli (`Direct.profileOneId` / `profileTwoId`).
  * Grup DM'i için ciklet-web tarafında yeni model gerekir — bkz.
  * docs/ROADMAP.md "Bilinen backend boşluğu".
+ *
+ * Uç, sohbetleri son mesaj zamanına göre sıralı döner; istemci yeniden
+ * sıralamaz (aksi halde sunucunun kararlı sıralaması bozulur).
  */
 export function useDirects() {
   return useQuery({
     queryKey: qk.directs,
-    queryFn: () => api<DirectWithProfiles[]>(endpoints.directs),
+    queryFn: () => api<DirectSummary[]>(endpoints.directs),
   });
 }
 
 /**
- * Sohbetin "karşı taraf"ını çözer. İki profil alanından hangisinin
- * karşı taraf olduğu oturum sahibine bağlıdır; bu hesap her liste
- * satırında tekrarlanmasın diye burada yapılır.
+ * Sohbetin "karşı taraf"ını çözer. İki profil alanından hangisinin karşı
+ * taraf olduğu oturum sahibine bağlıdır; bu hesap her liste satırında
+ * tekrarlanmasın diye burada yapılır.
  */
-export function useDirectPeer(direct: DirectWithProfiles | undefined) {
+export function useDirectPeer(direct: DirectSummary | undefined) {
   const myId = useAuth((s) => s.profile?.id);
-  return useMemo<PublicProfile | undefined>(() => {
+  return useMemo<DirectPeer | undefined>(() => {
     if (!direct) return undefined;
     return direct.profileOne.id === myId ? direct.profileTwo : direct.profileOne;
   }, [direct, myId]);
@@ -47,8 +47,22 @@ export function useDirect(directId: string | undefined) {
 }
 
 /**
- * Bir kişiyle sohbeti açar (yoksa oluşturur). Profil sayfasındaki
- * "Mesaj" düğmesi ve arkadaş listesindeki hızlı eylem bunu kullanır.
+ * Bir sohbette okunmamış var mı.
+ *
+ * Uç mesaj sayısı vermiyor; yalnızca son mesaj zamanı ile kendi okuma
+ * imlecimiz karşılaştırılabiliyor. Bu yüzden sayı değil ikili bir durum
+ * döner — arayüz nokta gösterir, rakam değil.
+ */
+export function hasUnread(direct: DirectSummary, myId: string | undefined): boolean {
+  if (!direct.latestMessageAt || !myId) return false;
+  const lastRead = direct.readStates?.find((r) => r.profileId === myId)?.lastReadAt;
+  if (!lastRead) return true;
+  return new Date(direct.latestMessageAt).getTime() > new Date(lastRead).getTime();
+}
+
+/**
+ * Bir kişiyle sohbeti açar (yoksa oluşturur). Profil sayfasındaki "Mesaj"
+ * düğmesi ve arkadaş listesindeki hızlı eylem bunu kullanır.
  */
 export function useOpenDirect() {
   const queryClient = useQueryClient();

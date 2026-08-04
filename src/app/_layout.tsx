@@ -67,6 +67,10 @@ export default function RootLayout() {
               <Stack.Protected guard={status === "signedIn"}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />
+                <Stack.Screen
+                  name="servers/new"
+                  options={{ ...modalScreenOptions, title: "Sunucu" }}
+                />
                 <Stack.Screen name="chat/channel/[channelId]" options={{ title: "" }} />
                 <Stack.Screen name="chat/direct/[directId]" options={{ title: "" }} />
                 <Stack.Screen name="friends/index" options={{ title: "Arkadaşlar" }} />

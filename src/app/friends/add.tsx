@@ -1,18 +1,10 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, Text, View } from "react-native";
 
 import { ApiError } from "@/api/client";
 import { useSendFriendRequest } from "@/api/hooks";
-import { Icon } from "@/components/ui/icon";
-import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { Button, Icon, TextField } from "@/components/ui";
+import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
  * Kullanıcı adıyla arkadaş ekleme.
@@ -36,51 +28,36 @@ export default function AddFriendScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1, backgroundColor: colors.panel, padding: spacing.lg, gap: spacing.lg }}
+      style={{
+        flex: 1,
+        backgroundColor: colors.panel,
+        padding: spacing.lg,
+        gap: spacing.lg,
+      }}
     >
       <Text style={{ ...typography.body, color: colors.muted }}>
         Ciklet kullanıcı adını yazarak arkadaşlık isteği gönder. Kullanıcı
         adları büyük/küçük harfe duyarlı değildir.
       </Text>
 
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing.sm,
-          paddingHorizontal: spacing.lg,
-          borderRadius: radii.lg,
-          backgroundColor: colors.bg,
+      <TextField
+        value={username}
+        onChangeText={(text) => {
+          setUsername(text);
+          if (sendRequest.isError || sendRequest.isSuccess) sendRequest.reset();
         }}
-      >
-        <Text style={{ ...typography.body, color: colors.muted }}>@</Text>
-        <TextInput
-          value={username}
-          onChangeText={setUsername}
-          placeholder="kullaniciadi"
-          placeholderTextColor={colors.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus
-          returnKeyType="send"
-          onSubmitEditing={onSubmit}
-          style={{
-            flex: 1,
-            paddingVertical: spacing.md,
-            color: colors.bright,
-            ...typography.body,
-          }}
-          accessibilityLabel="Kullanıcı adı"
-        />
-      </View>
-
-      {sendRequest.isError ? (
-        <Text style={{ ...typography.caption, color: colors.danger }}>
-          {sendRequest.error instanceof ApiError
-            ? sendRequest.error.message
-            : "İstek gönderilemedi."}
-        </Text>
-      ) : null}
+        placeholder="kullaniciadi"
+        prefix="@"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoFocus
+        maxLength={32}
+        returnKeyType="send"
+        onSubmitEditing={onSubmit}
+        error={
+          sendRequest.error instanceof ApiError ? sendRequest.error.message : null
+        }
+      />
 
       {sendRequest.isSuccess ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
@@ -91,32 +68,15 @@ export default function AddFriendScreen() {
         </View>
       ) : null}
 
-      <Pressable
+      <Button
+        label="Arkadaşlık İsteği Gönder"
         onPress={onSubmit}
         disabled={!canSubmit}
-        accessibilityRole="button"
-        style={({ pressed }) => ({
-          alignItems: "center",
-          justifyContent: "center",
-          paddingVertical: spacing.md,
-          borderRadius: radii.full,
-          backgroundColor: canSubmit ? colors.brand : colors.raised,
-          opacity: pressed ? 0.8 : 1,
-        })}
-      >
-        {sendRequest.isPending ? (
-          <ActivityIndicator color={colors.onBrand} />
-        ) : (
-          <Text
-            style={{
-              ...typography.bodyStrong,
-              color: canSubmit ? colors.onBrand : colors.muted,
-            }}
-          >
-            Arkadaşlık İsteği Gönder
-          </Text>
-        )}
-      </Pressable>
+        loading={sendRequest.isPending}
+        haptic="success"
+        fullWidth
+        size="lg"
+      />
     </KeyboardAvoidingView>
   );
 }

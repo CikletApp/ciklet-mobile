@@ -1,12 +1,17 @@
 import { useMemo } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import type { PublicProfile } from "@ciklet/embedded-activities-sdk/types";
 
-import { displayName, useDirects, useFriends, useOpenDirect, useServers } from "@/api/hooks";
-import { Avatar } from "@/components/ui/avatar";
-import { Icon, type IconName } from "@/components/ui/icon";
-import { EmptyState, Screen } from "@/components/ui/screen";
+import { useDirects, useFriends, useOpenDirect, useServers } from "@/api/hooks";
+import {
+  Avatar,
+  Button,
+  EmptyState,
+  ListRow,
+  Screen,
+  Tag,
+} from "@/components/ui";
+import { displayNameOf, formatDate } from "@/lib/format";
 import { usePresence } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -14,10 +19,28 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * Kullanıcı profili.
  *
  * ciklet-web'de "başka bir kullanıcının profili" için ayrı bir uç yok;
- * profil verisi zaten elimizdeki listelerde (arkadaşlar, DM'ler, sunucu
- * üyeleri) gömülü geliyor. Bu yüzden ekran veriyi cache'ten türetir —
- * gereksiz bir istek atmaz. Ortak sunucular da aynı verilerden hesaplanır.
+ * profil verisi zaten elimizdeki listelerde gömülü geliyor. Bu yüzden ekran
+ * veriyi cache'ten türetir ve gereksiz istek atmaz.
+ *
+ * ⚠️ Kaynaklar EŞİT ZENGİNLİKTE DEĞİL:
+ *  - `/api/friends` ve `/api/servers` tam `PublicProfile` döner
+ *    (bio, pronouns, bannerColor, createdAt...)
+ *  - `/api/directs` yalnızca beş alanlık slim profil döner
+ * Bu yüzden görünüm modeli zengin alanları OPSİYONEL tutar ve yoksa ilgili
+ * kartı hiç çizmez. Aksi halde DM'den açılan profilde boş kartlar görünürdü.
  */
+interface ProfileView {
+  id: string;
+  username: string;
+  name: string | null;
+  imageUrl: string | null;
+  createdAt: string | null;
+  isBot?: boolean;
+  bio?: string | null;
+  pronouns?: string | null;
+  bannerColor?: string | null;
+}
+
 export default function ProfileScreen() {
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
   const { accepted } = useFriends();
@@ -26,19 +49,21 @@ export default function ProfileScreen() {
   const openDirect = useOpenDirect();
   const presence = usePresence(profileId);
 
-  const profile = useMemo<PublicProfile | undefined>(() => {
-    const fromFriends = accepted.find((f) => f.profile.id === profileId)?.profile;
-    if (fromFriends) return fromFriends;
+  const profile = useMemo<ProfileView | undefined>(() => {
+    // Zengin kaynaklar önce denenir; slim DM kaydı son çare.
+    const friend = accepted.find((f) => f.profile.id === profileId)?.profile;
+    if (friend) return friend;
+
+    for (const server of servers ?? []) {
+      const member = server.members?.find((m) => m.profile.id === profileId);
+      if (member) return member.profile;
+    }
 
     for (const direct of directs ?? []) {
       if (direct.profileOne.id === profileId) return direct.profileOne;
       if (direct.profileTwo.id === profileId) return direct.profileTwo;
     }
 
-    for (const server of servers ?? []) {
-      const member = server.members?.find((m) => m.profile.id === profileId);
-      if (member) return member.profile;
-    }
     return undefined;
   }, [profileId, accepted, directs, servers]);
 
@@ -68,10 +93,7 @@ export default function ProfileScreen() {
       <Stack.Screen options={{ title: "" }} />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["3xl"] }}>
         <View
-          style={{
-            height: 110,
-            backgroundColor: profile.bannerColor ?? colors.brand,
-          }}
+          style={{ height: 110, backgroundColor: profile.bannerColor ?? colors.brand }}
         />
 
         <View style={{ paddingHorizontal: spacing.lg, marginTop: -34, gap: spacing.lg }}>
@@ -85,9 +107,12 @@ export default function ProfileScreen() {
           />
 
           <View style={{ gap: 2 }}>
-            <Text style={{ ...typography.displayLg, color: colors.bright }}>
-              {displayName(profile)}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <Text style={{ ...typography.displayLg, color: colors.bright }}>
+                {displayNameOf(profile)}
+              </Text>
+              {profile.isBot ? <Tag label="BOT" tint={colors.onBrand} background={colors.brand} /> : null}
+            </View>
             <Text style={{ ...typography.body, color: colors.muted }}>
               @{profile.username}
             </Text>
@@ -100,36 +125,35 @@ export default function ProfileScreen() {
 
           {/* Sesli/görüntülü arama Faz 4'te LiveKit ile bağlanacak. */}
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <ProfileAction
-              icon="message"
+            <Button
               label="Mesaj"
+              icon="message"
+              variant="primary"
+              style={{ flex: 1 }}
               onPress={() =>
                 openDirect.mutate(profile.id, {
                   onSuccess: (direct) => router.replace(`/chat/direct/${direct.id}`),
                 })
               }
+              loading={openDirect.isPending}
             />
-            <ProfileAction icon="phone" label="Sesli Arama" disabled />
-            <ProfileAction icon="video" label="Görüntülü" disabled />
+            <Button label="Sesli" icon="phone" variant="secondary" disabled style={{ flex: 1 }} />
+            <Button label="Görüntülü" icon="video" variant="secondary" disabled style={{ flex: 1 }} />
           </View>
 
           {profile.bio ? (
             <Card title="HAKKINDA">
-              <Text style={{ ...typography.body, color: colors.text }}>
-                {profile.bio}
-              </Text>
+              <Text style={{ ...typography.body, color: colors.text }}>{profile.bio}</Text>
             </Card>
           ) : null}
 
-          <Card title="CİKLET ÜYESİ">
-            <Text style={{ ...typography.body, color: colors.text }}>
-              {new Date(profile.createdAt).toLocaleDateString("tr-TR", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </Text>
-          </Card>
+          {profile.createdAt ? (
+            <Card title="CİKLET ÜYESİ">
+              <Text style={{ ...typography.body, color: colors.text }}>
+                {formatDate(profile.createdAt)}
+              </Text>
+            </Card>
+          ) : null}
 
           {presence.activity?.name ? (
             <Card title="ŞU AN">
@@ -145,31 +169,22 @@ export default function ProfileScreen() {
           ) : null}
 
           {mutualServers.length > 0 ? (
-            <Card title={`ORTAK SUNUCULAR — ${mutualServers.length}`}>
+            <Card title={`ORTAK SUNUCULAR — ${mutualServers.length}`} flush>
               {mutualServers.map((server) => (
-                <Pressable
+                <ListRow
                   key={server.id}
+                  title={server.name}
                   onPress={() => router.push(`/servers/${server.id}`)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.md,
-                    paddingVertical: spacing.sm,
-                  }}
-                  accessibilityRole="button"
-                >
-                  <Avatar
-                    imageUrl={server.imageUrl}
-                    fallbackText={server.name}
-                    size={32}
-                    shape="squircle"
-                    backgroundColor={colors.panel}
-                  />
-                  <Text style={{ ...typography.body, color: colors.text, flex: 1 }}>
-                    {server.name}
-                  </Text>
-                  <Icon name="chevron-right" size={16} color={colors.muted} />
-                </Pressable>
+                  leading={
+                    <Avatar
+                      imageUrl={server.imageUrl}
+                      fallbackText={server.name}
+                      size={32}
+                      shape="squircle"
+                      backgroundColor={colors.panel}
+                    />
+                  }
+                />
               ))}
             </Card>
           ) : null}
@@ -179,52 +194,37 @@ export default function ProfileScreen() {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  children,
+  /** İçerik kendi yatay boşluğunu yönetiyorsa (liste satırları). */
+  flush,
+}: {
+  title: string;
+  children: React.ReactNode;
+  flush?: boolean;
+}) {
   return (
     <View
       style={{
         backgroundColor: colors.panel,
         borderRadius: radii.lg,
-        padding: spacing.lg,
+        paddingVertical: spacing.lg,
+        paddingHorizontal: flush ? 0 : spacing.lg,
         gap: spacing.sm,
+        overflow: "hidden",
       }}
     >
-      <Text style={{ ...typography.overline, color: colors.muted }}>{title}</Text>
+      <Text
+        style={{
+          ...typography.overline,
+          color: colors.muted,
+          paddingHorizontal: flush ? spacing.lg : 0,
+        }}
+      >
+        {title}
+      </Text>
       {children}
     </View>
-  );
-}
-
-function ProfileAction({
-  icon,
-  label,
-  onPress,
-  disabled,
-}: {
-  icon: IconName;
-  label: string;
-  onPress?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      style={({ pressed }) => ({
-        flex: 1,
-        alignItems: "center",
-        gap: spacing.xs,
-        paddingVertical: spacing.md,
-        borderRadius: radii.md,
-        backgroundColor: colors.panel,
-        opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
-      })}
-    >
-      <Icon name={icon} size={20} color={colors.text} />
-      <Text style={{ ...typography.caption, color: colors.text }}>{label}</Text>
-    </Pressable>
   );
 }
