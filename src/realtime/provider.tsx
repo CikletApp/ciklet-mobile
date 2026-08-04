@@ -13,6 +13,7 @@ import {
   type RichPresencePayload,
 } from "./events";
 import { connectSocket, disconnectSocket, peekSocket } from "./socket";
+import { useSocialEvents } from "./use-social-events";
 
 /**
  * Gerçek zamanlı katmanı uygulama yaşam döngüsüne bağlar.
@@ -33,6 +34,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const setActivity = usePresenceStore((s) => s.setActivity);
   const setSelfStatus = usePresenceStore((s) => s.setSelfStatus);
   const resetPresence = usePresenceStore((s) => s.reset);
+
+  // Sohbet ekranından bağımsız sosyal olaylar (arkadaşlık, yeni DM).
+  useSocialEvents();
 
   // ── Bağlantı + presence dinleyicileri ─────────────────────────────
   useEffect(() => {
@@ -89,6 +93,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const socket = peekSocket();
 
       if (isActive && !wasActive) {
+        // Uygulama günlerce arka planda kalmış olabilir; token'ın süresi
+        // dolmadan tazele. Soket el sıkışması eski token'ı kullanırsa
+        // sunucu bağlantıyı reddeder.
+        void useAuth.getState().ensureFreshSession();
+
         // Geri dönüşte: bağlantı koptuysa kur, ayaktaysa boşta bayrağını kaldır.
         if (socket?.connected) {
           socket.emit(ClientEvent.PRESENCE_IDLE, { isIdle: false });

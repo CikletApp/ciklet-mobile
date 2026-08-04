@@ -1,13 +1,15 @@
 import "../global.css";
 
 import { useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { persistOptions, queryClient } from "@/api/query-client";
+import { ConnectionBanner } from "@/components/connection-banner";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -19,7 +21,7 @@ import { modalScreenOptions, stackScreenOptions } from "@/theme/navigation";
  *
  * Sıralama önemli: GestureHandler → SafeArea → Query → Realtime.
  * `RealtimeProvider` soket olaylarını react-query cache'ine yazdığı için
- * `QueryClientProvider`'ın İÇİNDE olmak zorunda.
+ * `PersistQueryClientProvider`'ın İÇİNDE olmak zorunda.
  */
 
 void SplashScreen.preventAutoHideAsync();
@@ -27,19 +29,6 @@ void SplashScreen.preventAutoHideAsync();
 // WebRTC global'leri modül yüklenirken bir kez kaydedilir; React ağacına
 // bağlı değildir ve render sırasında çağrılmamalıdır.
 setupLiveKit();
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      // Mobilde ağ dalgalanması sık; tek deneme yetersiz, sonsuz deneme
-      // kullanıcıyı bekletir.
-      retry: 2,
-      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-    },
-    mutations: { retry: 0 },
-  },
-});
 
 export default function RootLayout() {
   const status = useAuth((s) => s.status);
@@ -60,9 +49,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={persistOptions}
+        >
           <RealtimeProvider>
             <StatusBar style="light" />
+            <ConnectionBanner />
             <Stack screenOptions={stackScreenOptions}>
               <Stack.Protected guard={status === "signedIn"}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -92,7 +85,7 @@ export default function RootLayout() {
               </Stack.Protected>
             </Stack>
           </RealtimeProvider>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

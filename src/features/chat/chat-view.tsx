@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,20 +10,22 @@ import {
 } from "react-native";
 
 import { ApiError } from "@/api/client";
-import { useChatMessages, useSendMessage, type ChatKind } from "@/api/hooks";
+import { useChatMessages, type ChatKind } from "@/api/hooks";
 import {
   EmptyState,
   ErrorState,
-  Icon,
   IconButton,
   ListSkeleton,
-  Pressable,
 } from "@/components/ui";
 import { useChatStream } from "@/realtime/use-chat-stream";
+import { useReadState } from "@/realtime/use-read-state";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
+import { useChatOutbox } from "@/stores/outbox";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { DaySeparator } from "./components/day-separator";
 import { MessageItem } from "./components/message-item";
+import { OutboxItem } from "./components/outbox-item";
+import { useComposer } from "./use-composer";
 import { useChatItems, type ChatItem } from "./use-chat-items";
 
 /**
@@ -55,16 +57,23 @@ export function ChatView({
     isFetchingNextPage,
   } = useChatMessages(kind, chatId);
 
-  const sendMessage = useSendMessage(kind, chatId, serverId);
   const { typers, notifyTyping } = useTyping(chatId, kind);
+  const { send, retry, discard } = useComposer(kind, chatId, serverId);
+  const outbox = useChatOutbox(chatId);
 
   // Canlı akış: gelen mesajlar doğrudan cache'e yazılır.
   useChatStream(chatId);
 
   const [draft, setDraft] = useState("");
 
-  const messages = data?.pages.flatMap((page) => page.items) ?? [];
+  const messages = useMemo(
+    () => data?.pages.flatMap((page) => page.items) ?? [],
+    [data]
+  );
   const items = useChatItems(messages, !hasNextPage && !isLoading);
+
+  // Okundu bilgisi — listedeki en yeni GERÇEK mesaj (outbox hariç).
+  useReadState(chatId, kind, messages[0]?.id);
 
   const onChangeDraft = useCallback(
     (text: string) => {
@@ -75,14 +84,10 @@ export function ChatView({
   );
 
   const onSend = useCallback(() => {
-    const content = draft.trim();
-    if (!content || sendMessage.isPending) return;
+    if (!draft.trim()) return;
+    send(draft);
     setDraft("");
-    sendMessage.mutate(
-      { content },
-      { onError: () => setDraft(content) } // Taslağı kaybetme.
-    );
-  }, [draft, sendMessage]);
+  }, [draft, send]);
 
   const renderItem = useCallback(
     ({ item }: { item: ChatItem }) =>
@@ -129,8 +134,25 @@ export function ChatView({
         }}
         onEndReachedThreshold={0.5}
         keyboardDismissMode="interactive"
-        // Ters listede "footer" görsel olarak ÜSTTE durur — geçmiş
-        // yüklenirken göstergenin doğru yeri burası.
+        /**
+         * Ters listede "header" görsel olarak EN ALTTA durur — bekleyen
+         * mesajların doğru yeri burası (en yeni içerik altta).
+         */
+        ListHeaderComponent={
+          outbox.length > 0 ? (
+            <View>
+              {/* Ters çizimde sıra da tersine döner; en yenisi altta kalsın. */}
+              {[...outbox].reverse().map((message) => (
+                <OutboxItem
+                  key={message.id}
+                  message={message}
+                  onRetry={() => retry(message.id, message.content)}
+                  onDiscard={() => discard(message.id)}
+                />
+              ))}
+            </View>
+          ) : null
+        }
         ListFooterComponent={
           isFetchingNextPage ? (
             <ActivityIndicator
@@ -140,7 +162,9 @@ export function ChatView({
           ) : null
         }
         contentContainerStyle={
-          items.length === 0 ? { flex: 1 } : { paddingVertical: spacing.sm }
+          items.length === 0 && outbox.length === 0
+            ? { flex: 1 }
+            : { paddingVertical: spacing.sm }
         }
         ListEmptyComponent={
           // `inverted` tüm içeriği dikeyde çevirir; boş durumu ters
@@ -171,36 +195,11 @@ export function ChatView({
         </Text>
       ) : null}
 
-      {sendMessage.isError ? (
-        <Pressable
-          onPress={() => sendMessage.reset()}
-          noHitSlop
-          accessibilityRole="button"
-          accessibilityLabel="Hata mesajını kapat"
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing.sm,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.sm,
-            backgroundColor: colors.danger,
-          }}
-        >
-          <Icon name="close" size={14} color={colors.bright} />
-          <Text style={{ ...typography.caption, color: colors.bright, flex: 1 }}>
-            {sendMessage.error instanceof ApiError
-              ? sendMessage.error.message
-              : "Mesaj gönderilemedi."}
-          </Text>
-        </Pressable>
-      ) : null}
-
       <Composer
         value={draft}
         onChangeText={onChangeDraft}
         onSend={onSend}
         placeholder={placeholder}
-        sending={sendMessage.isPending}
       />
     </KeyboardAvoidingView>
   );
@@ -212,15 +211,13 @@ function Composer({
   onChangeText,
   onSend,
   placeholder,
-  sending,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
   placeholder: string;
-  sending: boolean;
 }) {
-  const canSend = value.trim().length > 0 && !sending;
+  const canSend = value.trim().length > 0;
 
   return (
     <View
@@ -235,7 +232,7 @@ function Composer({
         backgroundColor: colors.deep,
       }}
     >
-      {/* Dosya eki Faz 3'te (UploadThing) bağlanacak. */}
+      {/* Dosya eki UploadThing entegrasyonuyla birlikte gelecek. */}
       <IconButton
         icon="plus"
         label="Dosya ekle"

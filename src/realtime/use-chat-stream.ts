@@ -3,6 +3,7 @@ import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import type { MessagesPage } from "@ciklet/embedded-activities-sdk/types";
 
 import { qk } from "@/api/query-keys";
+import { useOutbox } from "@/stores/outbox";
 import {
   chatMessagesEvent,
   chatUpdateEvent,
@@ -40,6 +41,10 @@ export function useChatStream(chatId: string | undefined) {
       const key = qk.messages.chat(chatId);
 
       const handleAdd = (message: ChatMessagePayload) => {
+        // Kendi gönderdiğimiz mesajın yayını geldi: bekleyen geçici satırı
+        // düşür ki liste bir an aynı mesajı iki kez göstermesin.
+        useOutbox.getState().resolveByContent(chatId, message.content);
+
         queryClient.setQueryData<MessageCache>(key, (old) => {
           if (!old?.pages?.length) {
             return {

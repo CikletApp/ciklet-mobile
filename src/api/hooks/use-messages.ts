@@ -1,8 +1,4 @@
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import type { MessagesPage } from "@ciklet/embedded-activities-sdk/types";
 
 import type { ChatMessagePayload } from "@/realtime/events";
@@ -13,9 +9,12 @@ import { qk } from "../query-keys";
 /**
  * Sohbet geçmişi.
  *
- * Kanal ve DM aynı sözleşmeyi paylaşır (`{items, nextCursor}`) ve aynı
- * cache anahtarını kullanır (`chatId`), böylece canlı akış hook'u
+ * Kanal ve DM aynı sözleşmeyi paylaşır (`{items, nextCursor}`) ve aynı cache
+ * anahtarını kullanır (`chatId`), böylece canlı akış hook'u
  * (`useChatStream`) ikisini ayırt etmek zorunda kalmaz.
+ *
+ * Gönderim burada DEĞİL: iyimser akış `features/chat/use-composer.ts`
+ * içinde outbox store'uyla birlikte yürür (bkz. o dosyadaki gerekçe).
  */
 
 export type ChatKind = "channel" | "direct";
@@ -36,43 +35,5 @@ export function useChatMessages(kind: ChatKind, chatId: string | undefined) {
     // çekmek kaydırma konumunu bozar.
     refetchOnWindowFocus: false,
     staleTime: Infinity,
-  });
-}
-
-export interface SendMessageInput {
-  content: string;
-  fileUrl?: string;
-}
-
-/**
- * Mesaj gönderimi.
- *
- * Uç, Socket.IO sunucusunun HTTP tarafıdır: kaydı yapar ve odaya yayınlar.
- * Yayın geri geldiğinde `useChatStream` mesajı cache'e yazar — bu yüzden
- * burada iyimser ekleme YAPILMAZ (Faz 3'te kuyruk ve iyimser satır gelecek;
- * ikisi birlikte tasarlanmalı yoksa çift satır görünür).
- */
-export function useSendMessage(
-  kind: ChatKind,
-  chatId: string | undefined,
-  serverId?: string
-) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ content, fileUrl }: SendMessageInput) => {
-      if (!chatId) throw new Error("Sohbet kimliği yok");
-      const path =
-        kind === "channel"
-          ? endpoints.sendChannelMessage(chatId, serverId ?? "")
-          : endpoints.sendDirectMessage(chatId);
-      return api(path, { method: "POST", body: { content, fileUrl } });
-    },
-    onError: () => {
-      // Yayın gelmediyse cache'i sunucuyla hizala.
-      if (chatId) {
-        void queryClient.invalidateQueries({ queryKey: qk.messages.chat(chatId) });
-      }
-    },
   });
 }

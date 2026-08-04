@@ -3,6 +3,7 @@ import type { OwnProfile } from "@ciklet/embedded-activities-sdk/types";
 
 import * as apiClient from "@/api/client";
 import { endpoints } from "@/api/endpoints";
+import { clearPersistedCache } from "@/api/query-client";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
 
 /**
@@ -74,6 +75,9 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   logout: async () => {
     await apiClient.logout();
+    // Diskteki cache de silinmeli; aksi halde bir sonraki kullanıcı
+    // uygulamayı açtığında bir öncekinin sohbet listesini görür.
+    await clearPersistedCache().catch(() => {});
     set({ status: "signedOut", profile: null });
   },
 
@@ -105,5 +109,6 @@ function isExpiringSoon(expiresAt: string | undefined): boolean {
  * gerekmez çünkü store uygulama ömrü boyunca yaşar.
  */
 apiClient.onSessionExpired(() => {
+  void clearPersistedCache().catch(() => {});
   useAuth.setState({ status: "signedOut", profile: null });
 });
