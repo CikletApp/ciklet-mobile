@@ -1,0 +1,147 @@
+import type {
+  DirectMessageWithProfile,
+  MessageWithMember,
+  PresenceStatus,
+  PublicProfile,
+} from "@ciklet/embedded-activities-sdk/types";
+
+import type { RichPresence } from "@/api/types";
+
+/**
+ * Socket.IO olay sözleşmesi.
+ *
+ * Kaynak gerçeği `ciklet-web/src/pages/api/socket/io.ts` dosyasıdır; buradaki
+ * her ad o dosyadaki `socket.on(...)` / `.emit(...)` çağrılarıyla BİREBİR
+ * doğrulanmıştır.
+ *
+ * ⚠️ SDK'daki `SocketEvents` / `chatRoom()` yardımcıları bu noktada
+ * güvenilmez:
+ *   - `chatRoom(id)` → `chat:<id>` üretiyor. Sunucudaki ODA adı ise
+ *     `chatroom:<id>` ve istemci odaya isimle KATILMIYOR; `chat:subscribe`
+ *     yayınlıyor. Dinlenmesi gereken OLAY `chat:<id>:messages`.
+ *   - `PresenceUpdatePayload` = `{profileId, presenceStatus}` diyor;
+ *     sunucu `{userId, status}` yolluyor.
+ * Bu yüzden mobil, sözleşmeyi buradan okur. (Düzeltmeler ciklet-sdk'ya
+ * taşındığında burası oradan re-export'a indirgenecek.)
+ */
+
+// ── İstemci → sunucu ────────────────────────────────────────────────
+
+export const ClientEvent = {
+  /** `{ chatId }` veya `{ chatIds: [] }` — üyelik sunucuda doğrulanır. */
+  CHAT_SUBSCRIBE: "chat:subscribe",
+  CHAT_UNSUBSCRIBE: "chat:unsubscribe",
+  /** 30 sn'de bir; sunucu `heartbeat_ack` ile yanıtlar. */
+  HEARTBEAT: "heartbeat",
+  /** `{ isIdle }` — kullanıcı etkileşimi kesildiğinde. */
+  PRESENCE_IDLE: "presence:idle",
+  /** `{ status }` — kullanıcının elle seçtiği durum. */
+  PRESENCE_SET_STATUS: "presence:set_status",
+  /** Arkadaş/sunucu listesi değişince abonelikleri yeniden kurar. */
+  PRESENCE_SYNC: "presence:sync",
+  RICH_PRESENCE_UPDATE: "rich_presence:update",
+  /** `{ type: 'direct' | 'channel', id, isTyping }` */
+  TYPING: "typing",
+  /** `{ channelId? , directId?, messageId }` — okundu bilgisi. */
+  MESSAGE_ACK: "MESSAGE_ACK",
+  FRIEND_REQUEST: "friend_request",
+  FRIEND_REQUEST_UPDATED: "friend_request_updated",
+  GET_ACTIVE_VOICE_CHANNELS: "get_active_voice_channels",
+  JOIN_VOICE_CHANNEL: "join_voice_channel",
+  LEAVE_VOICE_CHANNEL: "leave_voice_channel",
+} as const;
+
+// ── Sunucu → istemci ────────────────────────────────────────────────
+
+export const ServerEvent = {
+  READY: "ready",
+  HEARTBEAT_ACK: "heartbeat_ack",
+  /** `{ statuses, activities }` — DİZİ DEĞİL. */
+  PRESENCE_BATCH: "presence:batch",
+  /** `{ userId, status }` */
+  PRESENCE_UPDATE: "presence:update",
+  /** `{ status }` — kendi görünür durumun. */
+  PRESENCE_SELF: "presence:self",
+  /** `{ userId, activity }` */
+  RICH_PRESENCE_UPDATE: "rich_presence:update",
+  TYPING: "typing",
+  READ_STATE_UPDATED: "READ_STATE_UPDATED",
+  /** Sohbet açık olmasa da gelen DM bildirimi. */
+  NEW_MESSAGE: "new_message",
+  FRIEND_REQUEST: "friend_request",
+  FRIEND_REQUEST_UPDATED: "friend_request_updated",
+  VOICE_CHANNEL_UPDATE: "voice_channel_update",
+  ACTIVE_VOICE_CHANNELS: "active_voice_channels",
+  INCOMING_CALL: "incoming_call",
+  CALL_ACCEPTED: "call_accepted",
+  CALL_DENIED: "call_denied",
+  CALL_CANCELLED: "call_cancelled",
+  ACTIVITY_UPDATE: "activity_update",
+  ACTIVITY_SYNC: "activity_sync",
+  ACTIVITY_ENDED: "activity_ended",
+} as const;
+
+// ── Sohbete özel dinamik olay adları ────────────────────────────────
+// ciklet-web: `SOCKET_EVENTS.chatMessages` / `chatUpdate` (lib/constants.ts)
+
+/** Yeni mesaj yayını. `chatId` = channelId veya directId. */
+export const chatMessagesEvent = (chatId: string) =>
+  `chat:${chatId}:messages` as const;
+
+/** Var olan mesajın güncellenmesi (düzenleme, silme, reaksiyon). */
+export const chatUpdateEvent = (chatId: string) =>
+  `chat:${chatId}:messages:update` as const;
+
+// ── Yük tipleri ─────────────────────────────────────────────────────
+
+/** Kanal ve DM mesajları aynı olay adı deseninden gelir. */
+export type ChatMessagePayload = MessageWithMember | DirectMessageWithProfile;
+
+export interface PresenceUpdatePayload {
+  userId: string;
+  status: PresenceStatus;
+}
+
+export interface PresenceSelfPayload {
+  status: PresenceStatus;
+}
+
+export interface PresenceBatchPayload {
+  statuses: Record<string, PresenceStatus>;
+  activities: Record<string, RichPresence>;
+}
+
+export interface RichPresencePayload {
+  userId: string;
+  activity: RichPresence | null;
+}
+
+export interface TypingPayload {
+  type: "direct" | "channel";
+  id: string;
+  isTyping: boolean;
+  profile: Pick<PublicProfile, "id" | "username" | "name" | "imageUrl">;
+}
+
+export interface FriendRequestPayload {
+  sender: Pick<PublicProfile, "id" | "username" | "name" | "imageUrl">;
+}
+
+export interface ReadStatePayload {
+  id: string;
+  profileId: string;
+  channelId: string | null;
+  directId: string | null;
+  messageId: string;
+  lastReadAt: string;
+}
+
+/**
+ * Bir mesajın hangi sohbete ait olduğunu ayırt eder. Kanal mesajlarında
+ * `member` alanı, DM'lerde doğrudan `profile` alanı bulunur.
+ */
+export function isChannelMessage(
+  message: ChatMessagePayload
+): message is MessageWithMember {
+  return "member" in message;
+}

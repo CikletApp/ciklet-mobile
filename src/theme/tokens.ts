@@ -1,0 +1,198 @@
+/**
+ * Ciklet tasarım token'ları.
+ *
+ * Renkler `ciklet-web/src/app/theme.css` ile BİREBİR aynı HSL bileşenlerinden
+ * üretilir; iki istemcinin markası tek kaynaktan sürer. Değerler HSL
+ * dizesi olarak tutulur (React Native `hsl(h, s%, l%)` biçimini doğrudan
+ * ayrıştırır) — böylece hex'e elle çevirirken oluşan sapma riski yoktur.
+ *
+ * ⚠️ Bu dosyadaki hiçbir renk üçüncü taraf bir platformdan alınmamıştır.
+ * (Önceki iskeletteki #111214 / #1e1f22 / #2b2d31 / #d3be01 değerleri
+ * Ciklet paletine ait DEĞİLDİ ve kaldırılmıştır.)
+ */
+
+const hsl = (h: number, s: number, l: number, alpha?: number) =>
+  alpha === undefined ? `hsl(${h}, ${s}%, ${l}%)` : `hsla(${h}, ${s}%, ${l}%, ${alpha})`;
+
+// ── Marka (tüm temalarda sabit) ─────────────────────────────────────
+
+export const brand = {
+  /** Ciklet lime — birincil eylem rengi. */
+  primary: "#98cb00",
+  /** Ciklet camgöbeği — vurgular, bağlantılar. */
+  secondary: "#45f3ff",
+} as const;
+
+// ── Tema paletleri ──────────────────────────────────────────────────
+
+export interface ThemePalette {
+  /** Uygulama zemini. */
+  bg: string;
+  /** Zeminden daha koyu katman (kenar çubuğu arkası, modal örtüsü altı). */
+  deep: string;
+  /** Kart / panel yüzeyi. */
+  panel: string;
+  /** Yükseltilmiş yüzey (girdi alanı, basılı hâl). */
+  raised: string;
+  /** Ayraç ve kenarlık. */
+  border: string;
+  /** En yüksek kontrastlı metin (başlıklar). */
+  bright: string;
+  /** Gövde metni. */
+  text: string;
+  /** İkincil metin, yer tutucu. */
+  muted: string;
+  /** Etkileşimli marka rengi (tema başına okunabilirlik için ayarlanır). */
+  brand: string;
+  /** Marka üzerine gelen metin — kontrast için. */
+  onBrand: string;
+  danger: string;
+  success: string;
+  warning: string;
+  /** Presence renkleri. */
+  online: string;
+  idle: string;
+  dnd: string;
+  offline: string;
+}
+
+export type ThemeId = "night" | "mist" | "oled" | "light";
+
+/** Gece — varsayılan koyu tema (web ile aynı). */
+const night: ThemePalette = {
+  bg: hsl(225, 8, 9),
+  deep: hsl(228, 10, 6),
+  panel: hsl(225, 6, 13),
+  raised: hsl(225, 6, 17),
+  border: hsl(225, 6, 17),
+  bright: hsl(0, 0, 98),
+  text: hsl(210, 9, 82),
+  muted: hsl(210, 8, 58),
+  brand: hsl(74, 100, 40),
+  onBrand: hsl(228, 10, 6),
+  danger: hsl(0, 78, 60),
+  success: hsl(145, 62, 42),
+  warning: hsl(40, 86, 57),
+  online: hsl(145, 62, 42),
+  idle: hsl(40, 86, 57),
+  dnd: hsl(0, 78, 60),
+  offline: hsl(210, 8, 45),
+};
+
+/** Sis — yumuşak, gri tonlu koyu tema. */
+const mist: ThemePalette = {
+  ...night,
+  bg: hsl(225, 6, 20),
+  deep: hsl(225, 7, 17),
+  panel: hsl(225, 6, 23),
+  raised: hsl(225, 5, 30),
+  border: hsl(225, 5, 30),
+  text: hsl(220, 9, 85),
+  muted: hsl(222, 9, 74),
+  brand: hsl(74, 100, 42),
+  danger: hsl(0, 78, 63),
+  success: hsl(145, 60, 45),
+  warning: hsl(40, 88, 58),
+  online: hsl(145, 60, 45),
+  idle: hsl(40, 88, 58),
+  dnd: hsl(0, 78, 63),
+  offline: hsl(222, 9, 55),
+};
+
+/** Zifir — OLED ekranlarda pil dostu saf siyah. */
+const oled: ThemePalette = {
+  ...night,
+  bg: hsl(0, 0, 0),
+  deep: hsl(0, 0, 0),
+  panel: hsl(0, 0, 5),
+  raised: hsl(0, 0, 12),
+  border: hsl(0, 0, 12),
+  text: hsl(0, 0, 80),
+  muted: hsl(0, 0, 55),
+  brand: hsl(74, 100, 42),
+  onBrand: hsl(0, 0, 0),
+  danger: hsl(0, 78, 58),
+  success: hsl(145, 62, 42),
+  warning: hsl(40, 86, 57),
+  online: hsl(145, 62, 42),
+  idle: hsl(40, 86, 57),
+  dnd: hsl(0, 78, 58),
+  offline: hsl(0, 0, 40),
+};
+
+/** Aydınlık. */
+const light: ThemePalette = {
+  bg: "#f7f7f8",
+  deep: "#f2f3f5",
+  panel: "#ffffff",
+  raised: "#f0f0f2",
+  border: "#e0e0e4",
+  bright: hsl(240, 10, 4),
+  text: hsl(240, 6, 18),
+  muted: "#46545a",
+  brand: hsl(74, 100, 34),
+  onBrand: "#ffffff",
+  danger: hsl(0, 74, 52),
+  success: hsl(145, 63, 36),
+  warning: hsl(40, 90, 45),
+  online: hsl(145, 63, 36),
+  idle: hsl(40, 90, 45),
+  dnd: hsl(0, 74, 52),
+  offline: "#8b949c",
+};
+
+export const themes: Record<ThemeId, ThemePalette> = { night, mist, oled, light };
+
+export const DEFAULT_THEME: ThemeId = "night";
+
+/**
+ * Faz 1'de tek tema aktiftir; tema seçici Faz 2'de (Ayarlar → Görünüm)
+ * bu kaydı okuyacak. Navigator seçenekleri ve StyleSheet'ler bu nesneyi
+ * kullanır — `className` kullanamayan her yer.
+ */
+export const colors = themes[DEFAULT_THEME];
+
+// ── Ölçek ───────────────────────────────────────────────────────────
+
+/** 4pt tabanlı aralık ölçeği. */
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  "2xl": 24,
+  "3xl": 32,
+  "4xl": 40,
+} as const;
+
+export const radii = {
+  sm: 6,
+  md: 10,
+  lg: 14,
+  xl: 20,
+  full: 9999,
+} as const;
+
+/**
+ * Tipografi. `lineHeight` değerleri Türkçe'nin uzun sözcükleri ve
+ * ğ/ş/ç gibi alt-çıkıntılı harfleri için bilerek geniş tutuldu.
+ */
+export const typography = {
+  displayLg: { fontSize: 28, lineHeight: 34, fontWeight: "700" },
+  display: { fontSize: 22, lineHeight: 28, fontWeight: "700" },
+  title: { fontSize: 17, lineHeight: 22, fontWeight: "600" },
+  body: { fontSize: 15, lineHeight: 21, fontWeight: "400" },
+  bodyStrong: { fontSize: 15, lineHeight: 21, fontWeight: "600" },
+  caption: { fontSize: 13, lineHeight: 18, fontWeight: "400" },
+  /** Bölüm başlıkları — büyük harf, aralıklı. */
+  overline: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+} as const;
+
+/** Erişilebilirlik: dokunma hedefi asla bunun altına inmemeli. */
+export const MIN_TOUCH_TARGET = 44;

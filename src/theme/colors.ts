@@ -1,14 +1,22 @@
 /**
- * Tema token'ları — tailwind.config.js ile aynı değerler; StyleSheet/navigator
- * seçenekleri gibi className kullanamayan yerler için TS tarafı.
+ * Geriye dönük uyumluluk kabuğu.
+ *
+ * Renkler artık `theme/tokens.ts` içinde, ciklet-web'in `theme.css`
+ * paletiyle birebir tanımlı. Yeni kod doğrudan `@/theme/tokens`'tan
+ * içe aktarmalı; bu dosya yalnızca eski `colors.mainBg` gibi
+ * kullanımların derlenmesini sürdürmek için var ve Faz 2'de kaldırılacak.
  */
+import { colors as palette } from "./tokens";
+
 export const colors = {
-  mainBg: "#111214",
-  surface: "#1e1f22",
-  surface2: "#2b2d31",
-  brand: "#d3be01",
-  textPrimary: "#f2f3f5",
-  textMuted: "#949ba4",
-  danger: "#f23f43",
-  online: "#23a559",
+  mainBg: palette.bg,
+  surface: palette.panel,
+  surface2: palette.raised,
+  brand: palette.brand,
+  textPrimary: palette.bright,
+  textMuted: palette.muted,
+  danger: palette.danger,
+  online: palette.online,
 } as const;
+
+export { colors as palette } from "./tokens";

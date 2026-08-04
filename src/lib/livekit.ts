@@ -1,17 +1,18 @@
 import { registerGlobals } from "@livekit/react-native";
 import type { LiveKitTokenResponse } from "@ciklet/embedded-activities-sdk/types";
 
-import { API_BASE_URL } from "@/lib/config";
 import { api } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
 
 /**
  * LiveKit köprüsü.
  *
- * - registerGlobals() WebRTC API'lerini RN ortamına kaydeder; uygulama
- *   girişinde (root layout) bir kez çağrılır.
- * - Sinyal adresi web istemcisiyle aynıdır: wss://ciklet.xyz/rtc (nginx
- *   /rtc yolu LiveKit'e proxy'ler; medya UDP 7882 / TCP 7881'den doğrudan
- *   akar). Yerel geliştirmede EXPO_PUBLIC_LIVEKIT_URL ile ezilir.
+ * `registerGlobals()` WebRTC API'lerini RN ortamına kaydeder; uygulama
+ * girişinde (kök düzen modülü yüklenirken) bir kez çağrılır.
+ *
+ * Sinyal adresi web istemcisiyle aynıdır: nginx `/rtc` yolunu SFU'ya
+ * proxy'ler, medya UDP 7882 / TCP 7881'den doğrudan akar. Adres
+ * `lib/config.ts` içinde türetilir — burada tekrarlanmaz.
  */
 
 let globalsRegistered = false;
@@ -22,17 +23,15 @@ export function setupLiveKit() {
   globalsRegistered = true;
 }
 
-export const LIVEKIT_URL =
-  process.env.EXPO_PUBLIC_LIVEKIT_URL ??
-  API_BASE_URL.replace(/^http/, "ws") + "/rtc";
+export { LIVEKIT_URL } from "@/lib/config";
 
 /**
- * Oda token'ı — mevcut GET /api/livekit ucu; sunucu, kanal üyeliğini veya
- * DM katılımcılığını doğruladıktan sonra token üretir.
+ * Oda token'ı. Sunucu, kanal üyeliğini veya DM katılımcılığını doğruladıktan
+ * sonra token üretir — istemcinin oda adına güvenilmez.
  */
 export async function fetchRoomToken(room: string, username: string) {
   const res = await api<LiveKitTokenResponse>(
-    `/api/livekit?room=${encodeURIComponent(room)}&username=${encodeURIComponent(username)}`
+    endpoints.livekitToken(room, username)
   );
   return res.token;
 }
