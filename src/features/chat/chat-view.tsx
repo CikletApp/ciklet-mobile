@@ -118,6 +118,15 @@ export function ChatView({
         data={items}
         keyExtractor={(item) => item.key}
         renderItem={renderItem}
+        /**
+         * Zemin rengi listenin KENDİSİNDE açıkça verilir.
+         * Ölçümle görüldü: bazı ekranlarda liste yüzeyi kap rengini değil,
+         * altındaki native ekran yüzeyini gösteriyordu (#313235 — hiçbir
+         * token'a karşılık gelmeyen, üzerine beyaz katman binmiş bir ton).
+         * Rengi burada sabitlemek, react-native-screens'in ne yaptığından
+         * bağımsız olarak doğru sonucu garanti eder.
+         */
+        style={{ backgroundColor: colors.bg }}
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
         }}
