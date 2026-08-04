@@ -1,8 +1,9 @@
-import { memo } from "react";
-import { View } from "react-native";
+import { memo, useState } from "react";
+import { Text, View } from "react-native";
 import { Image } from "expo-image";
 import type { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
+import { initialOf } from "@/lib/format";
 import { usePresenceStatus } from "@/stores/presence";
 import { colors, radii } from "@/theme/tokens";
 import { PresenceDot } from "./icon";
@@ -10,16 +11,17 @@ import { PresenceDot } from "./icon";
 /**
  * Avatar + presence rozeti.
  *
- * `expo-image` kullanılır: disk/bellek önbelleği, `recyclingKey` ile liste
- * geri dönüşümünde eski görselin bir kare görünmesi sorunu yok, ve
- * `placeholder` ile yükleme sırasında düzen zıplamaz.
+ * Görsel yoksa veya yüklenemezse **baş harf** çizilir. Bu yalnızca estetik
+ * değil: ilk sürümde görsel başarısız olduğunda boş bir kutu kalıyordu ve
+ * sunucu rayı koyu zeminde tamamen görünmez oluyordu — "sunucular yok" gibi
+ * görünen sorunların bir kısmı aslında buydu.
  */
 
 interface AvatarProps {
   /** Kimliği verilirse presence deposundan canlı durum okunur. */
   profileId?: string;
   imageUrl?: string | null;
-  /** Görsel yüklenemezse baş harf için. */
+  /** Baş harf yedeği için görünen ad. */
   fallbackText?: string | null;
   size?: number;
   /** Sunucu ikonları kare-yuvarlak, kişiler tam yuvarlak. */
@@ -45,34 +47,56 @@ export const Avatar = memo(function Avatar({
   const livePresence = usePresenceStatus(profileId);
   const status = presence ?? livePresence;
 
+  const [failed, setFailed] = useState(false);
+
   const dotSize = Math.max(10, Math.round(size * 0.32));
   const borderRadius = shape === "circle" ? radii.full : Math.round(size * 0.3);
+  const showFallback = !imageUrl || failed;
 
   return (
     <View style={{ width: size, height: size }}>
-      <Image
-        source={imageUrl ?? undefined}
-        recyclingKey={profileId ?? imageUrl ?? undefined}
-        contentFit="cover"
-        transition={120}
-        cachePolicy="memory-disk"
-        style={{
-          width: size,
-          height: size,
-          borderRadius,
-          backgroundColor: colors.raised,
-        }}
-        accessibilityLabel={fallbackText ? `${fallbackText} avatarı` : "Avatar"}
-      />
-
-      {showPresence && profileId ? (
+      {showFallback ? (
         <View
           style={{
-            position: "absolute",
-            right: -1,
-            bottom: -1,
+            width: size,
+            height: size,
+            borderRadius,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.raised,
           }}
+          accessibilityLabel={fallbackText ? `${fallbackText} avatarı` : "Avatar"}
         >
+          <Text
+            style={{
+              fontSize: Math.round(size * 0.4),
+              fontWeight: "600",
+              color: colors.text,
+            }}
+          >
+            {fallbackText ? initialOf(fallbackText) : "?"}
+          </Text>
+        </View>
+      ) : (
+        <Image
+          source={imageUrl}
+          recyclingKey={profileId ?? imageUrl}
+          contentFit="cover"
+          transition={120}
+          cachePolicy="memory-disk"
+          onError={() => setFailed(true)}
+          style={{
+            width: size,
+            height: size,
+            borderRadius,
+            backgroundColor: colors.raised,
+          }}
+          accessibilityLabel={fallbackText ? `${fallbackText} avatarı` : "Avatar"}
+        />
+      )}
+
+      {showPresence && profileId ? (
+        <View style={{ position: "absolute", right: -1, bottom: -1 }}>
           <PresenceDot status={status} size={dotSize} ringColor={backgroundColor} />
         </View>
       ) : null}

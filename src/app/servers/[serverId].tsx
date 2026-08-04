@@ -5,32 +5,35 @@ import {
   type Channel,
 } from "@ciklet/embedded-activities-sdk/types";
 
-import { useServer } from "@/api/hooks";
-import { Icon, type IconName } from "@/components/ui/icon";
-import { EmptyState, Screen } from "@/components/ui/screen";
+import { useServerChannels, useServerSummary } from "@/api/hooks";
+import { Icon, type IconName } from "@/components/ui";
+import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
  * Sunucunun kanal listesi.
  *
- * Kanal tipine göre üç bölüme ayrılır. Kategori/klasör yapısı henüz şemada
- * yok; Faz 2'de eklenirse bölümlendirme oradan beslenecek.
+ * Kanallar `GET /api/channels?serverId=` ucundan gelir; sunucu listesi
+ * ucu (members/mine) kanal taşımaz.
  */
 export default function ServerChannelsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
-  const { data: server, isLoading } = useServer(serverId);
+  const { data: server } = useServerSummary(serverId);
+  const { data: channels, isLoading } = useServerChannels(serverId);
 
-  const sections = buildSections(server?.channels ?? []);
+  const sections = buildSections(channels ?? []);
 
   return (
     <Screen>
       <Stack.Screen options={{ title: server?.name ?? "" }} />
 
-      {sections.length === 0 ? (
+      {isLoading ? (
+        <ListSkeleton rows={6} />
+      ) : sections.length === 0 ? (
         <EmptyState
           icon="hash"
-          title={isLoading ? "Yükleniyor…" : "Kanal yok"}
-          description={isLoading ? undefined : "Bu sunucuda henüz kanal açılmamış."}
+          title="Kanal yok"
+          description="Bu sunucuda henüz kanal açılmamış."
         />
       ) : (
         <SectionList

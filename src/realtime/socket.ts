@@ -4,7 +4,15 @@ import { SOCKET_PATH } from "@ciklet/embedded-activities-sdk/types";
 import { cookieHeaderFor, getSession } from "@/api/client";
 import { API_BASE_URL, HEARTBEAT_INTERVAL_MS } from "@/lib/config";
 import { CLIENT_TYPE, CLIENT_VERSION } from "@/lib/device";
-import { ClientEvent, ServerEvent } from "./events";
+import { usePresenceStore } from "@/stores/presence";
+import {
+  ClientEvent,
+  ServerEvent,
+  type PresenceBatchPayload,
+  type PresenceSelfPayload,
+  type PresenceUpdatePayload,
+  type RichPresencePayload,
+} from "./events";
 
 /**
  * Tekil Socket.IO bağlantısı ve yaşam döngüsü.
@@ -85,6 +93,28 @@ export async function connectSocket(): Promise<Socket | null> {
       // `reconnectSocket()` zaten sıfırdan kurar.
       reconnectionAttempts: 20,
       timeout: 10_000,
+    });
+
+    // ── Presence dinleyicileri BURADA, senkron olarak bağlanır ───────
+    // Sunucu `presence:batch`'i bağlantı kurulur kurulmaz yayınlıyor
+    // (io.ts, "Handle user connection" bloğu). Dinleyici bir React
+    // effect'inde, `connectSocket()` promise'i çözüldükten SONRA
+    // bağlanırsa bu ilk toplu durum kaçırılıyor ve arkadaşlar kalıcı
+    // olarak çevrimdışı görünüyordu. `io()` çağrısıyla aynı senkron blokta
+    // bağlamak yarışı tamamen ortadan kaldırır.
+    const presence = usePresenceStore.getState();
+
+    next.on(ServerEvent.PRESENCE_BATCH, ({ statuses, activities }: PresenceBatchPayload) => {
+      presence.applyBatch(statuses ?? {}, activities ?? {});
+    });
+    next.on(ServerEvent.PRESENCE_UPDATE, ({ userId, status }: PresenceUpdatePayload) => {
+      presence.setStatus(userId, status);
+    });
+    next.on(ServerEvent.PRESENCE_SELF, ({ status }: PresenceSelfPayload) => {
+      presence.setSelfStatus(status);
+    });
+    next.on(ServerEvent.RICH_PRESENCE_UPDATE, ({ userId, activity }: RichPresencePayload) => {
+      presence.setActivity(userId, activity);
     });
 
     next.on("connect", () => {

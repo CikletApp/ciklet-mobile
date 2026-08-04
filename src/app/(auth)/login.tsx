@@ -1,16 +1,8 @@
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "@/api/client";
-import { Screen } from "@/components/ui/screen";
+import { KeyboardAvoider, Screen } from "@/components/ui";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -56,10 +48,9 @@ export default function LoginScreen() {
 
   return (
     <Screen edges={["top", "left", "right", "bottom"]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAvoider
+        applySafeArea={false}
         style={{
-          flex: 1,
           justifyContent: "center",
           paddingHorizontal: spacing["3xl"],
           gap: spacing.md,
@@ -139,7 +130,7 @@ export default function LoginScreen() {
             </Text>
           )}
         </Pressable>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </Screen>
   );
 }

@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, FlatList, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "@/api/client";
 import { useChatMessages, type ChatKind } from "@/api/hooks";
@@ -15,6 +7,7 @@ import {
   EmptyState,
   ErrorState,
   IconButton,
+  KeyboardAvoider,
   ListSkeleton,
 } from "@/components/ui";
 import { useChatStream } from "@/realtime/use-chat-stream";
@@ -119,11 +112,7 @@ export function ChatView({
   const typing = typingLabel(typers);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
-      style={{ flex: 1, backgroundColor: colors.bg }}
-    >
+    <KeyboardAvoider style={{ backgroundColor: colors.bg }}>
       <FlatList
         inverted
         data={items}
@@ -216,7 +205,7 @@ export function ChatView({
         onSend={onSend}
         placeholder={placeholder}
       />
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 

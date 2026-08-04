@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Server } from "@ciklet/embedded-activities-sdk/types";
@@ -11,6 +11,7 @@ import {
   Button,
   Icon,
   ListGroup,
+  KeyboardAvoider,
   ListRow,
   SegmentedTabs,
   TextField,
@@ -36,10 +37,7 @@ export default function NewServerScreen() {
   const [mode, setMode] = useState<Mode>("create");
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1, backgroundColor: colors.bg }}
-    >
+    <KeyboardAvoider style={{ backgroundColor: colors.bg }}>
       <SegmentedTabs
         items={[
           { id: "create" as const, label: "Sunucu Oluştur" },
@@ -49,7 +47,7 @@ export default function NewServerScreen() {
         onChange={setMode}
       />
       {mode === "create" ? <CreateServer /> : <JoinServer />}
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 
@@ -60,7 +58,7 @@ function CreateServer() {
 
   const createServer = useMutation({
     mutationFn: () =>
-      api<Server>(endpoints.servers, {
+      api<Server>(endpoints.createServer, {
         method: "POST",
         body: {
           name: name.trim(),
@@ -69,7 +67,7 @@ function CreateServer() {
         },
       }),
     onSuccess: (server) => {
-      void queryClient.invalidateQueries({ queryKey: qk.servers.all });
+      void queryClient.invalidateQueries({ queryKey: qk.memberships });
       router.replace(`/servers/${server.id}`);
     },
   });
@@ -175,7 +173,7 @@ function JoinServer() {
     mutationFn: (serverId: string) =>
       api(endpoints.serverJoin(serverId), { method: "POST" }),
     onSuccess: (_result, serverId) => {
-      void queryClient.invalidateQueries({ queryKey: qk.servers.all });
+      void queryClient.invalidateQueries({ queryKey: qk.memberships });
       router.replace(`/servers/${serverId}`);
     },
   });

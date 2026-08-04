@@ -9,12 +9,17 @@
 export const qk = {
   currentProfile: ["current-profile"] as const,
 
-  servers: {
-    all: ["servers"] as const,
-    detail: (serverId: string) => ["servers", serverId] as const,
-  },
-
+  /**
+   * Sunucu listesi üyelik ucundan gelir (`GET /api/members/mine`) — ayrı bir
+   * "servers" anahtarı YOK, çünkü `GET /api/servers` diye bir uç yok.
+   */
   memberships: ["memberships"] as const,
+
+  /** Bir sunucunun kanalları. */
+  channels: (serverId: string) => ["channels", serverId] as const,
+
+  /** Bir sunucunun üyeleri. */
+  members: (serverId: string) => ["members", serverId] as const,
 
   directs: ["directs"] as const,
 

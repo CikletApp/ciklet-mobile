@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import { FlatList, Text, View } from "react-native";
 import { router } from "expo-router";
-import type { ServerWithChannels } from "@ciklet/embedded-activities-sdk/types";
 
-import { hasUnread, useDirects, useServers, useUnreadCounts } from "@/api/hooks";
+import { hasUnread, useDirects, useMyServers, useUnreadCounts } from "@/api/hooks";
 import type { DirectSummary } from "@/api/types";
 import {
   Avatar,
@@ -16,6 +15,7 @@ import {
   Screen,
   UnreadBadge,
 } from "@/components/ui";
+import { ActiveNow } from "@/features/home/active-now";
 import { displayNameOf, formatRelativeShort } from "@/lib/format";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -28,8 +28,6 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * zorlar. Ray dar tutulur (72pt), böylece liste okunur genişlikte kalır.
  */
 export default function HomeScreen() {
-  const { data: servers, isLoading: serversLoading } = useServers();
-  const { data: unread } = useUnreadCounts();
   const { data: directs, isLoading, refetch, isRefetching } = useDirects();
   const myId = useAuth((s) => s.profile?.id);
 
@@ -96,7 +94,7 @@ export default function HomeScreen() {
   return (
     <Screen edges={["top", "left", "right"]}>
       <View style={{ flex: 1, flexDirection: "row" }}>
-        <ServerRail servers={servers} unread={unread?.serverUnreads} />
+        <ServerRail />
 
         <View style={{ flex: 1 }}>
           <View
@@ -127,7 +125,7 @@ export default function HomeScreen() {
             />
           </View>
 
-          {isLoading || serversLoading ? (
+          {isLoading ? (
             <ListSkeleton />
           ) : (
             <FlatList
@@ -136,24 +134,27 @@ export default function HomeScreen() {
               renderItem={renderDirect}
               refreshing={isRefetching}
               onRefresh={refetch}
+              ListHeaderComponent={<ActiveNow />}
               contentContainerStyle={
                 (directs?.length ?? 0) === 0
-                  ? { flex: 1 }
+                  ? undefined
                   : { paddingBottom: spacing["3xl"] }
               }
               ListEmptyComponent={
-                <EmptyState
-                  icon="message"
-                  title="Henüz sohbet yok"
-                  description="Bir arkadaş ekleyip ilk mesajını gönder."
-                  action={
-                    <Button
-                      label="Arkadaş Ekle"
-                      icon="user-plus"
-                      onPress={() => router.push("/friends/add")}
-                    />
-                  }
-                />
+                <View style={{ paddingTop: spacing["4xl"] }}>
+                  <EmptyState
+                    icon="message"
+                    title="Henüz sohbet yok"
+                    description="Bir arkadaş ekleyip ilk mesajını gönder."
+                    action={
+                      <Button
+                        label="Arkadaş Ekle"
+                        icon="user-plus"
+                        onPress={() => router.push("/friends/add")}
+                      />
+                    }
+                  />
+                </View>
               }
             />
           )}
@@ -163,14 +164,18 @@ export default function HomeScreen() {
   );
 }
 
-/** Sol taraftaki dikey sunucu rayı. */
-function ServerRail({
-  servers,
-  unread,
-}: {
-  servers: ServerWithChannels[] | undefined;
-  unread: Record<string, number> | undefined;
-}) {
+/**
+ * Sol taraftaki dikey sunucu rayı.
+ *
+ * Sunucu listesi `GET /api/members/mine`'dan gelir — `GET /api/servers`
+ * diye bir uç YOK (bkz. api/hooks/use-servers.ts). İlk sürümde rayın boş
+ * görünmesinin sebebi buydu.
+ */
+function ServerRail() {
+  const { servers, isLoading } = useMyServers();
+  const { data: unread } = useUnreadCounts();
+  const me = useAuth((s) => s.profile);
+
   return (
     <View
       style={{
@@ -181,9 +186,28 @@ function ServerRail({
         gap: spacing.sm,
       }}
     >
-      <RailTile active accessibilityLabel="Doğrudan mesajlar">
-        <Icon name="message" size={22} color={colors.onBrand} />
-      </RailTile>
+      {/* Doğrudan mesajlar sekmesi kullanıcının kendi avatarını taşır. */}
+      <View
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: radii.lg,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.brand,
+        }}
+        accessibilityLabel="Doğrudan mesajlar"
+        accessibilityRole="button"
+      >
+        <Avatar
+          profileId={me?.id}
+          imageUrl={me?.imageUrl}
+          fallbackText={me?.username}
+          size={44}
+          showPresence
+          backgroundColor={colors.brand}
+        />
+      </View>
 
       <View
         style={{
@@ -196,7 +220,7 @@ function ServerRail({
       />
 
       <FlatList
-        data={servers ?? []}
+        data={servers}
         keyExtractor={(s) => s.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.lg }}
@@ -215,56 +239,48 @@ function ServerRail({
               shape="squircle"
               backgroundColor={colors.deep}
             />
-            {unread?.[item.id] ? (
+            {unread?.serverUnreads?.[item.id] ? (
               <View style={{ position: "absolute", right: -4, top: -4 }}>
-                <UnreadBadge count={unread[item.id]} />
+                <UnreadBadge count={unread.serverUnreads[item.id]} />
               </View>
             ) : null}
           </Pressable>
         )}
+        ListEmptyComponent={
+          isLoading ? null : (
+            <Text
+              style={{
+                ...typography.caption,
+                color: colors.muted,
+                textAlign: "center",
+                paddingHorizontal: spacing.xs,
+              }}
+            >
+              Sunucu yok
+            </Text>
+          )
+        }
         ListFooterComponent={
-          <RailTile
+          <Pressable
             onPress={() => router.push("/servers/new")}
+            haptic="light"
+            noHitSlop
+            accessibilityRole="button"
             accessibilityLabel="Sunucu ekle"
+            style={({ pressed }) => ({
+              width: 48,
+              height: 48,
+              borderRadius: radii.full,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.panel,
+              opacity: pressed ? 0.75 : 1,
+            })}
           >
             <Icon name="plus" size={22} color={colors.brand} />
-          </RailTile>
+          </Pressable>
         }
       />
     </View>
-  );
-}
-
-function RailTile({
-  children,
-  onPress,
-  active,
-  accessibilityLabel,
-}: {
-  children: React.ReactNode;
-  onPress?: () => void;
-  active?: boolean;
-  accessibilityLabel: string;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      haptic={onPress ? "light" : undefined}
-      noHitSlop
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected: active }}
-      style={({ pressed }) => ({
-        width: 48,
-        height: 48,
-        borderRadius: active ? radii.lg : radii.full,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: active ? colors.brand : colors.panel,
-        opacity: pressed ? 0.75 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
   );
 }

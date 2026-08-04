@@ -2,15 +2,8 @@ import { useMemo } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { useDirects, useFriends, useOpenDirect, useServers } from "@/api/hooks";
-import {
-  Avatar,
-  Button,
-  EmptyState,
-  ListRow,
-  Screen,
-  Tag,
-} from "@/components/ui";
+import { useDirects, useFriends, useOpenDirect } from "@/api/hooks";
+import { Avatar, Button, EmptyState, Screen, Tag } from "@/components/ui";
 import { displayNameOf, formatDate } from "@/lib/format";
 import { usePresence } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -23,11 +16,15 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * veriyi cache'ten türetir ve gereksiz istek atmaz.
  *
  * ⚠️ Kaynaklar EŞİT ZENGİNLİKTE DEĞİL:
- *  - `/api/friends` ve `/api/servers` tam `PublicProfile` döner
- *    (bio, pronouns, bannerColor, createdAt...)
+ *  - `/api/friends` tam `PublicProfile` döner (bio, pronouns, bannerColor…)
  *  - `/api/directs` yalnızca beş alanlık slim profil döner
  * Bu yüzden görünüm modeli zengin alanları OPSİYONEL tutar ve yoksa ilgili
- * kartı hiç çizmez. Aksi halde DM'den açılan profilde boş kartlar görünürdü.
+ * kartı hiç çizmez.
+ *
+ * ⚠️ "Ortak sunucular" kartı YOK: ciklet-web'de bunu tek istekte veren bir
+ * uç bulunmuyor. Hesaplamak için sunucu başına `GET /api/members?serverId=`
+ * çağırmak (N+1) gerekirdi. Backend'e `GET /api/profiles/[id]/mutual` gibi
+ * bir uç eklendiğinde geri gelecek — bkz. docs/ROADMAP.md.
  */
 interface ProfileView {
   id: string;
@@ -45,19 +42,13 @@ export default function ProfileScreen() {
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
   const { accepted } = useFriends();
   const { data: directs } = useDirects();
-  const { data: servers } = useServers();
   const openDirect = useOpenDirect();
   const presence = usePresence(profileId);
 
   const profile = useMemo<ProfileView | undefined>(() => {
-    // Zengin kaynaklar önce denenir; slim DM kaydı son çare.
+    // Zengin kaynak önce denenir; slim DM kaydı son çare.
     const friend = accepted.find((f) => f.profile.id === profileId)?.profile;
     if (friend) return friend;
-
-    for (const server of servers ?? []) {
-      const member = server.members?.find((m) => m.profile.id === profileId);
-      if (member) return member.profile;
-    }
 
     for (const direct of directs ?? []) {
       if (direct.profileOne.id === profileId) return direct.profileOne;
@@ -65,15 +56,7 @@ export default function ProfileScreen() {
     }
 
     return undefined;
-  }, [profileId, accepted, directs, servers]);
-
-  const mutualServers = useMemo(
-    () =>
-      (servers ?? []).filter((server) =>
-        server.members?.some((m) => m.profile.id === profileId)
-      ),
-    [servers, profileId]
-  );
+  }, [profileId, accepted, directs]);
 
   if (!profile) {
     return (
@@ -82,7 +65,7 @@ export default function ProfileScreen() {
         <EmptyState
           icon="user"
           title="Profil bulunamadı"
-          description="Bu kullanıcıyla ortak bir sunucun veya sohbetin yok."
+          description="Bu kullanıcıyla arkadaş değilsin ve bir sohbetin de yok."
         />
       </Screen>
     );
@@ -111,7 +94,9 @@ export default function ProfileScreen() {
               <Text style={{ ...typography.displayLg, color: colors.bright }}>
                 {displayNameOf(profile)}
               </Text>
-              {profile.isBot ? <Tag label="BOT" tint={colors.onBrand} background={colors.brand} /> : null}
+              {profile.isBot ? (
+                <Tag label="BOT" tint={colors.onBrand} background={colors.brand} />
+              ) : null}
             </View>
             <Text style={{ ...typography.body, color: colors.muted }}>
               @{profile.username}
@@ -123,7 +108,7 @@ export default function ProfileScreen() {
             ) : null}
           </View>
 
-          {/* Sesli/görüntülü arama Faz 4'te LiveKit ile bağlanacak. */}
+          {/* Sesli/görüntülü arama gelen-çağrı akışıyla birlikte bağlanacak. */}
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <Button
               label="Mesaj"
@@ -167,63 +152,23 @@ export default function ProfileScreen() {
               ) : null}
             </Card>
           ) : null}
-
-          {mutualServers.length > 0 ? (
-            <Card title={`ORTAK SUNUCULAR — ${mutualServers.length}`} flush>
-              {mutualServers.map((server) => (
-                <ListRow
-                  key={server.id}
-                  title={server.name}
-                  onPress={() => router.push(`/servers/${server.id}`)}
-                  leading={
-                    <Avatar
-                      imageUrl={server.imageUrl}
-                      fallbackText={server.name}
-                      size={32}
-                      shape="squircle"
-                      backgroundColor={colors.panel}
-                    />
-                  }
-                />
-              ))}
-            </Card>
-          ) : null}
         </View>
       </ScrollView>
     </Screen>
   );
 }
 
-function Card({
-  title,
-  children,
-  /** İçerik kendi yatay boşluğunu yönetiyorsa (liste satırları). */
-  flush,
-}: {
-  title: string;
-  children: React.ReactNode;
-  flush?: boolean;
-}) {
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View
       style={{
         backgroundColor: colors.panel,
         borderRadius: radii.lg,
-        paddingVertical: spacing.lg,
-        paddingHorizontal: flush ? 0 : spacing.lg,
+        padding: spacing.lg,
         gap: spacing.sm,
-        overflow: "hidden",
       }}
     >
-      <Text
-        style={{
-          ...typography.overline,
-          color: colors.muted,
-          paddingHorizontal: flush ? spacing.lg : 0,
-        }}
-      >
-        {title}
-      </Text>
+      <Text style={{ ...typography.overline, color: colors.muted }}>{title}</Text>
       {children}
     </View>
   );

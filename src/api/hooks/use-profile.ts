@@ -65,8 +65,8 @@ export function useUpdateMemberProfile(memberId: string) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.memberships });
-      // Üye adı mesaj listelerinde de görünür.
-      void queryClient.invalidateQueries({ queryKey: qk.servers.all });
+      // Takma ad üye listelerinde ve mesaj başlıklarında da görünür.
+      void queryClient.invalidateQueries({ queryKey: ["members"] });
     },
   });
 }

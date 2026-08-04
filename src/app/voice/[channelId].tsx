@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { LiveKitRoom, useLocalParticipant, useParticipants } from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
 
-import { useChannel, useServer } from "@/api/hooks";
+import { useChannel, useServerSummary } from "@/api/hooks";
 import {
   Avatar,
   Button,
@@ -31,7 +31,7 @@ export default function VoiceChannelScreen() {
     serverId?: string;
   }>();
 
-  const { data: server } = useServer(serverId);
+  const { data: server } = useServerSummary(serverId);
   const channel = useChannel(serverId, channelId);
 
   // Ekran açıkken cihaz uyumasın — uyku, mikrofon yayınını kesebilir.

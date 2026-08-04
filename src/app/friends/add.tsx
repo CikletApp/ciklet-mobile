@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { ApiError } from "@/api/client";
 import { useSendFriendRequest } from "@/api/hooks";
-import { Button, Icon, TextField } from "@/components/ui";
+import { Button, Icon, KeyboardAvoider, TextField } from "@/components/ui";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -26,10 +26,8 @@ export default function AddFriendScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <KeyboardAvoider
       style={{
-        flex: 1,
         backgroundColor: colors.panel,
         padding: spacing.lg,
         gap: spacing.lg,
@@ -77,6 +75,6 @@ export default function AddFriendScreen() {
         fullWidth
         size="lg"
       />
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }

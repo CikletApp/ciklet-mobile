@@ -32,7 +32,12 @@ export const endpoints = {
   session: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`,
 
   // ── Sunucular ─────────────────────────────────────────────────────
-  servers: "/api/servers",
+  /**
+   * ⚠️ YALNIZCA POST (sunucu oluşturma). ciklet-web'de bu yolun GET
+   * handler'ı YOK — istek 405 döner. Kullanıcının sunucu listesi
+   * `myMemberships` ucundan gelir.
+   */
+  createServer: "/api/servers",
   server: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}`,
   serverLeave: (serverId: string) =>
     `/api/servers/${encodeURIComponent(serverId)}/leave`,
@@ -42,12 +47,17 @@ export const endpoints = {
     `/api/servers/${encodeURIComponent(serverId)}/activities`,
   invite: (code: string) => `/api/i/${encodeURIComponent(code)}`,
 
-  // ── Üyelikler (sunucu profili düzenleme buradan yazılır) ──────────
+  // ── Üyelikler ─────────────────────────────────────────────────────
+  /** Kullanıcının sunucu listesinin TEK kaynağı (server alanı gömülü gelir). */
   myMemberships: "/api/members/mine",
+  /** Bir sunucunun görünür üyeleri (hayalet üyelikler hariç). */
+  serverMembers: (serverId: string) => `/api/members${qs({ serverId })}`,
   member: (memberId: string) => `/api/members/${encodeURIComponent(memberId)}`,
 
   // ── Kanallar ──────────────────────────────────────────────────────
-  channels: "/api/channels",
+  /** Bir sunucunun kanalları. `serverId` zorunlu; üyelik sunucuda denetlenir. */
+  serverChannels: (serverId: string) => `/api/channels${qs({ serverId })}`,
+  createChannel: "/api/channels",
   channel: (channelId: string) => `/api/channels/${encodeURIComponent(channelId)}`,
 
   // ── Doğrudan mesajlar (1:1) ───────────────────────────────────────

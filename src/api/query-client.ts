@@ -45,7 +45,6 @@ const persister = createAsyncStoragePersister({
 /** Kalıcılığa alınacak sorgular — anahtarın ilk parçasına göre. */
 const PERSISTED_KEYS = new Set<string>([
   qk.currentProfile[0],
-  qk.servers.all[0],
   qk.directs[0],
   qk.friends[0],
   qk.memberships[0],
