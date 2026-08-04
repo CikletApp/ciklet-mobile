@@ -5,21 +5,23 @@ import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 import { Avatar, Icon, type IconName } from "@/components/ui";
 import { formatTime } from "@/lib/format";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
-import { colors, spacing, typography } from "@/theme/tokens";
+import { useAuth } from "@/stores/auth";
+import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
- * Tek mesaj satırı.
+ * Tek mesaj satırı — baloncuk düzeni.
+ *
+ * Gönderdiğin mesajlar sağda ve marka tonlu, gelenler solda avatarıyla.
+ * Bu ayrım okumayı hızlandırır: kimin yazdığını anlamak için ada bakmak
+ * gerekmez.
  *
  * Kanal ve DM mesajları farklı şekle sahip: kanalda gönderen `member`
  * (sunucuya özel takma adıyla), DM'de doğrudan `profile`. Ayrım burada bir
  * kez yapılır, ekranlar bilmek zorunda kalmaz.
- *
- * `grouped` olduğunda avatar ve ad tekrarlanmaz; yerine hover'da görünen
- * saat için sabit genişlikte boşluk bırakılır — metin sütunu kaymaz.
  */
 
-const AVATAR_SIZE = 40;
-const GUTTER = AVATAR_SIZE + spacing.md;
+const AVATAR_SIZE = 32;
+const MAX_BUBBLE_WIDTH = "78%";
 
 export const MessageItem = memo(function MessageItem({
   message,
@@ -28,7 +30,9 @@ export const MessageItem = memo(function MessageItem({
   message: ChatMessagePayload;
   grouped?: boolean;
 }) {
-  // Sistem mesajları (çağrı, aktivite daveti) farklı bir kart olarak çizilir.
+  const myId = useAuth((s) => s.profile?.id);
+
+  // Sistem mesajları (çağrı, aktivite daveti) tarafsızdır — ortada çizilir.
   if (message.type !== MessageType.DEFAULT) {
     return <SystemMessage message={message} />;
   }
@@ -39,35 +43,56 @@ export const MessageItem = memo(function MessageItem({
     ? message.member.nickname?.trim() || profile.name?.trim() || profile.username
     : profile.name?.trim() || profile.username;
 
+  const isMine = profile.id === myId;
+  const showHeader = !grouped && !isMine;
+
   return (
     <View
       style={{
         flexDirection: "row",
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
+        justifyContent: isMine ? "flex-end" : "flex-start",
+        alignItems: "flex-end",
+        gap: spacing.sm,
+        paddingHorizontal: spacing.md,
         paddingTop: grouped ? 2 : spacing.sm,
         paddingBottom: 2,
       }}
-      accessibilityLabel={`${name}: ${message.deleted ? "silinmiş mesaj" : message.content}`}
+      accessibilityLabel={`${isMine ? "Sen" : name}: ${
+        message.deleted ? "silinmiş mesaj" : message.content
+      }`}
     >
-      {grouped ? (
-        <View style={{ width: AVATAR_SIZE }} />
-      ) : (
-        <Avatar
-          profileId={profile.id}
-          imageUrl={profile.imageUrl}
-          fallbackText={profile.username}
-          size={AVATAR_SIZE}
-        />
-      )}
+      {/* Gelen mesajlarda avatar; gruplananlarda sütun hizası korunur. */}
+      {!isMine ? (
+        grouped ? (
+          <View style={{ width: AVATAR_SIZE }} />
+        ) : (
+          <Avatar
+            profileId={profile.id}
+            imageUrl={profile.imageUrl}
+            fallbackText={profile.username}
+            size={AVATAR_SIZE}
+          />
+        )
+      ) : null}
 
-      <View style={{ flex: 1, gap: 2 }}>
-        {grouped ? null : (
-          <View
-            style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}
-          >
+      <View
+        style={{
+          maxWidth: MAX_BUBBLE_WIDTH,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderRadius: radii.lg,
+          // Baloncuğun "kuyruk" tarafı köşesi küçültülür; grup içindeki
+          // ardışık mesajlarda düz kalır ki blok tek parça görünsün.
+          borderBottomRightRadius: isMine && !grouped ? radii.sm : radii.lg,
+          borderBottomLeftRadius: !isMine && !grouped ? radii.sm : radii.lg,
+          backgroundColor: isMine ? colors.bubbleOwn : colors.bubbleOther,
+          gap: 2,
+        }}
+      >
+        {showHeader ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <Text
-              style={{ ...typography.bodyStrong, color: colors.bright }}
+              style={{ ...typography.caption, fontWeight: "700", color: colors.brand }}
               numberOfLines={1}
             >
               {name}
@@ -81,18 +106,13 @@ export const MessageItem = memo(function MessageItem({
                   backgroundColor: colors.brand,
                 }}
               >
-                <Text
-                  style={{ fontSize: 9, fontWeight: "700", color: colors.onBrand }}
-                >
+                <Text style={{ fontSize: 9, fontWeight: "700", color: colors.onBrand }}>
                   BOT
                 </Text>
               </View>
             ) : null}
-            <Text style={{ ...typography.caption, color: colors.muted }}>
-              {formatTime(message.createdAt)}
-            </Text>
           </View>
-        )}
+        ) : null}
 
         <Text
           style={{
@@ -105,20 +125,29 @@ export const MessageItem = memo(function MessageItem({
           {message.deleted ? "Bu mesaj silindi." : message.content}
         </Text>
 
-        {message.createdAt !== message.updatedAt && !message.deleted ? (
-          <Text style={{ ...typography.caption, color: colors.muted }}>
-            düzenlendi
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            alignSelf: "flex-end",
+            gap: spacing.xs,
+          }}
+        >
+          {message.createdAt !== message.updatedAt && !message.deleted ? (
+            <Text style={{ fontSize: 10, color: colors.muted }}>düzenlendi</Text>
+          ) : null}
+          <Text style={{ fontSize: 10, lineHeight: 14, color: colors.muted }}>
+            {formatTime(message.createdAt)}
           </Text>
-        ) : null}
+        </View>
       </View>
     </View>
   );
 });
 
 /**
- * Sistem mesajı kartı — çağrı kayıtları ve aktivite davetleri.
- * Metin `content` alanında gelir; `metadata` zenginleştirmeleri Faz 4'te
- * aktivite kartına dönüşecek.
+ * Sistem mesajı — çağrı kayıtları ve aktivite davetleri.
+ * Kimseye ait olmadığı için ortada, baloncuksuz çizilir.
  */
 function SystemMessage({ message }: { message: ChatMessagePayload }) {
   const { icon, tint } = SYSTEM_STYLE[message.type] ?? {
@@ -131,24 +160,17 @@ function SystemMessage({ message }: { message: ChatMessagePayload }) {
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
+        justifyContent: "center",
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
         paddingVertical: spacing.sm,
-        marginLeft: GUTTER - AVATAR_SIZE,
       }}
     >
-      <View
-        style={{
-          width: AVATAR_SIZE,
-          alignItems: "center",
-        }}
-      >
-        <Icon name={icon} size={18} color={tint} />
-      </View>
-      <Text style={{ ...typography.caption, color: colors.muted, flex: 1 }}>
+      <Icon name={icon} size={14} color={tint} />
+      <Text style={{ ...typography.caption, color: colors.muted, flexShrink: 1 }}>
         {message.content}
       </Text>
-      <Text style={{ ...typography.caption, color: colors.muted }}>
+      <Text style={{ fontSize: 10, color: colors.muted }}>
         {formatTime(message.createdAt)}
       </Text>
     </View>

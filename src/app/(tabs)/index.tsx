@@ -186,7 +186,12 @@ function ServerRail() {
         gap: spacing.sm,
       }}
     >
-      {/* Doğrudan mesajlar sekmesi kullanıcının kendi avatarını taşır. */}
+      {/*
+        Doğrudan mesajlar sekmesi kullanıcının kendi avatarını taşır.
+        Presence noktası BİLEREK yok: web'de de bu düğme bir durum
+        göstergesi değil, sekme göstergesi. Kendi durumun zaten alt
+        çubuktaki profil sekmesinde.
+      */}
       <View
         style={{
           width: 52,
@@ -200,11 +205,9 @@ function ServerRail() {
         accessibilityRole="button"
       >
         <Avatar
-          profileId={me?.id}
           imageUrl={me?.imageUrl}
           fallbackText={me?.username}
           size={44}
-          showPresence
           backgroundColor={colors.brand}
         />
       </View>

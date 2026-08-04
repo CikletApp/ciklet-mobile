@@ -130,13 +130,31 @@ export interface PresenceEntry {
   activity: RichPresence | null;
 }
 
+/**
+ * Zengin durum ("… oynuyor").
+ * ciklet-web: `src/hooks/use-rich-presence.ts` → `RichPresenceActivity`.
+ */
+export type RichPresenceType =
+  | "PLAYING"
+  | "LISTENING"
+  | "STREAMING"
+  | "WATCHING"
+  | "WORKING"
+  | "CREATING"
+  | "COMPETING";
+
 export interface RichPresence {
-  name?: string;
+  type?: RichPresenceType;
+  name: string;
   details?: string;
   state?: string;
-  imageUrl?: string;
+  processName?: string;
+  /** Epoch ms — geçen süre bundan hesaplanır. */
   startedAt?: number;
-  [key: string]: unknown;
+  largeImageUrl?: string;
+  smallImageUrl?: string;
+  appIconUrl?: string;
+  timestamps?: { start: number; end: number };
 }
 
 /** Üye listesi ekranlarında profil + presence birleştirilmiş görünüm. */

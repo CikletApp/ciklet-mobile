@@ -8,7 +8,8 @@ import { usePresenceStore } from "@/stores/presence";
 import {
   ClientEvent,
   ServerEvent,
-  type PresenceBatchPayload,
+  normalizePresenceBatch,
+  type PresenceBatchMessage,
   type PresenceSelfPayload,
   type PresenceUpdatePayload,
   type RichPresencePayload,
@@ -104,8 +105,9 @@ export async function connectSocket(): Promise<Socket | null> {
     // bağlamak yarışı tamamen ortadan kaldırır.
     const presence = usePresenceStore.getState();
 
-    next.on(ServerEvent.PRESENCE_BATCH, ({ statuses, activities }: PresenceBatchPayload) => {
-      presence.applyBatch(statuses ?? {}, activities ?? {});
+    next.on(ServerEvent.PRESENCE_BATCH, (message: PresenceBatchMessage) => {
+      const { statuses, activities } = normalizePresenceBatch(message);
+      presence.applyBatch(statuses, activities);
     });
     next.on(ServerEvent.PRESENCE_UPDATE, ({ userId, status }: PresenceUpdatePayload) => {
       presence.setStatus(userId, status);

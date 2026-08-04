@@ -14,8 +14,9 @@ interface PresenceState {
   /** Kendi görünür durumun — `INVISIBLE` yalnızca burada görünür. */
   selfStatus: PresenceStatus;
 
+  /** `statuses` sunucudan DİZİ olarak gelir — bkz. realtime/events.ts. */
   applyBatch: (
-    statuses: Record<string, PresenceStatus>,
+    statuses: { userId: string; status: PresenceStatus }[],
     activities: Record<string, RichPresence>
   ) => void;
   setStatus: (userId: string, status: PresenceStatus) => void;
@@ -33,8 +34,14 @@ export const usePresenceStore = create<PresenceState>((set) => ({
   applyBatch: (statuses, activities) =>
     set((state) => {
       const entries = { ...state.entries };
-      for (const [userId, status] of Object.entries(statuses)) {
+      for (const { userId, status } of statuses) {
+        if (!userId) continue;
         entries[userId] = { status, activity: activities[userId] ?? null };
+      }
+      // Toplu yayında olmayan ama ayrıca gelen aktiviteler de yazılır.
+      for (const [userId, activity] of Object.entries(activities)) {
+        const current = entries[userId];
+        if (current) current.activity = activity;
       }
       return { entries };
     }),

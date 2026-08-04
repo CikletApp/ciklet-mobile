@@ -106,9 +106,40 @@ export interface PresenceSelfPayload {
   status: PresenceStatus;
 }
 
+/**
+ * `presence:batch` yükü.
+ *
+ * ⚠️ `statuses` bir NESNE DEĞİL, DİZİdir. Sunucudaki
+ * `presenceManager.getBulkStatus()` `PresenceUpdateEvent[]` döndürür
+ * (`[{ userId, status }, …]`). Nesne sanıp `Object.entries()` uygulamak
+ * anahtar olarak dizi indekslerini ("0", "1", …) verir ve hiçbir
+ * kullanıcının durumu çözülmez — arkadaşlar kalıcı olarak çevrimdışı
+ * görünür. Web istemcisi de bu diziyi `data.statuses.map(...)` ile okur.
+ *
+ * `activities` ise gerçekten kullanıcı kimliğine göre anahtarlı bir nesne.
+ */
 export interface PresenceBatchPayload {
-  statuses: Record<string, PresenceStatus>;
+  statuses: PresenceUpdatePayload[];
   activities: Record<string, RichPresence>;
+}
+
+/**
+ * Sunucunun eski sürümleri `presence:batch`'i sarmalayıcı olmadan, düz bir
+ * dizi olarak yayınlıyordu. Web istemcisi hâlâ iki şekli de kabul ediyor;
+ * mobil de aynısını yapar.
+ */
+export type PresenceBatchMessage = PresenceBatchPayload | PresenceUpdatePayload[];
+
+/** Her iki yayın şeklini tek biçime indirger. */
+export function normalizePresenceBatch(message: PresenceBatchMessage): {
+  statuses: PresenceUpdatePayload[];
+  activities: Record<string, RichPresence>;
+} {
+  if (Array.isArray(message)) return { statuses: message, activities: {} };
+  return {
+    statuses: Array.isArray(message?.statuses) ? message.statuses : [],
+    activities: message?.activities ?? {},
+  };
 }
 
 export interface RichPresencePayload {

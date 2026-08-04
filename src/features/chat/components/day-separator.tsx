@@ -2,9 +2,17 @@ import { memo } from "react";
 import { Text, View } from "react-native";
 
 import { formatDaySeparator } from "@/lib/format";
-import { colors, spacing } from "@/theme/tokens";
+import { colors, spacing, typography } from "@/theme/tokens";
 
-/** Sohbette gün değişimini işaretleyen çizgi + etiket. */
+/**
+ * Sohbette gün değişimini işaretleyen ayraç.
+ *
+ * Sol tarafta kısa, sağ tarafta ekranın sonuna kadar uzayan bir çizgi:
+ *
+ *     ─── 12 Temmuz 2026 ────────────────────────────
+ *
+ * Tarih büyük harfe çevrilmez — Türkçe ay adları normal yazımda okunur.
+ */
 export const DaySeparator = memo(function DaySeparator({ iso }: { iso: string }) {
   return (
     <View
@@ -13,21 +21,19 @@ export const DaySeparator = memo(function DaySeparator({ iso }: { iso: string })
         alignItems: "center",
         gap: spacing.md,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingVertical: spacing.lg,
       }}
       accessibilityRole="header"
     >
-      <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+      <View style={{ width: 24, height: 1, backgroundColor: colors.border }} />
       <Text
         style={{
-          fontSize: 11,
-          lineHeight: 14,
-          fontWeight: "700",
-          letterSpacing: 0.4,
+          ...typography.caption,
+          fontWeight: "600",
           color: colors.muted,
         }}
       >
-        {formatDaySeparator(iso).toLocaleUpperCase("tr")}
+        {formatDaySeparator(iso)}
       </Text>
       <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
     </View>

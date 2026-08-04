@@ -54,6 +54,12 @@ export interface ThemePalette {
   idle: string;
   dnd: string;
   offline: string;
+  /** Kendi gönderdiğin mesajın baloncuğu — marka renginin soluk hâli. */
+  bubbleOwn: string;
+  /** Karşı tarafın baloncuğu. */
+  bubbleOther: string;
+  /** Zengin durum vurgusu ("… Oynuyor"). */
+  accent: string;
 }
 
 export type ThemeId = "night" | "mist" | "oled" | "light";
@@ -77,6 +83,9 @@ const night: ThemePalette = {
   idle: hsl(40, 86, 57),
   dnd: hsl(0, 78, 60),
   offline: hsl(210, 8, 45),
+  bubbleOwn: hsl(74, 100, 40, 0.18),
+  bubbleOther: hsl(225, 6, 16),
+  accent: "#45f3ff",
 };
 
 /** Sis — yumuşak, gri tonlu koyu tema. */
@@ -97,6 +106,9 @@ const mist: ThemePalette = {
   idle: hsl(40, 88, 58),
   dnd: hsl(0, 78, 63),
   offline: hsl(222, 9, 55),
+  bubbleOwn: hsl(74, 100, 42, 0.2),
+  bubbleOther: hsl(225, 6, 27),
+  accent: "#45f3ff",
 };
 
 /** Zifir — OLED ekranlarda pil dostu saf siyah. */
@@ -118,6 +130,9 @@ const oled: ThemePalette = {
   idle: hsl(40, 86, 57),
   dnd: hsl(0, 78, 58),
   offline: hsl(0, 0, 40),
+  bubbleOwn: hsl(74, 100, 42, 0.2),
+  bubbleOther: hsl(0, 0, 9),
+  accent: "#45f3ff",
 };
 
 /** Aydınlık. */
@@ -139,6 +154,9 @@ const light: ThemePalette = {
   idle: hsl(40, 90, 45),
   dnd: hsl(0, 74, 52),
   offline: "#8b949c",
+  bubbleOwn: "rgba(152, 203, 0, 0.22)",
+  bubbleOther: "#ececed",
+  accent: "#0f7f8c",
 };
 
 export const themes: Record<ThemeId, ThemePalette> = { night, mist, oled, light };

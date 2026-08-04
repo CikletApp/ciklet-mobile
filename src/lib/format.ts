@@ -102,6 +102,21 @@ export function shouldGroupMessages(
   return Math.abs(gap) < GROUPING_WINDOW_MS;
 }
 
+/**
+ * Zengin durumun geçen süresi — "2:27:29" veya "14:05".
+ * Bir saatin altında saat bileşeni gösterilmez.
+ */
+export function formatElapsed(startedAt: number): string {
+  const total = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+    : `${minutes}:${pad(seconds)}`;
+}
+
 /** Görünen ad: gerçek ad varsa o, yoksa kullanıcı adı. */
 export function displayNameOf(profile: {
   name?: string | null;

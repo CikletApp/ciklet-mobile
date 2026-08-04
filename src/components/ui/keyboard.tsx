@@ -1,4 +1,5 @@
 import Animated, {
+  KeyboardState,
   useAnimatedKeyboard,
   useAnimatedStyle,
 } from "react-native-reanimated";
@@ -17,6 +18,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
  * Reanimated'ın `useAnimatedKeyboard()` kancası klavye yüksekliğini UI iş
  * parçacığında verir — JS köprüsünden geçmediği için açılma animasyonuyla
  * kare kare uyumlu ilerler ve yeni bir native bağımlılık gerektirmez.
+ *
+ * ⚠️ `height` TEK BAŞINA KULLANILAMAZ: ekrandan çıkılıp geri dönüldüğünde
+ * son bilinen yükseklik korunuyor ve klavye kapalıyken ekranın altında
+ * kocaman bir boşluk kalıyordu (cihaz testinde görüldü). Bu yüzden yalnızca
+ * klavye AÇIK/AÇILIYOR durumundayken yükseklik uygulanır; diğer her
+ * durumda güvenli alan boşluğuna dönülür.
  */
 export function KeyboardAvoider({
   children,
@@ -33,9 +40,13 @@ export function KeyboardAvoider({
 
   const animatedStyle = useAnimatedStyle(() => {
     const base = applySafeArea ? insets.bottom : 0;
+    const opening =
+      keyboard.state.value === KeyboardState.OPEN ||
+      keyboard.state.value === KeyboardState.OPENING;
+
     // Klavye yüksekliği zaten gezinme çubuğunu kapsar; ikisini TOPLAMAK
     // klavye açıkken fazladan boşluk bırakır.
-    return { paddingBottom: Math.max(keyboard.height.value, base) };
+    return { paddingBottom: opening ? Math.max(keyboard.height.value, base) : base };
   }, [insets.bottom, applySafeArea]);
 
   return (
