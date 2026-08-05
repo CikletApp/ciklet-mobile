@@ -186,13 +186,18 @@ function TabItem({
         {avatar ? (
           // Durum rozeti de görünür: kullanıcı kendi çevrimiçi/boşta
           // durumunu sekme çubuğundan görebilmeli.
+          //
+          // Halka rengi SEÇİMDEN BAĞIMSIZ koyu: zemine göre değiştirildiğinde
+          // sekme seçiliyken marka rengine dönüyor ve gerçek durumdan
+          // bağımsız, sahte bir yeşil rozet gibi okunuyordu.
           <Avatar
             profileId={me?.id}
             imageUrl={me?.imageUrl}
             fallbackText={me?.username}
             size={22}
             showPresence
-            backgroundColor={focused ? colors.brand : colors.bentoShell}
+            presenceSize={13}
+            backgroundColor={colors.bentoShell}
           />
         ) : (
           <Icon

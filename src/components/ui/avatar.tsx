@@ -32,6 +32,11 @@ interface AvatarProps {
   /** Rozetin oturduğu zemin rengi — halka bununla çizilir. */
   backgroundColor?: string;
   /**
+   * Presence noktasının çapını doğrudan verir.
+   * Küçük avatarlarda oransal boyut okunamayacak kadar ufak kalıyor.
+   */
+  presenceSize?: number;
+  /**
    * Köşe yarıçapını doğrudan verir ve `shape`i ezer.
    * Yarıçapı ANİMASYONLA değiştiren kaplar (sunucu rayı) 0 verip
    * kırpmayı kendi sarmalayıcısında yapar.
@@ -49,6 +54,7 @@ export const Avatar = memo(function Avatar({
   presence,
   backgroundColor = colors.bg,
   radius,
+  presenceSize,
 }: AvatarProps) {
   // Hook koşulsuz çağrılmalı; kimlik yoksa depo OFFLINE döner.
   const livePresence = usePresenceStatus(profileId);
@@ -56,7 +62,7 @@ export const Avatar = memo(function Avatar({
 
   const [failed, setFailed] = useState(false);
 
-  const dotSize = Math.max(10, Math.round(size * 0.32));
+  const dotSize = presenceSize ?? Math.max(10, Math.round(size * 0.32));
   const borderRadius =
     radius ?? (shape === "circle" ? radii.full : Math.round(size * 0.3));
   const showFallback = !imageUrl || failed;
