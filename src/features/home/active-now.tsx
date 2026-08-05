@@ -38,6 +38,15 @@ const ACTIVITY_VERB: Record<RichPresenceType, string> = {
   COMPETING: "Yarışıyor",
 };
 
+/** Presence rozetinin metin karşılığı — ikisi asla çelişmemeli. */
+const STATUS_LABEL: Record<string, string> = {
+  [PresenceStatus.ONLINE]: "Çevrimiçi",
+  [PresenceStatus.IDLE]: "Boşta",
+  [PresenceStatus.DND]: "Rahatsız etmeyin",
+  [PresenceStatus.INVISIBLE]: "Çevrimdışı",
+  [PresenceStatus.OFFLINE]: "Çevrimdışı",
+};
+
 const CARD_WIDTH = 168;
 
 export function ActiveNow() {
@@ -116,8 +125,10 @@ export function ActiveNow() {
             {entry?.activity ? (
               <ActivityLine activity={entry.activity} />
             ) : (
+              // Etiket rozetle TUTARLI olmalı: boşta bir kullanıcının
+              // yanında "Çevrimiçi" yazmak çelişkili bilgi veriyordu.
               <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>
-                Çevrimiçi
+                {STATUS_LABEL[entry?.status ?? PresenceStatus.ONLINE]}
               </Text>
             )}
           </Pressable>
