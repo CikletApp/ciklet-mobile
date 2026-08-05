@@ -43,7 +43,10 @@ export function BentoCard({
 
 /**
  * Bento kabuğu — kartları taşıyan dış kap.
- * Zemin `deep` olur ki kartlar üstünde yükseliyor gibi dursun.
+ *
+ * Zemin web'deki `--main-bg` (#131417) ile aynı; kartlar (`--bento-item`,
+ * #232428) onun üstünde bir tık AÇIK durur. Daha koyu bir zemin (theme
+ * `deep`) denendi ve kabuk fazla kararıyordu.
  */
 export function BentoShell({
   children,
@@ -60,7 +63,7 @@ export function BentoShell({
           flexDirection: "row",
           gap: spacing.sm,
           padding: spacing.sm,
-          backgroundColor: colors.deep,
+          backgroundColor: colors.bentoShell,
         },
         style,
       ]}

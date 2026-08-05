@@ -62,6 +62,8 @@ export interface ThemePalette {
   accent: string;
   /** Bento kartlarının yüzeyi (web: --bento-item). */
   bento: string;
+  /** Bento kabuğunun zemini (web: --main-bg). Kartlardan bir tık koyu. */
+  bentoShell: string;
   /** Bento kartlarının ince kenarlığı. */
   bentoBorder: string;
 }
@@ -92,6 +94,7 @@ const night: ThemePalette = {
   accent: "#45f3ff",
   bento: "#232428",
   bentoBorder: "rgba(250, 250, 250, 0.05)",
+  bentoShell: "#131417",
 };
 
 /** Sis — yumuşak, gri tonlu koyu tema. */
@@ -117,6 +120,7 @@ const mist: ThemePalette = {
   accent: "#45f3ff",
   bento: "#383a40",
   bentoBorder: "rgba(250, 250, 250, 0.06)",
+  bentoShell: "#2b2d33",
 };
 
 /** Zifir — OLED ekranlarda pil dostu saf siyah. */
@@ -143,6 +147,7 @@ const oled: ThemePalette = {
   accent: "#45f3ff",
   bento: "#0e0e0e",
   bentoBorder: "rgba(250, 250, 250, 0.07)",
+  bentoShell: "#000000",
 };
 
 /** Aydınlık. */
@@ -169,6 +174,7 @@ const light: ThemePalette = {
   accent: "#0f7f8c",
   bento: "#eaeaea",
   bentoBorder: "rgba(0, 0, 0, 0.05)",
+  bentoShell: "#f7f7f8",
 };
 
 export const themes: Record<ThemeId, ThemePalette> = { night, mist, oled, light };

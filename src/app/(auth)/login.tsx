@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "@/api/client";
-import { KeyboardAvoider, Screen } from "@/components/ui";
+import { CikletLogo, KeyboardAvoider, Screen } from "@/components/ui";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -57,7 +57,8 @@ export default function LoginScreen() {
         }}
       >
         <View style={{ alignItems: "center", marginBottom: spacing.xl, gap: spacing.xs }}>
-          <Text style={{ ...typography.displayLg, color: colors.brand }}>Ciklet</Text>
+          {/* Kelime logosu web ile aynı çizimden (components/icons/ciklet-logo). */}
+          <CikletLogo height={44} color={colors.brand} />
           <Text style={{ ...typography.body, color: colors.muted }}>
             Hesabınla giriş yap
           </Text>

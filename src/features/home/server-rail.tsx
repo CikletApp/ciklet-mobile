@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -20,19 +20,25 @@ import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing } from "@/theme/tokens";
 
 /**
- * Sol dikey sunucu rayı.
+ * Sol dikey sunucu rayı — ciklet-web'deki `navigation/v2` ile aynı dil.
  *
- * Üç davranış:
- *  1. **Seçim ekran değiştirmez** — ray hep görünür, içerik yanında açılır.
- *  2. **Şekil seçimi taşır** — pasif yuvarlak, aktif kare-yuvarlak.
- *  3. **Uzun basıp sürükleyerek sıralanır** — bırakıldığında yeni sıra
- *     `PATCH /api/sidebar/reorder` ile kaydedilir.
+ * Web'in tasarım kuralları birebir uygulanır
+ * (`navigation-item.tsx`, `navigation-pill.tsx`, `navigation-folder.tsx`):
  *
- * Klasörler `GET /api/folders`'tan gelir (ad + renk); açılıp kapanışı
- * Reanimated'ın layout animasyonlarıyla yumuşatılır.
+ *  • Sunucu 48×48. Normalde tam yuvarlak (r=24), aktifken squircle (r=16).
+ *    Geçiş 200 ms. **Ölçek/zıplama YOK** — yalnızca yarıçap değişir.
+ *  • Sol kenarda beyaz hap: 0 (normal) / 8 (okunmamış) / 40 (aktif) px.
+ *  • Klasör kapalıyken 48px squircle içinde 2×2 mini ızgara, zemini klasör
+ *    rengi. Açıkken ızgara yerine klasör ikonu ve altında klasör renginin
+ *    %15'i zeminli dikey kap; içindeki sunucular 40px (r=20 → aktif r=12,
+ *    hap 0/8/32).
+ *
+ * Ek olarak mobilde: uzun basıp sürükleyerek sıralama
+ * (`PATCH /api/sidebar/reorder`).
  */
 
 const TILE = 48;
+const FOLDER_TILE = 40;
 /** Bir öğenin dikey adımı: ikon + aradaki boşluk. */
 const STEP = TILE + spacing.sm;
 
@@ -49,7 +55,6 @@ export function ServerRail({
   const me = useAuth((s) => s.profile);
 
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
-  /** Sürükleme sırasında geçici sıra; bırakılınca sunucuya yazılır. */
   const [draft, setDraft] = useState<RailItem[] | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -71,7 +76,6 @@ export function ServerRail({
     [unread]
   );
 
-  /** Sürükleme bittiğinde kök sıralamayı kalıcılaştırır. */
   const commitOrder = useCallback(
     (next: RailItem[]) => {
       setDraft(null);
@@ -107,12 +111,13 @@ export function ServerRail({
         active={selectedServerId === null}
         onPress={() => onSelect(null)}
         accessibilityLabel="Doğrudan mesajlar"
+        size={TILE}
       >
         <Avatar
           imageUrl={me?.imageUrl}
           fallbackText={me?.username}
           size={TILE}
-          shape={selectedServerId === null ? "squircle" : "circle"}
+          radius={0}
           backgroundColor={colors.bento}
         />
       </RailButton>
@@ -129,7 +134,6 @@ export function ServerRail({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        // Sürükleme sırasında liste kaymamalı.
         scrollEnabled={draggingId === null}
         contentContainerStyle={{
           alignItems: "center",
@@ -170,17 +174,15 @@ export function ServerRail({
         <RailButton
           onPress={() => router.push("/servers/new")}
           accessibilityLabel="Sunucu ekle"
+          size={TILE}
         >
           <View
             style={{
               width: TILE,
               height: TILE,
-              borderRadius: radii.full,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: colors.bento,
-              borderWidth: 1,
-              borderColor: colors.bentoBorder,
             }}
           >
             <Icon name="plus" size={22} color={colors.brand} />
@@ -196,6 +198,7 @@ export function ServerRail({
  *
  * Uzun basma eşiği bilinçli: rayda tek dokunuş sunucu değiştirmek için
  * kullanılıyor, hemen sürükleme başlatmak kaydırmayı da bozardı.
+ * Sürüklenen öğe hafifçe saydamlaşır — web'deki `isDragging` davranışı.
  */
 function DraggableRailItem({
   children,
@@ -216,7 +219,6 @@ function DraggableRailItem({
 }) {
   const offset = useSharedValue(0);
   const active = useSharedValue(0);
-  /** Sürükleme sırasında kaç adım kaydığımız — tekrar tetiklemeyi önler. */
   const shifted = useRef(0);
 
   const applyMove = useCallback(
@@ -248,25 +250,23 @@ function DraggableRailItem({
         .onEnd(() => {
           offset.value = withSpring(0, { damping: 18 });
           active.value = withTiming(0, { duration: 140 });
+          shifted.current = 0;
           runOnJS(onDrop)();
         }),
     [active, offset, applyMove, onDragStart, onDrop]
   );
 
   const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: offset.value },
-      { scale: 1 + active.value * 0.12 },
-    ],
+    // Sürüklerken ÖLÇEK DEĞİŞMEZ; yalnızca konum ve saydamlık.
+    transform: [{ translateY: offset.value }],
     zIndex: active.value > 0 ? 10 : 0,
-    opacity: 1 - active.value * 0.15,
+    opacity: 1 - active.value * 0.5,
   }));
 
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View
         style={style}
-        // Sürüklenen öğe dışındakiler yer değiştirirken yumuşak kaysın.
         layout={dragging ? undefined : LinearTransition.springify().damping(20)}
       >
         {children}
@@ -275,7 +275,7 @@ function DraggableRailItem({
   );
 }
 
-/** Klasör kapağı + (açıksa) içindeki sunucular. */
+/** Klasör kapağı + (açıksa) altındaki renkli kapta sunucular. */
 function FolderGroup({
   item,
   open,
@@ -296,83 +296,77 @@ function FolderGroup({
     (sum, m) => sum + unreadOf(m.serverId),
     0
   );
-  // Klasör rengi sunucudan gelir; gelmezse bento yüzeyine düşülür.
   const tint = item.folder.color?.startsWith("#") ? item.folder.color : colors.bento;
 
   return (
-    <View style={{ alignItems: "center", gap: spacing.sm }}>
+    <View style={{ alignItems: "center", gap: spacing.xs }}>
       <RailButton
         active={holdsActive && !open}
+        unread={open ? 0 : folderUnread}
         onPress={onToggle}
         accessibilityLabel={`${item.folder.name ?? "Klasör"}, ${item.members.length} sunucu, ${open ? "açık" : "kapalı"}`}
-        badge={open ? 0 : folderUnread}
+        size={TILE}
+        /** Klasör kapağı web'de HER ZAMAN squircle. */
+        fixedRadius={radii.bento}
       >
-        <FolderCover members={item.members} open={open} tint={tint} />
+        <View
+          style={{
+            width: TILE,
+            height: TILE,
+            backgroundColor: tint,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: open ? 0 : 4,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 2,
+          }}
+        >
+          {open ? (
+            <Icon name="bookmark" size={20} color={colors.bright} />
+          ) : (
+            item.members.slice(0, 4).map((membership) => (
+              <Avatar
+                key={membership.serverId}
+                imageUrl={membership.server.imageUrl}
+                fallbackText={membership.server.name}
+                size={18}
+                shape="circle"
+                backgroundColor={tint}
+              />
+            ))
+          )}
+        </View>
       </RailButton>
 
-      {open
-        ? item.members.map((membership) => (
-            <Animated.View
-              key={membership.serverId}
-              entering={FadeIn.duration(160)}
-              exiting={FadeOut.duration(120)}
-              layout={LinearTransition.springify().damping(20)}
-            >
-              <ServerTile
-                membership={membership}
-                active={membership.serverId === selectedServerId}
-                unread={unreadOf(membership.serverId)}
-                onPress={() => onSelect(membership.serverId)}
-                inFolder
-              />
-            </Animated.View>
-          ))
-        : null}
-    </View>
-  );
-}
-
-/** Kapalı klasör: içindeki ilk dört sunucunun 2×2 ızgarası. */
-function FolderCover({
-  members,
-  open,
-  tint,
-}: {
-  members: MembershipWithServer[];
-  open: boolean;
-  tint: string;
-}) {
-  return (
-    <View
-      style={{
-        width: TILE,
-        height: TILE,
-        borderRadius: radii.md,
-        backgroundColor: tint,
-        borderWidth: 1,
-        borderColor: colors.bentoBorder,
-        alignItems: "center",
-        justifyContent: "center",
-        padding: open ? 0 : 4,
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 2,
-      }}
-    >
       {open ? (
-        <Icon name="chevron-down" size={20} color={colors.brand} />
-      ) : (
-        members.slice(0, 4).map((membership) => (
-          <Avatar
-            key={membership.serverId}
-            imageUrl={membership.server.imageUrl}
-            fallbackText={membership.server.name}
-            size={18}
-            shape="circle"
-            backgroundColor={tint}
-          />
-        ))
-      )}
+        // Açık klasörün gövdesi: klasör renginin soluk hâliyle zeminli kap —
+        // içindeki sunucuların klasöre ait olduğu görsel olarak bağlanır.
+        <Animated.View
+          entering={FadeIn.duration(160)}
+          exiting={FadeOut.duration(120)}
+          layout={LinearTransition.springify().damping(20)}
+          style={{
+            alignItems: "center",
+            gap: spacing.xs,
+            paddingVertical: spacing.xs,
+            paddingHorizontal: 2,
+            borderRadius: radii.md,
+            backgroundColor: withAlpha(tint, 0.15),
+          }}
+        >
+          {item.members.map((membership) => (
+            <ServerTile
+              key={membership.serverId}
+              membership={membership}
+              active={membership.serverId === selectedServerId}
+              unread={unreadOf(membership.serverId)}
+              onPress={() => onSelect(membership.serverId)}
+              inFolder
+            />
+          ))}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -390,19 +384,22 @@ function ServerTile({
   onPress: () => void;
   inFolder?: boolean;
 }) {
+  const size = inFolder ? FOLDER_TILE : TILE;
+
   return (
     <RailButton
       active={active}
+      unread={unread}
       onPress={onPress}
       accessibilityLabel={`${membership.server.name} sunucusu`}
-      badge={unread}
-      indent={inFolder}
+      size={size}
+      inFolder={inFolder}
     >
       <Avatar
         imageUrl={membership.server.imageUrl}
         fallbackText={membership.server.name}
-        size={inFolder ? TILE - 8 : TILE}
-        shape={active ? "squircle" : "circle"}
+        size={size}
+        radius={0}
         backgroundColor={colors.bento}
       />
     </RailButton>
@@ -410,66 +407,66 @@ function ServerTile({
 }
 
 /**
- * Ortak dokunma kabı.
+ * Ortak dokunma kabı: yarıçap geçişi, seçim hapı ve okunmamış rozeti.
  *
- * `Pressable` yerine `Gesture.Tap` kullanılır: üstteki sürükleme jesti bir
+ * `Pressable` yerine `Gesture.Tap`: üstteki sürükleme jesti bir
  * `GestureDetector` içinde yaşıyor ve React Native'in dokunma sistemiyle
  * karışınca uzun basma sırasında dokunuş da tetikleniyordu.
  */
 function RailButton({
   children,
   onPress,
-  active,
-  badge = 0,
-  indent,
+  active = false,
+  unread = 0,
+  size,
+  inFolder,
+  fixedRadius,
   accessibilityLabel,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   active?: boolean;
-  badge?: number;
-  indent?: boolean;
+  unread?: number;
+  size: number;
+  inFolder?: boolean;
+  /** Yarıçap sabitlenir (klasör kapağı). */
+  fixedRadius?: number;
   accessibilityLabel: string;
 }) {
-  const pressed = useSharedValue(0);
-
   const tap = useMemo(
-    () =>
-      Gesture.Tap()
-        .maxDuration(400)
-        .onBegin(() => {
-          pressed.value = withTiming(1, { duration: 80 });
-        })
-        .onFinalize(() => {
-          pressed.value = withTiming(0, { duration: 120 });
-        })
-        .onEnd(() => {
-          runOnJS(onPress)();
-        }),
-    [onPress, pressed]
+    () => Gesture.Tap().maxDuration(400).onEnd(() => runOnJS(onPress)()),
+    [onPress]
   );
 
-  const style = useAnimatedStyle(() => ({
-    opacity: 1 - pressed.value * 0.25,
-    transform: [{ scale: 1 - pressed.value * 0.06 }],
+  // Web: r = size/2 (yuvarlak) → aktifte squircle. 200 ms.
+  const roundRadius = size / 2;
+  const activeRadius = inFolder ? 12 : radii.bento;
+
+  const shape = useAnimatedStyle(() => ({
+    borderRadius: fixedRadius
+      ? fixedRadius
+      : withTiming(active ? activeRadius : roundRadius, { duration: 200 }),
   }));
 
-  const indicator = useAnimatedStyle(() => ({
-    height: withSpring(active ? 28 : 0, { damping: 16 }),
+  // Hap: 0 / 8 (okunmamış) / 40 (aktif) — klasör içinde 0 / 8 / 32.
+  const pillHeight = active ? (inFolder ? 32 : 40) : unread > 0 ? 8 : 0;
+  const pill = useAnimatedStyle(() => ({
+    height: withTiming(pillHeight, { duration: 200 }),
   }));
 
   return (
-    <View style={{ justifyContent: "center" }}>
+    <View style={{ justifyContent: "center", paddingVertical: 2 }}>
       <Animated.View
         style={[
           {
             position: "absolute",
-            left: -12,
+            left: inFolder ? -8 : -12,
             width: 4,
-            borderRadius: 2,
+            borderTopRightRadius: 2,
+            borderBottomRightRadius: 2,
             backgroundColor: colors.bright,
           },
-          indicator,
+          pill,
         ]}
       />
       <GestureDetector gesture={tap}>
@@ -477,28 +474,30 @@ function RailButton({
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
           accessibilityState={{ selected: active }}
-          style={[{ marginLeft: indent ? spacing.sm : 0 }, style]}
+          style={[{ width: size, height: size, overflow: "hidden" }, shape]}
         >
           {children}
-          {badge > 0 ? (
-            <View style={{ position: "absolute", right: -4, top: -4 }}>
-              <UnreadBadge count={badge} />
-            </View>
-          ) : null}
         </Animated.View>
       </GestureDetector>
+
+      {unread > 0 ? (
+        <View style={{ position: "absolute", right: -4, bottom: -2 }}>
+          <UnreadBadge count={unread} />
+        </View>
+      ) : null}
     </View>
   );
 }
 
-/** Ray genişliği — bento kabuğu hizalaması için dışa açık. */
-export const RAIL_WIDTH = 72;
-
-/** Boş ray metni (klasör/sunucu yokken). */
-export function RailEmptyHint() {
-  return (
-    <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }}>
-      Sunucu yok
-    </Text>
-  );
+/**
+ * Hex rengi verilen saydamlıkla `rgba`ya çevirir.
+ * Klasör gövdesinin zemini web'de klasör renginin %15'i.
+ */
+function withAlpha(hex: string, alpha: number): string {
+  const value = hex.replace("#", "");
+  if (value.length !== 6) return colors.bento;
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

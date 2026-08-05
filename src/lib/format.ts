@@ -125,9 +125,22 @@ export function displayNameOf(profile: {
   return profile.name?.trim() || profile.username;
 }
 
-/** Türkçe'ye uygun baş harf — "ırmak" → "I" değil "I", "istanbul" → "İ". */
+/** Türkçe'ye uygun baş harf — "istanbul" → "İ". */
 export function initialOf(text: string): string {
   return text.charAt(0).toLocaleUpperCase("tr");
+}
+
+/**
+ * Görsel yoksa gösterilen baş harfler — en fazla iki kelimeden.
+ * Web'deki `navigation-item.tsx` ile aynı kural ("Hafta Sonu" → "HS").
+ */
+export function initialsOf(text: string): string {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toLocaleUpperCase("tr"))
+    .join("");
 }
 
 /** Uzun metni kırpar; kesme noktasına üç nokta ekler. */

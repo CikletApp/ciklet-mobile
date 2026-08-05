@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { Image } from "expo-image";
 import type { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
-import { initialOf } from "@/lib/format";
+import { initialsOf } from "@/lib/format";
 import { usePresenceStatus } from "@/stores/presence";
 import { colors, radii } from "@/theme/tokens";
 import { PresenceDot } from "./icon";
@@ -31,6 +31,12 @@ interface AvatarProps {
   presence?: PresenceStatus;
   /** Rozetin oturduğu zemin rengi — halka bununla çizilir. */
   backgroundColor?: string;
+  /**
+   * Köşe yarıçapını doğrudan verir ve `shape`i ezer.
+   * Yarıçapı ANİMASYONLA değiştiren kaplar (sunucu rayı) 0 verip
+   * kırpmayı kendi sarmalayıcısında yapar.
+   */
+  radius?: number;
 }
 
 export const Avatar = memo(function Avatar({
@@ -42,6 +48,7 @@ export const Avatar = memo(function Avatar({
   showPresence = false,
   presence,
   backgroundColor = colors.bg,
+  radius,
 }: AvatarProps) {
   // Hook koşulsuz çağrılmalı; kimlik yoksa depo OFFLINE döner.
   const livePresence = usePresenceStatus(profileId);
@@ -50,7 +57,8 @@ export const Avatar = memo(function Avatar({
   const [failed, setFailed] = useState(false);
 
   const dotSize = Math.max(10, Math.round(size * 0.32));
-  const borderRadius = shape === "circle" ? radii.full : Math.round(size * 0.3);
+  const borderRadius =
+    radius ?? (shape === "circle" ? radii.full : Math.round(size * 0.3));
   const showFallback = !imageUrl || failed;
 
   return (
@@ -69,12 +77,12 @@ export const Avatar = memo(function Avatar({
         >
           <Text
             style={{
-              fontSize: Math.round(size * 0.4),
+              fontSize: Math.round(size * 0.34),
               fontWeight: "600",
               color: colors.text,
             }}
           >
-            {fallbackText ? initialOf(fallbackText) : "?"}
+            {fallbackText ? initialsOf(fallbackText) : "?"}
           </Text>
         </View>
       ) : (

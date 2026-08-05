@@ -6,6 +6,7 @@
  */
 export { Avatar } from "./avatar";
 export { BentoCard, BentoShell } from "./bento";
+export { CikletLogo } from "./ciklet-logo";
 export { UnreadBadge, Tag, Skeleton, ListSkeleton } from "./badge";
 export { Button, IconButton, ActionBar } from "./button";
 export { Icon, PresenceDot, type IconName } from "./icon";
