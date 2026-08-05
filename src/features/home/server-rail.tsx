@@ -10,6 +10,7 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from "react-native-reanimated";
 
@@ -38,10 +39,14 @@ import { colors, radii, spacing } from "@/theme/tokens";
  */
 
 /**
- * Rayın tek zamanlaması. Web'de tüm geçişler
- * `transition-all duration-200 ease-out` — YAY (spring) YOK. Yay kullanmak
- * bırakışta ve yeniden sıralamada hedefi aşıp geri gelen bir "zıplama"
- * üretiyordu; web'de böyle bir his yok.
+ * Rayın zamanlaması.
+ *
+ * İki tür hareket bilinçli olarak AYRIŞTIRILDI:
+ *  • **Yer değiştirme** (sürükleme bırakışı, yeniden sıralama, klasör
+ *    açılışı) → yay YOK, sabit süreli ease-out. Yay burada hedefi aşıp geri
+ *    geliyor ve ikonlar "zıplıyormuş" gibi duruyordu.
+ *  • **Seçim** (aktif ikonun hafifçe büyümesi) → yay VAR; sekme çubuğundaki
+ *    davranışın aynısı, dokunuşa canlı bir karşılık veriyor.
  */
 const RAIL_DURATION = 200;
 const RAIL_EASING = {
@@ -51,6 +56,8 @@ const RAIL_EASING = {
 const RAIL_LAYOUT = LinearTransition.duration(RAIL_DURATION).easing(
   Easing.out(Easing.quad)
 );
+/** Seçim yayı — sekme çubuğuyla aynı sönümleme. */
+const SELECT_SPRING = { damping: 16 } as const;
 
 const TILE = 48;
 const FOLDER_TILE = 40;
@@ -472,6 +479,8 @@ function RailButton({
   const squared = active || forceActiveShape;
   const shape = useAnimatedStyle(() => ({
     borderRadius: withTiming(squared ? activeRadius : roundRadius, RAIL_EASING),
+    // Seçili ikon hafifçe büyür — sekme çubuğundaki yayın aynısı.
+    transform: [{ scale: withSpring(active ? 1 : 0.94, SELECT_SPRING) }],
   }));
 
   // Hap: 0 / 8 (okunmamış) / 40 (aktif) — klasör içinde 0 / 8 / 32.
