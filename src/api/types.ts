@@ -57,7 +57,13 @@ export interface UpdateProfileInput {
  * ama başlıklarını sunucudan okuyamıyor — bkz. docs/ROADMAP.md.
  */
 export interface MembershipWithServer extends Member {
-  server: { id: string; name: string; imageUrl: string };
+  server: {
+    id: string;
+    name: string;
+    imageUrl: string;
+    /** Sunucunun SAHİBİ. Ray, sahip olunan sunucuyu çerçeveyle işaretler. */
+    profileId?: string;
+  };
   /** Rayda sunucu sırası. */
   order: number;
   /** Klasöre aitse klasör kimliği. */

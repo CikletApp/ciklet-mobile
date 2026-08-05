@@ -9,7 +9,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing } from "@/theme/tokens";
+import { Avatar } from "./avatar";
 import { Icon, type IconName } from "./icon";
 import { Pressable } from "./pressable";
 
@@ -91,6 +93,8 @@ export function FloatingTabBar({
                 key={route.key}
                 label={label}
                 icon={ICONS[route.name] ?? "home"}
+                /** "Sen" sekmesi ikon değil, kullanıcının avatarını taşır. */
+                avatar={route.name === "me"}
                 focused={focused}
                 onPress={() => {
                   const event = navigation.emit({
@@ -114,14 +118,17 @@ export function FloatingTabBar({
 function TabItem({
   label,
   icon,
+  avatar,
   focused,
   onPress,
 }: {
   label: string;
   icon: IconName;
+  avatar?: boolean;
   focused: boolean;
   onPress: () => void;
 }) {
+  const me = useAuth((s) => s.profile);
   const press = useSharedValue(0);
 
   const style = useAnimatedStyle(() => ({
@@ -176,12 +183,25 @@ function TabItem({
             pill,
           ]}
         />
-        <Icon
-          name={icon}
-          size={20}
-          color={focused ? colors.onBrand : colors.muted}
-          filled={focused}
-        />
+        {avatar ? (
+          // Durum rozeti de görünür: kullanıcı kendi çevrimiçi/boşta
+          // durumunu sekme çubuğundan görebilmeli.
+          <Avatar
+            profileId={me?.id}
+            imageUrl={me?.imageUrl}
+            fallbackText={me?.username}
+            size={22}
+            showPresence
+            backgroundColor={focused ? colors.brand : colors.bentoShell}
+          />
+        ) : (
+          <Icon
+            name={icon}
+            size={20}
+            color={focused ? colors.onBrand : colors.muted}
+            filled={focused}
+          />
+        )}
         <Text
           style={{
             fontSize: 10,

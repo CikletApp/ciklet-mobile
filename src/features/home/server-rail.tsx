@@ -306,8 +306,12 @@ function FolderGroup({
         onPress={onToggle}
         accessibilityLabel={`${item.folder.name ?? "Klasör"}, ${item.members.length} sunucu, ${open ? "açık" : "kapalı"}`}
         size={TILE}
-        /** Klasör kapağı web'de HER ZAMAN squircle. */
-        fixedRadius={radii.bento}
+        /**
+         * Klasör kapağı da sunucular gibi davranır: KAPALIYKEN yuvarlak,
+         * AÇILINCA squircle. (Web'de de böyle — kapalı klasör dairesel,
+         * açık klasör kare-yuvarlak.)
+         */
+        forceActiveShape={open}
       >
         <View
           style={{
@@ -385,6 +389,10 @@ function ServerTile({
   inFolder?: boolean;
 }) {
   const size = inFolder ? FOLDER_TILE : TILE;
+  const myId = useAuth.getState().profile?.id;
+  const owner = Boolean(
+    membership.server.profileId && membership.server.profileId === myId
+  );
 
   return (
     <RailButton
@@ -394,6 +402,7 @@ function ServerTile({
       accessibilityLabel={`${membership.server.name} sunucusu`}
       size={size}
       inFolder={inFolder}
+      owner={owner}
     >
       <Avatar
         imageUrl={membership.server.imageUrl}
@@ -420,7 +429,8 @@ function RailButton({
   unread = 0,
   size,
   inFolder,
-  fixedRadius,
+  forceActiveShape,
+  owner,
   accessibilityLabel,
 }: {
   children: React.ReactNode;
@@ -429,8 +439,10 @@ function RailButton({
   unread?: number;
   size: number;
   inFolder?: boolean;
-  /** Yarıçap sabitlenir (klasör kapağı). */
-  fixedRadius?: number;
+  /** Seçili olmasa da squircle çizilsin (açık klasör kapağı). */
+  forceActiveShape?: boolean;
+  /** Sunucunun sahibi kullanıcıysa altın çerçeve (web: ring-theme-yellow/50). */
+  owner?: boolean;
   accessibilityLabel: string;
 }) {
   const tap = useMemo(
@@ -442,10 +454,11 @@ function RailButton({
   const roundRadius = size / 2;
   const activeRadius = inFolder ? 12 : radii.bento;
 
+  const squared = active || forceActiveShape;
   const shape = useAnimatedStyle(() => ({
-    borderRadius: fixedRadius
-      ? fixedRadius
-      : withTiming(active ? activeRadius : roundRadius, { duration: 200 }),
+    borderRadius: withTiming(squared ? activeRadius : roundRadius, {
+      duration: 200,
+    }),
   }));
 
   // Hap: 0 / 8 (okunmamış) / 40 (aktif) — klasör içinde 0 / 8 / 32.
@@ -474,7 +487,16 @@ function RailButton({
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
           accessibilityState={{ selected: active }}
-          style={[{ width: size, height: size, overflow: "hidden" }, shape]}
+          style={[
+            {
+              width: size,
+              height: size,
+              overflow: "hidden",
+              borderWidth: owner ? 1.5 : 0,
+              borderColor: owner ? withAlpha(colors.warning, 0.5) : "transparent",
+            },
+            shape,
+          ]}
         >
           {children}
         </Animated.View>
@@ -493,8 +515,12 @@ function RailButton({
  * Hex rengi verilen saydamlıkla `rgba`ya çevirir.
  * Klasör gövdesinin zemini web'de klasör renginin %15'i.
  */
-function withAlpha(hex: string, alpha: number): string {
-  const value = hex.replace("#", "");
+function withAlpha(color: string, alpha: number): string {
+  // hsl(h, s%, l%) → hsla(...)
+  if (color.startsWith("hsl(")) {
+    return color.replace("hsl(", "hsla(").replace(")", `, ${alpha})`);
+  }
+  const value = color.replace("#", "");
   if (value.length !== 6) return colors.bento;
   const r = parseInt(value.slice(0, 2), 16);
   const g = parseInt(value.slice(2, 4), 16);
