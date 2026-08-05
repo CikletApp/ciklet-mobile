@@ -40,6 +40,19 @@ function Assert-Tool {
   }
 }
 
+# ── Eşzamanlı çalışmayı engelle ───────────────────────────────────────
+# İki derleme aynı çalışma dizinini paylaşırsa biri diğerinin android/
+# ağacını silerken prebuild patlıyor (yaşandı). Basit bir kilit dosyası
+# yeterli: derleme zaten uzun sürüyor, kuyruğa almaya gerek yok.
+$lock = Join-Path $WorkDir ".build-lock"
+if (Test-Path $lock) {
+  $age = (Get-Date) - (Get-Item $lock).LastWriteTime
+  if ($age.TotalMinutes -lt 45) {
+    throw "Başka bir derleme sürüyor gibi görünüyor ($([int]$age.TotalMinutes) dk önce başladı). Bitmesini bekle veya `"$lock`" dosyasını sil."
+  }
+  Remove-Item $lock -Force
+}
+
 Write-Host "== Ön koşullar ==" -ForegroundColor Cyan
 
 Assert-Tool -Name "JDK" `
@@ -56,6 +69,9 @@ Write-Host "  sdk  : $($env:ANDROID_HOME ?? $env:ANDROID_SDK_ROOT)"
 
 # ── ASCII çalışma dizinine kopyala ────────────────────────────────────
 Write-Host "`n== Çalışma dizini hazırlanıyor ==" -ForegroundColor Cyan
+
+# Kilidi kopyalamadan ÖNCE al: robocopy de aynı paylaşılan dizine yazıyor.
+New-Item -ItemType File -Path $lock -Force | Out-Null
 
 if ($Clean -and (Test-Path $WorkDir)) {
   Write-Host "  temizleniyor: $WorkDir"
@@ -117,4 +133,5 @@ try {
 }
 finally {
   Pop-Location
+  Remove-Item $lock -Force -ErrorAction SilentlyContinue
 }
