@@ -3,13 +3,13 @@ import { ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   FadeIn,
   FadeOut,
   LinearTransition,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 
@@ -36,6 +36,21 @@ import { colors, radii, spacing } from "@/theme/tokens";
  * Ek olarak mobilde: uzun basıp sürükleyerek sıralama
  * (`PATCH /api/sidebar/reorder`).
  */
+
+/**
+ * Rayın tek zamanlaması. Web'de tüm geçişler
+ * `transition-all duration-200 ease-out` — YAY (spring) YOK. Yay kullanmak
+ * bırakışta ve yeniden sıralamada hedefi aşıp geri gelen bir "zıplama"
+ * üretiyordu; web'de böyle bir his yok.
+ */
+const RAIL_DURATION = 200;
+const RAIL_EASING = {
+  duration: RAIL_DURATION,
+  easing: Easing.out(Easing.quad),
+} as const;
+const RAIL_LAYOUT = LinearTransition.duration(RAIL_DURATION).easing(
+  Easing.out(Easing.quad)
+);
 
 const TILE = 48;
 const FOLDER_TILE = 40;
@@ -248,7 +263,7 @@ function DraggableRailItem({
           }
         })
         .onEnd(() => {
-          offset.value = withSpring(0, { damping: 18 });
+          offset.value = withTiming(0, RAIL_EASING);
           active.value = withTiming(0, { duration: 140 });
           shifted.current = 0;
           runOnJS(onDrop)();
@@ -267,7 +282,7 @@ function DraggableRailItem({
     <GestureDetector gesture={gesture}>
       <Animated.View
         style={style}
-        layout={dragging ? undefined : LinearTransition.springify().damping(20)}
+        layout={dragging ? undefined : RAIL_LAYOUT}
       >
         {children}
       </Animated.View>
@@ -349,7 +364,7 @@ function FolderGroup({
         <Animated.View
           entering={FadeIn.duration(160)}
           exiting={FadeOut.duration(120)}
-          layout={LinearTransition.springify().damping(20)}
+          layout={RAIL_LAYOUT}
           style={{
             alignItems: "center",
             gap: spacing.xs,
@@ -456,15 +471,13 @@ function RailButton({
 
   const squared = active || forceActiveShape;
   const shape = useAnimatedStyle(() => ({
-    borderRadius: withTiming(squared ? activeRadius : roundRadius, {
-      duration: 200,
-    }),
+    borderRadius: withTiming(squared ? activeRadius : roundRadius, RAIL_EASING),
   }));
 
   // Hap: 0 / 8 (okunmamış) / 40 (aktif) — klasör içinde 0 / 8 / 32.
   const pillHeight = active ? (inFolder ? 32 : 40) : unread > 0 ? 8 : 0;
   const pill = useAnimatedStyle(() => ({
-    height: withTiming(pillHeight, { duration: 200 }),
+    height: withTiming(pillHeight, RAIL_EASING),
   }));
 
   return (
