@@ -242,10 +242,23 @@ Bu görev diğerlerinden bağımsız ve büyüktür; en sona bırakılabilir.
 
 ## Zaten yapıldı — tekrar etme
 
-`GET /api/folders` ucu **eklendi** (`src/app/api/folders/route.ts`).
-Klasörlerin adını ve rengini döner; web'in sunucu bileşenindeki
-(`components/navigation/v2/navigation-sidebar-loader.tsx`) sorgunun uç
-karşılığıdır. Mobil ray bunu kullanıyor.
+Bu iki değişiklik ciklet-web'de **uygulandı**. İkisi de additive; mevcut
+davranışı değiştirmiyor. Aynı dosyalara dokunacaksan üzerine yaz, geri alma.
+
+1. **`GET /api/folders`** eklendi (`src/app/api/folders/route.ts`).
+   Klasörlerin adını, rengini ve sırasını döner; web'in sunucu
+   bileşenindeki (`components/navigation/v2/navigation-sidebar-loader.tsx`)
+   sorgunun uç karşılığıdır. Mobil ray klasör rengini buradan alıyor.
+
+2. **`GET /api/members/mine`** select'ine `server.profileId` eklendi
+   (`src/app/api/members/mine/route.ts`). Mobil ray, sahip olunan sunucuya
+   web'deki gibi altın çerçeve çiziyor; web de `isOwner`'ı zaten bu alandan
+   türetiyor.
+
+> ⚠️ Bu iki değişiklik **ciklet-web yeniden dağıtılana kadar** üretimde
+> etkili olmaz. O zamana dek mobilde klasör rengi varsayılana düşer ve
+> sahiplik çerçevesi hiç çizilmez — ikisi de sessizce bozulmaz, yalnızca
+> görünmez.
 
 ---
 
