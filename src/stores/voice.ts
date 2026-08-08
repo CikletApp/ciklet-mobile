@@ -16,6 +16,7 @@ export interface ActiveVoice {
   serverName?: string;
   serverId?: string;
   joinedAt: number;
+  kind?: "audio" | "video";
 }
 
 export interface VoiceParticipant {

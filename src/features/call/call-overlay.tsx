@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { Modal, Text, View } from "react-native";
-import { LiveKitRoom, useParticipants } from "@livekit/react-native";
+import {
+  isTrackReference,
+  LiveKitRoom,
+  useParticipants,
+  useTracks,
+  VideoTrack,
+} from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
+import { Track } from "livekit-client";
 
 import { useDirects } from "@/api/hooks";
 import { Avatar, IconButton } from "@/components/ui";
@@ -52,7 +59,11 @@ export function CallOverlay() {
     <Modal visible animationType="slide" statusBarTranslucent onRequestClose={hangUp}>
       <View style={{ flex: 1, backgroundColor: colors.deep }}>
         {isConnected && resolvedDirectId ? (
-          <ConnectedCall directId={resolvedDirectId} onHangUp={hangUp} />
+          <ConnectedCall
+            directId={resolvedDirectId}
+            onHangUp={hangUp}
+            kind={session.kind}
+          />
         ) : (
           <View
             style={{
@@ -126,7 +137,15 @@ export function CallOverlay() {
 }
 
 /** Bağlı çağrı — LiveKit odası. */
-function ConnectedCall({ directId, onHangUp }: { directId: string; onHangUp: () => void }) {
+function ConnectedCall({
+  directId,
+  onHangUp,
+  kind,
+}: {
+  directId: string;
+  onHangUp: () => void;
+  kind: "audio" | "video";
+}) {
   const { token, error } = useVoiceToken(directId);
 
   useKeepAwake();
@@ -155,7 +174,7 @@ function ConnectedCall({ directId, onHangUp }: { directId: string; onHangUp: () 
       token={token}
       connect
       audio
-      video={false}
+      video={kind === "video"}
       options={{ adaptiveStream: true, dynacast: true }}
     >
       <CallStage onHangUp={onHangUp} />
@@ -166,13 +185,51 @@ function ConnectedCall({ directId, onHangUp }: { directId: string; onHangUp: () 
 function CallStage({ onHangUp }: { onHangUp: () => void }) {
   const session = useCall((s) => s.session);
   const participants = useParticipants();
+  const cameraTracks = useTracks([Track.Source.Camera]).filter(isTrackReference);
   const elapsed = useCallTimer(session?.startedAt);
 
   const speaking = participants.some((p) => p.isSpeaking && !p.isLocal);
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg, padding: spacing.lg }}>
+        {session?.kind === "video" && cameraTracks.length > 0 ? (
+          <View
+            style={{
+              flex: 1,
+              alignSelf: "stretch",
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: spacing.sm,
+              justifyContent: "center",
+              alignContent: "center",
+            }}
+          >
+            {cameraTracks.map((trackRef) => (
+              <View
+                key={`${trackRef.participant.identity}-${trackRef.source}`}
+                style={{
+                  width: cameraTracks.length === 1 ? "100%" : "48%",
+                  aspectRatio: cameraTracks.length === 1 ? 3 / 4 : 1,
+                  maxHeight: "100%",
+                  borderRadius: radii.xl,
+                  overflow: "hidden",
+                  backgroundColor: colors.panel,
+                  borderWidth: trackRef.participant.isSpeaking ? 2 : 0,
+                  borderColor: colors.success,
+                }}
+              >
+                <VideoTrack
+                  trackRef={trackRef}
+                  style={{ flex: 1 }}
+                  objectFit="cover"
+                  mirror={trackRef.participant.isLocal}
+                />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <>
         <View
           style={{
             padding: 4,
@@ -193,12 +250,14 @@ function CallStage({ onHangUp }: { onHangUp: () => void }) {
           {session ? displayNameOf(session.peer) : ""}
         </Text>
         <Text style={{ ...typography.body, color: colors.muted }}>{elapsed}</Text>
+          </>
+        )}
       </View>
 
       {/* Sessize alma ve hoparlör LiveKit odasının İÇİNDE olmak zorunda —
           kontroller odanın kendi durumunu okuyor. */}
       <View style={{ paddingBottom: spacing["4xl"] }}>
-        <CallControls onHangUp={onHangUp} />
+        <CallControls onHangUp={onHangUp} showCamera={session?.kind === "video"} />
       </View>
     </View>
   );

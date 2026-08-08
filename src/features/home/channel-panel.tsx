@@ -173,15 +173,16 @@ function ChannelRow({
 }) {
   const isText = channel.type === ChannelType.TEXT;
   const isAudio = channel.type === ChannelType.AUDIO;
-  // Görüntülü kanal mobilde henüz yok; ses altyapısı paylaşılıyor ama
-  // video yayın/izleme yüzeyi ayrı bir iş.
-  const enabled = isText || isAudio;
+  const enabled = isText || isAudio || channel.type === ChannelType.VIDEO;
 
   return (
     <Pressable
       onPress={() => {
         if (isText) router.push(`/chat/channel/${channel.id}?serverId=${serverId}`);
         else if (isAudio) router.push(`/voice/${channel.id}?serverId=${serverId}`);
+        else if (channel.type === ChannelType.VIDEO) {
+          router.push(`/voice/${channel.id}?serverId=${serverId}&video=1`);
+        }
       }}
       disabled={!enabled}
       haptic={enabled ? "light" : undefined}

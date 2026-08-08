@@ -21,11 +21,13 @@ import { colors, spacing } from "@/theme/tokens";
 export function CallControls({
   onHangUp,
   hangUpLabel = "Görüşmeyi bitir",
+  showCamera = false,
 }: {
   onHangUp: () => void;
   hangUpLabel?: string;
+  showCamera?: boolean;
 }) {
-  const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
+  const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const { speakerOn, toggleSpeaker, canToggleSpeaker } = useAudioOutput();
   const [busy, setBusy] = useState(false);
 
@@ -38,6 +40,16 @@ export function CallControls({
       setBusy(false);
     }
   }, [localParticipant, isMicrophoneEnabled, busy]);
+
+  const toggleCamera = useCallback(async () => {
+    if (!localParticipant || busy) return;
+    setBusy(true);
+    try {
+      await localParticipant.setCameraEnabled(!isCameraEnabled);
+    } finally {
+      setBusy(false);
+    }
+  }, [localParticipant, isCameraEnabled, busy]);
 
   return (
     <View
@@ -57,6 +69,18 @@ export function CallControls({
         tint={isMicrophoneEnabled ? colors.text : colors.bright}
         haptic="light"
       />
+
+      {showCamera ? (
+        <IconButton
+          icon="video"
+          label={isCameraEnabled ? "Kamerayı kapat" : "Kamerayı aç"}
+          onPress={toggleCamera}
+          size={56}
+          background={isCameraEnabled ? colors.brand : colors.danger}
+          tint={isCameraEnabled ? colors.onBrand : colors.bright}
+          haptic="light"
+        />
+      ) : null}
 
       {canToggleSpeaker ? (
         <IconButton

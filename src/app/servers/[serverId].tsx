@@ -104,9 +104,8 @@ const CHANNEL_ICON: Record<string, IconName> = {
 function ChannelRow({ serverId, channel, canManage }: { serverId: string; channel: Channel; canManage: boolean }) {
   const isText = channel.type === ChannelType.TEXT;
   const isAudio = channel.type === ChannelType.AUDIO;
-  // Görüntülü kanal mobilde henüz yok; ses altyapısı paylaşılıyor ama
-  // video yayın/izleme yüzeyi ayrı bir iş.
-  const enabled = isText || isAudio;
+  const isVideo = channel.type === ChannelType.VIDEO;
+  const enabled = isText || isAudio || isVideo;
 
   return (
     <Pressable
@@ -115,6 +114,8 @@ function ChannelRow({ serverId, channel, canManage }: { serverId: string; channe
           router.push(`/chat/channel/${channel.id}?serverId=${serverId}`);
         } else if (isAudio) {
           router.push(`/voice/${channel.id}?serverId=${serverId}`);
+        } else if (isVideo) {
+          router.push(`/voice/${channel.id}?serverId=${serverId}&video=1`);
         }
       }}
       onLongPress={
@@ -145,9 +146,6 @@ function ChannelRow({ serverId, channel, canManage }: { serverId: string; channe
       <Text style={{ ...typography.body, color: colors.text, flex: 1 }} numberOfLines={1}>
         {channel.name}
       </Text>
-      {!enabled ? (
-        <Text style={{ ...typography.caption, color: colors.muted }}>Yakında</Text>
-      ) : null}
     </Pressable>
   );
 }

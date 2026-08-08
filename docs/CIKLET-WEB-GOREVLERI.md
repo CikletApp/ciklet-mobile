@@ -38,6 +38,10 @@ Hiçbir görev ücretli servis, abonelik veya kredi kartı gerektirmemeli.
 
 ## Görev 1 — Push bildirimi altyapısı (öncelik: yüksek)
 
+**Durum: TAMAMLANDI (2026-08-09).** Uygulama `PushDevice` modeliyle cihaz
+tercihlerini saklıyor, Pages API kayıt ucu token devrini güvenle yapıyor ve
+mesaj/çağrı olayları Expo Push Service'e en fazla 100'lük partilerle gidiyor.
+
 **Sorun:** Uygulama tamamen kapalıyken kullanıcıya arama geldiğinde telefon
 çalmıyor. Şu an bildirim yalnızca Socket.IO bağlantısı ayaktayken (uygulama
 açık veya arka planda) çalışıyor; süreç öldüğünde soket de ölüyor.
@@ -156,6 +160,9 @@ gönderme (`isSpam` bayrağına bak).
 ---
 
 ## Görev 2 — `incoming_call` yüküne `directChannelId` ekle (öncelik: yüksek)
+
+**Durum: TAMAMLANDI (2026-08-09).** Mobil gelen arama oturumunda bu alanı
+doğrudan kullanıyor; eski sunucular için DM listesinden çözüm yedeği korunuyor.
 
 **Sorun:** LiveKit oda adı olarak DM kimliği kullanılıyor
 (`GET /api/livekit?room=<directId>` taraflığı ona göre doğruluyor). Ancak

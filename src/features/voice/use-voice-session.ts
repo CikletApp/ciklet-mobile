@@ -49,7 +49,7 @@ export function useVoiceSession(session: ActiveVoice | null) {
       socket.on(ServerEvent.VOICE_CHANNEL_UPDATE, onUpdate);
       socket.emit(ClientEvent.JOIN_VOICE_CHANNEL, {
         channelId: session.roomId,
-        callType: "audio",
+        callType: session.kind ?? "audio",
       });
 
       detach = () => socket.off(ServerEvent.VOICE_CHANNEL_UPDATE, onUpdate);

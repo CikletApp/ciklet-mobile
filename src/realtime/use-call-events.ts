@@ -53,6 +53,7 @@ export function useCallEvents() {
         type?: string;
         callId: string;
         expiresAt?: number;
+        directChannelId?: string;
       }) => {
         if (!payload?.caller) return;
         Vibration.vibrate(RING_PATTERN, true);
@@ -62,7 +63,7 @@ export function useCallEvents() {
           status: "ringing",
           kind: (payload.type as CallKind) ?? "audio",
           peer: payload.caller,
-          directId: null,
+          directId: payload.directChannelId ?? null,
           expiresAt: payload.expiresAt,
         });
       };

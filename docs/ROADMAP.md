@@ -175,6 +175,10 @@ dayanıklılıkla çalışması.
 
 ## Faz 4 — Aktiviteler, bildirimler ve yayın hazırlığı
 
+Durum: sesli/görüntülü LiveKit yüzeyi, aktivite köprüsü ve cihaz
+tercihli Expo push akışı tamamlandı. Mağaza yayını ayrı bir dağıtım
+adımı olarak bekliyor.
+
 1. **Sesli/görüntülü** — LiveKit odası, konuşan göstergesi, cihaz seçimi,
    arka plan sesi (`UIBackgroundModes: audio` zaten tanımlı), gelen çağrı
    ekranı (`incoming_call` / `call_accepted` / `call_denied` olayları).
@@ -202,8 +206,8 @@ bozulmak yerine kullanıcıya açık mesaj gösterir.
 | # | Boşluk | Etki | Gereken |
 | --- | --- | --- | --- |
 | 1 | **Grup DM yok.** `Direct` modeli `profileOneId`/`profileTwoId` ile birebir sohbete kilitli. | "Yeni Grup" akışı hiç yapılamıyor. | Yeni model (`GroupDirect` + `GroupDirectMember`) ve uçları. |
-| 2 | **Davetle katılımın API ucu yok.** İş, sunucu bileşeni sayfasında yapılıyor (`app/(invite)/(routes)/i/[inviteCode]/page.tsx`). `POST /api/servers/[id]/join` yalnızca `isPublic` sunucular için çalışıyor. | Mobilden gizli sunucuya davetle katılınamıyor. | O sayfadaki mantığın `POST /api/i/[code]/join` gibi bir uca taşınması. |
-| 3 | **Push token kayıt ucu yok.** | Uygulama KAPALIYKEN bildirim gelmiyor; yalnızca arka planda soket ayaktayken yerel bildirim var. | `POST /api/push/register` + mesaj/çağrı olaylarında Expo Push API'sine gönderim yapan sunucu işi. |
+| 2 | **Davetle katılım API'si tamamlandı.** | Mobil gizli/açık davetleri kullanabiliyor. | `POST /api/i/[inviteCode]`; ban, süre, kullanım ve üyelik kontrolleri uygulanıyor. |
+| 3 | **Push altyapısı tamamlandı.** | Kapalı uygulamaya DM ve gelen arama bildirimi ulaşıyor. | `PushDevice`, `/api/push/register`, Expo toplu gönderimi ve ölü token temizliği eklendi. |
 | 4 | **`/api/directs` slim profil dönüyor**, SDK tipi tam `PublicProfile` vaat ediyor. | Tip yalanı; DM'den açılan profilde zengin alanlar boş. | Ya uç `PROFILE_PUBLIC_SELECT` kullanmalı, ya SDK tipi daraltılmalı (mobil ikincisini yaptı). |
 | 5 | **SDK gerçek zamanlı sözleşmesi sunucuyla uyuşmuyordu** (`chatRoom`, `PresenceUpdatePayload`, `presence:batch`). | Canlı mesaj ve presence hiç çalışmıyordu. | `ciklet-sdk` kaynağı düzeltildi; **yayınlanması** gerekiyor (mobil şimdilik kendi kopyasını taşıyor). |
 

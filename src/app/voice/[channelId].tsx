@@ -1,8 +1,15 @@
 import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { LiveKitRoom, useParticipants } from "@livekit/react-native";
+import {
+  isTrackReference,
+  LiveKitRoom,
+  useParticipants,
+  useTracks,
+  VideoTrack,
+} from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
+import { Track } from "livekit-client";
 
 import { useChannel, useServerSummary } from "@/api/hooks";
 import {
@@ -26,10 +33,12 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * o listeye katıyor. LiveKit yalnızca kimin KONUŞTUĞUNU söyler.
  */
 export default function VoiceChannelScreen() {
-  const { channelId, serverId } = useLocalSearchParams<{
+  const { channelId, serverId, video } = useLocalSearchParams<{
     channelId: string;
     serverId?: string;
+    video?: string;
   }>();
+  const isVideo = video === "1";
 
   const { data: server } = useServerSummary(serverId);
   const channel = useChannel(serverId, channelId);
@@ -48,9 +57,10 @@ export default function VoiceChannelScreen() {
             serverName: server?.name,
             serverId,
             joinedAt,
+            kind: isVideo ? "video" : "audio",
           }
         : null,
-    [channelId, channel?.name, server?.name, serverId, joinedAt]
+    [channelId, channel?.name, server?.name, serverId, joinedAt, isVideo]
   );
 
   const { token, status, error, leave } = useVoiceSession(session);
@@ -89,7 +99,7 @@ export default function VoiceChannelScreen() {
       token={token}
       connect
       audio
-      video={false}
+      video={isVideo}
       options={{ adaptiveStream: true, dynacast: true }}
     >
       <Stack.Screen options={{ title: channel?.name ?? "" }} />
@@ -97,6 +107,7 @@ export default function VoiceChannelScreen() {
         title={channel?.name ?? "Ses kanalı"}
         subtitle={server?.name}
         onLeave={onLeave}
+        isVideo={isVideo}
       />
     </LiveKitRoom>
   );
@@ -110,13 +121,16 @@ function VoiceRoomBody({
   title,
   subtitle,
   onLeave,
+  isVideo,
 }: {
   title: string;
   subtitle?: string;
   onLeave: () => void;
+  isVideo: boolean;
 }) {
   const participants = useVoice((s) => s.participants);
   const livekitParticipants = useParticipants();
+  const cameraTracks = useTracks([Track.Source.Camera]).filter(isTrackReference);
 
   // Konuşan kimlikleri LiveKit'ten gelir; kimlik olarak `identity`
   // kullanılıyor ve Ciklet token'ı bunu kullanıcı adına ayarlıyor.
@@ -138,19 +152,70 @@ function VoiceRoomBody({
           ) : null}
         </View>
 
-        <View
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: spacing.lg,
-            justifyContent: "center",
-            alignContent: "flex-start",
-          }}
-        >
+        <View style={{ flex: 1 }}>
+          {isVideo && cameraTracks.length > 0 ? (
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: spacing.sm,
+                justifyContent: "center",
+                alignContent: "center",
+              }}
+            >
+              {cameraTracks.map((trackRef) => (
+                <View
+                  key={`${trackRef.participant.identity}-${trackRef.source}`}
+                  style={{
+                    width: cameraTracks.length === 1 ? "100%" : "48%",
+                    aspectRatio: cameraTracks.length === 1 ? 3 / 4 : 1,
+                    maxHeight: "100%",
+                    overflow: "hidden",
+                    borderRadius: radii.xl,
+                    backgroundColor: colors.panel,
+                    borderWidth: trackRef.participant.isSpeaking ? 2 : 0,
+                    borderColor: colors.success,
+                  }}
+                >
+                  <VideoTrack
+                    trackRef={trackRef}
+                    style={{ flex: 1 }}
+                    objectFit="cover"
+                    mirror={trackRef.participant.isLocal}
+                  />
+                  <Text
+                    style={{
+                      ...typography.caption,
+                      color: colors.bright,
+                      position: "absolute",
+                      left: spacing.sm,
+                      bottom: spacing.sm,
+                      backgroundColor: "rgba(0,0,0,0.55)",
+                      paddingHorizontal: spacing.sm,
+                      paddingVertical: 3,
+                      borderRadius: radii.full,
+                    }}
+                  >
+                    {trackRef.participant.name || trackRef.participant.identity}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: spacing.lg,
+                justifyContent: "center",
+                alignContent: "flex-start",
+              }}
+            >
           {participants.length === 0 ? (
             <Text style={{ ...typography.body, color: colors.muted }}>
-              Kanalda başka kimse yok.
+              {isVideo ? "Kameranı açarak görüntülü sohbete başla." : "Kanalda başka kimse yok."}
             </Text>
           ) : (
             participants.map((participant) => (
@@ -181,10 +246,16 @@ function VoiceRoomBody({
               </View>
             ))
           )}
+            </View>
+          )}
         </View>
 
         <View style={{ paddingBottom: spacing.lg }}>
-          <CallControls onHangUp={onLeave} hangUpLabel="Kanaldan ayrıl" />
+          <CallControls
+            onHangUp={onLeave}
+            hangUpLabel="Kanaldan ayrıl"
+            showCamera={isVideo}
+          />
         </View>
       </View>
     </Screen>
