@@ -5,6 +5,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useDirects, useFriends, useOpenDirect } from "@/api/hooks";
 import { Avatar, Button, EmptyState, Screen, Tag } from "@/components/ui";
 import { displayNameOf, formatDate } from "@/lib/format";
+import { useCallActions } from "@/realtime/use-call-events";
 import { usePresence } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -43,6 +44,7 @@ export default function ProfileScreen() {
   const { accepted } = useFriends();
   const { data: directs } = useDirects();
   const openDirect = useOpenDirect();
+  const { placeCall } = useCallActions();
   const presence = usePresence(profileId);
 
   const profile = useMemo<ProfileView | undefined>(() => {
@@ -70,6 +72,12 @@ export default function ProfileScreen() {
       </Screen>
     );
   }
+
+  const startCall = (kind: "audio" | "video") => {
+    openDirect.mutate(profile.id, {
+      onSuccess: (direct) => placeCall(profile, direct.id, kind),
+    });
+  };
 
   return (
     <Screen>
@@ -108,7 +116,6 @@ export default function ProfileScreen() {
             ) : null}
           </View>
 
-          {/* Sesli/görüntülü arama gelen-çağrı akışıyla birlikte bağlanacak. */}
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <Button
               label="Mesaj"
@@ -122,8 +129,22 @@ export default function ProfileScreen() {
               }
               loading={openDirect.isPending}
             />
-            <Button label="Sesli" icon="phone" variant="secondary" disabled style={{ flex: 1 }} />
-            <Button label="Görüntülü" icon="video" variant="secondary" disabled style={{ flex: 1 }} />
+            <Button
+              label="Sesli"
+              icon="phone"
+              variant="secondary"
+              style={{ flex: 1 }}
+              onPress={() => startCall("audio")}
+              disabled={openDirect.isPending}
+            />
+            <Button
+              label="Görüntülü"
+              icon="video"
+              variant="secondary"
+              style={{ flex: 1 }}
+              onPress={() => startCall("video")}
+              disabled={openDirect.isPending}
+            />
           </View>
 
           {profile.bio ? (

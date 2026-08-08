@@ -112,10 +112,27 @@ export const chatMessagesEvent = (chatId: string) =>
 export const chatUpdateEvent = (chatId: string) =>
   `chat:${chatId}:messages:update` as const;
 
+/** Mesaj reaksiyonunun eklenmesi veya kaldırılması. */
+export const chatReactionEvent = (chatId: string) =>
+  `chat:${chatId}:reaction` as const;
+
 // ── Yük tipleri ─────────────────────────────────────────────────────
 
 /** Kanal ve DM mesajları aynı olay adı deseninden gelir. */
 export type ChatMessagePayload = MessageWithMember | DirectMessageWithProfile;
+
+export interface ReactionDelta {
+  messageId: string;
+  action: "add" | "remove";
+  reaction: {
+    id: string;
+    emoji: string;
+    profileId: string;
+    messageId: string | null;
+    directMessageId: string | null;
+    createdAt?: string;
+  };
+}
 
 export interface PresenceUpdatePayload {
   userId: string;

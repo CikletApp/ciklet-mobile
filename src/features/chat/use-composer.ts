@@ -30,14 +30,14 @@ export function useComposer(
   const remove = useOutbox((s) => s.remove);
 
   const deliver = useCallback(
-    async (outboxId: string, content: string) => {
+    async (outboxId: string, content: string, fileUrl?: string, replyToId?: string) => {
       if (!chatId) return;
       try {
         await api(
           kind === "channel"
             ? endpoints.sendChannelMessage(chatId, serverId ?? "")
             : endpoints.sendDirectMessage(chatId),
-          { method: "POST", body: { content } }
+          { method: "POST", body: { content, fileUrl, replyToId } }
         );
       } catch (err) {
         markFailed(
@@ -50,11 +50,12 @@ export function useComposer(
   );
 
   const send = useCallback(
-    (raw: string) => {
+    (raw: string, fileUrl?: string, attachmentName?: string, replyToId?: string) => {
       const content = raw.trim();
-      if (!content || !chatId) return;
-      const outboxId = enqueue(chatId, content);
-      void deliver(outboxId, content);
+      if ((!content && !fileUrl) || !chatId) return;
+      const displayContent = content || attachmentName || "Dosya";
+      const outboxId = enqueue(chatId, displayContent);
+      void deliver(outboxId, displayContent, fileUrl, replyToId);
     },
     [chatId, enqueue, deliver]
   );

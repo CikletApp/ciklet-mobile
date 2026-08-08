@@ -1,8 +1,11 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
+  Modal,
+  Pressable,
   Text,
   TextInput,
   View,
@@ -22,13 +25,17 @@ import {
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
+import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
+import { useAuth } from "@/stores/auth";
 import { useChatOutbox } from "@/stores/outbox";
+import { pickAndUploadMessageFile, type MessageAttachment } from "@/lib/uploads";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { DaySeparator } from "./components/day-separator";
 import { MessageItem } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
 import { useComposer } from "./use-composer";
 import { useChatItems, type ChatItem } from "./use-chat-items";
+import { useMessageActions } from "./use-message-actions";
 
 /**
  * Kanal ve DM sohbetlerinin ortak gövdesi.
@@ -62,11 +69,18 @@ export function ChatView({
   const { typers, notifyTyping } = useTyping(chatId, kind);
   const { send, retry, discard } = useComposer(kind, chatId, serverId);
   const outbox = useChatOutbox(chatId);
+  const myId = useAuth((state) => state.profile?.id);
+  const actions = useMessageActions(kind, chatId, serverId);
 
   // Canlı akış: gelen mesajlar doğrudan cache'e yazılır.
   useChatStream(chatId);
 
   const [draft, setDraft] = useState("");
+  const [attachment, setAttachment] = useState<MessageAttachment | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessagePayload | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessagePayload | null>(null);
   const composerRef = useRef<TextInput>(null);
   /** Kaydırma yönünü anlamak için son dikey konum. */
   const lastOffset = useRef(0);
@@ -114,19 +128,43 @@ export function ChatView({
   );
 
   const onSend = useCallback(() => {
-    if (!draft.trim()) return;
-    send(draft);
+    if (!draft.trim() && !attachment) return;
+    send(draft, attachment?.url, attachment?.name, replyingTo?.id);
     setDraft("");
-  }, [draft, send]);
+    setAttachment(null);
+    setReplyingTo(null);
+  }, [attachment, draft, replyingTo?.id, send]);
+
+  const onPickAttachment = useCallback(async () => {
+    setUploadError(null);
+    setUploadProgress(0);
+    try {
+      const file = await pickAndUploadMessageFile(setUploadProgress);
+      if (file) setAttachment(file);
+    } catch (reason) {
+      setUploadError(
+        reason instanceof Error ? reason.message : "Dosya yüklenemedi."
+      );
+    } finally {
+      setUploadProgress(null);
+    }
+  }, []);
 
   const renderItem = useCallback(
     ({ item }: { item: ChatItem }) =>
       item.kind === "day" ? (
         <DaySeparator iso={item.iso} />
       ) : (
-        <MessageItem message={item.message} grouped={item.grouped} />
+        <MessageItem
+          message={item.message}
+          grouped={item.grouped}
+          onLongPress={setSelectedMessage}
+          onReactionPress={(message, emoji) => {
+            void actions.toggleReaction(message.id, emoji);
+          }}
+        />
       ),
-    []
+    [actions]
   );
 
   if (isLoading) {
@@ -252,9 +290,254 @@ export function ChatView({
         value={draft}
         onChangeText={onChangeDraft}
         onSend={onSend}
+        attachment={attachment}
+        replyingTo={replyingTo}
+        uploadProgress={uploadProgress}
+        uploadError={uploadError}
+        onPickAttachment={onPickAttachment}
+        onRemoveAttachment={() => setAttachment(null)}
+        onCancelReply={() => setReplyingTo(null)}
         placeholder={placeholder}
       />
+
+      {selectedMessage ? (
+        <MessageActionsSheet
+          key={selectedMessage.id}
+          message={selectedMessage}
+          isMine={messageAuthorId(selectedMessage) === myId}
+          pending={actions.pending}
+          error={actions.error}
+          onClose={() => {
+            actions.clearError();
+            setSelectedMessage(null);
+          }}
+          onReact={async (emoji) => {
+            const ok = await actions.toggleReaction(selectedMessage.id, emoji);
+            if (ok) setSelectedMessage(null);
+          }}
+          onReply={() => {
+            setReplyingTo(selectedMessage);
+            setSelectedMessage(null);
+            requestAnimationFrame(() => composerRef.current?.focus());
+          }}
+          onEdit={async (content) => {
+            const ok = await actions.edit(selectedMessage.id, content);
+            if (ok) setSelectedMessage(null);
+          }}
+          onDelete={() =>
+            Alert.alert("Mesajı sil", "Bu mesaj herkes için silinecek.", [
+              { text: "Vazgeç", style: "cancel" },
+              {
+                text: "Sil",
+                style: "destructive",
+                onPress: () => {
+                  void actions.remove(selectedMessage.id).then((ok) => {
+                    if (ok) setSelectedMessage(null);
+                  });
+                },
+              },
+            ])
+          }
+        />
+      ) : null}
     </KeyboardAvoider>
+  );
+}
+
+function messageAuthorId(message: ChatMessagePayload) {
+  return isChannelMessage(message) ? message.member.profile.id : message.profile.id;
+}
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+
+function MessageActionsSheet({
+  message,
+  isMine,
+  pending,
+  error,
+  onClose,
+  onReact,
+  onReply,
+  onEdit,
+  onDelete,
+}: {
+  message: ChatMessagePayload;
+  isMine: boolean;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onReact: (emoji: string) => Promise<void>;
+  onReply: () => void;
+  onEdit: (content: string) => Promise<void>;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState(message.content);
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Mesaj eylemlerini kapat"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.55)",
+          }}
+        />
+        <View
+          style={{
+            padding: spacing.lg,
+            paddingBottom: spacing["3xl"],
+            gap: spacing.lg,
+            borderTopLeftRadius: radii.xl,
+            borderTopRightRadius: radii.xl,
+            borderCurve: "continuous",
+            backgroundColor: colors.bento,
+          }}
+        >
+          <View
+            style={{
+              width: 38,
+              height: 4,
+              borderRadius: radii.full,
+              backgroundColor: colors.border,
+              alignSelf: "center",
+            }}
+          />
+
+          {editing ? (
+            <View style={{ gap: spacing.md }}>
+              <Text style={{ ...typography.display, color: colors.bright }}>
+                Mesajı düzenle
+              </Text>
+              <TextInput
+                value={content}
+                onChangeText={setContent}
+                multiline
+                autoFocus
+                maxLength={2000}
+                placeholderTextColor={colors.muted}
+                style={{
+                  minHeight: 96,
+                  maxHeight: 180,
+                  padding: spacing.md,
+                  borderRadius: radii.lg,
+                  borderCurve: "continuous",
+                  backgroundColor: colors.panel,
+                  color: colors.bright,
+                  textAlignVertical: "top",
+                  ...typography.body,
+                }}
+              />
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }}>
+                <SheetButton label="Vazgeç" onPress={() => setEditing(false)} />
+                <SheetButton
+                  label="Kaydet"
+                  primary
+                  disabled={!content.trim() || pending}
+                  onPress={() => void onEdit(content.trim())}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                {QUICK_REACTIONS.map((emoji) => (
+                  <Pressable
+                    key={emoji}
+                    onPress={() => void onReact(emoji)}
+                    disabled={pending}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${emoji} tepkisi ekle veya kaldır`}
+                    style={({ pressed }) => ({
+                      width: 46,
+                      height: 46,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: radii.full,
+                      backgroundColor: pressed ? colors.raised : colors.panel,
+                      opacity: pending ? 0.5 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 23 }}>{emoji}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <SheetButton label="Yanıtla" onPress={onReply} />
+
+              {isMine ? (
+                <View style={{ gap: spacing.sm }}>
+                  <SheetButton label="Mesajı düzenle" onPress={() => setEditing(true)} />
+                  <SheetButton label="Mesajı sil" destructive onPress={onDelete} />
+                </View>
+              ) : null}
+            </>
+          )}
+
+          {error ? (
+            <Text style={{ ...typography.caption, color: colors.danger }}>{error}</Text>
+          ) : null}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function SheetButton({
+  label,
+  onPress,
+  primary,
+  destructive,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  destructive?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: Boolean(disabled) }}
+      style={({ pressed }) => ({
+        minHeight: 46,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.lg,
+        borderCurve: "continuous",
+        backgroundColor: primary
+          ? colors.brand
+          : destructive
+            ? colors.panel
+            : pressed
+              ? colors.raised
+              : colors.panel,
+        opacity: disabled ? 0.45 : 1,
+      })}
+    >
+      <Text
+        style={{
+          ...typography.bodyStrong,
+          color: primary ? colors.onBrand : destructive ? colors.danger : colors.bright,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -266,63 +549,164 @@ const Composer = forwardRef<
     onChangeText: (text: string) => void;
     onSend: () => void;
     placeholder: string;
+    attachment: MessageAttachment | null;
+    replyingTo: ChatMessagePayload | null;
+    uploadProgress: number | null;
+    uploadError: string | null;
+    onPickAttachment: () => void;
+    onRemoveAttachment: () => void;
+    onCancelReply: () => void;
   }
->(function Composer({ value, onChangeText, onSend, placeholder }, ref) {
-  const canSend = value.trim().length > 0;
+>(function Composer(
+  {
+    value,
+    onChangeText,
+    onSend,
+    placeholder,
+    attachment,
+    replyingTo,
+    uploadProgress,
+    uploadError,
+    onPickAttachment,
+    onRemoveAttachment,
+    onCancelReply,
+  },
+  ref
+) {
+  const canSend = value.trim().length > 0 || Boolean(attachment);
+  const isUploading = uploadProgress !== null;
 
   return (
     <View
       style={{
-        flexDirection: "row",
-        alignItems: "flex-end",
-        gap: spacing.sm,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
         borderTopWidth: 1,
         borderTopColor: colors.border,
         backgroundColor: colors.deep,
+        gap: spacing.sm,
       }}
     >
-      {/* Dosya eki UploadThing entegrasyonuyla birlikte gelecek. */}
-      <IconButton
-        icon="plus"
-        label="Dosya ekle"
-        background="transparent"
-        tint={colors.muted}
-        disabled
-      />
+      {attachment ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            borderRadius: radii.md,
+            borderCurve: "continuous",
+            backgroundColor: colors.panel,
+          }}
+        >
+          <IconButton
+            icon="attachment"
+            label="Ek"
+            background="transparent"
+            tint={colors.brand}
+            disabled
+            size={28}
+          />
+          <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
+            {attachment.name}
+          </Text>
+          <IconButton
+            icon="close"
+            label="Eki kaldır"
+            background="transparent"
+            tint={colors.muted}
+            onPress={onRemoveAttachment}
+            size={28}
+          />
+        </View>
+      ) : null}
 
-      <TextInput
-        ref={ref}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        multiline
-        style={{
-          flex: 1,
-          maxHeight: 120,
-          minHeight: 40,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.sm,
-          borderRadius: radii.xl,
-          backgroundColor: colors.panel,
-          color: colors.bright,
-          ...typography.body,
-        }}
-        accessibilityLabel="Mesaj yaz"
-      />
+      {replyingTo ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            borderLeftWidth: 2,
+            borderLeftColor: colors.brand,
+            borderRadius: radii.sm,
+            backgroundColor: colors.panel,
+          }}
+        >
+          <IconButton
+            icon="reply"
+            label="Yanıt"
+            background="transparent"
+            tint={colors.brand}
+            disabled
+            size={28}
+          />
+          <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
+            {replyingTo.content}
+          </Text>
+          <IconButton
+            icon="close"
+            label="Yanıtı iptal et"
+            background="transparent"
+            tint={colors.muted}
+            onPress={onCancelReply}
+            size={28}
+          />
+        </View>
+      ) : null}
 
-      <IconButton
-        icon="send"
-        label="Gönder"
-        onPress={onSend}
-        disabled={!canSend}
-        background={canSend ? colors.brand : colors.panel}
-        tint={canSend ? colors.onBrand : colors.muted}
-        size={40}
-        haptic="light"
-      />
+      {isUploading || uploadError ? (
+        <Text style={{ ...typography.caption, color: uploadError ? colors.danger : colors.muted }}>
+          {uploadError ?? `Dosya yükleniyor… %${Math.round(uploadProgress ?? 0)}`}
+        </Text>
+      ) : null}
+
+      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
+        <IconButton
+          icon="plus"
+          label="Dosya ekle"
+          background="transparent"
+          tint={colors.muted}
+          disabled={isUploading}
+          onPress={onPickAttachment}
+        />
+
+        <TextInput
+          ref={ref}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.muted}
+          multiline
+          style={{
+            flex: 1,
+            maxHeight: 120,
+            minHeight: 40,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.sm,
+            borderRadius: radii.xl,
+            borderCurve: "continuous",
+            backgroundColor: colors.panel,
+            color: colors.bright,
+            ...typography.body,
+          }}
+          accessibilityLabel="Mesaj yaz"
+        />
+
+        <IconButton
+          icon="send"
+          label="Gönder"
+          onPress={onSend}
+          disabled={!canSend || isUploading}
+          background={canSend ? colors.brand : colors.panel}
+          tint={canSend ? colors.onBrand : colors.muted}
+          size={40}
+          haptic="light"
+        />
+      </View>
     </View>
   );
 });

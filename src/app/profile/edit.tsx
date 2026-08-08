@@ -21,9 +21,8 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  *  - Kullanıcı Profili : `PATCH /api/current-profile`
  *  - Sunucu Profilleri : üyelik başına `PATCH /api/members/[memberId]`
  *
- * Faz 1'de kullanıcı profili alanları (görünen ad, hitaplar, hakkımda)
- * yazılabilir. Avatar/banner yükleme ve sunucu profili formu Faz 2'de
- * (UploadThing entegrasyonuyla birlikte) gelir.
+ * Kullanıcı profili alanları burada, sunucuya özel alanlar ise üyelik
+ * satırından açılan ayrı ekranda düzenlenir.
  */
 type Tab = "user" | "servers";
 
@@ -168,7 +167,7 @@ export default function EditProfileScreen() {
   );
 }
 
-/** Sunucu profilleri listesi — düzenleme formu Faz 2. */
+/** Sunucu profilleri listesi. */
 function ServerProfilesTab() {
   const { data: memberships, isLoading } = useMyMemberships();
 
@@ -184,6 +183,12 @@ function ServerProfilesTab() {
       {(memberships ?? []).map((membership) => (
         <Pressable
           key={membership.id}
+          onPress={() =>
+            router.push({
+              pathname: "/profile/server/[memberId]",
+              params: { memberId: membership.id },
+            })
+          }
           accessibilityRole="button"
           accessibilityLabel={`${membership.server.name} sunucu profili`}
           style={({ pressed }) => ({

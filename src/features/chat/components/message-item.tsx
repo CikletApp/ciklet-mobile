@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Text, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 
 import { Avatar, Icon, type IconName } from "@/components/ui";
@@ -26,9 +27,13 @@ const MAX_BUBBLE_WIDTH = "78%";
 export const MessageItem = memo(function MessageItem({
   message,
   grouped = false,
+  onLongPress,
+  onReactionPress,
 }: {
   message: ChatMessagePayload;
   grouped?: boolean;
+  onLongPress?: (message: ChatMessagePayload) => void;
+  onReactionPress?: (message: ChatMessagePayload, emoji: string) => void;
 }) {
   const myId = useAuth((s) => s.profile?.id);
 
@@ -47,7 +52,9 @@ export const MessageItem = memo(function MessageItem({
   const showHeader = !grouped && !isMine;
 
   return (
-    <View
+    <Pressable
+      onLongPress={() => onLongPress?.(message)}
+      delayLongPress={280}
       style={{
         flexDirection: "row",
         justifyContent: isMine ? "flex-end" : "flex-start",
@@ -57,6 +64,8 @@ export const MessageItem = memo(function MessageItem({
         paddingTop: grouped ? 2 : spacing.sm,
         paddingBottom: 2,
       }}
+      accessibilityRole="button"
+      accessibilityHint="Mesaj eylemlerini açmak için basılı tut"
       accessibilityLabel={`${isMine ? "Sen" : name}: ${
         message.deleted ? "silinmiş mesaj" : message.content
       }`}
@@ -114,6 +123,21 @@ export const MessageItem = memo(function MessageItem({
           </View>
         ) : null}
 
+        {message.replyTo && !message.replyTo.deleted ? (
+          <View
+            style={{
+              borderLeftWidth: 2,
+              borderLeftColor: colors.brand,
+              paddingLeft: spacing.sm,
+              marginBottom: spacing.xs,
+            }}
+          >
+            <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={2}>
+              {message.replyTo.content}
+            </Text>
+          </View>
+        ) : null}
+
         <Text
           style={{
             ...typography.body,
@@ -124,6 +148,10 @@ export const MessageItem = memo(function MessageItem({
         >
           {message.deleted ? "Bu mesaj silindi." : message.content}
         </Text>
+
+        {message.fileUrl && !message.deleted ? (
+          <Attachment url={message.fileUrl} />
+        ) : null}
 
         <View
           style={{
@@ -140,10 +168,90 @@ export const MessageItem = memo(function MessageItem({
             {formatTime(message.createdAt)}
           </Text>
         </View>
+
+        {message.reactions?.length ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+            {groupReactions(message.reactions).map(({ emoji, count }) => (
+              <Pressable
+                key={emoji}
+                onPress={() => onReactionPress?.(message, emoji)}
+                accessibilityRole="button"
+                accessibilityLabel={`${emoji} tepkisi, ${count}`}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: 3,
+                  borderRadius: radii.full,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: pressed ? colors.raised : colors.panel,
+                })}
+              >
+                <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>{count}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 });
+
+function Attachment({ url }: { url: string }) {
+  const isImage = /\.(avif|gif|jpe?g|png|webp)(?:\?|$)/i.test(url);
+
+  if (isImage) {
+    return (
+      <Pressable onPress={() => void Linking.openURL(url)} accessibilityRole="imagebutton">
+        <Image
+          source={{ uri: url }}
+          contentFit="cover"
+          transition={150}
+          style={{
+            width: 220,
+            maxWidth: "100%",
+            aspectRatio: 4 / 3,
+            borderRadius: radii.md,
+            backgroundColor: colors.deep,
+          }}
+        />
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={() => void Linking.openURL(url)}
+      accessibilityRole="link"
+      accessibilityLabel="Dosyayı aç"
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        padding: spacing.sm,
+        borderRadius: radii.md,
+        backgroundColor: pressed ? colors.raised : colors.deep,
+      })}
+    >
+      <Icon name="attachment" size={18} color={colors.brand} />
+      <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
+        Dosyayı aç
+      </Text>
+      <Icon name="chevron-right" size={14} color={colors.muted} />
+    </Pressable>
+  );
+}
+
+function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>) {
+  const counts = new Map<string, number>();
+  for (const reaction of reactions) {
+    counts.set(reaction.emoji, (counts.get(reaction.emoji) ?? 0) + 1);
+  }
+  return [...counts].map(([emoji, count]) => ({ emoji, count }));
+}
 
 /**
  * Sistem mesajı — çağrı kayıtları ve aktivite davetleri.
