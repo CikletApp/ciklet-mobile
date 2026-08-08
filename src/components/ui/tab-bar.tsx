@@ -1,6 +1,5 @@
-import { Platform, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { BottomTabBarProps } from "expo-router/build/layouts/Tabs";
-import { BlurView } from "expo-blur";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -36,7 +35,7 @@ const ICONS: Record<string, IconName> = {
  * Kaydırılabilir içeriğin son öğesi çubuğun altında kalmasın diye
  * listelere bu kadar alt boşluk verilir (çubuk yüksekliği + payı).
  */
-export const FLOATING_TAB_INSET = 104;
+export const FLOATING_TAB_INSET = 92;
 
 export function FloatingTabBar({
   state,
@@ -49,37 +48,29 @@ export function FloatingTabBar({
     <View
       style={{
         position: "absolute",
-        left: spacing.lg,
-        right: spacing.lg,
+        left: spacing.sm,
+        right: spacing.sm,
         // Gezinme çubuğunun üstünde dursun; cihazda çubuk yoksa taban boşluk.
-        bottom: Math.max(insets.bottom, spacing.md),
+        bottom: Math.max(insets.bottom, spacing.sm),
       }}
       pointerEvents="box-none"
     >
       <View
         style={{
-          borderRadius: radii.full,
+          borderRadius: radii.xl,
+          borderCurve: "continuous",
           overflow: "hidden",
           borderWidth: 1,
           borderColor: colors.bentoBorder,
-          // Yüzen his için gölge; Android'de elevation karşılığı.
-          shadowColor: "#000",
-          shadowOpacity: 0.35,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 12,
+          backgroundColor: colors.bento,
+          boxShadow: "0 -6px 28px rgba(0, 0, 0, 0.28)",
         }}
       >
-        <BlurView
-          intensity={Platform.OS === "ios" ? 60 : 24}
-          tint="dark"
+        <View
           style={{
             flexDirection: "row",
-            paddingVertical: spacing.sm,
             paddingHorizontal: spacing.xs,
-            // Blur desteklenmezse altındaki yüzey okunurluğu taşır.
-            backgroundColor:
-              Platform.OS === "ios" ? "transparent" : "rgba(20, 21, 25, 0.88)",
+            minHeight: 64,
           }}
         >
           {state.routes.map((route, index) => {
@@ -109,7 +100,7 @@ export function FloatingTabBar({
               />
             );
           })}
-        </BlurView>
+        </View>
       </View>
     </View>
   );
@@ -136,8 +127,9 @@ function TabItem({
     opacity: withTiming(1 - press.value * 0.3, { duration: 100 }),
   }));
 
-  const pill = useAnimatedStyle(() => ({
+  const indicator = useAnimatedStyle(() => ({
     opacity: withTiming(focused ? 1 : 0, { duration: 160 }),
+    transform: [{ scaleX: withSpring(focused ? 1 : 0.4, { damping: 18 }) }],
   }));
 
   return (
@@ -161,9 +153,10 @@ function TabItem({
           {
             alignItems: "center",
             justifyContent: "center",
-            gap: 2,
-            paddingVertical: spacing.sm,
-            borderRadius: radii.full,
+            gap: 3,
+            minHeight: 64,
+            borderRadius: radii.lg,
+            borderCurve: "continuous",
           },
           style,
         ]}
@@ -173,14 +166,13 @@ function TabItem({
           style={[
             {
               position: "absolute",
-              top: 0,
-              bottom: 0,
-              left: spacing.sm,
-              right: spacing.sm,
-              borderRadius: radii.full,
+              top: 3,
+              width: 22,
+              height: 3,
+              borderRadius: 2,
               backgroundColor: colors.brand,
             },
-            pill,
+            indicator,
           ]}
         />
         {avatar ? (
@@ -202,8 +194,8 @@ function TabItem({
         ) : (
           <Icon
             name={icon}
-            size={20}
-            color={focused ? colors.onBrand : colors.muted}
+            size={21}
+            color={focused ? colors.bright : colors.muted}
             filled={focused}
           />
         )}
@@ -212,7 +204,7 @@ function TabItem({
             fontSize: 10,
             lineHeight: 13,
             fontWeight: focused ? "700" : "500",
-            color: focused ? colors.onBrand : colors.muted,
+            color: focused ? colors.bright : colors.muted,
           }}
           numberOfLines={1}
         >

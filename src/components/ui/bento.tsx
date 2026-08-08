@@ -27,6 +27,7 @@ export function BentoCard({
         {
           flex: 1,
           borderRadius: radii.bento,
+          borderCurve: "continuous",
           borderWidth: 1,
           borderColor: colors.bentoBorder,
           backgroundColor: colors.bento,

@@ -11,6 +11,7 @@ import {
   BentoShell,
   Button,
   EmptyState,
+  Icon,
   IconButton,
   ListSkeleton,
   Pressable,
@@ -158,9 +159,10 @@ function DirectPanel() {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: spacing.xs,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.md,
+          gap: spacing.sm,
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.lg,
+          paddingBottom: spacing.sm,
         }}
       >
         <Text style={{ ...typography.display, color: colors.bright, flex: 1 }}>
@@ -174,19 +176,44 @@ function DirectPanel() {
           onPress={openNotes}
           disabled={openDirect.isPending}
         />
-        <IconButton
-          icon="users"
-          label="Arkadaşlar"
-          background="transparent"
-          tint={colors.muted}
-          onPress={() => router.push("/friends")}
-        />
-        <IconButton
-          icon="search"
-          label="Ara"
-          background="transparent"
-          tint={colors.muted}
+      </View>
+
+      <View
+        style={{
+          flexDirection: "row",
+          gap: spacing.sm,
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.md,
+        }}
+      >
+        <Pressable
           onPress={() => router.push("/search")}
+          noHitSlop
+          accessibilityRole="search"
+          accessibilityLabel="Mesajlarda ve kişilerde ara"
+          style={({ pressed }) => ({
+            flex: 1,
+            minHeight: 46,
+            borderRadius: radii.full,
+            backgroundColor: pressed ? colors.raised : colors.panel,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+            paddingHorizontal: spacing.md,
+          })}
+        >
+          <Icon name="search" size={20} color={colors.muted} />
+          <Text style={{ ...typography.body, color: colors.muted, flex: 1 }}>
+            Ara
+          </Text>
+        </Pressable>
+        <IconButton
+          icon="user-plus"
+          label="Arkadaş ekle"
+          size={46}
+          background={colors.panel}
+          tint={colors.text}
+          onPress={() => router.push("/friends/add")}
         />
       </View>
 
@@ -214,7 +241,7 @@ function DirectPanel() {
               </Text>
             </View>
           }
-          contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET }}
+          contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET + spacing.lg }}
           ListEmptyComponent={
             <View style={{ paddingTop: spacing.xl }}>
               <EmptyState
@@ -233,6 +260,24 @@ function DirectPanel() {
           }
         />
       )}
+
+      <View
+        style={{
+          position: "absolute",
+          right: spacing.lg,
+          bottom: FLOATING_TAB_INSET + spacing.md,
+        }}
+      >
+        <IconButton
+          icon="pencil"
+          label="Yeni mesaj"
+          size={52}
+          background={colors.brand}
+          tint={colors.onBrand}
+          onPress={() => router.push("/friends")}
+          haptic="medium"
+        />
+      </View>
     </View>
   );
 }

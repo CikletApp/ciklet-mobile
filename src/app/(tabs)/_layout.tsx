@@ -1,7 +1,9 @@
 import { Tabs } from "expo-router";
 
 import { FloatingTabBar } from "@/components/ui";
-import { tabScreenOptions } from "@/theme/navigation";
+import { useTheme } from "@/stores/theme";
+import { createTabScreenOptions } from "@/theme/navigation";
+import { themes } from "@/theme/tokens";
 
 /**
  * Alt sekmeler — uygulamanın birincil gezinme ekseni.
@@ -15,6 +17,9 @@ import { tabScreenOptions } from "@/theme/navigation";
  * (`FloatingTabBar`). İçerik altından kayarken görünür kalır.
  */
 export default function TabsLayout() {
+  const themeId = useTheme((s) => s.themeId);
+  const tabScreenOptions = createTabScreenOptions(themes[themeId]);
+
   return (
     <Tabs
       screenOptions={{ ...tabScreenOptions, headerShown: false }}

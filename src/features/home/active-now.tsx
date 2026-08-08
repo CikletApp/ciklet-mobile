@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import { useFriends, useOpenDirect } from "@/api/hooks";
-import type { RichPresence, RichPresenceType } from "@/api/types";
 import { Avatar, Pressable } from "@/components/ui";
-import { displayNameOf, formatElapsed } from "@/lib/format";
+import { displayNameOf } from "@/lib/format";
 import { usePresenceStore } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -28,26 +27,7 @@ const ACTIVE_STATUSES: PresenceStatus[] = [
   PresenceStatus.DND,
 ];
 
-const ACTIVITY_VERB: Record<RichPresenceType, string> = {
-  PLAYING: "Oynuyor",
-  LISTENING: "Dinliyor",
-  STREAMING: "Yayında",
-  WATCHING: "İzliyor",
-  WORKING: "Çalışıyor",
-  CREATING: "Üretiyor",
-  COMPETING: "Yarışıyor",
-};
-
-/** Presence rozetinin metin karşılığı — ikisi asla çelişmemeli. */
-const STATUS_LABEL: Record<string, string> = {
-  [PresenceStatus.ONLINE]: "Çevrimiçi",
-  [PresenceStatus.IDLE]: "Boşta",
-  [PresenceStatus.DND]: "Rahatsız etmeyin",
-  [PresenceStatus.INVISIBLE]: "Çevrimdışı",
-  [PresenceStatus.OFFLINE]: "Çevrimdışı",
-};
-
-const CARD_WIDTH = 168;
+const CARD_WIDTH = 84;
 
 export function ActiveNow() {
   const { accepted } = useFriends();
@@ -84,7 +64,7 @@ export function ActiveNow() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg }}
       >
-        {active.map(({ friend, entry }) => (
+        {active.map(({ friend }) => (
           <Pressable
             key={friend.id}
             onPress={() =>
@@ -98,103 +78,34 @@ export function ActiveNow() {
             accessibilityLabel={`${displayNameOf(friend.profile)} ile sohbet`}
             style={({ pressed }) => ({
               width: CARD_WIDTH,
-              padding: spacing.md,
+              height: 94,
+              padding: spacing.sm,
               borderRadius: radii.lg,
+              borderCurve: "continuous",
               backgroundColor: colors.panel,
-              gap: spacing.sm,
+              alignItems: "center",
+              justifyContent: "center",
+              gap: spacing.xs,
               opacity: pressed ? 0.8 : 1,
             })}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-              <Avatar
-                profileId={friend.profile.id}
-                imageUrl={friend.profile.imageUrl}
-                fallbackText={friend.profile.username}
-                size={32}
-                showPresence
-                backgroundColor={colors.panel}
-              />
-              <Text
-                style={{ ...typography.caption, fontWeight: "700", color: colors.bright, flex: 1 }}
-                numberOfLines={1}
-              >
-                {displayNameOf(friend.profile)}
-              </Text>
-            </View>
-
-            {entry?.activity ? (
-              <ActivityLine activity={entry.activity} />
-            ) : (
-              // Etiket rozetle TUTARLI olmalı: boşta bir kullanıcının
-              // yanında "Çevrimiçi" yazmak çelişkili bilgi veriyordu.
-              <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>
-                {STATUS_LABEL[entry?.status ?? PresenceStatus.ONLINE]}
-              </Text>
-            )}
+            <Avatar
+              profileId={friend.profile.id}
+              imageUrl={friend.profile.imageUrl}
+              fallbackText={friend.profile.username}
+              size={50}
+              showPresence
+              backgroundColor={colors.panel}
+            />
+            <Text
+              style={{ fontSize: 11, lineHeight: 14, fontWeight: "600", color: colors.text }}
+              numberOfLines={1}
+            >
+              {displayNameOf(friend.profile)}
+            </Text>
           </Pressable>
         ))}
       </ScrollView>
     </View>
   );
-}
-
-/** Aktivite satırı — ad, fiil ve saniyede bir ilerleyen süre. */
-function ActivityLine({ activity }: { activity: RichPresence }) {
-  const elapsed = useElapsed(activity.startedAt);
-
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-      {activity.largeImageUrl || activity.appIconUrl ? (
-        <Avatar
-          imageUrl={activity.largeImageUrl ?? activity.appIconUrl}
-          fallbackText={activity.name}
-          size={26}
-          shape="squircle"
-          backgroundColor={colors.panel}
-        />
-      ) : null}
-      {/*
-        Ad ve fiil AYRI SATIRLARDA: tek satıra sığmadığında kırpılan şey
-        fiil oluyordu ("League of Legends O…") ve satır anlamsızlaşıyordu.
-        Fiil kısa süreyle birleşince ikinci satır hep sığar.
-      */}
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{ fontSize: 11, lineHeight: 15, color: colors.accent }}
-          numberOfLines={1}
-        >
-          {activity.name}
-        </Text>
-        <Text
-          style={{ fontSize: 11, lineHeight: 15, color: colors.success }}
-          numberOfLines={1}
-        >
-          {ACTIVITY_VERB[activity.type ?? "PLAYING"]}
-          {elapsed ? ` · ${elapsed}` : ""}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-/**
- * Geçen süreyi saniyede bir tazeler.
- *
- * Önceki sürüm kullanılmayan bir sayaç state'ini artırıp yeniden render
- * beklemekteydi; değer okunmadığı için render atlanabiliyor ve sayaç
- * donuyordu. Artık BİÇİMLENMİŞ METNİN KENDİSİ state'te tutuluyor —
- * her tik gerçekten yeni bir değer üretir.
- */
-function useElapsed(startedAt: number | undefined): string | null {
-  const [label, setLabel] = useState(() =>
-    startedAt ? formatElapsed(startedAt) : null
-  );
-
-  useEffect(() => {
-    if (!startedAt) return;
-    const timer = setInterval(() => setLabel(formatElapsed(startedAt)), 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
-
-  return startedAt ? label : null;
 }

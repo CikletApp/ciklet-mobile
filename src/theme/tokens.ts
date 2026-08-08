@@ -120,7 +120,7 @@ const mist: ThemePalette = {
   accent: "#45f3ff",
   bento: "#383a40",
   bentoBorder: "rgba(250, 250, 250, 0.06)",
-  bentoShell: "#2b2d33",
+  bentoShell: "#313338",
 };
 
 /** Zifir — OLED ekranlarda pil dostu saf siyah. */
@@ -186,7 +186,21 @@ export const DEFAULT_THEME: ThemeId = "night";
  * bu kaydı okuyacak. Navigator seçenekleri ve StyleSheet'ler bu nesneyi
  * kullanır — `className` kullanamayan her yer.
  */
-export const colors = themes[DEFAULT_THEME];
+/**
+ * Etkin paletin kimliği. Renk nesnesi bir Proxy olduğu için mevcut
+ * bileşenlerin `colors.bg` kullanımı değişmeden, tema geçişinde yeni paleti
+ * okur. Kök tema store'u değiştiğinde tüm uygulama yeniden render edilir.
+ */
+let activeThemeId: ThemeId = DEFAULT_THEME;
+
+export function setActiveTheme(themeId: ThemeId) {
+  activeThemeId = themeId;
+}
+
+export const colors = new Proxy({} as ThemePalette, {
+  get: (_target, property: keyof ThemePalette) =>
+    themes[activeThemeId][property],
+});
 
 // ── Ölçek ───────────────────────────────────────────────────────────
 

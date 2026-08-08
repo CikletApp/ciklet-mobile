@@ -1,4 +1,5 @@
-import { SectionList, Text, View } from "react-native";
+import { useState } from "react";
+import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import {
   ChannelType,
@@ -16,6 +17,7 @@ import {
   type IconName,
 } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
 
 /**
  * Seçili sunucunun kanal listesi — rayın YANINDA açılır.
@@ -27,6 +29,7 @@ export function ChannelPanel({ serverId }: { serverId: string }) {
   const { data: server } = useServerSummary(serverId);
   const { data: channels, isLoading } = useServerChannels(serverId);
   const { data: unread } = useUnreadCounts();
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const sections = buildSections(channels ?? []);
 
@@ -38,7 +41,8 @@ export function ChannelPanel({ serverId }: { serverId: string }) {
           alignItems: "center",
           gap: spacing.sm,
           paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
+          paddingTop: spacing.lg,
+          paddingBottom: spacing.sm,
         }}
       >
         <Text
@@ -47,18 +51,41 @@ export function ChannelPanel({ serverId }: { serverId: string }) {
         >
           {server?.name ?? ""}
         </Text>
-        <IconButton
-          icon="search"
-          label="Ara"
-          background="transparent"
-          tint={colors.muted}
+      </View>
+
+      <View
+        style={{
+          flexDirection: "row",
+          gap: spacing.sm,
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.md,
+        }}
+      >
+        <Pressable
           onPress={() => router.push("/search")}
-        />
+          noHitSlop
+          accessibilityRole="search"
+          accessibilityLabel="Sunucuda ara"
+          style={({ pressed }) => ({
+            flex: 1,
+            minHeight: 46,
+            borderRadius: radii.full,
+            backgroundColor: pressed ? colors.raised : colors.panel,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: spacing.sm,
+          })}
+        >
+          <Icon name="search" size={20} color={colors.muted} />
+          <Text style={{ ...typography.bodyStrong, color: colors.text }}>Ara</Text>
+        </Pressable>
         <IconButton
           icon="user-plus"
           label="Davet et"
-          background="transparent"
-          tint={colors.muted}
+          size={46}
+          background={colors.panel}
+          tint={colors.text}
           onPress={() => router.push("/servers/new")}
         />
       </View>
@@ -72,32 +99,58 @@ export function ChannelPanel({ serverId }: { serverId: string }) {
           description="Bu sunucuda henüz kanal açılmamış."
         />
       ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          stickySectionHeadersEnabled={false}
-          contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
-          renderSectionHeader={({ section }) => (
-            <Text
-              style={{
-                ...typography.overline,
-                color: colors.muted,
-                paddingHorizontal: spacing.lg,
-                paddingTop: spacing.lg,
-                paddingBottom: spacing.xs,
-              }}
-            >
-              {section.title}
-            </Text>
-          )}
-          renderItem={({ item }) => (
-            <ChannelRow
-              serverId={serverId}
-              channel={item}
-              unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
-            />
-          )}
-        />
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET + spacing.lg }}
+        >
+          {sections.map((section) => {
+            const isCollapsed = collapsed.has(section.type);
+            return (
+              <View key={section.type}>
+                <Pressable
+                  onPress={() =>
+                    setCollapsed((current) => {
+                      const next = new Set(current);
+                      if (next.has(section.type)) next.delete(section.type);
+                      else next.add(section.type);
+                      return next;
+                    })
+                  }
+                  noHitSlop
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: !isCollapsed }}
+                  style={{
+                    minHeight: 42,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.xs,
+                    paddingHorizontal: spacing.lg,
+                    paddingTop: spacing.sm,
+                  }}
+                >
+                  <Icon
+                    name={isCollapsed ? "chevron-right" : "chevron-down"}
+                    size={15}
+                    color={colors.muted}
+                  />
+                  <Text style={{ ...typography.overline, color: colors.muted }}>
+                    {section.title}
+                  </Text>
+                </Pressable>
+                {isCollapsed
+                  ? null
+                  : section.data.map((item) => (
+                      <ChannelRow
+                        key={item.id}
+                        serverId={serverId}
+                        channel={item}
+                        unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
+                      />
+                    ))}
+              </View>
+            );
+          })}
+        </ScrollView>
       )}
     </View>
   );

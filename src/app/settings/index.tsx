@@ -14,6 +14,7 @@ import { displayNameOf } from "@/lib/format";
 import { CLIENT_VERSION } from "@/lib/device";
 import { disconnectSocket } from "@/realtime/socket";
 import { useAuth } from "@/stores/auth";
+import { THEME_LABELS, useTheme } from "@/stores/theme";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -25,6 +26,7 @@ import { colors, spacing, typography } from "@/theme/tokens";
 export default function SettingsScreen() {
   const { data: profile } = useCurrentProfile();
   const logout = useAuth((s) => s.logout);
+  const themeId = useTheme((s) => s.themeId);
 
   const onLogout = () => {
     Alert.alert("Çıkış yap", "Oturumun bu cihazda kapatılacak.", [
@@ -91,7 +93,12 @@ export default function SettingsScreen() {
           <ListGroup>
             <ListRow icon="volume" title="Ses" disabled />
             <Divider inset={52} />
-            <ListRow icon="compass" title="Görünüm" detail="Gece" disabled />
+            <ListRow
+              icon="compass"
+              title="Görünüm"
+              detail={THEME_LABELS[themeId]}
+              onPress={() => router.push("/settings/appearance")}
+            />
             <Divider inset={52} />
             <ListRow icon="bell" title="Bildirimler" disabled />
           </ListGroup>

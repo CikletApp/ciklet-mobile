@@ -1,4 +1,4 @@
-import { colors, typography } from "./tokens";
+import { typography, type ThemePalette } from "./tokens";
 
 /**
  * Navigator seçenekleri — `className` çalışmayan tek yer burasıdır
@@ -6,7 +6,7 @@ import { colors, typography } from "./tokens";
  * görünümünü buradan alır; ekran dosyalarında renk yazılmaz.
  */
 
-export const stackScreenOptions = {
+export const createStackScreenOptions = (colors: ThemePalette) => ({
   headerStyle: { backgroundColor: colors.bg },
   headerTitleStyle: {
     color: colors.bright,
@@ -16,10 +16,10 @@ export const stackScreenOptions = {
   headerTintColor: colors.bright,
   headerShadowVisible: false,
   contentStyle: { backgroundColor: colors.bg },
-} as const;
+} as const);
 
-export const tabScreenOptions = {
-  ...stackScreenOptions,
+export const createTabScreenOptions = (colors: ThemePalette) => ({
+  ...createStackScreenOptions(colors),
   tabBarStyle: {
     backgroundColor: colors.deep,
     borderTopColor: colors.border,
@@ -29,12 +29,12 @@ export const tabScreenOptions = {
   tabBarInactiveTintColor: colors.muted,
   tabBarLabelStyle: { fontSize: 11, fontWeight: "600" as const },
   sceneStyle: { backgroundColor: colors.bg },
-} as const;
+} as const);
 
 /** Modal olarak açılan ekranlar (profil düzenleme, arkadaş ekle...). */
-export const modalScreenOptions = {
-  ...stackScreenOptions,
+export const createModalScreenOptions = (colors: ThemePalette) => ({
+  ...createStackScreenOptions(colors),
   presentation: "modal" as const,
   headerStyle: { backgroundColor: colors.panel },
   contentStyle: { backgroundColor: colors.panel },
-};
+} as const);

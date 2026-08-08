@@ -47,6 +47,7 @@ export function ListGroup({
       style={[
         {
           borderRadius: radii.lg,
+          borderCurve: "continuous",
           backgroundColor: colors.panel,
           overflow: "hidden",
         },

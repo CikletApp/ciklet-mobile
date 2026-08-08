@@ -12,8 +12,12 @@ import { CallOverlay } from "@/features/call/call-overlay";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
-import { colors } from "@/theme/tokens";
-import { modalScreenOptions, stackScreenOptions } from "@/theme/navigation";
+import { useTheme } from "@/stores/theme";
+import { themes } from "@/theme/tokens";
+import {
+  createModalScreenOptions,
+  createStackScreenOptions,
+} from "@/theme/navigation";
 
 /**
  * Kök düzen — sağlayıcı sırası ve rota koruması.
@@ -32,10 +36,16 @@ setupLiveKit();
 export default function RootLayout() {
   const status = useAuth((s) => s.status);
   const bootstrap = useAuth((s) => s.bootstrap);
+  const themeId = useTheme((s) => s.themeId);
+  const hydrateTheme = useTheme((s) => s.hydrate);
+  const palette = themes[themeId];
+  const stackScreenOptions = createStackScreenOptions(palette);
+  const modalScreenOptions = createModalScreenOptions(palette);
 
   useEffect(() => {
+    void hydrateTheme();
     void bootstrap();
-  }, [bootstrap]);
+  }, [bootstrap, hydrateTheme]);
 
   useEffect(() => {
     // Splash yalnızca oturum durumu netleştiğinde kalkar — aksi halde
@@ -46,14 +56,14 @@ export default function RootLayout() {
   if (status === "loading") return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
       <SafeAreaProvider>
         <PersistQueryClientProvider
           client={queryClient}
           persistOptions={persistOptions}
         >
           <RealtimeProvider>
-            <StatusBar style="light" />
+            <StatusBar style={themeId === "light" ? "dark" : "light"} />
             <ConnectionBanner />
             <Stack screenOptions={stackScreenOptions}>
               <Stack.Protected guard={status === "signedIn"}>
@@ -83,6 +93,10 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="profile/[profileId]" options={{ title: "" }} />
                 <Stack.Screen name="settings/index" options={{ title: "Ayarlar" }} />
+                <Stack.Screen
+                  name="settings/appearance"
+                  options={{ title: "Görünüm" }}
+                />
               </Stack.Protected>
 
               <Stack.Protected guard={status !== "signedIn"}>
