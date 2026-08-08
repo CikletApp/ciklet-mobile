@@ -24,16 +24,18 @@ export const endpoints = {
     refresh: "/api/mobile/auth/refresh",
   },
 
-  /**
-   * Push token kaydı. ⚠️ ciklet-web'de HENÜZ YOK —
-   * bkz. docs/CIKLET-WEB-GOREVLERI.md Görev 1.
-   */
+  /** Expo push cihaz kaydı ve tercih güncellemesi. */
   pushRegister: "/api/push/register",
 
   // ── Profil ────────────────────────────────────────────────────────
   currentProfile: "/api/current-profile",
   accountUsername: "/api/account/username",
+  accountEmail: "/api/account/email",
+  accountTwoFactor: "/api/account/two-factor",
+  changePassword: "/api/auth/change-password",
   accountStatus: "/api/account-status",
+  mentolPlan: "/api/mentol/me",
+  mentolRedeem: "/api/mentol/redeem",
   sessions: "/api/sessions",
   session: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`,
   authorizedApps: "/api/oauth/authorized-apps",

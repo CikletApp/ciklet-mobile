@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   FriendRequestStatus,
   type FriendWithProfiles,
@@ -104,6 +104,36 @@ export function useRemoveFriend() {
     mutationFn: (friendId: string) =>
       api(endpoints.friend(friendId), { method: "DELETE" }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.friends });
+    },
+  });
+}
+
+export interface BlockedEntry {
+  friendId: string;
+  blockedAt: string;
+  profile: Pick<PublicProfile, "id" | "username" | "name" | "imageUrl">;
+}
+
+export function useBlockedUsers() {
+  return useInfiniteQuery({
+    queryKey: qk.blockedUsers,
+    initialPageParam: "",
+    queryFn: ({ pageParam }) =>
+      api<{ items: BlockedEntry[]; nextCursor: string | null }>(
+        `${endpoints.friendBlock}${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ""}`
+      ),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
+export function useUnblockUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (profileId: string) =>
+      api(endpoints.friendBlock, { method: "DELETE", body: { profileId } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.blockedUsers });
       void queryClient.invalidateQueries({ queryKey: qk.friends });
     },
   });

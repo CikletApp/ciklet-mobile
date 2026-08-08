@@ -28,6 +28,7 @@ export const qk = {
   directs: ["directs"] as const,
 
   friends: ["friends"] as const,
+  blockedUsers: ["blocked-users"] as const,
 
   messages: {
     all: ["messages"] as const,

@@ -70,6 +70,8 @@ export interface MembershipWithServer extends Member {
   folderId: string | null;
   /** Klasör içindeki sıra. */
   orderInFolder: number | null;
+  /** Bu sunucunun üyelerinden DM kabul edilsin mi. */
+  allowServerDMs: boolean;
 }
 
 /** `PATCH /api/members/[memberId]` — sunucuya özel profil alanları. */

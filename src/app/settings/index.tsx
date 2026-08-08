@@ -73,7 +73,13 @@ export default function SettingsScreen() {
               icon="user"
               title="Hesap"
               detail={profile?.email ?? undefined}
-              onPress={() => router.push("/profile/edit")}
+              onPress={() => router.push("/settings/account")}
+            />
+            <Divider inset={52} />
+            <ListRow
+              icon="bookmark"
+              title="Mentol"
+              onPress={() => router.push("/settings/mentol")}
             />
             <Divider inset={52} />
             <ListRow

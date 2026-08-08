@@ -2,15 +2,21 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
-import { ApiError } from "@/api/client";
+import { ApiError, api } from "@/api/client";
 import {
+  useBlockedUsers,
   useAccountSessions,
   useCurrentProfile,
+  useMyServers,
   useRevokeSession,
+  useUnblockUser,
   useUpdateProfile,
 } from "@/api/hooks";
+import { endpoints } from "@/api/endpoints";
+import { qk } from "@/api/query-keys";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CurrentProfile } from "@/api/types";
-import { Divider, EmptyState, ListGroup, ListRow, Screen, SectionHeader } from "@/components/ui";
+import { Avatar, Button, Divider, EmptyState, ListGroup, ListRow, Screen, SectionHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { getDeviceId } from "@/lib/device";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -23,6 +29,15 @@ export default function PrivacySettingsScreen() {
   const update = useUpdateProfile();
   const { data: sessions, isLoading: sessionsLoading } = useAccountSessions();
   const revoke = useRevokeSession();
+  const memberships = useMyServers();
+  const blocked = useBlockedUsers();
+  const unblock = useUnblockUser();
+  const queryClient = useQueryClient();
+  const updateServerDm = useMutation({
+    mutationFn: ({ memberId, value }: { memberId: string; value: boolean }) =>
+      api(endpoints.member(memberId), { method: "PATCH", body: { allowServerDMs: value } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.memberships }),
+  });
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
 
   const [dmPermission, setDmPermission] = useState<DmPermission>("EVERYONE");
@@ -153,6 +168,67 @@ export default function PrivacySettingsScreen() {
             {update.error instanceof ApiError ? update.error.message : "Ayarlar kaydedilemedi."}
           </Text>
         ) : null}
+
+        <SectionHeader title="SUNUCU MESAJLARI" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          {memberships.data?.length ? (
+            <ListGroup>
+              {memberships.data.map((membership, index) => (
+                <View key={membership.id}>
+                  {index > 0 ? <Divider inset={52} /> : null}
+                  <View style={{ flexDirection: "row", alignItems: "center", minHeight: 58, paddingHorizontal: spacing.lg, gap: spacing.md }}>
+                    <Avatar imageUrl={membership.server.imageUrl} fallbackText={membership.server.name} size={34} shape="squircle" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ ...typography.body, color: colors.text }}>{membership.server.name}</Text>
+                      <Text style={{ ...typography.caption, color: colors.muted }}>Sunucu üyelerinden DM al</Text>
+                    </View>
+                    <Switch
+                      value={membership.allowServerDMs !== false}
+                      disabled={updateServerDm.isPending}
+                      onValueChange={(value) => updateServerDm.mutate({ memberId: membership.id, value })}
+                      trackColor={{ false: colors.deep, true: colors.brand }}
+                      thumbColor={colors.bright}
+                    />
+                  </View>
+                </View>
+              ))}
+            </ListGroup>
+          ) : (
+            <EmptyState icon="users" title="Sunucu yok" description="Sunucu bazlı DM tercihi bulunmuyor." />
+          )}
+        </View>
+
+        <SectionHeader title="ENGELLENEN KULLANICILAR" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          {(blocked.data?.pages.flatMap((page) => page.items).length ?? 0) > 0 ? (
+            <View style={{ gap: spacing.sm }}>
+              <ListGroup>
+                {blocked.data?.pages.flatMap((page) => page.items).map((entry, index) => (
+                  <View key={entry.friendId}>
+                    {index > 0 ? <Divider inset={52} /> : null}
+                    <ListRow
+                      leading={<Avatar profileId={entry.profile.id} imageUrl={entry.profile.imageUrl} fallbackText={entry.profile.username} size={36} />}
+                      title={entry.profile.name?.trim() || entry.profile.username}
+                      subtitle={`@${entry.profile.username}`}
+                      detail="Engeli kaldır"
+                      chevron={false}
+                      disabled={unblock.isPending}
+                      onPress={() => Alert.alert("Engeli kaldır", `@${entry.profile.username} yeniden sana ulaşabilecek.`, [
+                        { text: "Vazgeç", style: "cancel" },
+                        { text: "Kaldır", onPress: () => unblock.mutate(entry.profile.id) },
+                      ])}
+                    />
+                  </View>
+                ))}
+              </ListGroup>
+              {blocked.hasNextPage ? <Button label="Daha Fazla Göster" variant="secondary" onPress={() => void blocked.fetchNextPage()} loading={blocked.isFetchingNextPage} fullWidth /> : null}
+            </View>
+          ) : blocked.isLoading ? (
+            <ActivityIndicator color={colors.brand} />
+          ) : (
+            <EmptyState icon="shield" title="Engellenen kimse yok" description="Engellediğin kullanıcılar burada görünür." />
+          )}
+        </View>
 
         <SectionHeader title="ETKİN CİHAZLAR" />
         <View style={{ paddingHorizontal: spacing.lg }}>
