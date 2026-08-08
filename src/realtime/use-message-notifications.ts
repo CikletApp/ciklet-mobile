@@ -10,6 +10,7 @@ import {
   setupNotifications,
 } from "@/lib/notifications";
 import { useAuth } from "@/stores/auth";
+import { usePreferences } from "@/stores/preferences";
 import { ServerEvent } from "./events";
 import { getSocket } from "./socket";
 
@@ -30,11 +31,14 @@ interface NewMessagePayload {
 
 export function useMessageNotifications() {
   const status = useAuth((s) => s.status);
+  const notificationsEnabled = usePreferences((s) => s.notificationsEnabled);
+  const messageNotifications = usePreferences((s) => s.messageNotifications);
+  const notificationSounds = usePreferences((s) => s.notificationSounds);
   const granted = useRef(false);
 
   // İzin + kanal kurulumu, oturum açıldığında bir kez.
   useEffect(() => {
-    if (status !== "signedIn") return;
+    if (status !== "signedIn" || !notificationsEnabled) return;
     let cancelled = false;
     void setupNotifications().then((ok) => {
       if (cancelled) return;
@@ -46,7 +50,7 @@ export function useMessageNotifications() {
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [notificationsEnabled, status]);
 
   // Bildirime dokunulunca ilgili sohbete git.
   useEffect(() => {
@@ -80,7 +84,7 @@ export function useMessageNotifications() {
       if (!socket || cancelled) return;
 
       const onNewMessage = (payload: NewMessagePayload) => {
-        if (!granted.current) return;
+        if (!granted.current || !notificationsEnabled || !messageNotifications) return;
         // Spam filtresinden geçen mesajlar bildirime dönüşmemeli.
         if (payload.isSpam) return;
         if (AppState.currentState === "active") return;
@@ -92,6 +96,7 @@ export function useMessageNotifications() {
           title: payload.sender?.name?.trim() || payload.sender?.username || "Yeni mesaj",
           body: payload.message?.content?.slice(0, 140) ?? "Sana bir mesaj gönderdi.",
           url: `/chat/direct/${directId}`,
+          sound: notificationSounds,
         });
       };
 
@@ -103,5 +108,5 @@ export function useMessageNotifications() {
       cancelled = true;
       detach?.();
     };
-  }, [status]);
+  }, [messageNotifications, notificationSounds, notificationsEnabled, status]);
 }

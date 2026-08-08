@@ -81,6 +81,51 @@ export interface UpdateMemberProfileInput {
   serverBannerColor?: string | null;
 }
 
+/** ciklet-web: `GET /api/sessions` */
+export interface AccountSession {
+  id: string;
+  deviceToken: string;
+  deviceName: string | null;
+  osInfo: string | null;
+  userAgent: string | null;
+  ipAddress: string | null;
+  country?: string | null;
+  clientType?: string | null;
+  lastSeenAt: string;
+  createdAt: string;
+}
+
+/** ciklet-web: `GET /api/oauth/authorized-apps` */
+export interface AuthorizedApplication {
+  id: string;
+  applicationId: string;
+  createdAt: string;
+  scopes?: string[];
+  application: {
+    name: string;
+    description: string | null;
+    imageUrl: string | null;
+    aboutUrl: string | null;
+    privacyPolicyUrl: string | null;
+    scopes: string[];
+  };
+}
+
+/** Mobil sunucu ayarları için yetkili üyeye dönen ayrıntılar. */
+export interface ServerDetails {
+  id: string;
+  name: string;
+  imageUrl: string;
+  bannerUrl: string | null;
+  description: string | null;
+  profileId: string;
+  systemChannelId: string | null;
+  isPublic: boolean;
+  isDiscoverable: boolean;
+  inviteCode: string;
+  createdAt: string;
+}
+
 /**
  * ciklet-web: `src/lib/direct.ts` → `getDirects()`
  *

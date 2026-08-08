@@ -11,3 +11,4 @@ export * from "./use-directs";
 export * from "./use-friends";
 export * from "./use-messages";
 export * from "./use-search";
+export * from "./use-settings";

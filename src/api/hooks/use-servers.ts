@@ -1,14 +1,15 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   Channel,
+  ChannelType,
   MemberWithProfile,
 } from "@ciklet/embedded-activities-sdk/types";
 
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
-import type { MembershipWithServer, UnreadCounts } from "../types";
+import type { MembershipWithServer, ServerDetails, UnreadCounts } from "../types";
 
 /**
  * Sunucu verisi.
@@ -66,6 +67,68 @@ export function useServerChannels(serverId: string | undefined) {
     enabled: Boolean(serverId),
     queryFn: () => api<Channel[]>(endpoints.serverChannels(serverId!)),
     staleTime: 5 * 60_000,
+  });
+}
+
+export function useServerDetails(serverId: string | undefined) {
+  return useQuery({
+    queryKey: qk.server(serverId ?? "yok"),
+    enabled: Boolean(serverId),
+    queryFn: () => api<ServerDetails>(endpoints.server(serverId!)),
+  });
+}
+
+export function useUpdateServer(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<Pick<ServerDetails, "name" | "description" | "isPublic" | "isDiscoverable" | "systemChannelId">>) =>
+      api<ServerDetails>(endpoints.server(serverId), { method: "PATCH", body: input }),
+    onSuccess: (server) => {
+      queryClient.setQueryData(qk.server(serverId), server);
+      void queryClient.invalidateQueries({ queryKey: qk.memberships });
+    },
+  });
+}
+
+export function useDeleteServer(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api(endpoints.server(serverId), { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.memberships }),
+  });
+}
+
+export function useLeaveServer(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api(endpoints.serverLeave(serverId), { method: "PATCH" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.memberships }),
+  });
+}
+
+export function useCreateChannel(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; type: ChannelType }) =>
+      api(endpoints.createChannel(serverId), { method: "POST", body: input }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.channels(serverId) }),
+  });
+}
+
+export function useUpdateChannel(serverId: string, channelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; type: ChannelType }) =>
+      api(endpoints.manageChannel(channelId, serverId), { method: "PATCH", body: input }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.channels(serverId) }),
+  });
+}
+
+export function useDeleteChannel(serverId: string, channelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api(endpoints.manageChannel(channelId, serverId), { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.channels(serverId) }),
   });
 }
 

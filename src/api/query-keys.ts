@@ -20,6 +20,7 @@ export const qk = {
 
   /** Bir sunucunun kanalları. */
   channels: (serverId: string) => ["channels", serverId] as const,
+  server: (serverId: string) => ["server", serverId] as const,
 
   /** Bir sunucunun üyeleri. */
   members: (serverId: string) => ["members", serverId] as const,
@@ -41,4 +42,5 @@ export const qk = {
   activities: ["activities"] as const,
 
   sessions: ["sessions"] as const,
+  authorizedApps: ["authorized-apps"] as const,
 } as const;

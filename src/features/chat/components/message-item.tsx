@@ -7,6 +7,7 @@ import { Avatar, Icon, type IconName } from "@/components/ui";
 import { formatTime } from "@/lib/format";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useAuth } from "@/stores/auth";
+import { usePreferences } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -36,6 +37,10 @@ export const MessageItem = memo(function MessageItem({
   onReactionPress?: (message: ChatMessagePayload, emoji: string) => void;
 }) {
   const myId = useAuth((s) => s.profile?.id);
+  const density = usePreferences((state) => state.chatDensity);
+  const bigEmoji = usePreferences((state) => state.bigEmoji);
+  const compact = density === "compact";
+  const largeEmoji = bigEmoji && !compact && isEmojiOnly(message.content);
 
   // Sistem mesajları (çağrı, aktivite daveti) tarafsızdır — ortada çizilir.
   if (message.type !== MessageType.DEFAULT) {
@@ -61,8 +66,8 @@ export const MessageItem = memo(function MessageItem({
         alignItems: "flex-end",
         gap: spacing.sm,
         paddingHorizontal: spacing.md,
-        paddingTop: grouped ? 2 : spacing.sm,
-        paddingBottom: 2,
+        paddingTop: compact ? 1 : grouped ? 2 : spacing.sm,
+        paddingBottom: compact ? 1 : 2,
       }}
       accessibilityRole="button"
       accessibilityHint="Mesaj eylemlerini açmak için basılı tut"
@@ -141,6 +146,7 @@ export const MessageItem = memo(function MessageItem({
         <Text
           style={{
             ...typography.body,
+            ...(largeEmoji ? { fontSize: 28, lineHeight: 34 } : null),
             color: message.deleted ? colors.muted : colors.text,
             fontStyle: message.deleted ? "italic" : "normal",
           }}
@@ -199,6 +205,13 @@ export const MessageItem = memo(function MessageItem({
     </Pressable>
   );
 });
+
+function isEmojiOnly(content: string) {
+  const compact = content.replace(/\s/g, "");
+  if (!compact) return false;
+  const emojis = compact.match(/\p{Extended_Pictographic}/gu) ?? [];
+  return emojis.length >= 1 && emojis.length <= 8 && compact.replace(/\p{Extended_Pictographic}|\uFE0F/gu, "") === "";
+}
 
 function Attachment({ url }: { url: string }) {
   const isImage = /\.(avif|gif|jpe?g|png|webp)(?:\?|$)/i.test(url);

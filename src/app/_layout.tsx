@@ -12,6 +12,7 @@ import { CallOverlay } from "@/features/call/call-overlay";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
+import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { themes } from "@/theme/tokens";
 import {
@@ -38,14 +39,16 @@ export default function RootLayout() {
   const bootstrap = useAuth((s) => s.bootstrap);
   const themeId = useTheme((s) => s.themeId);
   const hydrateTheme = useTheme((s) => s.hydrate);
+  const hydratePreferences = usePreferences((s) => s.hydrate);
   const palette = themes[themeId];
   const stackScreenOptions = createStackScreenOptions(palette);
   const modalScreenOptions = createModalScreenOptions(palette);
 
   useEffect(() => {
     void hydrateTheme();
+    void hydratePreferences();
     void bootstrap();
-  }, [bootstrap, hydrateTheme]);
+  }, [bootstrap, hydratePreferences, hydrateTheme]);
 
   useEffect(() => {
     // Splash yalnızca oturum durumu netleştiğinde kalkar — aksi halde

@@ -64,13 +64,14 @@ export async function notifyMessage(options: {
   title: string;
   body: string;
   url: string;
+  sound?: boolean;
 }) {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: options.title,
       body: options.body,
       data: { url: options.url },
-      sound: true,
+      sound: options.sound === false ? undefined : true,
     },
     // null = hemen göster.
     trigger: null,

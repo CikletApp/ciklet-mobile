@@ -36,6 +36,7 @@ export const endpoints = {
   accountStatus: "/api/account-status",
   sessions: "/api/sessions",
   session: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`,
+  authorizedApps: "/api/oauth/authorized-apps",
 
   // ── Sunucular ─────────────────────────────────────────────────────
   /**
@@ -79,8 +80,10 @@ export const endpoints = {
   // ── Kanallar ──────────────────────────────────────────────────────
   /** Bir sunucunun kanalları. `serverId` zorunlu; üyelik sunucuda denetlenir. */
   serverChannels: (serverId: string) => `/api/channels${qs({ serverId })}`,
-  createChannel: "/api/channels",
+  createChannel: (serverId: string) => `/api/channels${qs({ serverId })}`,
   channel: (channelId: string) => `/api/channels/${encodeURIComponent(channelId)}`,
+  manageChannel: (channelId: string, serverId: string) =>
+    `/api/channels/${encodeURIComponent(channelId)}${qs({ serverId })}`,
 
   // ── Doğrudan mesajlar (1:1) ───────────────────────────────────────
   directs: "/api/directs",

@@ -145,14 +145,8 @@ interface InvitePreview {
  * Davetle katılım — iki adım.
  *
  * 1. `GET /api/i/[code]` sunucunun herkese açık kartını döner (önizleme).
- * 2. `POST /api/servers/[id]/join` katılımı yapar.
- *
- * ⚠️ Backend boşluğu: ikinci uç YALNIZCA `isPublic` sunucular için çalışır.
- * Gizli bir sunucuya davetle katılım ciklet-web'de bir sunucu bileşeni
- * sayfasında (`(invite)/(routes)/i/[inviteCode]/page.tsx`) gerçekleşiyor ve
- * karşılık gelen bir API ucu YOK. Mobil için o mantığın bir uca taşınması
- * gerekiyor — bkz. docs/ROADMAP.md. O zamana kadar gizli sunucu daveti 404
- * döner ve kullanıcıya aşağıdaki açıklama gösterilir.
+ * 2. Aynı davet ucunun `POST` yöntemi katılımı yapar. Gizli sunucu, ban,
+ *    süre ve kullanım sınırı webdeki davet sayfasıyla aynı kurallardadır.
  */
 function JoinServer() {
   const queryClient = useQueryClient();
@@ -170,8 +164,11 @@ function JoinServer() {
   });
 
   const join = useMutation({
-    mutationFn: (serverId: string) =>
-      api(endpoints.serverJoin(serverId), { method: "POST" }),
+    mutationFn: (_serverId: string) => {
+      const trimmed = code.trim();
+      const inviteCode = trimmed.split("/").filter(Boolean).pop() ?? trimmed;
+      return api(endpoints.invite(inviteCode), { method: "POST" });
+    },
     onSuccess: (_result, serverId) => {
       void queryClient.invalidateQueries({ queryKey: qk.memberships });
       router.replace(`/servers/${serverId}`);
@@ -238,7 +235,7 @@ function JoinServer() {
           {joinError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>
               {joinError.status === 404
-                ? "Bu sunucu davete kapalı katılım kabul etmiyor. Mobilden gizli sunucuya katılım henüz desteklenmiyor."
+                ? "Sunucu bulunamadı veya davet artık geçerli değil."
                 : joinError.message}
             </Text>
           ) : null}

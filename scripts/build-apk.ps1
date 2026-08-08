@@ -89,11 +89,12 @@ Write-Host "  kopyalandı -> $WorkDir"
 
 Push-Location $WorkDir
 try {
-  if (-not (Test-Path "node_modules")) {
-    Write-Host "`n== Bağımlılıklar kuruluyor ==" -ForegroundColor Cyan
-    npm install
-    if ($LASTEXITCODE -ne 0) { throw "npm install başarısız" }
-  }
+  # Kaynak package-lock her kopyada güncellenebilir. Yalnızca node_modules
+  # varlığına bakmak yeni native paketi kaçırıyordu; `npm install`
+  # idempotenttir ve npm önbelleği sayesinde güncel ağaçta birkaç saniye sürer.
+  Write-Host "`n== Bağımlılıklar eşitleniyor ==" -ForegroundColor Cyan
+  npm install --prefer-offline
+  if ($LASTEXITCODE -ne 0) { throw "npm install başarısız" }
 
   Write-Host "`n== Prebuild ==" -ForegroundColor Cyan
   if (Test-Path "android") { cmd /c rmdir /s /q "android" }

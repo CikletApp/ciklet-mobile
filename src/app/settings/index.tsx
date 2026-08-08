@@ -76,7 +76,11 @@ export default function SettingsScreen() {
               onPress={() => router.push("/profile/edit")}
             />
             <Divider inset={52} />
-            <ListRow icon="shield" title="Gizlilik ve Güvenlik" disabled />
+            <ListRow
+              icon="shield"
+              title="Gizlilik, Veri ve Sosyal"
+              onPress={() => router.push("/settings/privacy")}
+            />
             <Divider inset={52} />
             <ListRow
               icon="users"
@@ -84,14 +88,22 @@ export default function SettingsScreen() {
               onPress={() => router.push("/friends")}
             />
             <Divider inset={52} />
-            <ListRow icon="link" title="Bağlantılar" disabled />
+            <ListRow
+              icon="link"
+              title="Yetkili Uygulamalar"
+              onPress={() => router.push("/settings/authorized-apps")}
+            />
           </ListGroup>
         </View>
 
         <SectionHeader title="UYGULAMA AYARLARI" />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
-            <ListRow icon="volume" title="Ses" disabled />
+            <ListRow
+              icon="volume"
+              title="Ses ve Video"
+              onPress={() => router.push("/settings/voice")}
+            />
             <Divider inset={52} />
             <ListRow
               icon="compass"
@@ -100,7 +112,17 @@ export default function SettingsScreen() {
               onPress={() => router.push("/settings/appearance")}
             />
             <Divider inset={52} />
-            <ListRow icon="bell" title="Bildirimler" disabled />
+            <ListRow
+              icon="message"
+              title="Sohbet"
+              onPress={() => router.push("/settings/chat")}
+            />
+            <Divider inset={52} />
+            <ListRow
+              icon="bell"
+              title="Bildirimler"
+              onPress={() => router.push("/settings/notifications")}
+            />
           </ListGroup>
         </View>
 
