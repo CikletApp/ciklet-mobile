@@ -1,3 +1,9 @@
+/*
+ * Reanimated worklet'lerinde SharedValue `.value` yazımı zorunludur.
+ * React'in genel saflık kuralları worklet sınırını tanımadığı için bu iki
+ * kural burada yanlış pozitif üretir; normal React state'i kapsam dışıdır.
+ */
+/* eslint-disable react-hooks/immutability, react-hooks/refs */
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router } from "expo-router";

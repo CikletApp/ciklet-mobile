@@ -22,15 +22,16 @@ import { useAuth } from "@/stores/auth";
  */
 export function useVoiceToken(roomId: string | null | undefined) {
   const profile = useAuth((s) => s.profile);
-  const [token, setToken] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    roomId: string;
+    token: string | null;
+    error: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!roomId || !profile) return;
 
     let cancelled = false;
-    setToken(null);
-    setError(null);
 
     (async () => {
       try {
@@ -39,10 +40,10 @@ export function useVoiceToken(roomId: string | null | undefined) {
         }
         await AudioSession.startAudioSession();
         const issued = await fetchRoomToken(roomId, profile.username);
-        if (!cancelled) setToken(issued);
+        if (!cancelled) setResult({ roomId, token: issued, error: null });
       } catch (err) {
         if (cancelled) return;
-        setError(describeError(err));
+        setResult({ roomId, token: null, error: describeError(err) });
         await AudioSession.stopAudioSession().catch(() => {});
       }
     })();
@@ -53,7 +54,10 @@ export function useVoiceToken(roomId: string | null | undefined) {
     };
   }, [roomId, profile]);
 
-  return { token, error };
+  if (result && result.roomId === roomId) {
+    return { token: result.token, error: result.error };
+  }
+  return { token: null, error: null };
 }
 
 /** Kullanıcı mikrofon iznini reddetti — sunucu hatasından ayrı ele alınır. */

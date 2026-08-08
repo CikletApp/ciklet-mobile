@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Text, View } from "react-native";
 
 import { onConnectionState, type ConnectionState } from "@/realtime/socket";
@@ -15,22 +15,24 @@ import { colors, spacing, typography } from "@/theme/tokens";
 export function ConnectionBanner() {
   const status = useAuth((s) => s.status);
   const [state, setState] = useState<ConnectionState>("idle");
-  const [visible, setVisible] = useState(false);
-  const slide = useRef(new Animated.Value(0)).current;
 
   useEffect(() => onConnectionState(setState), []);
 
   const degraded = status === "signedIn" && state === "reconnecting";
 
+  return degraded ? <DelayedConnectionBanner /> : null;
+}
+
+/** Her kopmada yeniden mount olur; böylece gecikme durumu sıfırlanır. */
+function DelayedConnectionBanner() {
+  const [visible, setVisible] = useState(false);
+  const [slide] = useState(() => new Animated.Value(0));
+
   useEffect(() => {
-    if (!degraded) {
-      setVisible(false);
-      return;
-    }
     // Kısa kopmalarda şerit hiç görünmesin.
     const timer = setTimeout(() => setVisible(true), 2_000);
     return () => clearTimeout(timer);
-  }, [degraded]);
+  }, []);
 
   useEffect(() => {
     Animated.timing(slide, {
@@ -40,7 +42,7 @@ export function ConnectionBanner() {
     }).start();
   }, [visible, slide]);
 
-  if (!visible && state !== "reconnecting") return null;
+  if (!visible) return null;
 
   return (
     <Animated.View

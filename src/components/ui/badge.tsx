@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 
-import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { colors, radii, spacing } from "@/theme/tokens";
 
 /**
  * Okunmamış rozeti.
@@ -104,7 +104,7 @@ export function Skeleton({
   height?: number;
   radius?: number;
 }) {
-  const opacity = useRef(new Animated.Value(0.4)).current;
+  const [opacity] = useState(() => new Animated.Value(0.4));
 
   useEffect(() => {
     const animation = Animated.loop(

@@ -231,7 +231,7 @@ export default function ActivityScreen() {
             ))}
             <Text style={{ ...typography.caption, color: colors.muted, paddingTop: spacing.sm }}>
               Bu bir üçüncü taraf uygulamadır ve Ciklet tarafından
-              barındırılmaz. İzni Ayarlar → Yetkili Uygulamalar'dan geri
+              barındırılmaz. İzni Ayarlar → Yetkili Uygulamalar’dan geri
               alabilirsin.
             </Text>
           </View>

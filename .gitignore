@@ -45,3 +45,4 @@ example
 # secrets & debug dumps
 .env
 error.html
+/artifacts/

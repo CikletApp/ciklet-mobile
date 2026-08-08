@@ -191,14 +191,10 @@ function useElapsed(startedAt: number | undefined): string | null {
   );
 
   useEffect(() => {
-    if (!startedAt) {
-      setLabel(null);
-      return;
-    }
-    setLabel(formatElapsed(startedAt));
+    if (!startedAt) return;
     const timer = setInterval(() => setLabel(formatElapsed(startedAt)), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
 
-  return label;
+  return startedAt ? label : null;
 }

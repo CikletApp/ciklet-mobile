@@ -237,7 +237,6 @@ function useCallTimer(startedAt: number | undefined): string {
 
   useEffect(() => {
     if (!startedAt) return;
-    setLabel(formatElapsed(startedAt));
     const timer = setInterval(() => setLabel(formatElapsed(startedAt)), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);

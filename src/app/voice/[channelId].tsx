@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { LiveKitRoom, useParticipants } from "@livekit/react-native";
@@ -37,6 +37,8 @@ export default function VoiceChannelScreen() {
   // Ekran açıkken cihaz uyumasın — uyku, mikrofon yayınını kesebilir.
   useKeepAwake();
 
+  const [joinedAt] = useState(() => Date.now());
+
   const session = useMemo<ActiveVoice | null>(
     () =>
       channelId
@@ -45,10 +47,10 @@ export default function VoiceChannelScreen() {
             channelName: channel?.name ?? "Ses kanalı",
             serverName: server?.name,
             serverId,
-            joinedAt: Date.now(),
+            joinedAt,
           }
         : null,
-    [channelId, channel?.name, server?.name, serverId]
+    [channelId, channel?.name, server?.name, serverId, joinedAt]
   );
 
   const { token, status, error, leave } = useVoiceSession(session);

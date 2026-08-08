@@ -39,8 +39,11 @@ export default function EditProfileScreen() {
   // Sunucudan gelen değerlerle formu bir kez doldur. Kullanıcı yazmaya
   // başladıktan sonra gelen bir refetch yazdıklarını EZMEMELİ; bu yüzden
   // bağımlılık yalnızca profil kimliği.
+  // Bu, dış API verisini yerel düzenleme taslağına bir kez aktaran bilinçli
+  // bir senkronizasyon; profil kimliği değişmedikçe yeniden çalışmaz.
   useEffect(() => {
     if (!profile) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(profile.name ?? "");
     setPronouns(profile.pronouns ?? "");
     setBio(profile.bio ?? "");
