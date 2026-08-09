@@ -34,7 +34,7 @@ export interface MessageAttachment {
 }
 
 async function uploadPickedFile(
-  endpoint: "messageFile" | "profileImage",
+  endpoint: "messageFile" | "profileImage" | "serverImage" | "serverBanner",
   asset: DocumentPicker.DocumentPickerAsset,
   onProgress?: (progress: number) => void
 ): Promise<{ url: string; source: ExpoFile }> {
@@ -104,3 +104,22 @@ export async function pickAndUploadProfileImage(
   if (result.canceled) return null;
   return (await uploadPickedFile("profileImage", result.assets[0], onProgress)).url;
 }
+
+async function pickAndUploadImage(
+  endpoint: "profileImage" | "serverImage" | "serverBanner",
+  onProgress?: (progress: number) => void
+): Promise<string | null> {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: "image/*",
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (result.canceled) return null;
+  return (await uploadPickedFile(endpoint, result.assets[0], onProgress)).url;
+}
+
+export const pickAndUploadServerImage = (onProgress?: (progress: number) => void) =>
+  pickAndUploadImage("serverImage", onProgress);
+
+export const pickAndUploadServerBanner = (onProgress?: (progress: number) => void) =>
+  pickAndUploadImage("serverBanner", onProgress);

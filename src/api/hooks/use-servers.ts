@@ -81,7 +81,7 @@ export function useServerDetails(serverId: string | undefined) {
 export function useUpdateServer(serverId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: Partial<Pick<ServerDetails, "name" | "description" | "isPublic" | "isDiscoverable" | "systemChannelId">>) =>
+    mutationFn: (input: Partial<Pick<ServerDetails, "name" | "description" | "isPublic" | "isDiscoverable" | "systemChannelId" | "imageUrl" | "bannerUrl">>) =>
       api<ServerDetails>(endpoints.server(serverId), { method: "PATCH", body: input }),
     onSuccess: (server) => {
       queryClient.setQueryData(qk.server(serverId), server);

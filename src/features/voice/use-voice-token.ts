@@ -20,7 +20,7 @@ import { useAuth } from "@/stores/auth";
  *     plan sesi için, odaya bağlanmadan ÖNCE.
  *  3. Token.
  */
-export function useVoiceToken(roomId: string | null | undefined) {
+export function useVoiceToken(roomId: string | null | undefined, needsCamera = false) {
   const profile = useAuth((s) => s.profile);
   const [result, setResult] = useState<{
     roomId: string;
@@ -38,6 +38,9 @@ export function useVoiceToken(roomId: string | null | undefined) {
         if (!(await ensureMicrophonePermission())) {
           throw new MicrophoneDeniedError();
         }
+        if (needsCamera && !(await ensureCameraPermission())) {
+          throw new CameraDeniedError();
+        }
         await AudioSession.startAudioSession();
         const issued = await fetchRoomToken(roomId, profile.username);
         if (!cancelled) setResult({ roomId, token: issued, error: null });
@@ -52,7 +55,7 @@ export function useVoiceToken(roomId: string | null | undefined) {
       cancelled = true;
       void AudioSession.stopAudioSession().catch(() => {});
     };
-  }, [roomId, profile]);
+  }, [roomId, profile, needsCamera]);
 
   if (result && result.roomId === roomId) {
     return { token: result.token, error: result.error };
@@ -68,9 +71,19 @@ export class MicrophoneDeniedError extends Error {
   }
 }
 
+export class CameraDeniedError extends Error {
+  constructor() {
+    super("Kamera izni verilmedi");
+    this.name = "CameraDeniedError";
+  }
+}
+
 function describeError(err: unknown): string {
   if (err instanceof MicrophoneDeniedError) {
     return "Konuşabilmek için mikrofon izni gerekiyor. Ayarlar → Uygulamalar → Ciklet üzerinden verebilirsin.";
+  }
+  if (err instanceof CameraDeniedError) {
+    return "Görüntülü görüşme için kamera izni gerekiyor. Ayarlar → Uygulamalar → Ciklet üzerinden verebilirsin.";
   }
   if (err instanceof ApiError) {
     return err.status === 403 ? "Bu görüşmeye katılma yetkin yok." : err.message;
@@ -93,6 +106,22 @@ export async function ensureMicrophonePermission(): Promise<boolean> {
   const result = await PermissionsAndroid.request(permission, {
     title: "Mikrofon izni",
     message: "Konuşabilmek için mikrofon erişimi gerekir.",
+    buttonPositive: "İzin ver",
+    buttonNegative: "Vazgeç",
+  });
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+}
+
+/** Android çalışma zamanı kamera izni; LiveKit bunu uygulama adına istemez. */
+export async function ensureCameraPermission(): Promise<boolean> {
+  if (Platform.OS !== "android") return true;
+
+  const permission = PermissionsAndroid.PERMISSIONS.CAMERA;
+  if (await PermissionsAndroid.check(permission)) return true;
+
+  const result = await PermissionsAndroid.request(permission, {
+    title: "Kamera izni",
+    message: "Görüntülü görüşmeler için kamera erişimi gerekir.",
     buttonPositive: "İzin ver",
     buttonNegative: "Vazgeç",
   });

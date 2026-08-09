@@ -146,7 +146,7 @@ function ConnectedCall({
   onHangUp: () => void;
   kind: "audio" | "video";
 }) {
-  const { token, error } = useVoiceToken(directId);
+  const { token, error } = useVoiceToken(directId, kind === "video");
 
   useKeepAwake();
 

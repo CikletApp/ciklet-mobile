@@ -4,7 +4,8 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
 import { useMyMemberships, useUpdateMemberProfile } from "@/api/hooks";
-import { Avatar, EmptyState, ScreenLoader } from "@/components/ui";
+import { Avatar, EmptyState, Icon, ScreenLoader } from "@/components/ui";
+import { pickAndUploadProfileImage } from "@/lib/uploads";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export default function ServerProfileEditScreen() {
@@ -19,6 +20,9 @@ export default function ServerProfileEditScreen() {
   const [nickname, setNickname] = useState("");
   const [pronouns, setPronouns] = useState("");
   const [bio, setBio] = useState("");
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarProgress, setAvatarProgress] = useState(0);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!membership) return;
@@ -56,6 +60,21 @@ export default function ServerProfileEditScreen() {
       },
       { onSuccess: () => router.back() }
     );
+  };
+
+  const changeAvatar = async () => {
+    if (avatarBusy || update.isPending) return;
+    setAvatarBusy(true);
+    setAvatarProgress(0);
+    setAvatarError(null);
+    try {
+      const serverImageUrl = await pickAndUploadProfileImage(setAvatarProgress);
+      if (serverImageUrl) await update.mutateAsync({ serverImageUrl });
+    } catch (reason) {
+      setAvatarError(reason instanceof Error ? reason.message : "Sunucu avatarı değiştirilemedi.");
+    } finally {
+      setAvatarBusy(false);
+    }
   };
 
   return (
@@ -99,15 +118,30 @@ export default function ServerProfileEditScreen() {
               backgroundColor: membership.serverBannerColor ?? colors.brand,
             }}
           />
-          <View style={{ marginTop: -30, marginLeft: spacing.md }}>
+          <Pressable
+            onPress={changeAvatar}
+            disabled={avatarBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Sunucu profil avatarını değiştir"
+            style={{ marginTop: -30, marginLeft: spacing.md }}
+          >
             <Avatar
               imageUrl={membership.serverImageUrl ?? membership.server.imageUrl}
               fallbackText={membership.nickname ?? membership.server.name}
               size={72}
               backgroundColor={colors.panel}
             />
-          </View>
+            <View style={{ position: "absolute", right: -4, bottom: -4, width: 28, height: 28, borderRadius: radii.full, borderWidth: 2, borderColor: colors.panel, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
+              {avatarBusy ? <ActivityIndicator size="small" color={colors.onBrand} /> : <Icon name="pencil" size={14} color={colors.onBrand} />}
+            </View>
+          </Pressable>
         </View>
+
+        {avatarBusy ? (
+          <Text style={{ ...typography.caption, color: colors.muted }}>Avatar yükleniyor… %{Math.round(avatarProgress)}</Text>
+        ) : avatarError ? (
+          <Text style={{ ...typography.caption, color: colors.danger }}>{avatarError}</Text>
+        ) : null}
 
         <View style={{ gap: spacing.xs }}>
           <Text style={{ ...typography.display, color: colors.bright }}>

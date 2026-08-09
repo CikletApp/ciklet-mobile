@@ -21,7 +21,7 @@ export function useVoiceSession(session: ActiveVoice | null) {
   const leaveStore = useVoice((s) => s.leave);
   const setParticipants = useVoice((s) => s.setParticipants);
 
-  const { token, error } = useVoiceToken(session?.roomId);
+  const { token, error } = useVoiceToken(session?.roomId, session?.kind === "video");
 
   // Token alınınca oturumu depoya yaz (alt çubuk bunu gösterir).
   useEffect(() => {

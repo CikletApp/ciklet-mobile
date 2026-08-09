@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Share, Switch, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
+import { Image } from "expo-image";
 import { ChannelType, MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
@@ -12,9 +13,10 @@ import {
   useServerDetails,
   useUpdateServer,
 } from "@/api/hooks";
-import { Divider, ListGroup, ListRow, Screen, ScreenLoader, SectionHeader, TextField } from "@/components/ui";
+import { Avatar, Divider, Icon, ListGroup, ListRow, Screen, ScreenLoader, SectionHeader, TextField } from "@/components/ui";
+import { pickAndUploadServerBanner, pickAndUploadServerImage } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
-import { colors, spacing, typography } from "@/theme/tokens";
+import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export default function ServerSettingsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -31,6 +33,9 @@ export default function ServerSettingsScreen() {
   const [isPublic, setIsPublic] = useState(false);
   const [isDiscoverable, setIsDiscoverable] = useState(false);
   const [systemChannelId, setSystemChannelId] = useState<string | null>(null);
+  const [mediaBusy, setMediaBusy] = useState<"image" | "banner" | null>(null);
+  const [mediaProgress, setMediaProgress] = useState(0);
+  const [mediaError, setMediaError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!server) return;
@@ -82,6 +87,23 @@ export default function ServerSettingsScreen() {
     );
   };
 
+  const changeMedia = async (kind: "image" | "banner") => {
+    if (mediaBusy || update.isPending) return;
+    setMediaBusy(kind);
+    setMediaProgress(0);
+    setMediaError(null);
+    try {
+      const url = await (kind === "image"
+        ? pickAndUploadServerImage(setMediaProgress)
+        : pickAndUploadServerBanner(setMediaProgress));
+      if (url) await update.mutateAsync(kind === "image" ? { imageUrl: url } : { bannerUrl: url });
+    } catch (reason) {
+      setMediaError(reason instanceof Error ? reason.message : "Görsel değiştirilemedi.");
+    } finally {
+      setMediaBusy(null);
+    }
+  };
+
   return (
     <Screen>
       <Stack.Screen
@@ -101,6 +123,31 @@ export default function ServerSettingsScreen() {
           <>
             <SectionHeader title="GENEL BAKIŞ" />
             <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg }}>
+              <View style={{ alignItems: "flex-start" }}>
+                <Pressable
+                  onPress={() => void changeMedia("banner")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sunucu afişini değiştir"
+                  style={{ height: 112, alignSelf: "stretch", borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.brand }}
+                >
+                  {server.bannerUrl ? <Image source={{ uri: server.bannerUrl }} contentFit="cover" style={{ flex: 1 }} /> : null}
+                  <View style={{ position: "absolute", right: spacing.sm, top: spacing.sm, width: 32, height: 32, borderRadius: radii.full, alignItems: "center", justifyContent: "center", backgroundColor: colors.scrim }}>
+                    {mediaBusy === "banner" ? <ActivityIndicator size="small" color={colors.bright} /> : <Icon name="pencil" size={15} color={colors.bright} />}
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={() => void changeMedia("image")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sunucu ikonunu değiştir"
+                  style={{ marginTop: -30, marginLeft: spacing.md }}
+                >
+                  <Avatar imageUrl={server.imageUrl} fallbackText={server.name} size={72} shape="squircle" backgroundColor={colors.panel} />
+                  <View style={{ position: "absolute", right: -4, bottom: -4, width: 28, height: 28, borderRadius: radii.full, borderWidth: 2, borderColor: colors.panel, alignItems: "center", justifyContent: "center", backgroundColor: colors.brand }}>
+                    {mediaBusy === "image" ? <ActivityIndicator size="small" color={colors.onBrand} /> : <Icon name="pencil" size={14} color={colors.onBrand} />}
+                  </View>
+                </Pressable>
+              </View>
+              {mediaBusy ? <Text style={{ ...typography.caption, color: colors.muted }}>Görsel yükleniyor… %{Math.round(mediaProgress)}</Text> : mediaError ? <Text style={{ ...typography.caption, color: colors.danger }}>{mediaError}</Text> : null}
               <TextField label="SUNUCU ADI" value={name} onChangeText={setName} maxLength={60} />
               <TextField label="AÇIKLAMA" value={description} onChangeText={setDescription} multiline maxLength={300} />
             </View>
