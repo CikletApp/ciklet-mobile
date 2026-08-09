@@ -29,6 +29,7 @@ import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useAuth } from "@/stores/auth";
 import { useChatOutbox } from "@/stores/outbox";
 import { pickAndUploadMessageFile, type MessageAttachment } from "@/lib/uploads";
+import { OFFICIAL_FOOTER_TITLE } from "@/lib/official";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { DaySeparator } from "./components/day-separator";
 import { MessageItem } from "./components/message-item";
@@ -49,12 +50,15 @@ export function ChatView({
   chatId,
   serverId,
   placeholder,
+  readOnlyOfficial = false,
 }: {
   kind: ChatKind;
   chatId: string;
   /** Kanal mesajı gönderimi sunucu kimliğini de ister. */
   serverId?: string;
   placeholder: string;
+  /** Ciklet resmî bildirim sohbeti tek yönlüdür. */
+  readOnlyOfficial?: boolean;
 }) {
   const {
     data,
@@ -93,10 +97,10 @@ export function ChatView({
   useEffect(() => {
     // İlk yükleme 350 ms'den uzun sürerse composer henüz bağlı değildir.
     // Yükleme bittiğinde efekt yeniden çalışır ve klavye güvenilir açılır.
-    if (isLoading) return;
+    if (isLoading || readOnlyOfficial) return;
     const timer = setTimeout(() => composerRef.current?.focus(), 220);
     return () => clearTimeout(timer);
-  }, [chatId, isLoading]);
+  }, [chatId, isLoading, readOnlyOfficial]);
 
   /**
    * Kullanıcı ESKİ mesajlara doğru kaydırdığında klavye kapanır ve yazma
@@ -161,13 +165,13 @@ export function ChatView({
         <MessageItem
           message={item.message}
           grouped={item.grouped}
-          onLongPress={setSelectedMessage}
+          onLongPress={readOnlyOfficial ? undefined : setSelectedMessage}
           onReactionPress={(message, emoji) => {
             void actions.toggleReaction(message.id, emoji);
           }}
         />
       ),
-    [actions]
+    [actions, readOnlyOfficial]
   );
 
   if (isLoading) {
@@ -272,7 +276,7 @@ export function ChatView({
         }
       />
 
-      {typing ? (
+      {typing && !readOnlyOfficial ? (
         <Text
           style={{
             ...typography.caption,
@@ -288,20 +292,24 @@ export function ChatView({
         </Text>
       ) : null}
 
-      <Composer
-        ref={composerRef}
-        value={draft}
-        onChangeText={onChangeDraft}
-        onSend={onSend}
-        attachment={attachment}
-        replyingTo={replyingTo}
-        uploadProgress={uploadProgress}
-        uploadError={uploadError}
-        onPickAttachment={onPickAttachment}
-        onRemoveAttachment={() => setAttachment(null)}
-        onCancelReply={() => setReplyingTo(null)}
-        placeholder={placeholder}
-      />
+      {readOnlyOfficial ? (
+        <OfficialFooter />
+      ) : (
+        <Composer
+          ref={composerRef}
+          value={draft}
+          onChangeText={onChangeDraft}
+          onSend={onSend}
+          attachment={attachment}
+          replyingTo={replyingTo}
+          uploadProgress={uploadProgress}
+          uploadError={uploadError}
+          onPickAttachment={onPickAttachment}
+          onRemoveAttachment={() => setAttachment(null)}
+          onCancelReply={() => setReplyingTo(null)}
+          placeholder={placeholder}
+        />
+      )}
 
       {selectedMessage ? (
         <MessageActionsSheet
@@ -344,6 +352,32 @@ export function ChatView({
         />
       ) : null}
     </KeyboardAvoider>
+  );
+}
+
+/** Webde input'un yerine geçen tek yönlü resmî bildirim bandı. */
+function OfficialFooter() {
+  return (
+    <View style={{ paddingHorizontal: spacing.sm, paddingBottom: spacing.xs }}>
+      <View
+        style={{
+          minHeight: 48,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+          borderRadius: radii.lg,
+          borderCurve: "continuous",
+          borderWidth: 1,
+          borderColor: colors.bentoBorder,
+          backgroundColor: colors.panel,
+        }}
+      >
+        <Text style={{ ...typography.caption, fontWeight: "500", color: colors.muted }}>
+          {OFFICIAL_FOOTER_TITLE}
+        </Text>
+      </View>
+    </View>
   );
 }
 

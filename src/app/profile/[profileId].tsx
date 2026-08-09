@@ -34,6 +34,7 @@ interface ProfileView {
   imageUrl: string | null;
   createdAt: string | null;
   isBot?: boolean;
+  isOfficial?: boolean;
   bio?: string | null;
   pronouns?: string | null;
   bannerColor?: string | null;
@@ -93,7 +94,7 @@ export default function ProfileScreen() {
             imageUrl={profile.imageUrl}
             fallbackText={profile.username}
             size={80}
-            showPresence
+            showPresence={!profile.isOfficial}
             backgroundColor={colors.bg}
           />
 
@@ -102,8 +103,10 @@ export default function ProfileScreen() {
               <Text style={{ ...typography.displayLg, color: colors.bright }}>
                 {displayNameOf(profile)}
               </Text>
-              {profile.isBot ? (
-                <Tag label="BOT" tint={colors.onBrand} background={colors.brand} />
+              {profile.isOfficial ? (
+                <Tag label="RESMÎ" tint={colors.onBrand} background={colors.brand} />
+              ) : profile.isBot ? (
+                <Tag label="UYG" tint={colors.onBrand} background={colors.brand} />
               ) : null}
             </View>
             <Text style={{ ...typography.body, color: colors.muted }}>
@@ -129,22 +132,26 @@ export default function ProfileScreen() {
               }
               loading={openDirect.isPending}
             />
-            <Button
-              label="Sesli"
-              icon="phone"
-              variant="secondary"
-              style={{ flex: 1 }}
-              onPress={() => startCall("audio")}
-              disabled={openDirect.isPending}
-            />
-            <Button
-              label="Görüntülü"
-              icon="video"
-              variant="secondary"
-              style={{ flex: 1 }}
-              onPress={() => startCall("video")}
-              disabled={openDirect.isPending}
-            />
+            {!profile.isOfficial ? (
+              <>
+                <Button
+                  label="Sesli"
+                  icon="phone"
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                  onPress={() => startCall("audio")}
+                  disabled={openDirect.isPending}
+                />
+                <Button
+                  label="Görüntülü"
+                  icon="video"
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                  onPress={() => startCall("video")}
+                  disabled={openDirect.isPending}
+                />
+              </>
+            ) : null}
           </View>
 
           {profile.bio ? (
@@ -161,7 +168,7 @@ export default function ProfileScreen() {
             </Card>
           ) : null}
 
-          {presence.activity?.name ? (
+          {!profile.isOfficial && presence.activity?.name ? (
             <Card title="ŞU AN">
               <Text style={{ ...typography.body, color: colors.text }}>
                 {presence.activity.name}

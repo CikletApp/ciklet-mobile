@@ -144,6 +144,7 @@ export interface DirectPeer {
   name: string | null;
   imageUrl: string | null;
   createdAt: string;
+  isOfficial?: boolean;
 }
 
 export interface DirectReadState {

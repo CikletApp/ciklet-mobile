@@ -21,10 +21,11 @@ export default function DirectChatScreen() {
   const peer = useDirectPeer(direct);
 
   const isNotes = direct ? isSelfDirect(direct) : false;
+  const isOfficial = Boolean(peer?.isOfficial);
   const { placeCall } = useCallActions();
 
   // Kendine arama anlamsız; not sohbetinde arama düğmeleri gizlenir.
-  const canCall = Boolean(peer) && !isNotes;
+  const canCall = Boolean(peer) && !isNotes && !isOfficial;
 
   return (
     <>
@@ -84,7 +85,7 @@ export default function DirectChatScreen() {
                     imageUrl={peer.imageUrl}
                     fallbackText={peer.username}
                     size={30}
-                    showPresence
+                    showPresence={!isOfficial}
                     backgroundColor={colors.bg}
                   />
                 </Pressable>
@@ -96,6 +97,7 @@ export default function DirectChatScreen() {
       <ChatView
         kind="direct"
         chatId={directId}
+        readOnlyOfficial={isOfficial}
         placeholder={
           isNotes
             ? "Kendine bir not yaz"

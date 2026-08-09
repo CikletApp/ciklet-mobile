@@ -121,7 +121,7 @@ function DirectPanel() {
             imageUrl={peer.imageUrl}
             fallbackText={peer.username}
             size={40}
-            showPresence
+            showPresence={!peer.isOfficial}
             backgroundColor={colors.bento}
           />
 
