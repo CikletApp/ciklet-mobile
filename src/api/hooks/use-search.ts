@@ -35,7 +35,17 @@ export function useSearch(query: string) {
 export function useActivities() {
   return useQuery({
     queryKey: qk.activities,
-    queryFn: () => api<ActivitySummary[]>(endpoints.activities),
+    queryFn: async () => {
+      const response = await api<
+        ActivitySummary[] | { activities?: ActivitySummary[] }
+      >(endpoints.activities);
+
+      // Web ucu `{ activities: [...] }` döndürüyor. Eski mobil sürümler
+      // yanıtı doğrudan dizi sanıyordu; kalıcı React Query cache'inde kalan
+      // nesne ActivityInviteMessage içindeki `.some()` çağrısını release'te
+      // çökertebiliyordu. Buradan sonrası daima dizi görür.
+      return Array.isArray(response) ? response : response.activities ?? [];
+    },
     staleTime: 10 * 60_000,
   });
 }
