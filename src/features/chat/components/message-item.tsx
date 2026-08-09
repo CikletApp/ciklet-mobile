@@ -17,6 +17,7 @@ import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { MessageEmbeds } from "./message-embeds";
+import { LinkPreviewCard } from "./link-preview-card";
 
 /**
  * Tek mesaj satırı — baloncuk düzeni.
@@ -51,6 +52,7 @@ export function MessageItem({
   const myId = useAuth((s) => s.profile?.id);
   const density = usePreferences((state) => state.chatDensity);
   const bigEmoji = usePreferences((state) => state.bigEmoji);
+  const linkPreviews = usePreferences((state) => state.linkPreviews);
   const compact = density === "compact";
   const largeEmoji = bigEmoji && !compact && isEmojiOnly(message.content);
 
@@ -72,6 +74,12 @@ export function MessageItem({
   const isOfficial = isOfficialProfile(profile);
   const inviteCode = !message.fileUrl && !message.deleted
     ? extractInviteCode(message.content)
+    : null;
+  const hideAttachmentUrl = Boolean(
+    message.fileUrl && isAttachmentUrlContent(message.content, message.fileUrl)
+  );
+  const linkUrl = !message.fileUrl && !inviteCode && !message.deleted
+    ? extractFirstWebUrl(message.content)
     : null;
 
   return (
@@ -165,7 +173,7 @@ export function MessageItem({
           </View>
         ) : null}
 
-        {!inviteCode && (message.deleted || message.content) ? (
+        {!inviteCode && !hideAttachmentUrl && (message.deleted || message.content) ? (
           <Text
             style={{
               ...typography.body,
@@ -186,6 +194,8 @@ export function MessageItem({
         {inviteCode ? (
           <ServerInviteCard inviteCode={inviteCode} />
         ) : null}
+
+        {linkPreviews && linkUrl ? <LinkPreviewCard url={linkUrl} /> : null}
 
         {!message.deleted ? <MessageEmbeds metadata={message.metadata} /> : null}
 
@@ -241,6 +251,35 @@ function isEmojiOnly(content: string) {
   if (!compact) return false;
   const emojis = compact.match(/\p{Extended_Pictographic}/gu) ?? [];
   return emojis.length >= 1 && emojis.length <= 8 && compact.replace(/\p{Extended_Pictographic}|\uFE0F/gu, "") === "";
+}
+
+/**
+ * Ek içeriği yalnızca dosyanın ham adresiyse gizlenir. Dosya adı veya
+ * kullanıcının yazdığı gerçek açıklama korunur; böylece medya mesajı URL
+ * balonuna dönüşmez ama caption kaybolmaz.
+ */
+function isAttachmentUrlContent(content: string, fileUrl: string): boolean {
+  const value = content.trim();
+  if (!value) return true;
+  if (value === fileUrl) return true;
+  // Eski web/mobil istemcileri yüklenen dosyanın CDN adresini content'e de
+  // yazıyordu. Ek alanı varken tek başına duran hiçbir http(s) adresini
+  // ikinci kez metin olarak göstermeyiz. Gerçek açıklamalar korunur.
+  return /^https?:\/\/\S+$/i.test(value);
+}
+
+function extractFirstWebUrl(content: string): string | null {
+  const match = content.match(/https?:\/\/[^\s<>]+/i)?.[0];
+  if (!match) return null;
+  const trimmed = match.replace(/[),.!?;:'"\]]+$/g, "");
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function Attachment({ url }: { url: string }) {
@@ -379,12 +418,22 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
             borderCurve: "continuous",
             backgroundColor: hasRemoteIcon ? colors.deep : accent,
             overflow: "hidden",
+            shadowColor: colors.shadow,
+            shadowOpacity: 1,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 8,
           }}
         >
           {hasRemoteIcon ? (
             <>
-              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -64, opacity: 0.9 }} />
-              <BlurView intensity={72} tint={themeId === "light" ? "light" : "dark"} style={{ position: "absolute", inset: 0 }} />
+              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -64, opacity: 0.9, transform: [{ scale: 1.6 }] }} />
+              <BlurView
+                intensity={80}
+                tint={themeId === "light" ? "light" : "dark"}
+                blurMethod="dimezisBlurViewSdk31Plus"
+                style={{ position: "absolute", inset: 0 }}
+              />
               <View style={{ position: "absolute", inset: 0, backgroundColor: colors.mediaScrim }} />
             </>
           ) : null}

@@ -122,6 +122,7 @@ export const endpoints = {
   unreadCounts: "/api/unread-counts",
   markUnread: "/api/read-state/unread",
   inbox: "/api/inbox",
+  linkPreview: (url: string) => `/api/link-preview${qs({ url })}`,
 
   // ── Gerçek zamanlı ses & aktiviteler ──────────────────────────────
   livekitToken: (room: string, username: string) =>
