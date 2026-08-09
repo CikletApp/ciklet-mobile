@@ -8,6 +8,7 @@ import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 import { useFriends, useOpenDirect } from "@/api/hooks";
 import { Avatar, Icon, Pressable } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
+import { isOfficialProfile } from "@/lib/official";
 import { usePresenceStore } from "@/stores/presence";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -27,7 +28,10 @@ export function ActiveNow() {
   const active = useMemo(
     () => accepted
       .map((friend) => ({ friend, entry: entries[friend.profile.id] }))
-      .filter(({ entry }) => ACTIVE_STATUSES.includes(entry?.status ?? PresenceStatus.OFFLINE)),
+      .filter(({ friend, entry }) =>
+        !isOfficialProfile(friend.profile) &&
+        ACTIVE_STATUSES.includes(entry?.status ?? PresenceStatus.OFFLINE)
+      ),
     [accepted, entries]
   );
   if (active.length === 0) return null;

@@ -23,8 +23,8 @@
     "android": {
       "package": "com.ciklet.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#131417",
-        "foregroundImage": "./assets/images/android-icon-foreground.png"
+        "backgroundColor": "#6D28D9",
+        "foregroundImage": "./assets/images/android-icon-symbol.png"
       },
       "predictiveBackGestureEnabled": false
     },

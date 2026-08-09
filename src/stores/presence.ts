@@ -36,12 +36,24 @@ export const usePresenceStore = create<PresenceState>((set) => ({
       const entries = { ...state.entries };
       for (const { userId, status } of statuses) {
         if (!userId) continue;
-        entries[userId] = { status, activity: activities[userId] ?? null };
+        // Web istemcisi gibi batch'te activity alanı yoksa mevcut rich
+        // presence'ı koru. Presence sync yalnız durum taşıdığında aktiviteyi
+        // null'lamak, "Şimdi Aktif" kartının anlık aktiviteyi kaybetmesine
+        // neden oluyordu.
+        const hasActivity = Object.prototype.hasOwnProperty.call(activities, userId);
+        entries[userId] = {
+          status,
+          activity: hasActivity
+            ? activities[userId]
+            : entries[userId]?.activity ?? null,
+        };
       }
       // Toplu yayında olmayan ama ayrıca gelen aktiviteler de yazılır.
       for (const [userId, activity] of Object.entries(activities)) {
         const current = entries[userId];
-        if (current) current.activity = activity;
+        entries[userId] = current
+          ? { ...current, activity }
+          : { status: PresenceStatus.OFFLINE, activity };
       }
       return { entries };
     }),
