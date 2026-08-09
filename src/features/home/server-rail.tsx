@@ -199,25 +199,27 @@ export function ServerRail({
           </DraggableRailItem>
         ))}
 
-        <RailButton
-          onPress={() => router.push("/servers/new")}
-          accessibilityLabel="Sunucu ekle"
-          size={TILE}
-        >
-          <View
-            style={{
-              width: TILE,
-              height: TILE,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: colors.bentoBorder,
-              backgroundColor: colors.raised,
-            }}
+        <Animated.View layout={RAIL_LAYOUT}>
+          <RailButton
+            onPress={() => router.push("/servers/new")}
+            accessibilityLabel="Sunucu ekle"
+            size={TILE}
           >
-            <Icon name="plus" size={22} color={colors.brand} />
-          </View>
-        </RailButton>
+            <View
+              style={{
+                width: TILE,
+                height: TILE,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: colors.bentoBorder,
+                backgroundColor: colors.raised,
+              }}
+            >
+              <Icon name="plus" size={22} color={colors.brand} />
+            </View>
+          </RailButton>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -355,7 +357,7 @@ function FolderGroup({
             padding: 4,
           }}
         >
-          <Icon name="folder" size={23} color={colors.bright} />
+          <Icon name="folder" size={23} color={colors.warning} filled />
         </View>
       </RailButton>
 
