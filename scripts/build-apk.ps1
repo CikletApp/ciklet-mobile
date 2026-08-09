@@ -1,28 +1,18 @@
 <#
 .SYNOPSIS
-  Ciklet mobil — yerel release APK üretir.
+  Builds a local Ciklet release APK.
 
 .DESCRIPTION
-  Projeyi ASCII bir çalışma dizinine kopyalar, prebuild + gradle çalıştırır
-  ve APK'yı `dist/` altına geri getirir.
-
-  ASCII kopya NEDEN gerekli: proje yolundaki `İ` (U+0130) karakteri
-  `expo prebuild`in şablon kopyalama adımını Windows'ta bozuyor —
-  `android/` dizini boş kalıyor ve paket yeniden adlandırma
-  "MainApplication does not exist" ile patlıyor. Ayrıntı: docs/BUILD.md.
-
-  Kalıcı çözüm üst klasörü ASCII yapmaktır (CİKLET → CIKLET); bu betik
-  o yapılana kadar geçerli bir köprüdür.
+  Copies the project to an ASCII-only work directory, runs Expo prebuild and
+  Gradle, then copies the APK back to dist/. The ASCII copy is required because
+  the U+0130 character in the repository path breaks Expo template copying on
+  Windows. See docs/BUILD.md.
 
 .PARAMETER WorkDir
-  ASCII çalışma dizini. Varsayılan: $env:USERPROFILE\ciklet-build
+  Dedicated ASCII build directory. Default: USERPROFILE\ciklet-build
 
 .PARAMETER Clean
-  Çalışma dizinini ve node_modules'ü sıfırdan kurar (yavaş ama kesin).
-
-.EXAMPLE
-  .\scripts\build-apk.ps1
-  .\scripts\build-apk.ps1 -Clean
+  Recreates the work directory and node_modules from scratch.
 #>
 [CmdletBinding()]
 param(
@@ -32,107 +22,114 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$resolvedWorkDir = [System.IO.Path]::GetFullPath($WorkDir)
+$workRoot = [System.IO.Path]::GetPathRoot($resolvedWorkDir)
+$userRoot = [System.IO.Path]::GetFullPath($env:USERPROFILE)
+$sourceRoot = [System.IO.Path]::GetFullPath($projectRoot)
+
+if ($resolvedWorkDir -eq $workRoot -or $resolvedWorkDir -eq $userRoot -or $resolvedWorkDir -eq $sourceRoot) {
+  throw "WorkDir must be a dedicated build directory."
+}
+$WorkDir = $resolvedWorkDir
 
 function Assert-Tool {
   param([string]$Name, [string]$Check, [string]$Hint)
   if (-not (Invoke-Expression $Check)) {
-    throw "$Name bulunamadı. $Hint (bkz. docs/BUILD.md)"
+    throw "$Name was not found. $Hint (see docs/BUILD.md)"
   }
 }
 
-# ── Eşzamanlı çalışmayı engelle ───────────────────────────────────────
-# İki derleme aynı çalışma dizinini paylaşırsa biri diğerinin android/
-# ağacını silerken prebuild patlıyor (yaşandı). Basit bir kilit dosyası
-# yeterli: derleme zaten uzun sürüyor, kuyruğa almaya gerek yok.
 $lock = Join-Path $WorkDir ".build-lock"
-if (Test-Path $lock) {
-  $age = (Get-Date) - (Get-Item $lock).LastWriteTime
+if (Test-Path -LiteralPath $lock) {
+  $age = (Get-Date) - (Get-Item -LiteralPath $lock).LastWriteTime
   if ($age.TotalMinutes -lt 45) {
-    throw "Başka bir derleme sürüyor gibi görünüyor ($([int]$age.TotalMinutes) dk önce başladı). Bitmesini bekle veya `"$lock`" dosyasını sil."
+    throw "Another build appears active (started $([int]$age.TotalMinutes) minutes ago)."
   }
-  Remove-Item $lock -Force
+  Remove-Item -LiteralPath $lock -Force
 }
 
-Write-Host "== Ön koşullar ==" -ForegroundColor Cyan
+Write-Host "== Prerequisites ==" -ForegroundColor Cyan
 
 Assert-Tool -Name "JDK" `
   -Check '(Get-Command java -ErrorAction SilentlyContinue) -ne $null' `
-  -Hint "JDK 17 kur: winget install Microsoft.OpenJDK.17"
+  -Hint "Install JDK 17: winget install Microsoft.OpenJDK.17"
 
 if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT) {
-  throw "ANDROID_HOME tanımlı değil. Android Studio kurup ortam değişkenini ayarla (bkz. docs/BUILD.md)."
+  throw "ANDROID_HOME is not configured. Install Android Studio and configure the SDK path."
 }
 
+$previousErrorPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $javaVersion = (& java -version 2>&1 | Select-Object -First 1)
+$ErrorActionPreference = $previousErrorPreference
+$sdkPath = $env:ANDROID_HOME
+if (-not $sdkPath) { $sdkPath = $env:ANDROID_SDK_ROOT }
 Write-Host "  java : $javaVersion"
-Write-Host "  sdk  : $($env:ANDROID_HOME ?? $env:ANDROID_SDK_ROOT)"
+Write-Host "  sdk  : $sdkPath"
 
-# ── ASCII çalışma dizinine kopyala ────────────────────────────────────
-Write-Host "`n== Çalışma dizini hazırlanıyor ==" -ForegroundColor Cyan
+Write-Host "`n== Preparing work directory ==" -ForegroundColor Cyan
 
-# Kilidi kopyalamadan ÖNCE al: robocopy de aynı paylaşılan dizine yazıyor.
+if ($Clean -and (Test-Path -LiteralPath $WorkDir)) {
+  Write-Host "  removing: $WorkDir"
+  Remove-Item -LiteralPath $WorkDir -Recurse -Force
+}
+
+New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
 New-Item -ItemType File -Path $lock -Force | Out-Null
 
-if ($Clean -and (Test-Path $WorkDir)) {
-  Write-Host "  temizleniyor: $WorkDir"
-  cmd /c rmdir /s /q "$WorkDir"
-}
-
-# node_modules ve android bilerek dışarıda: ilki çok yavaş kopyalanır ve
-# eksik kopya modül çözümlemesini bozar, ikincisi prebuild tarafından
-# yeniden üretilir.
 $excludeDirs = @("node_modules", "android", "ios", ".git", ".expo", "dist")
 robocopy $projectRoot $WorkDir /E /MT:16 /NFL /NDL /NJH /NJS /XD $excludeDirs | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy başarısız (kod $LASTEXITCODE)" }
+if ($LASTEXITCODE -ge 8) { throw "robocopy failed with code $LASTEXITCODE" }
 
-Write-Host "  kopyalandı -> $WorkDir"
+Write-Host "  copied -> $WorkDir"
 
 Push-Location $WorkDir
 try {
-  # Kaynak package-lock her kopyada güncellenebilir. Yalnızca node_modules
-  # varlığına bakmak yeni native paketi kaçırıyordu; `npm install`
-  # idempotenttir ve npm önbelleği sayesinde güncel ağaçta birkaç saniye sürer.
-  Write-Host "`n== Bağımlılıklar eşitleniyor ==" -ForegroundColor Cyan
+  Write-Host "`n== Syncing dependencies ==" -ForegroundColor Cyan
   npm install --prefer-offline
-  if ($LASTEXITCODE -ne 0) { throw "npm install başarısız" }
+  if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
 
-  Write-Host "`n== Prebuild ==" -ForegroundColor Cyan
-  if (Test-Path "android") { cmd /c rmdir /s /q "android" }
+  Write-Host "`n== Expo prebuild ==" -ForegroundColor Cyan
+  $androidDir = Join-Path $WorkDir "android"
+  $expectedPrefix = $WorkDir + [System.IO.Path]::DirectorySeparatorChar
+  if (-not $androidDir.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Invalid Android build path."
+  }
+  if (Test-Path -LiteralPath $androidDir) {
+    Remove-Item -LiteralPath $androidDir -Recurse -Force
+  }
   npx expo prebuild --platform android
-  if ($LASTEXITCODE -ne 0) { throw "prebuild başarısız" }
+  if ($LASTEXITCODE -ne 0) { throw "Expo prebuild failed" }
 
-  if (-not (Test-Path "android/app/src/main/java/com/ciklet/mobile/MainApplication.kt")) {
-    throw "prebuild android/ ağacını üretmedi — docs/BUILD.md'deki yol sorununa bak."
+  $mainApplication = Join-Path $androidDir "app/src/main/java/com/ciklet/mobile/MainApplication.kt"
+  if (-not (Test-Path -LiteralPath $mainApplication)) {
+    throw "Expo prebuild did not generate the expected Android source tree."
   }
 
   Write-Host "`n== Gradle assembleRelease ==" -ForegroundColor Cyan
-  Write-Host "  (ilk derleme 20-40 dk sürebilir)"
-  Push-Location "android"
+  Push-Location $androidDir
   try {
     & ./gradlew.bat assembleRelease --no-daemon
-    if ($LASTEXITCODE -ne 0) { throw "gradle assembleRelease başarısız" }
+    if ($LASTEXITCODE -ne 0) { throw "Gradle assembleRelease failed" }
   } finally {
     Pop-Location
   }
 
-  # ── APK'yı geri getir ───────────────────────────────────────────────
-  $apk = Join-Path $WorkDir "android/app/build/outputs/apk/release/app-release.apk"
-  if (-not (Test-Path $apk)) { throw "APK üretilmedi: $apk" }
+  $apk = Join-Path $androidDir "app/build/outputs/apk/release/app-release.apk"
+  if (-not (Test-Path -LiteralPath $apk)) { throw "APK was not produced: $apk" }
 
   $version = (Get-Content (Join-Path $projectRoot "app.json") | ConvertFrom-Json).expo.version
   $distDir = Join-Path $projectRoot "dist"
   New-Item -ItemType Directory -Force -Path $distDir | Out-Null
   $target = Join-Path $distDir "ciklet-$version.apk"
-  Copy-Item $apk $target -Force
+  Copy-Item -LiteralPath $apk -Destination $target -Force
 
-  $sizeMb = [math]::Round((Get-Item $target).Length / 1MB, 1)
-  Write-Host "`n== Bitti ==" -ForegroundColor Green
+  $sizeMb = [math]::Round((Get-Item -LiteralPath $target).Length / 1MB, 1)
+  Write-Host "`n== Complete ==" -ForegroundColor Green
   Write-Host "  APK  : $target ($sizeMb MB)"
-  Write-Host "  Kur  : adb install -r `"$target`""
-  Write-Host "`n  Not: debug keystore ile imzalı — cihazda deneme için uygun," -ForegroundColor Yellow
-  Write-Host "       Play Store'a yüklenemez (bkz. docs/BUILD.md)." -ForegroundColor Yellow
+  Write-Host "  Note : signed with the local debug keystore; suitable for device testing only." -ForegroundColor Yellow
 }
 finally {
   Pop-Location
-  Remove-Item $lock -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $lock -Force -ErrorAction SilentlyContinue
 }
