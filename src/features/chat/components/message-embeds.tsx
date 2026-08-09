@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
 import { Linking, Text, View } from "react-native";
 import { Image } from "expo-image";
 
 import { Pressable } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { MessageMarkdown } from "./message-markdown";
 
 interface EmbedField {
   name: string;
@@ -154,73 +154,7 @@ function EmbedCard({ embed }: { embed: RichEmbed }) {
 }
 
 function EmbedText({ value, color }: { value: string; color: string }) {
-  return (
-    <Text selectable style={{ ...typography.caption, color }}>
-      {renderInlineMarkdown(value)}
-    </Text>
-  );
-}
-
-/**
- * Bot embed'lerinde kullanılan güvenli inline Markdown alt kümesi.
- * HTML yorumlanmaz; yalnız bağlantı, kalın, italik ve satır içi kod Text
- * düğümlerine çevrilir. Üçlü işaret kalın+italik olarak ele alınır.
- */
-function renderInlineMarkdown(value: string, keyPrefix = "md"): ReactNode[] {
-  const parts: ReactNode[] = [];
-  const pattern = /(\[([^\]]+)]\((https?:\/\/[^)\s]+)\)|`([^`\n]+)`|\*\*\*([^*\n]+)\*\*\*|___([^_\n]+)___|\*\*([^*\n]+)\*\*|__([^_\n]+)__|\*([^*\n]+)\*|_([^_\n]+)_)/g;
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(value))) {
-    if (match.index > cursor) parts.push(value.slice(cursor, match.index));
-    const key = `${keyPrefix}-${match.index}`;
-    if (match[2] && match[3]) {
-      const url = safeUrl(match[3]);
-      parts.push(
-        <Text key={key} onPress={() => url && void Linking.openURL(url)} style={{ color: colors.accent }}>
-          {renderInlineMarkdown(match[2], `${key}-link`)}
-        </Text>
-      );
-    } else if (match[4]) {
-      parts.push(
-        <Text
-          key={key}
-          style={{
-            fontFamily: "monospace",
-            fontSize: 11,
-            color: colors.bright,
-            backgroundColor: colors.deep,
-          }}
-        >
-          {match[4]}
-        </Text>
-      );
-    } else if (match[5] || match[6]) {
-      const inner = match[5] || match[6];
-      parts.push(
-        <Text key={key} style={{ fontWeight: "700", fontStyle: "italic" }}>
-          {renderInlineMarkdown(inner, `${key}-strong-em`)}
-        </Text>
-      );
-    } else if (match[7] || match[8]) {
-      const inner = match[7] || match[8];
-      parts.push(
-        <Text key={key} style={{ fontWeight: "700" }}>
-          {renderInlineMarkdown(inner, `${key}-strong`)}
-        </Text>
-      );
-    } else {
-      const inner = match[9] || match[10] || "";
-      parts.push(
-        <Text key={key} style={{ fontStyle: "italic" }}>
-          {renderInlineMarkdown(inner, `${key}-em`)}
-        </Text>
-      );
-    }
-    cursor = match.index + match[0].length;
-  }
-  if (cursor < value.length) parts.push(value.slice(cursor));
-  return parts.length > 0 ? parts : [value];
+  return <MessageMarkdown value={value} compact style={{ ...typography.caption, color }} />;
 }
 
 function readEmbeds(metadata: unknown): RichEmbed[] {

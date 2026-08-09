@@ -18,6 +18,7 @@ import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { MessageEmbeds } from "./message-embeds";
+import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 
 /**
@@ -174,18 +175,24 @@ export function MessageItem({
           </View>
         ) : null}
 
-        {!inviteCode && !hideAttachmentUrl && (message.deleted || message.content) ? (
+        {!inviteCode && !hideAttachmentUrl && message.deleted ? (
           <Text
             style={{
               ...typography.body,
-              ...(largeEmoji ? { fontSize: 28, lineHeight: 34 } : null),
-              color: message.deleted ? colors.muted : colors.text,
-              fontStyle: message.deleted ? "italic" : "normal",
+              color: colors.muted,
+              fontStyle: "italic",
             }}
-            selectable={!message.deleted}
           >
-            {message.deleted ? "Bu mesaj silindi." : message.content}
+            Bu mesaj silindi.
           </Text>
+        ) : null}
+
+        {!inviteCode && !hideAttachmentUrl && !message.deleted && message.content ? (
+          <MessageMarkdown
+            value={message.content}
+            compact={compact}
+            style={largeEmoji ? { fontSize: 28, lineHeight: 34 } : undefined}
+          />
         ) : null}
 
         {message.fileUrl && !message.deleted ? (

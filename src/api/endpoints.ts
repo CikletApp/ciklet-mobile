@@ -123,6 +123,8 @@ export const endpoints = {
   markUnread: "/api/read-state/unread",
   inbox: "/api/inbox",
   linkPreview: (url: string) => `/api/link-preview${qs({ url })}`,
+  klipy: (query?: string) =>
+    `/api/klipy${qs({ endpoint: query ? "search" : "trending", q: query, per_page: 30, page: 1 })}`,
 
   // ── Gerçek zamanlı ses & aktiviteler ──────────────────────────────
   livekitToken: (room: string, username: string) =>

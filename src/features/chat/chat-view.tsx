@@ -12,6 +12,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
+import { router } from "expo-router";
 
 import { ApiError } from "@/api/client";
 import { useChatMessages, type ChatKind } from "@/api/hooks";
@@ -32,6 +33,7 @@ import { pickAndUploadMessageFile, type MessageAttachment } from "@/lib/uploads"
 import { OFFICIAL_FOOTER_TITLE } from "@/lib/official";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { DaySeparator } from "./components/day-separator";
+import { ComposerPicker, type ComposerPickerTab } from "./components/composer-picker";
 import { MessageItem } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
 import { useComposer } from "./use-composer";
@@ -141,6 +143,17 @@ export function ChatView({
     setAttachment(null);
     setReplyingTo(null);
   }, [attachment, draft, replyingTo?.id, send]);
+
+  const onSelectGif = useCallback((url: string) => {
+    send("", url, "GIF");
+  }, [send]);
+
+  const onSelectActivity = useCallback((activityId: string) => {
+    router.push({
+      pathname: "/activities/[clientId]",
+      params: { clientId: activityId, chatId },
+    });
+  }, [chatId]);
 
   const onPickAttachment = useCallback(async () => {
     setUploadError(null);
@@ -264,9 +277,7 @@ export function ChatView({
             : { paddingVertical: spacing.sm }
         }
         ListEmptyComponent={
-          // `inverted` tüm içeriği dikeyde çevirir; boş durumu ters
-          // görünmesin diye bir kez daha çeviriyoruz.
-          <View style={{ flex: 1, transform: [{ scaleY: -1 }] }}>
+          <View style={{ flex: 1 }}>
             <EmptyState
               icon="message"
               title="Sohbet burada başlıyor"
@@ -307,6 +318,8 @@ export function ChatView({
           onPickAttachment={onPickAttachment}
           onRemoveAttachment={() => setAttachment(null)}
           onCancelReply={() => setReplyingTo(null)}
+          onSelectGif={onSelectGif}
+          onSelectActivity={onSelectActivity}
           placeholder={placeholder}
         />
       )}
@@ -593,6 +606,8 @@ const Composer = forwardRef<
     onPickAttachment: () => void;
     onRemoveAttachment: () => void;
     onCancelReply: () => void;
+    onSelectGif: (url: string) => void;
+    onSelectActivity: (activityId: string) => void;
   }
 >(function Composer(
   {
@@ -607,11 +622,19 @@ const Composer = forwardRef<
     onPickAttachment,
     onRemoveAttachment,
     onCancelReply,
+    onSelectGif,
+    onSelectActivity,
   },
   ref
 ) {
   const canSend = value.trim().length > 0 || Boolean(attachment);
   const isUploading = uploadProgress !== null;
+  const [picker, setPicker] = useState<ComposerPickerTab | null>(null);
+
+  const openPicker = (tab: ComposerPickerTab) => {
+    Keyboard.dismiss();
+    setPicker(tab);
+  };
 
   return (
     <View
@@ -711,28 +734,59 @@ const Composer = forwardRef<
           onPress={onPickAttachment}
         />
 
-        <TextInput
-          ref={ref}
-          autoFocus
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={colors.muted}
-          multiline
-          style={{
-            flex: 1,
-            maxHeight: 120,
-            minHeight: 40,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.sm,
-            borderRadius: radii.xl,
-            borderCurve: "continuous",
-            backgroundColor: colors.panel,
-            color: colors.bright,
-            ...typography.body,
-          }}
-          accessibilityLabel="Mesaj yaz"
+        <IconButton
+          icon="compass"
+          label="Aktivite seç"
+          background="transparent"
+          tint={colors.muted}
+          onPress={() => openPicker("activity")}
         />
+
+        <Pressable
+          onPress={() => openPicker("gif")}
+          accessibilityRole="button"
+          accessibilityLabel="GIF seç"
+          style={({ pressed }) => ({
+            width: 40,
+            height: 40,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: radii.full,
+            backgroundColor: pressed ? colors.raised : "transparent",
+          })}
+        >
+          <Text style={{ fontSize: 11, fontWeight: "900", color: colors.muted }}>GIF</Text>
+        </Pressable>
+
+        <View style={{ flex: 1, minHeight: 40, maxHeight: 120, flexDirection: "row", alignItems: "flex-end", borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel }}>
+          <TextInput
+            ref={ref}
+            autoFocus
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.muted}
+            multiline
+            style={{
+              flex: 1,
+              maxHeight: 120,
+              minHeight: 40,
+              paddingLeft: spacing.md,
+              paddingVertical: spacing.sm,
+              color: colors.bright,
+              ...typography.body,
+            }}
+            accessibilityLabel="Mesaj yaz"
+          />
+          <IconButton
+            icon="emoji"
+            label="Emoji seç"
+            background="transparent"
+            tint={colors.muted}
+            size={36}
+            onPress={() => openPicker("emoji")}
+          />
+        </View>
 
         <IconButton
           icon="send"
@@ -745,6 +799,22 @@ const Composer = forwardRef<
           haptic="light"
         />
       </View>
+
+      <ComposerPicker
+        key={picker ?? "closed"}
+        visible={picker !== null}
+        initialTab={picker ?? "emoji"}
+        onClose={() => setPicker(null)}
+        onEmoji={(emoji) => onChangeText(`${value}${emoji}`)}
+        onGif={(url) => {
+          setPicker(null);
+          onSelectGif(url);
+        }}
+        onActivity={(activityId) => {
+          setPicker(null);
+          onSelectActivity(activityId);
+        }}
+      />
     </View>
   );
 });
