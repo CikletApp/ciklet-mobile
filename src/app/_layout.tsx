@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { CallOverlay } from "@/features/call/call-overlay";
+import { BrandSplash } from "@/features/auth/auth-shell";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -35,6 +36,7 @@ void SplashScreen.preventAutoHideAsync();
 setupLiveKit();
 
 export default function RootLayout() {
+  const [splashElapsed, setSplashElapsed] = useState(false);
   const status = useAuth((s) => s.status);
   const bootstrap = useAuth((s) => s.bootstrap);
   const themeId = useTheme((s) => s.themeId);
@@ -51,12 +53,17 @@ export default function RootLayout() {
   }, [bootstrap, hydratePreferences, hydrateTheme]);
 
   useEffect(() => {
+    const timer = setTimeout(() => setSplashElapsed(true), 1100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     // Splash yalnızca oturum durumu netleştiğinde kalkar — aksi halde
     // kullanıcı bir an giriş ekranını görüp sonra uygulamaya atlar.
     if (status !== "loading") void SplashScreen.hideAsync();
   }, [status]);
 
-  if (status === "loading") return null;
+  if (status === "loading" || !splashElapsed) return <BrandSplash />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -86,6 +93,10 @@ export default function RootLayout() {
                 <Stack.Screen name="activities/[clientId]" options={{ title: "" }} />
                 <Stack.Screen name="friends/index" options={{ title: "Arkadaşlar" }} />
                 <Stack.Screen
+                  name="friends/quick-message"
+                  options={{ ...modalScreenOptions, title: "Yeni mesaj" }}
+                />
+                <Stack.Screen
                   name="friends/add"
                   options={{ ...modalScreenOptions, title: "Arkadaş Ekle" }}
                 />
@@ -103,7 +114,11 @@ export default function RootLayout() {
               </Stack.Protected>
 
               <Stack.Protected guard={status !== "signedIn"}>
+                <Stack.Screen name="(auth)/index" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
               </Stack.Protected>
             </Stack>
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda

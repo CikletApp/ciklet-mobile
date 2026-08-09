@@ -45,7 +45,9 @@ export function Button({
   accessibilityHint,
 }: ButtonProps) {
   const inactive = disabled || loading;
-  const palette = VARIANTS[inactive ? "disabled" : variant];
+  // Tema rengi render anında okunur. Modül seviyesindeki sabit bir nesne
+  // renkleri ilk temaya kilitler ve tema değişiminde karışık palet üretir.
+  const palette = variantPalette(inactive ? "disabled" : variant);
   const height = size === "lg" ? 52 : MIN_TOUCH_TARGET;
 
   return (
@@ -90,13 +92,15 @@ export function Button({
   );
 }
 
-const VARIANTS = {
-  primary: { bg: colors.brand, fg: colors.onBrand, border: undefined as string | undefined },
-  secondary: { bg: colors.panel, fg: colors.bright, border: undefined },
-  ghost: { bg: "transparent", fg: colors.text, border: colors.border },
-  danger: { bg: "transparent", fg: colors.danger, border: colors.danger },
-  disabled: { bg: colors.raised, fg: colors.muted, border: undefined },
-} as const;
+function variantPalette(variant: Variant | "disabled") {
+  switch (variant) {
+    case "primary": return { bg: colors.brand, fg: colors.onBrand, border: undefined };
+    case "secondary": return { bg: colors.panel, fg: colors.bright, border: undefined };
+    case "ghost": return { bg: "transparent", fg: colors.text, border: colors.border };
+    case "danger": return { bg: "transparent", fg: colors.danger, border: colors.danger };
+    case "disabled": return { bg: colors.raised, fg: colors.muted, border: undefined };
+  }
+}
 
 const DEFAULT_HAPTIC: Record<Variant, HapticKind> = {
   primary: "light",

@@ -1,28 +1,21 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
-import { CikletLogo, KeyboardAvoider, Screen } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { AuthField, AuthShell } from "@/features/auth/auth-shell";
 import { useAuth } from "@/stores/auth";
-import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { colors, spacing, typography } from "@/theme/tokens";
 
-/**
- * Giriş ekranı.
- *
- * Başarılı girişten sonra yönlendirme YAPILMAZ: kök düzendeki
- * `Stack.Protected` guard'ı `status` değişince kabuğa geçer. Elle
- * `router.replace` çağırmak ikisinin yarışmasına ve bir kare titremeye
- * yol açar.
- */
 export default function LoginScreen() {
+  const params = useLocalSearchParams<{ username?: string; verified?: string }>();
   const login = useAuth((s) => s.login);
   const passwordRef = useRef<TextInput>(null);
-
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(params.username ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
   const canSubmit = username.trim().length > 0 && password.length > 0 && !busy;
 
   const onSubmit = async () => {
@@ -34,9 +27,7 @@ export default function LoginScreen() {
     } catch (err) {
       setError(
         err instanceof ApiError
-          ? // 401'de sunucu "Invalid credentials" döner; kullanıcıya Türkçe
-            // ve hangi alanın yanlış olduğunu SIZDIRMAYAN bir mesaj göster.
-            err.isUnauthorized
+          ? err.isUnauthorized
             ? "Kullanıcı adı veya şifre hatalı."
             : err.message
           : "Giriş yapılamadı."
@@ -47,102 +38,48 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen edges={["top", "left", "right", "bottom"]}>
-      <KeyboardAvoider
-        applySafeArea={false}
-        style={{
-          justifyContent: "center",
-          paddingHorizontal: spacing["3xl"],
-          gap: spacing.md,
-        }}
-      >
-        <View style={{ alignItems: "center", marginBottom: spacing.xl, gap: spacing.xs }}>
-          {/* Kelime logosu web ile aynı çizimden (components/icons/ciklet-logo). */}
-          <CikletLogo height={44} color={colors.brand} />
-          <Text style={{ ...typography.body, color: colors.muted }}>
-            Hesabınla giriş yap
-          </Text>
-        </View>
-
-        <TextInput
-          value={username}
-          onChangeText={setUsername}
-          placeholder="Kullanıcı adı"
-          placeholderTextColor={colors.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="username"
-          textContentType="username"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-          style={inputStyle}
-          accessibilityLabel="Kullanıcı adı"
-        />
-
-        <TextInput
-          ref={passwordRef}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Şifre"
-          placeholderTextColor={colors.muted}
-          secureTextEntry
-          autoComplete="current-password"
-          textContentType="password"
-          returnKeyType="go"
-          onSubmitEditing={onSubmit}
-          style={inputStyle}
-          accessibilityLabel="Şifre"
-        />
-
-        {error ? (
-          <Text
-            style={{ ...typography.caption, color: colors.danger }}
-            accessibilityLiveRegion="polite"
-          >
-            {error}
-          </Text>
-        ) : null}
-
-        <Pressable
-          onPress={onSubmit}
-          disabled={!canSubmit}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !canSubmit }}
-          style={({ pressed }) => ({
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 48,
-            marginTop: spacing.sm,
-            borderRadius: radii.full,
-            backgroundColor: canSubmit ? colors.brand : colors.raised,
-            opacity: pressed ? 0.8 : 1,
-          })}
-        >
-          {busy ? (
-            <ActivityIndicator color={colors.onBrand} />
-          ) : (
-            <Text
-              style={{
-                ...typography.bodyStrong,
-                color: canSubmit ? colors.onBrand : colors.muted,
-              }}
-            >
-              Giriş Yap
-            </Text>
-          )}
-        </Pressable>
-      </KeyboardAvoider>
-    </Screen>
+    <AuthShell
+      title="Tekrar hoş geldin!"
+      subtitle="Seni yeniden gördüğümüze sevindik."
+      onBack={() => router.back()}
+    >
+      {params.verified === "1" ? (
+        <Text style={{ ...typography.caption, color: colors.success }}>
+          E-postan doğrulandı. Şimdi giriş yapabilirsin.
+        </Text>
+      ) : null}
+      <AuthField
+        label="KULLANICI ADI"
+        value={username}
+        onChangeText={setUsername}
+        placeholder="kullaniciadi"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="username"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+      />
+      <AuthField
+        ref={passwordRef}
+        label="ŞİFRE"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="Şifren"
+        secureTextEntry
+        autoComplete="current-password"
+        returnKeyType="go"
+        onSubmitEditing={onSubmit}
+      />
+      {error ? <Text style={{ ...typography.caption, color: colors.danger }}>{error}</Text> : null}
+      <Pressable onPress={() => router.push("/(auth)/forgot-password")} hitSlop={8}>
+        <Text style={{ ...typography.caption, color: colors.accent }}>Şifreni mi unuttun?</Text>
+      </Pressable>
+      <Button label="Giriş Yap" size="lg" fullWidth onPress={onSubmit} loading={busy} disabled={!canSubmit} />
+      <Pressable onPress={() => router.push("/(auth)/register")} style={{ paddingTop: spacing.xs }}>
+        <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>
+          Hesabın yok mu? <Text style={{ color: colors.accent }}>Kaydol</Text>
+        </Text>
+      </Pressable>
+    </AuthShell>
   );
 }
-
-const inputStyle = {
-  minHeight: 48,
-  paddingHorizontal: spacing.lg,
-  borderRadius: radii.md,
-  borderWidth: 1,
-  borderColor: colors.border,
-  backgroundColor: colors.panel,
-  color: colors.bright,
-  ...typography.body,
-} as const;

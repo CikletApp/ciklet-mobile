@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "ciklet",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#15161a",
+    "backgroundColor": "#131417",
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.ciklet.mobile",
@@ -23,7 +23,7 @@
     "android": {
       "package": "com.ciklet.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#15161a",
+        "backgroundColor": "#131417",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
@@ -33,9 +33,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#15161a",
+          "backgroundColor": "#131417",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 84
         }
       ],
       "expo-secure-store",

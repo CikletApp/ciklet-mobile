@@ -40,7 +40,7 @@ export default function HomeScreen() {
   return (
     <Screen edges={["top", "left", "right"]} style={{ backgroundColor: colors.deep }}>
       <BentoShell>
-        <BentoCard style={{ flex: 0, width: 72 }} flush>
+        <BentoCard style={{ flex: 0, width: 64 }} flush>
           <ServerRail
             selectedServerId={selectedServerId}
             onSelect={setSelectedServerId}
@@ -274,7 +274,7 @@ function DirectPanel() {
           size={52}
           background={colors.brand}
           tint={colors.onBrand}
-          onPress={() => router.push("/friends")}
+          onPress={() => router.push("/friends/quick-message")}
           haptic="medium"
         />
       </View>
