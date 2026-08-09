@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Text, View } from "react-native";
+import { Alert, FlatList, RefreshControl, Text, View } from "react-native";
 import { router } from "expo-router";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import ReanimatedSwipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -15,10 +15,12 @@ import {
   BentoCard,
   BentoShell,
   Button,
+  CikletLogo,
   EmptyState,
   Icon,
   IconButton,
   ListSkeleton,
+  ModernRefreshIndicator,
   Pressable,
   Screen,
   UnreadBadge,
@@ -133,9 +135,9 @@ function DirectPanel() {
           paddingBottom: spacing.sm,
         }}
       >
-        <Text style={{ ...typography.display, color: colors.bright, flex: 1 }}>
-          Mesajlar
-        </Text>
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <CikletLogo height={22} color={colors.bright} />
+        </View>
         <IconButton
           icon="bookmark"
           label="Notlarım"
@@ -210,8 +212,15 @@ function DirectPanel() {
               }}
             />
           )}
-          refreshing={isRefetching}
-          onRefresh={refetch}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              colors={["transparent"]}
+              tintColor="transparent"
+              progressBackgroundColor="transparent"
+            />
+          }
           ListHeaderComponent={
             <View>
               <ActiveNow />
@@ -246,6 +255,8 @@ function DirectPanel() {
           }
         />
       )}
+
+      <ModernRefreshIndicator visible={isRefetching} />
 
       <View
         style={{

@@ -16,6 +16,7 @@ import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { themes } from "@/theme/tokens";
+import { useAppFonts } from "@/theme/use-app-fonts";
 import {
   createModalScreenOptions,
   createStackScreenOptions,
@@ -42,6 +43,7 @@ export default function RootLayout() {
   const themeId = useTheme((s) => s.themeId);
   const hydrateTheme = useTheme((s) => s.hydrate);
   const hydratePreferences = usePreferences((s) => s.hydrate);
+  const appFonts = useAppFonts();
   const palette = themes[themeId];
   const stackScreenOptions = createStackScreenOptions(palette);
   const modalScreenOptions = createModalScreenOptions(palette);
@@ -63,7 +65,7 @@ export default function RootLayout() {
     if (status !== "loading") void SplashScreen.hideAsync();
   }, [status]);
 
-  if (status === "loading" || !splashElapsed) return <BrandSplash />;
+  if (status === "loading" || !splashElapsed || !appFonts.ready) return <BrandSplash />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -82,7 +84,7 @@ export default function RootLayout() {
               Tema anahtarı navigator ağacını yeniden kurar; tüm ekranlar ve
               yüzen kabuklar yeni paleti aynı karede yeniden okur.
             */}
-            <Stack key={themeId} screenOptions={stackScreenOptions}>
+            <Stack key={`${themeId}-${appFonts.revision}`} screenOptions={stackScreenOptions}>
               <Stack.Protected guard={status === "signedIn"}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />

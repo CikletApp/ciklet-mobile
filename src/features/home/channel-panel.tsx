@@ -9,6 +9,7 @@ import {
 import { useServerChannels, useServerSummary, useUnreadCounts } from "@/api/hooks";
 import {
   EmptyState,
+  CikletLogo,
   Icon,
   IconButton,
   ListSkeleton,
@@ -45,10 +46,9 @@ export function ChannelPanel({ serverId }: { serverId: string }) {
           paddingBottom: spacing.sm,
         }}
       >
-        <Text
-          style={{ ...typography.display, color: colors.bright, flex: 1 }}
-          numberOfLines={1}
-        >
+        <CikletLogo height={18} color={colors.bright} />
+        <View style={{ width: 1, height: 22, backgroundColor: colors.border }} />
+        <Text style={{ ...typography.display, color: colors.bright, flex: 1 }} numberOfLines={1}>
           {server?.name ?? ""}
         </Text>
       </View>

@@ -29,6 +29,7 @@ export const endpoints = {
 
   // ── Profil ────────────────────────────────────────────────────────
   currentProfile: "/api/current-profile",
+  appearance: "/api/appearance",
   accountUsername: "/api/account/username",
   accountEmail: "/api/account/email",
   accountTwoFactor: "/api/account/two-factor",

@@ -4,6 +4,11 @@
   "version": "1.0.0",
   "dependencies": {
     "@ciklet/embedded-activities-sdk": "github:CikletApp/ciklet-sdk",
+    "@expo-google-fonts/dm-sans": "^0.4.2",
+    "@expo-google-fonts/figtree": "^0.4.1",
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@expo-google-fonts/poppins": "^0.4.1",
     "@expo/ui": "~57.0.9",
     "@livekit/react-native": "^2.11.1",
     "@livekit/react-native-expo-plugin": "^1.0.2",

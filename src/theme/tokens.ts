@@ -1,3 +1,5 @@
+import { fontFamily } from "./fonts";
+
 /**
  * Ciklet tasarım token'ları.
  *
@@ -258,18 +260,19 @@ export const radii = {
  * ğ/ş/ç gibi alt-çıkıntılı harfleri için bilerek geniş tutuldu.
  */
 export const typography = {
-  displayLg: { fontSize: 28, lineHeight: 34, fontWeight: "700" },
-  display: { fontSize: 22, lineHeight: 28, fontWeight: "700" },
-  title: { fontSize: 17, lineHeight: 22, fontWeight: "600" },
-  body: { fontSize: 15, lineHeight: 21, fontWeight: "400" },
-  bodyStrong: { fontSize: 15, lineHeight: 21, fontWeight: "600" },
-  caption: { fontSize: 13, lineHeight: 18, fontWeight: "400" },
+  displayLg: { fontSize: 28, lineHeight: 34, fontWeight: "700", get fontFamily() { return fontFamily(700); } },
+  display: { fontSize: 22, lineHeight: 28, fontWeight: "700", get fontFamily() { return fontFamily(700); } },
+  title: { fontSize: 17, lineHeight: 22, fontWeight: "600", get fontFamily() { return fontFamily(600); } },
+  body: { fontSize: 15, lineHeight: 21, fontWeight: "400", get fontFamily() { return fontFamily(400); } },
+  bodyStrong: { fontSize: 15, lineHeight: 21, fontWeight: "600", get fontFamily() { return fontFamily(600); } },
+  caption: { fontSize: 13, lineHeight: 18, fontWeight: "400", get fontFamily() { return fontFamily(400); } },
   /** Bölüm başlıkları — büyük harf, aralıklı. */
   overline: {
     fontSize: 11,
     lineHeight: 14,
     fontWeight: "700",
     letterSpacing: 0.6,
+    get fontFamily() { return fontFamily(700); },
   },
 } as const;
 
