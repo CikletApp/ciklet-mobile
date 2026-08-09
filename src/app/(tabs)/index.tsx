@@ -1,9 +1,14 @@
-import { useCallback, useState } from "react";
-import { FlatList, Text, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { Alert, FlatList, Text, View } from "react-native";
 import { router } from "expo-router";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import ReanimatedSwipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { api } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
 import { hasUnread, useConversationList, useOpenDirect, useSelfDirect } from "@/api/hooks";
+import { qk } from "@/api/query-keys";
 import type { DirectSummary } from "@/api/types";
 import {
   Avatar,
@@ -24,6 +29,7 @@ import { ServerRail } from "@/features/home/server-rail";
 import { displayNameOf, formatDirectPreview, formatRelativeShort } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useAuth } from "@/stores/auth";
+import { usePreferences } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
 
@@ -80,6 +86,28 @@ function DirectPanel() {
   const { data: selfDirect } = useSelfDirect();
   const openDirect = useOpenDirect();
   const myId = useAuth((s) => s.profile?.id);
+  const queryClient = useQueryClient();
+  const pinnedDirectIds = usePreferences((s) => s.pinnedDirectIds);
+  const setPreference = usePreferences((s) => s.setPreference);
+  const sortedConversations = useMemo(() => {
+    const pinned = new Set(pinnedDirectIds);
+    return [...conversations].sort((a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)));
+  }, [conversations, pinnedDirectIds]);
+
+  const removeDirect = useMutation({
+    mutationFn: (directId: string) => api(endpoints.direct(directId), { method: "DELETE" }),
+    onSuccess: (_data, directId) => {
+      queryClient.setQueryData<DirectSummary[]>(qk.directs, (current) => current?.filter((item) => item.id !== directId));
+      setPreference("pinnedDirectIds", pinnedDirectIds.filter((id) => id !== directId));
+    },
+  });
+
+  const togglePinned = (directId: string) => {
+    const next = pinnedDirectIds.includes(directId)
+      ? pinnedDirectIds.filter((id) => id !== directId)
+      : [directId, ...pinnedDirectIds];
+    setPreference("pinnedDirectIds", next);
+  };
 
   /** Not sohbeti henüz yoksa açılır (sunucu kendinle DM'e izin veriyor). */
   const openNotes = () => {
@@ -92,86 +120,6 @@ function DirectPanel() {
       onSuccess: (direct) => router.push(`/chat/direct/${direct.id}`),
     });
   };
-
-  const renderDirect = useCallback(
-    ({ item }: { item: DirectSummary }) => {
-      const peer = item.profileOne.id === myId ? item.profileTwo : item.profileOne;
-      const unreadHere = hasUnread(item, myId);
-      const isOfficial = isOfficialProfile(peer);
-
-      return (
-        <Pressable
-          onPress={() => router.push(`/chat/direct/${item.id}`)}
-          haptic="light"
-          noHitSlop
-          accessibilityRole="button"
-          accessibilityLabel={`${displayNameOf(peer)} ile sohbet${unreadHere ? ", okunmamış mesaj var" : ""}`}
-          style={({ pressed }) => ({
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing.sm,
-            marginHorizontal: spacing.xs,
-            paddingHorizontal: spacing.sm,
-            paddingVertical: spacing.xs,
-            minHeight: 52,
-            borderRadius: radii.md,
-            backgroundColor: pressed ? colors.raised : "transparent",
-          })}
-        >
-          <Avatar
-            profileId={peer.id}
-            imageUrl={peer.imageUrl}
-            fallbackText={peer.username}
-            size={40}
-            showPresence={!isOfficial}
-            backgroundColor={colors.bento}
-          />
-
-          <View style={{ flex: 1, gap: 2 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-              <Text
-                style={{
-                  ...typography.bodyStrong,
-                  color: unreadHere ? colors.bright : colors.text,
-                  flexShrink: 1,
-                }}
-                numberOfLines={1}
-              >
-                {displayNameOf(peer)}
-              </Text>
-              {isOfficial ? (
-                <View
-                  style={{
-                    paddingHorizontal: 5,
-                    paddingVertical: 1,
-                    borderRadius: 4,
-                    backgroundColor: colors.brand,
-                  }}
-                >
-                  <Text style={{ fontSize: 9, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>
-                    RESMÎ
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
-              {formatDirectPreview(item.latestMessage, myId)}
-            </Text>
-          </View>
-
-          <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
-            {item.latestMessageAt ? (
-              <Text style={{ ...typography.caption, color: colors.muted }}>
-                {formatRelativeShort(item.latestMessageAt)}
-              </Text>
-            ) : null}
-            {unreadHere ? <UnreadBadge count={1} dot /> : null}
-          </View>
-        </Pressable>
-      );
-    },
-    [myId]
-  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -241,9 +189,27 @@ function DirectPanel() {
         <ListSkeleton />
       ) : (
         <FlatList
-          data={conversations}
+          data={sortedConversations}
           keyExtractor={(d) => d.id}
-          renderItem={renderDirect}
+          renderItem={({ item }) => (
+            <DirectRow
+              item={item}
+              myId={myId}
+              pinned={pinnedDirectIds.includes(item.id)}
+              onTogglePinned={() => togglePinned(item.id)}
+              onDelete={() => {
+                const peer = item.profileOne.id === myId ? item.profileTwo : item.profileOne;
+                Alert.alert(
+                  "Sohbeti sil",
+                  `${displayNameOf(peer)} ile sohbet yalnızca senin listenden kaldırılacak.`,
+                  [
+                    { text: "Vazgeç", style: "cancel" },
+                    { text: "Sil", style: "destructive", onPress: () => removeDirect.mutate(item.id) },
+                  ]
+                );
+              }}
+            />
+          )}
           refreshing={isRefetching}
           onRefresh={refetch}
           ListHeaderComponent={
@@ -299,5 +265,84 @@ function DirectPanel() {
         />
       </View>
     </View>
+  );
+}
+
+function DirectRow({
+  item,
+  myId,
+  pinned,
+  onTogglePinned,
+  onDelete,
+}: {
+  item: DirectSummary;
+  myId: string | undefined;
+  pinned: boolean;
+  onTogglePinned: () => void;
+  onDelete: () => void;
+}) {
+  const swipeable = useRef<SwipeableMethods>(null);
+  const peer = item.profileOne.id === myId ? item.profileTwo : item.profileOne;
+  const unreadHere = hasUnread(item, myId);
+  const isOfficial = isOfficialProfile(peer);
+
+  const action = (label: string, tint: string, icon: "bookmark" | "close") => (
+    <View style={{ width: 84, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: tint }}>
+      <Icon name={icon} size={19} color={colors.onBrand} filled={icon === "bookmark"} />
+      <Text style={{ ...typography.caption, fontWeight: "700", color: colors.onBrand }}>{label}</Text>
+    </View>
+  );
+
+  return (
+    <ReanimatedSwipeable
+      ref={swipeable}
+      friction={1.8}
+      overshootFriction={8}
+      leftThreshold={52}
+      rightThreshold={52}
+      renderLeftActions={() => action(pinned ? "Çöz" : "Sabitle", colors.brand, "bookmark")}
+      renderRightActions={() => action("Sil", colors.danger, "close")}
+      onSwipeableOpen={(direction) => {
+        if (direction === "right") onTogglePinned();
+        else onDelete();
+        requestAnimationFrame(() => swipeable.current?.close());
+      }}
+      containerStyle={{ marginHorizontal: spacing.xs, borderRadius: radii.md, overflow: "hidden" }}
+    >
+      <Pressable
+        onPress={() => router.push(`/chat/direct/${item.id}`)}
+        haptic="light"
+        noHitSlop
+        accessibilityRole="button"
+        accessibilityLabel={`${displayNameOf(peer)} ile sohbet${unreadHere ? ", okunmamış mesaj var" : ""}`}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.sm,
+          paddingHorizontal: spacing.sm,
+          paddingVertical: 4,
+          minHeight: 50,
+          backgroundColor: pressed ? colors.raised : colors.bento,
+        })}
+      >
+        <Avatar profileId={peer.id} imageUrl={peer.imageUrl} fallbackText={peer.username} size={38} showPresence={!isOfficial} backgroundColor={colors.bento} />
+        <View style={{ flex: 1, gap: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+            {pinned ? <Icon name="bookmark" size={12} color={colors.brand} filled /> : null}
+            <Text style={{ ...typography.bodyStrong, color: unreadHere ? colors.bright : colors.text, flexShrink: 1 }} numberOfLines={1}>{displayNameOf(peer)}</Text>
+            {isOfficial ? (
+              <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
+                <Text style={{ fontSize: 9, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>RESMÎ</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{formatDirectPreview(item.latestMessage, myId)}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
+          {item.latestMessageAt ? <Text style={{ ...typography.caption, color: colors.muted }}>{formatRelativeShort(item.latestMessageAt)}</Text> : null}
+          {unreadHere ? <UnreadBadge count={1} dot /> : null}
+        </View>
+      </Pressable>
+    </ReanimatedSwipeable>
   );
 }

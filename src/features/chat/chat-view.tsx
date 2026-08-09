@@ -38,7 +38,7 @@ import { MessageItem } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
 import { useComposer } from "./use-composer";
 import { useChatItems, type ChatItem } from "./use-chat-items";
-import { useMessageActions } from "./use-message-actions";
+import { useMessageActions, type ReportReason } from "./use-message-actions";
 
 /**
  * Kanal ve DM sohbetlerinin ortak gövdesi.
@@ -362,6 +362,19 @@ export function ChatView({
               },
             ])
           }
+          onReport={
+            messageAuthorId(selectedMessage) === myId
+              ? undefined
+              : async (reason, detail) => {
+                  const ok = await actions.report(
+                    selectedMessage.id,
+                    messageAuthorId(selectedMessage),
+                    reason,
+                    detail
+                  );
+                  if (ok) setSelectedMessage(null);
+                }
+          }
         />
       ) : null}
     </KeyboardAvoider>
@@ -410,6 +423,7 @@ function MessageActionsSheet({
   onReply,
   onEdit,
   onDelete,
+  onReport,
 }: {
   message: ChatMessagePayload;
   isMine: boolean;
@@ -420,9 +434,13 @@ function MessageActionsSheet({
   onReply: () => void;
   onEdit: (content: string) => Promise<void>;
   onDelete: () => void;
+  onReport?: (reason: ReportReason, detail: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [content, setContent] = useState(message.content);
+  const [reportReason, setReportReason] = useState<ReportReason | null>(null);
+  const [reportDetail, setReportDetail] = useState("");
 
   return (
     <Modal
@@ -464,7 +482,48 @@ function MessageActionsSheet({
             }}
           />
 
-          {editing ? (
+          {reporting ? (
+            <View style={{ gap: spacing.md }}>
+              <Text style={{ ...typography.display, color: colors.bright }}>Mesajı şikâyet et</Text>
+              <View style={{ gap: spacing.xs }}>
+                {REPORT_REASONS.map((reason) => (
+                  <Pressable
+                    key={reason.value}
+                    onPress={() => setReportReason(reason.value)}
+                    style={({ pressed }) => ({
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: spacing.sm,
+                      minHeight: 40,
+                      paddingHorizontal: spacing.md,
+                      borderRadius: radii.md,
+                      borderWidth: 1,
+                      borderColor: reportReason === reason.value ? colors.brand : colors.border,
+                      backgroundColor: pressed || reportReason === reason.value ? colors.raised : colors.panel,
+                    })}
+                  >
+                    <View style={{ width: 14, height: 14, borderRadius: radii.full, borderWidth: 2, borderColor: reportReason === reason.value ? colors.brand : colors.muted, alignItems: "center", justifyContent: "center" }}>
+                      {reportReason === reason.value ? <View style={{ width: 6, height: 6, borderRadius: radii.full, backgroundColor: colors.brand }} /> : null}
+                    </View>
+                    <Text style={{ ...typography.caption, color: colors.text }}>{reason.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <TextInput
+                value={reportDetail}
+                onChangeText={setReportDetail}
+                placeholder="Eklemek istediğin detay (isteğe bağlı)"
+                placeholderTextColor={colors.muted}
+                multiline
+                maxLength={2000}
+                style={{ minHeight: 72, maxHeight: 120, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.panel, color: colors.bright, textAlignVertical: "top", ...typography.body }}
+              />
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }}>
+                <SheetButton label="Geri" onPress={() => setReporting(false)} />
+                <SheetButton label="Şikâyet Et" destructive disabled={!reportReason || pending} onPress={() => reportReason && void onReport?.(reportReason, reportDetail)} />
+              </View>
+            </View>
+          ) : editing ? (
             <View style={{ gap: spacing.md }}>
               <Text style={{ ...typography.display, color: colors.bright }}>
                 Mesajı düzenle
@@ -530,6 +589,8 @@ function MessageActionsSheet({
                   <SheetButton label="Mesajı düzenle" onPress={() => setEditing(true)} />
                   <SheetButton label="Mesajı sil" destructive onPress={onDelete} />
                 </View>
+              ) : onReport ? (
+                <SheetButton label="Şikâyet et" destructive onPress={() => setReporting(true)} />
               ) : null}
             </>
           )}
@@ -542,6 +603,18 @@ function MessageActionsSheet({
     </Modal>
   );
 }
+
+const REPORT_REASONS: { value: ReportReason; label: string }[] = [
+  { value: "SPAM", label: "Spam veya reklam" },
+  { value: "HARASSMENT", label: "Taciz veya zorbalık" },
+  { value: "HATE_SPEECH", label: "Nefret söylemi" },
+  { value: "VIOLENCE", label: "Şiddet veya tehdit" },
+  { value: "SELF_HARM", label: "Kendine zarar / intihar" },
+  { value: "CSAM", label: "Çocuk istismarı" },
+  { value: "ILLEGAL", label: "Yasa dışı içerik" },
+  { value: "IMPERSONATION", label: "Taklit / sahtecilik" },
+  { value: "OTHER", label: "Diğer" },
+];
 
 function SheetButton({
   label,

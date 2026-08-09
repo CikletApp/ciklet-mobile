@@ -41,6 +41,7 @@ export type IconName =
   | "reply"
   | "emoji"
   | "attachment"
+  | "timer"
   // Sosyal
   | "users"
   | "user-plus"
@@ -106,6 +107,7 @@ const PATHS: Record<IconName, string[]> = {
   attachment: [
     "M21.4 11.1 12.3 20a5.5 5.5 0 1 1-7.8-7.8l9.2-9.1a3.7 3.7 0 1 1 5.2 5.2l-9.2 9.1a1.8 1.8 0 1 1-2.6-2.6l8.5-8.4",
   ],
+  timer: ["M10 2h4", "M12 14l3-3", "M12 6a8 8 0 1 1-5.7 2.3", "M7 4 4 2-4 2"],
   users: [
     "M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
     "M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8",

@@ -18,6 +18,8 @@ interface PreferenceValues {
   callNotifications: boolean;
   friendNotifications: boolean;
   notificationSounds: boolean;
+  /** Yalnız bu cihazdaki DM sırası; sunucu tarafı kişisel pin alanı sunmuyor. */
+  pinnedDirectIds: string[];
 }
 
 interface PreferenceState extends PreferenceValues {
@@ -38,6 +40,7 @@ const defaults: PreferenceValues = {
   callNotifications: true,
   friendNotifications: true,
   notificationSounds: true,
+  pinnedDirectIds: [],
 };
 
 function persistedValues(state: PreferenceState): PreferenceValues {
@@ -53,6 +56,7 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     callNotifications: state.callNotifications,
     friendNotifications: state.friendNotifications,
     notificationSounds: state.notificationSounds,
+    pinnedDirectIds: state.pinnedDirectIds,
   };
 }
 

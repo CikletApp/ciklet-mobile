@@ -90,6 +90,7 @@ export const endpoints = {
   // ── Doğrudan mesajlar (1:1) ───────────────────────────────────────
   directs: "/api/directs",
   direct: (directId: string) => `/api/directs/${encodeURIComponent(directId)}`,
+  directExpiry: (directId: string) => `/api/directs/${encodeURIComponent(directId)}/expiry`,
   directInit: "/api/directs/init",
 
   // ── Mesaj geçmişi ─────────────────────────────────────────────────
@@ -111,6 +112,7 @@ export const endpoints = {
   editDirectMessage: (directMessageId: string, directId: string) =>
     `/api/socket/direct-messages/${encodeURIComponent(directMessageId)}${qs({ directId })}`,
   reactions: "/api/socket/reactions",
+  reports: "/api/reports",
 
   // ── Arkadaşlar ────────────────────────────────────────────────────
   friends: "/api/friends",

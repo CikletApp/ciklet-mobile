@@ -4,6 +4,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { isSelfDirect, useDirect, useDirectPeer } from "@/api/hooks";
 import { Avatar, Icon, IconButton, Pressable } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
+import { DirectExpiryButton } from "@/features/chat/components/direct-expiry-button";
 import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
@@ -55,6 +56,7 @@ export default function DirectChatScreen() {
                   />
                 </>
               ) : null}
+              {!isNotes && !isOfficial ? <DirectExpiryButton directId={directId} /> : null}
               <IconButton
                 icon="search"
                 label="Sohbette ara"

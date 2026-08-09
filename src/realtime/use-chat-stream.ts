@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import type { MessagesPage } from "@ciklet/embedded-activities-sdk/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { qk } from "@/api/query-keys";
 import { useOutbox } from "@/stores/outbox";
+import { applyReactionDelta, type MessageCache } from "@/features/chat/reaction-cache";
 import {
   chatMessagesEvent,
   chatReactionEvent,
@@ -12,8 +12,6 @@ import {
   type ReactionDelta,
 } from "./events";
 import { getSocket, subscribeToChat } from "./socket";
-
-type MessageCache = InfiniteData<MessagesPage<ChatMessagePayload>>;
 
 /**
  * Bir sohbetin canlı akışına abone olur ve gelen mesajları react-query
@@ -93,36 +91,7 @@ export function useChatStream(chatId: string | undefined) {
       };
 
       const handleReaction = (delta: ReactionDelta) => {
-        queryClient.setQueryData<MessageCache>(key, (old) => {
-          if (!old?.pages?.length) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items.map((item) => {
-                if (item.id !== delta.messageId) return item;
-                const reactions = item.reactions ?? [];
-                const reaction = {
-                  ...delta.reaction,
-                  messageId:
-                    delta.reaction.messageId ?? ("member" in item ? delta.messageId : null),
-                  directMessageId:
-                    delta.reaction.directMessageId ?? ("member" in item ? null : delta.messageId),
-                  createdAt: delta.reaction.createdAt ?? new Date().toISOString(),
-                };
-                return {
-                  ...item,
-                  reactions:
-                    delta.action === "add"
-                      ? reactions.some((entry) => entry.id === delta.reaction.id)
-                        ? reactions
-                        : [...reactions, reaction]
-                      : reactions.filter((reaction) => reaction.id !== delta.reaction.id),
-                };
-              }),
-            })),
-          };
-        });
+        queryClient.setQueryData<MessageCache>(key, (old) => applyReactionDelta(old, delta));
       };
 
       const addEvent = chatMessagesEvent(chatId);
