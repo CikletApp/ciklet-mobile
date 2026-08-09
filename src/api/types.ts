@@ -155,13 +155,31 @@ export interface DirectReadState {
   lastReadAt: string;
 }
 
+export interface DirectLatestMessage {
+  id: string;
+  content: string;
+  fileUrl: string | null;
+  profileId: string;
+  type:
+    | "DEFAULT"
+    | "CALL_MISSED"
+    | "CALL_STARTED"
+    | "CALL_ENDED"
+    | "ACTIVITY_INVITE"
+    | "ACTIVITY_REPLY";
+  deleted: boolean;
+  createdAt: string;
+}
+
 export interface DirectSummary {
   id: string;
   profileOneId: string;
   profileTwoId: string;
   latestMessageId: string | null;
-  /** Sıralama ve önizleme zamanı için; mesaj İÇERİĞİ bu uçta gelmez. */
+  /** Sıralama ve önizleme zamanı. */
   latestMessageAt: string | null;
+  /** DM listesi için güvenli, daraltılmış son mesaj özeti (eski API'de olmayabilir). */
+  latestMessage?: DirectLatestMessage | null;
   profileOne: DirectPeer;
   profileTwo: DirectPeer;
   /** Yalnızca oturum sahibinin okuma durumu (uç `where: { profileId }` ile filtreler). */

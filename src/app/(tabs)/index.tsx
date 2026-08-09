@@ -21,7 +21,7 @@ import {
 import { ActiveNow } from "@/features/home/active-now";
 import { ChannelPanel } from "@/features/home/channel-panel";
 import { ServerRail } from "@/features/home/server-rail";
-import { displayNameOf, formatRelativeShort } from "@/lib/format";
+import { displayNameOf, formatDirectPreview, formatRelativeShort } from "@/lib/format";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
@@ -107,10 +107,11 @@ function DirectPanel() {
           style={({ pressed }) => ({
             flexDirection: "row",
             alignItems: "center",
-            gap: spacing.md,
+            gap: spacing.sm,
             marginHorizontal: spacing.xs,
             paddingHorizontal: spacing.sm,
-            paddingVertical: spacing.md,
+            paddingVertical: spacing.xs,
+            minHeight: 52,
             borderRadius: radii.md,
             backgroundColor: pressed ? colors.raised : "transparent",
           })}
@@ -119,7 +120,7 @@ function DirectPanel() {
             profileId={peer.id}
             imageUrl={peer.imageUrl}
             fallbackText={peer.username}
-            size={44}
+            size={40}
             showPresence
             backgroundColor={colors.bento}
           />
@@ -135,7 +136,7 @@ function DirectPanel() {
               {displayNameOf(peer)}
             </Text>
             <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
-              @{peer.username}
+              {formatDirectPreview(item.latestMessage, myId)}
             </Text>
           </View>
 

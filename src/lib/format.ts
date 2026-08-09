@@ -125,6 +125,44 @@ export function displayNameOf(profile: {
   return profile.name?.trim() || profile.username;
 }
 
+/** Discord yoğunluğundaki DM satırı için tek satırlık son mesaj özeti. */
+export function formatDirectPreview(
+  message: {
+    content: string;
+    fileUrl: string | null;
+    profileId: string;
+    type: string;
+    deleted: boolean;
+  } | null | undefined,
+  myId: string | undefined
+): string {
+  if (!message) return "Henüz mesaj yok";
+  if (message.deleted) return "Mesaj silindi";
+
+  const content = message.content.trim();
+  let preview: string;
+
+  switch (message.type) {
+    case "CALL_STARTED":
+      preview = content || "Arama başladı";
+      break;
+    case "CALL_MISSED":
+      preview = content || "Cevapsız arama";
+      break;
+    case "CALL_ENDED":
+      preview = content || "Arama sona erdi";
+      break;
+    case "ACTIVITY_INVITE":
+      preview = content || "Aktivite daveti";
+      break;
+    default:
+      preview = content || (message.fileUrl ? "Bir dosya gönderdi" : "Yeni mesaj");
+  }
+
+  const isUserMessage = message.type === "DEFAULT" || message.type === "ACTIVITY_REPLY";
+  return isUserMessage && message.profileId === myId ? `Sen: ${preview}` : preview;
+}
+
 /** Türkçe'ye uygun baş harf — "istanbul" → "İ". */
 export function initialOf(text: string): string {
   return text.charAt(0).toLocaleUpperCase("tr");

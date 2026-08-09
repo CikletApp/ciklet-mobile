@@ -66,6 +66,12 @@ export function useChatStream(chatId: string | undefined) {
             pages: [{ ...newest, items: [message, ...newest.items] }, ...rest],
           };
         });
+
+        // Açık DM'de gönderilen/alınan mesaj, ana listedeki önizleme ve
+        // sıralamayı da güncellesin. Yenileme sohbet cache'ini etkilemez.
+        if (!("member" in message)) {
+          void queryClient.invalidateQueries({ queryKey: qk.directs });
+        }
       };
 
       const handleUpdate = (message: ChatMessagePayload) => {
@@ -81,6 +87,9 @@ export function useChatStream(chatId: string | undefined) {
             })),
           };
         });
+        if (!("member" in message)) {
+          void queryClient.invalidateQueries({ queryKey: qk.directs });
+        }
       };
 
       const handleReaction = (delta: ReactionDelta) => {
