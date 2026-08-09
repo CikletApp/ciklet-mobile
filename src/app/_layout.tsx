@@ -97,7 +97,10 @@ export default function RootLayout() {
                   name="activities/index"
                   options={{ ...modalScreenOptions, title: "Aktiviteler" }}
                 />
-                <Stack.Screen name="activities/[clientId]" options={{ title: "" }} />
+                <Stack.Screen
+                  name="activities/[clientId]"
+                  options={{ ...modalScreenOptions, title: "" }}
+                />
                 <Stack.Screen name="friends/index" options={{ title: "Arkadaşlar" }} />
                 <Stack.Screen
                   name="friends/quick-message"

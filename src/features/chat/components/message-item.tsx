@@ -7,6 +7,7 @@ import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
+import { useActivities } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { Avatar, Icon, type IconName } from "@/components/ui";
 import { formatTime } from "@/lib/format";
@@ -388,6 +389,20 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
   const hasRemoteIcon = Boolean(activityIcon?.startsWith("http") || activityIcon?.startsWith("data:image/"));
   const isActive = Boolean(message.fileUrl) && !description.includes("Aktivite sona erdi");
   const accent = safeActivityColor(activityColor) ?? colors.brand;
+  const { data: activities } = useActivities();
+  const isAvailable = Boolean(activities?.some((activity) => activity.id === activityId));
+
+  const openActivity = () => {
+    if (activityId && isAvailable) {
+      router.push({
+        pathname: "/activities/[clientId]",
+        params: { clientId: activityId, chatId },
+      });
+      return;
+    }
+
+    router.push({ pathname: "/activities", params: { chatId } });
+  };
 
   return (
     <View style={{ flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
@@ -456,8 +471,7 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
             </View>
           </View>
           <Pressable
-            disabled={!activityId}
-            onPress={() => activityId && router.push({ pathname: "/activities/[clientId]", params: { clientId: activityId, chatId } })}
+            onPress={openActivity}
             accessibilityRole="button"
             accessibilityLabel={isActive ? "Etkinliğe Katıl" : "Aktiviteyi başlat"}
             style={({ pressed }) => ({
@@ -466,7 +480,7 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
               justifyContent: "center",
               borderRadius: radii.md,
               backgroundColor: colors.mediaText,
-              opacity: !activityId ? 0.45 : pressed ? 0.88 : 1,
+              opacity: pressed ? 0.88 : 1,
             })}
           >
             <Text style={{ fontSize: 14, lineHeight: 18, fontWeight: "700", color: colors.mediaButtonText }}>
@@ -493,6 +507,11 @@ interface InvitePreview {
   createdAt?: string;
 }
 
+interface JoinInviteResponse {
+  ok: boolean;
+  serverId: string;
+}
+
 function extractInviteCode(content: string): string | null {
   return content.match(/\/i\/([a-zA-Z0-9]{9})/)?.[1] ?? null;
 }
@@ -506,8 +525,11 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
     staleTime: 5 * 60 * 1000,
   });
   const join = useMutation({
-    mutationFn: () => api(endpoints.invite(inviteCode!), { method: "POST" }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.memberships }),
+    mutationFn: () => api<JoinInviteResponse>(endpoints.invite(inviteCode!), { method: "POST" }),
+    onSuccess: async ({ serverId }) => {
+      await queryClient.invalidateQueries({ queryKey: qk.memberships });
+      router.replace(`/servers/${serverId}`);
+    },
   });
   if (!inviteCode) return null;
 
@@ -524,6 +546,7 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
         borderColor: colors.bentoBorder,
         backgroundColor: colors.panel,
         justifyContent: "space-between",
+        overflow: "hidden",
       }}
     >
       {invite.isLoading ? (
@@ -535,6 +558,22 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
         </View>
       ) : (
         <>
+          {invite.data.imageUrl ? (
+            <>
+              <Image
+                source={{ uri: invite.data.imageUrl }}
+                contentFit="cover"
+                style={{ position: "absolute", inset: -40, opacity: 0.72 }}
+              />
+              <BlurView
+                intensity={72}
+                tint={useTheme.getState().themeId === "light" ? "light" : "dark"}
+                blurMethod="dimezisBlurViewSdk31Plus"
+                style={{ position: "absolute", inset: 0 }}
+              />
+              <View style={{ position: "absolute", inset: 0, backgroundColor: colors.scrim }} />
+            </>
+          ) : null}
           <Text style={{ ...typography.overline, color: colors.muted }}>SUNUCU DAVETİ</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
             <Avatar imageUrl={invite.data.imageUrl} fallbackText={invite.data.name} size={54} shape="squircle" backgroundColor={colors.deep} />
@@ -573,9 +612,14 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
             })}
           >
             <Text style={{ fontSize: 13, lineHeight: 17, fontWeight: "700", color: colors.onBrand }}>
-              {join.isPending ? "Katılıyor…" : join.isSuccess ? "Katıldın" : "Sunucuya Katıl"}
+              {join.isPending ? "Katılıyor…" : join.isSuccess ? "Açılıyor…" : "Sunucuya Katıl"}
             </Text>
           </Pressable>
+          {join.isError ? (
+            <Text style={{ fontSize: 10, color: colors.danger, textAlign: "center" }} numberOfLines={1}>
+              Sunucuya katılınamadı. Lütfen tekrar dene.
+            </Text>
+          ) : null}
         </>
       )}
     </View>
