@@ -91,9 +91,12 @@ export function ChatView({
    * sırasında odaklanınca klavye yarı yolda takılıyor.
    */
   useEffect(() => {
-    const timer = setTimeout(() => composerRef.current?.focus(), 350);
+    // İlk yükleme 350 ms'den uzun sürerse composer henüz bağlı değildir.
+    // Yükleme bittiğinde efekt yeniden çalışır ve klavye güvenilir açılır.
+    if (isLoading) return;
+    const timer = setTimeout(() => composerRef.current?.focus(), 220);
     return () => clearTimeout(timer);
-  }, [chatId]);
+  }, [chatId, isLoading]);
 
   /**
    * Kullanıcı ESKİ mesajlara doğru kaydırdığında klavye kapanır ve yazma
@@ -390,7 +393,7 @@ function MessageActionsSheet({
           style={{
             position: "absolute",
             inset: 0,
-            backgroundColor: "rgba(0,0,0,0.55)",
+            backgroundColor: colors.scrim,
           }}
         />
         <View
@@ -676,6 +679,7 @@ const Composer = forwardRef<
 
         <TextInput
           ref={ref}
+          autoFocus
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}

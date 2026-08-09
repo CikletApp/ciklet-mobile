@@ -1,4 +1,3 @@
-import { memo } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { Icon, Pressable } from "@/components/ui";
@@ -12,7 +11,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * bize ait), tek farkı soluk oluşu ve durum göstergesi. Başarısız satırda
  * "Tekrar dene" / "Sil" görünür — kullanıcı yazdığı metni kaybetmez.
  */
-export const OutboxItem = memo(function OutboxItem({
+export function OutboxItem({
   message,
   onRetry,
   onDiscard,
@@ -94,4 +93,4 @@ export const OutboxItem = memo(function OutboxItem({
       </View>
     </View>
   );
-});
+}

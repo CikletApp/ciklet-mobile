@@ -13,6 +13,7 @@ import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMyMemberships, useUpdateProfile } from "@/api/hooks";
 import { Avatar } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
+import { pickAndUploadProfileImage } from "@/lib/uploads";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -34,6 +35,9 @@ export default function EditProfileScreen() {
   const [name, setName] = useState("");
   const [pronouns, setPronouns] = useState("");
   const [bio, setBio] = useState("");
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarProgress, setAvatarProgress] = useState(0);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   // Sunucudan gelen değerlerle formu bir kez doldur. Kullanıcı yazmaya
   // başladıktan sonra gelen bir refetch yazdıklarını EZMEMELİ; bu yüzden
@@ -65,6 +69,22 @@ export default function EditProfileScreen() {
       },
       { onSuccess: () => router.back() }
     );
+  };
+
+  const onChangeAvatar = async () => {
+    if (avatarBusy || updateProfile.isPending) return;
+    setAvatarBusy(true);
+    setAvatarError(null);
+    setAvatarProgress(0);
+    try {
+      const imageUrl = await pickAndUploadProfileImage(setAvatarProgress);
+      if (!imageUrl) return;
+      await updateProfile.mutateAsync({ imageUrl });
+    } catch (reason) {
+      setAvatarError(reason instanceof Error ? reason.message : "Avatar değiştirilemedi.");
+    } finally {
+      setAvatarBusy(false);
+    }
   };
 
   return (
@@ -109,7 +129,13 @@ export default function EditProfileScreen() {
                 backgroundColor: profile.bannerColor ?? colors.brand,
               }}
             />
-            <View style={{ marginTop: -26, marginLeft: spacing.md }}>
+            <Pressable
+              onPress={onChangeAvatar}
+              disabled={avatarBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Avatarı değiştir"
+              style={{ marginTop: -26, marginLeft: spacing.md }}
+            >
               <Avatar
                 profileId={profile.id}
                 imageUrl={profile.imageUrl}
@@ -117,8 +143,37 @@ export default function EditProfileScreen() {
                 size={68}
                 backgroundColor={colors.panel}
               />
-            </View>
+              <View
+                style={{
+                  position: "absolute",
+                  right: -4,
+                  bottom: -4,
+                  width: 28,
+                  height: 28,
+                  borderRadius: radii.full,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 2,
+                  borderColor: colors.panel,
+                  backgroundColor: colors.brand,
+                }}
+              >
+                {avatarBusy ? (
+                  <ActivityIndicator size="small" color={colors.onBrand} />
+                ) : (
+                  <Icon name="pencil" size={14} color={colors.onBrand} />
+                )}
+              </View>
+            </Pressable>
           </View>
+
+          {avatarBusy ? (
+            <Text style={{ ...typography.caption, color: colors.muted }}>
+              Avatar yükleniyor… %{Math.round(avatarProgress)}
+            </Text>
+          ) : avatarError ? (
+            <Text style={{ ...typography.caption, color: colors.danger }}>{avatarError}</Text>
+          ) : null}
 
           <View style={{ gap: spacing.xs }}>
             <Text style={{ ...typography.display, color: colors.bright }}>

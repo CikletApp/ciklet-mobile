@@ -1,4 +1,3 @@
-import { memo } from "react";
 import { Text, View } from "react-native";
 
 import { formatDaySeparator } from "@/lib/format";
@@ -13,7 +12,7 @@ import { colors, spacing, typography } from "@/theme/tokens";
  *
  * Tarih büyük harfe çevrilmez — Türkçe ay adları normal yazımda okunur.
  */
-export const DaySeparator = memo(function DaySeparator({ iso }: { iso: string }) {
+export function DaySeparator({ iso }: { iso: string }) {
   return (
     <View
       style={{
@@ -38,4 +37,4 @@ export const DaySeparator = memo(function DaySeparator({ iso }: { iso: string })
       <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
     </View>
   );
-});
+}

@@ -1,13 +1,19 @@
-import { memo } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
+import { router } from "expo-router";
 import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 
-import { Avatar, Icon, type IconName } from "@/components/ui";
+import { api } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
+import { qk } from "@/api/query-keys";
+import { Avatar, Button, Icon, type IconName } from "@/components/ui";
 import { formatTime } from "@/lib/format";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
+import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -25,7 +31,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 const AVATAR_SIZE = 32;
 const MAX_BUBBLE_WIDTH = "78%";
 
-export const MessageItem = memo(function MessageItem({
+export function MessageItem({
   message,
   grouped = false,
   onLongPress,
@@ -44,7 +50,9 @@ export const MessageItem = memo(function MessageItem({
 
   // Sistem mesajları (çağrı, aktivite daveti) tarafsızdır — ortada çizilir.
   if (message.type !== MessageType.DEFAULT) {
-    return <SystemMessage message={message} />;
+    return message.type === MessageType.ACTIVITY_INVITE
+      ? <ActivityInviteMessage message={message} />
+      : <SystemMessage message={message} />;
   }
 
   const isChannel = isChannelMessage(message);
@@ -159,6 +167,10 @@ export const MessageItem = memo(function MessageItem({
           <Attachment url={message.fileUrl} />
         ) : null}
 
+        {!message.fileUrl && !message.deleted ? (
+          <ServerInviteCard inviteCode={extractInviteCode(message.content)} />
+        ) : null}
+
         <View
           style={{
             flexDirection: "row",
@@ -204,7 +216,7 @@ export const MessageItem = memo(function MessageItem({
       </View>
     </Pressable>
   );
-});
+}
 
 function isEmojiOnly(content: string) {
   const compact = content.replace(/\s/g, "");
@@ -271,10 +283,7 @@ function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>)
  * Kimseye ait olmadığı için ortada, baloncuksuz çizilir.
  */
 function SystemMessage({ message }: { message: ChatMessagePayload }) {
-  const { icon, tint } = SYSTEM_STYLE[message.type] ?? {
-    icon: "message" as IconName,
-    tint: colors.muted,
-  };
+  const { icon, tint } = systemStyle(message.type);
 
   return (
     <View
@@ -298,10 +307,147 @@ function SystemMessage({ message }: { message: ChatMessagePayload }) {
   );
 }
 
-const SYSTEM_STYLE: Partial<Record<string, { icon: IconName; tint: string }>> = {
-  [MessageType.CALL_STARTED]: { icon: "phone", tint: colors.success },
-  [MessageType.CALL_ENDED]: { icon: "phone", tint: colors.muted },
-  [MessageType.CALL_MISSED]: { icon: "phone", tint: colors.danger },
-  [MessageType.ACTIVITY_INVITE]: { icon: "compass", tint: colors.brand },
-  [MessageType.ACTIVITY_REPLY]: { icon: "compass", tint: colors.muted },
-};
+function systemStyle(type: MessageType): { icon: IconName; tint: string } {
+  if (type === MessageType.CALL_STARTED) return { icon: "phone", tint: colors.success };
+  if (type === MessageType.CALL_ENDED) return { icon: "phone", tint: colors.muted };
+  if (type === MessageType.CALL_MISSED) return { icon: "phone", tint: colors.danger };
+  if (type === MessageType.ACTIVITY_INVITE) return { icon: "compass", tint: colors.brand };
+  if (type === MessageType.ACTIVITY_REPLY) return { icon: "compass", tint: colors.muted };
+  return { icon: "message", tint: colors.muted };
+}
+
+function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
+  const metadata = message.metadata ?? {};
+  const [contentName, contentDescription] = message.content.split("|");
+  const activityName = String(metadata.activityName || contentName?.trim() || "Aktivite");
+  const description = String(metadata.activityDescription || contentDescription?.trim() || "Arkadaşlarınla birlikte katıl!");
+  const activityIcon = typeof metadata.activityIcon === "string" ? metadata.activityIcon : undefined;
+  const activityId = typeof metadata.activityId === "string" ? metadata.activityId : undefined;
+  const chatId = isChannelMessage(message) ? message.channelId : message.directId;
+  const profile = isChannelMessage(message) ? message.member.profile : message.profile;
+  const name = profile.name?.trim() || profile.username;
+  const themeId = useTheme((s) => s.themeId);
+  const hasRemoteIcon = Boolean(activityIcon?.startsWith("http") || activityIcon?.startsWith("data:image/"));
+
+  return (
+    <View style={{ flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
+      <Avatar profileId={profile.id} imageUrl={profile.imageUrl} fallbackText={profile.username} size={36} />
+      <View style={{ flex: 1, gap: spacing.xs }}>
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}>
+          <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>{name}</Text>
+          <Text style={{ fontSize: 10, color: colors.muted }}>{formatTime(message.createdAt)}</Text>
+        </View>
+        <Text style={{ ...typography.caption, color: colors.muted }}>
+          <Text style={{ color: colors.brand, fontWeight: "700" }}>Aktivite</Text> kullandı · {activityName}
+        </Text>
+        <View
+          style={{
+            width: 280,
+            maxWidth: "100%",
+            padding: spacing.md,
+            gap: spacing.md,
+            borderRadius: radii.lg,
+            borderCurve: "continuous",
+            borderWidth: 1,
+            borderColor: colors.bentoBorder,
+            backgroundColor: colors.panel,
+            overflow: "hidden",
+          }}
+        >
+          {hasRemoteIcon ? <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -20, opacity: 0.18 }} /> : null}
+          <BlurView intensity={42} tint={themeId === "light" ? "light" : "dark"} style={{ position: "absolute", inset: 0 }} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            {hasRemoteIcon ? (
+              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ width: 54, height: 54, borderRadius: radii.lg, backgroundColor: colors.raised }} />
+            ) : (
+              <View style={{ width: 54, height: 54, borderRadius: radii.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.bubbleOwn }}>
+                <Icon name="compass" size={25} color={colors.brand} />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...typography.title, color: colors.bright }} numberOfLines={1}>{activityName}</Text>
+              <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={2}>{description}</Text>
+            </View>
+          </View>
+          <Button
+            label="Etkinliğe Katıl"
+            fullWidth
+            disabled={!activityId}
+            onPress={() => activityId && router.push({ pathname: "/activities/[clientId]", params: { clientId: activityId, chatId } })}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+interface InvitePreview {
+  id: string;
+  name: string;
+  imageUrl: string;
+  memberCount: number;
+  onlineCount: number;
+  ownerName: string;
+  createdAt?: string;
+}
+
+function extractInviteCode(content: string): string | null {
+  return content.match(/\/i\/([a-zA-Z0-9]{9})/)?.[1] ?? null;
+}
+
+function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
+  const queryClient = useQueryClient();
+  const invite = useQuery({
+    queryKey: ["chat-invite", inviteCode],
+    queryFn: () => api<InvitePreview>(endpoints.invite(inviteCode!)),
+    enabled: Boolean(inviteCode),
+    staleTime: 5 * 60 * 1000,
+  });
+  const join = useMutation({
+    mutationFn: () => api(endpoints.invite(inviteCode!), { method: "POST" }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.memberships }),
+  });
+  if (!inviteCode) return null;
+
+  return (
+    <View
+      style={{
+        width: 280,
+        maxWidth: "100%",
+        minHeight: 164,
+        marginTop: spacing.xs,
+        padding: spacing.md,
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: colors.bentoBorder,
+        backgroundColor: colors.panel,
+        gap: spacing.md,
+        justifyContent: "space-between",
+      }}
+    >
+      {invite.isLoading ? (
+        <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>Davet yükleniyor…</Text>
+      ) : invite.isError || !invite.data ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
+          <Icon name="shield" size={22} color={colors.muted} />
+          <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>Bu davet geçersiz veya süresi dolmuş.</Text>
+        </View>
+      ) : (
+        <>
+          <Text style={{ ...typography.overline, color: colors.muted }}>SUNUCU DAVETİ</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <Avatar imageUrl={invite.data.imageUrl} fallbackText={invite.data.name} size={54} shape="squircle" backgroundColor={colors.deep} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...typography.title, color: colors.bright }} numberOfLines={1}>{invite.data.name}</Text>
+              <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{invite.data.ownerName} adlı kullanıcının sunucusu</Text>
+            </View>
+          </View>
+          <Text style={{ ...typography.caption, color: colors.muted }}>
+            <Text style={{ color: colors.success }}>●</Text> {invite.data.onlineCount} Aktif   ·   {invite.data.memberCount} Üye
+          </Text>
+          <Button label={join.isSuccess ? "Katıldın" : "Sunucuya Katıl"} fullWidth onPress={() => join.mutate()} loading={join.isPending} disabled={join.isSuccess} />
+        </>
+      )}
+    </View>
+  );
+}

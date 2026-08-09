@@ -33,6 +33,39 @@ export interface MessageAttachment {
   mimeType: string;
 }
 
+async function uploadPickedFile(
+  endpoint: "messageFile" | "profileImage",
+  asset: DocumentPicker.DocumentPickerAsset,
+  onProgress?: (progress: number) => void
+): Promise<{ url: string; source: ExpoFile }> {
+  if ((asset.size ?? 0) > FREE_UPLOAD_LIMIT) {
+    throw new Error("Bu cihazda tek dosya için üst sınır 8 MB.");
+  }
+
+  const source = new ExpoFile(asset.uri);
+  Object.defineProperty(source, "name", {
+    configurable: true,
+    enumerable: true,
+    value: asset.name,
+  });
+
+  const uploaded = await uploadFiles(endpoint, {
+    files: [source as unknown as File],
+    headers: async () => {
+      const session = await getSession();
+      const headers = new Headers();
+      if (session) headers.set("Cookie", cookieHeaderFor(session));
+      return headers;
+    },
+    onUploadProgress: ({ progress }) => onProgress?.(progress),
+    skipPolling: true,
+  });
+
+  const file = uploaded[0];
+  if (!file?.url) throw new Error("Dosya yüklendi ancak adres alınamadı.");
+  return { url: file.url, source };
+}
+
 /**
  * Sistem dosya seçicisini açar ve webdeki `messageFile` rotasına yükler.
  * Picker dosyayı önbelleğe kopyalar; Expo File bu URI'yi Blob olarak
@@ -50,37 +83,24 @@ export async function pickAndUploadMessageFile(
   if (result.canceled) return null;
   const asset = result.assets[0];
 
-  if ((asset.size ?? 0) > FREE_UPLOAD_LIMIT) {
-    throw new Error("Bu cihazda tek dosya için üst sınır 8 MB.");
-  }
-
-  const source = new ExpoFile(asset.uri);
-  // UploadThing v6 web File adını okur; Expo File Blob uyumludur ancak
-  // `name` alanını tipinde taşımaz. Seçiciden gelen güvenilir adı ekliyoruz.
-  Object.defineProperty(source, "name", {
-    configurable: true,
-    enumerable: true,
-    value: asset.name,
-  });
-
-  const uploaded = await uploadFiles("messageFile", {
-    files: [source as unknown as File],
-    headers: async () => {
-      const session = await getSession();
-      const headers = new Headers();
-      if (session) headers.set("Cookie", cookieHeaderFor(session));
-      return headers;
-    },
-    onUploadProgress: ({ progress }) => onProgress?.(progress),
-    skipPolling: true,
-  });
-
-  const file = uploaded[0];
-  if (!file?.url) throw new Error("Dosya yüklendi ancak adres alınamadı.");
+  const { url, source } = await uploadPickedFile("messageFile", asset, onProgress);
 
   return {
-    url: file.url,
+    url,
     name: asset.name,
     mimeType: asset.mimeType ?? (source.type || "application/octet-stream"),
   };
+}
+
+/** Galeriden/dosyalardan bir görsel seçer ve webdeki profil rotasına yükler. */
+export async function pickAndUploadProfileImage(
+  onProgress?: (progress: number) => void
+): Promise<string | null> {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: "image/*",
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (result.canceled) return null;
+  return (await uploadPickedFile("profileImage", result.assets[0], onProgress)).url;
 }
