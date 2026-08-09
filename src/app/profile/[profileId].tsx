@@ -5,6 +5,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useDirects, useFriends, useOpenDirect } from "@/api/hooks";
 import { Avatar, Button, EmptyState, Screen, Tag } from "@/components/ui";
 import { displayNameOf, formatDate } from "@/lib/format";
+import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
 import { usePresence } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -74,6 +75,8 @@ export default function ProfileScreen() {
     );
   }
 
+  const isOfficial = isOfficialProfile(profile);
+
   const startCall = (kind: "audio" | "video") => {
     openDirect.mutate(profile.id, {
       onSuccess: (direct) => placeCall(profile, direct.id, kind),
@@ -94,7 +97,7 @@ export default function ProfileScreen() {
             imageUrl={profile.imageUrl}
             fallbackText={profile.username}
             size={80}
-            showPresence={!profile.isOfficial}
+            showPresence={!isOfficial}
             backgroundColor={colors.bg}
           />
 
@@ -103,7 +106,7 @@ export default function ProfileScreen() {
               <Text style={{ ...typography.displayLg, color: colors.bright }}>
                 {displayNameOf(profile)}
               </Text>
-              {profile.isOfficial ? (
+              {isOfficial ? (
                 <Tag label="RESMÎ" tint={colors.onBrand} background={colors.brand} />
               ) : profile.isBot ? (
                 <Tag label="UYG" tint={colors.onBrand} background={colors.brand} />
@@ -132,7 +135,7 @@ export default function ProfileScreen() {
               }
               loading={openDirect.isPending}
             />
-            {!profile.isOfficial ? (
+            {!isOfficial ? (
               <>
                 <Button
                   label="Sesli"
@@ -168,7 +171,7 @@ export default function ProfileScreen() {
             </Card>
           ) : null}
 
-          {!profile.isOfficial && presence.activity?.name ? (
+          {!isOfficial && presence.activity?.name ? (
             <Card title="ŞU AN">
               <Text style={{ ...typography.body, color: colors.text }}>
                 {presence.activity.name}

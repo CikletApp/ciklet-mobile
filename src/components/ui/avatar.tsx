@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { Image } from "expo-image";
 import type { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import { initialsOf } from "@/lib/format";
+import { API_BASE_URL } from "@/lib/config";
 import { usePresenceStatus } from "@/stores/presence";
 import { colors, radii } from "@/theme/tokens";
 import { PresenceDot } from "./icon";
@@ -60,12 +61,21 @@ export function Avatar({
   const livePresence = usePresenceStatus(profileId);
   const status = presence ?? livePresence;
 
-  const [failed, setFailed] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  // Web kayıt akışı varsayılan avatarı göreli `/api/avatar/<username>`
+  // adresiyle saklıyor. Native Image göreli URL'i çözemez; API origin'ine
+  // bağlarız. Eski, imageUrl'siz profiller için de aynı deterministik uç
+  // kullanılır ki web ve mobilde aynı kullanıcı aynı yüzü taşısın.
+  const resolvedImageUrl = useMemo(
+    () => resolveAvatarUrl(imageUrl, profileId ? fallbackText : null),
+    [fallbackText, imageUrl, profileId]
+  );
 
   const dotSize = presenceSize ?? Math.max(10, Math.round(size * 0.32));
   const borderRadius =
     radius ?? (shape === "circle" ? radii.full : Math.round(size * 0.3));
-  const showFallback = !imageUrl || failed;
+  const showFallback = !resolvedImageUrl || failedUrl === resolvedImageUrl;
 
   return (
     <View style={{ width: size, height: size }}>
@@ -93,12 +103,12 @@ export function Avatar({
         </View>
       ) : (
         <Image
-          source={imageUrl}
-          recyclingKey={profileId ?? imageUrl}
+          source={{ uri: resolvedImageUrl }}
+          recyclingKey={profileId ?? resolvedImageUrl}
           contentFit="cover"
           transition={120}
           cachePolicy="memory-disk"
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(resolvedImageUrl)}
           style={{
             width: size,
             height: size,
@@ -116,4 +126,26 @@ export function Avatar({
       ) : null}
     </View>
   );
+}
+
+function resolveAvatarUrl(
+  imageUrl: string | null | undefined,
+  generatedSeed: string | null | undefined
+): string | null {
+  const raw = imageUrl?.trim();
+  if (raw) {
+    if (/^(https?:|data:image\/)/i.test(raw)) return raw;
+    try {
+      return new URL(raw, API_BASE_URL).toString();
+    } catch {
+      return null;
+    }
+  }
+
+  if (!generatedSeed) return null;
+  try {
+    return new URL(`/api/avatar/${encodeURIComponent(generatedSeed)}`, API_BASE_URL).toString();
+  } catch {
+    return null;
+  }
 }

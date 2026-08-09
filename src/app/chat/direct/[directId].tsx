@@ -5,6 +5,7 @@ import { isSelfDirect, useDirect, useDirectPeer } from "@/api/hooks";
 import { Avatar, Icon, IconButton, Pressable } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { displayNameOf } from "@/lib/format";
+import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
 import { colors, radii, spacing } from "@/theme/tokens";
 
@@ -21,7 +22,7 @@ export default function DirectChatScreen() {
   const peer = useDirectPeer(direct);
 
   const isNotes = direct ? isSelfDirect(direct) : false;
-  const isOfficial = Boolean(peer?.isOfficial);
+  const isOfficial = isOfficialProfile(peer);
   const { placeCall } = useCallActions();
 
   // Kendine arama anlamsız; not sohbetinde arama düğmeleri gizlenir.

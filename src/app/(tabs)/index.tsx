@@ -22,6 +22,7 @@ import { ActiveNow } from "@/features/home/active-now";
 import { ChannelPanel } from "@/features/home/channel-panel";
 import { ServerRail } from "@/features/home/server-rail";
 import { displayNameOf, formatDirectPreview, formatRelativeShort } from "@/lib/format";
+import { isOfficialProfile } from "@/lib/official";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
@@ -96,6 +97,7 @@ function DirectPanel() {
     ({ item }: { item: DirectSummary }) => {
       const peer = item.profileOne.id === myId ? item.profileTwo : item.profileOne;
       const unreadHere = hasUnread(item, myId);
+      const isOfficial = isOfficialProfile(peer);
 
       return (
         <Pressable
@@ -121,20 +123,37 @@ function DirectPanel() {
             imageUrl={peer.imageUrl}
             fallbackText={peer.username}
             size={40}
-            showPresence={!peer.isOfficial}
+            showPresence={!isOfficial}
             backgroundColor={colors.bento}
           />
 
           <View style={{ flex: 1, gap: 2 }}>
-            <Text
-              style={{
-                ...typography.bodyStrong,
-                color: unreadHere ? colors.bright : colors.text,
-              }}
-              numberOfLines={1}
-            >
-              {displayNameOf(peer)}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+              <Text
+                style={{
+                  ...typography.bodyStrong,
+                  color: unreadHere ? colors.bright : colors.text,
+                  flexShrink: 1,
+                }}
+                numberOfLines={1}
+              >
+                {displayNameOf(peer)}
+              </Text>
+              {isOfficial ? (
+                <View
+                  style={{
+                    paddingHorizontal: 5,
+                    paddingVertical: 1,
+                    borderRadius: 4,
+                    backgroundColor: colors.brand,
+                  }}
+                >
+                  <Text style={{ fontSize: 9, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>
+                    RESMÎ
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
               {formatDirectPreview(item.latestMessage, myId)}
             </Text>
