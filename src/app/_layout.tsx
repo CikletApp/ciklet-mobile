@@ -74,8 +74,15 @@ export default function RootLayout() {
         >
           <RealtimeProvider>
             <StatusBar style={themeId === "light" ? "dark" : "light"} />
-            <ConnectionBanner />
-            <Stack screenOptions={stackScreenOptions}>
+            <ConnectionBanner key={`connection-${themeId}`} />
+            {/*
+              React Compiler, prop'u değişmeyen alt bileşenleri otomatik
+              memoize edebilir. Renk Proxy'sindeki değişimi bağımlılık olarak
+              göremediği için bazı saydam yüzeyler eski temada kalıyordu.
+              Tema anahtarı navigator ağacını yeniden kurar; tüm ekranlar ve
+              yüzen kabuklar yeni paleti aynı karede yeniden okur.
+            */}
+            <Stack key={themeId} screenOptions={stackScreenOptions}>
               <Stack.Protected guard={status === "signedIn"}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />
@@ -123,7 +130,7 @@ export default function RootLayout() {
             </Stack>
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
-            <CallOverlay />
+            <CallOverlay key={`call-${themeId}`} />
           </RealtimeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>
