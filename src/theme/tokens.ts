@@ -70,6 +70,11 @@ export interface ThemePalette {
   scrim: string;
   /** Native gölge renk değeri. */
   shadow: string;
+  /** Fotoğraf/logo tabanlı canlı kartların yüksek kontrast metni. */
+  mediaText: string;
+  mediaMuted: string;
+  mediaScrim: string;
+  mediaButtonText: string;
 }
 
 export type ThemeId = "night" | "mist" | "oled" | "light";
@@ -101,6 +106,10 @@ const night: ThemePalette = {
   bentoShell: "#131417",
   scrim: "rgba(6, 7, 9, 0.62)",
   shadow: "rgba(0, 0, 0, 0.28)",
+  mediaText: "#ffffff",
+  mediaMuted: "rgba(255, 255, 255, 0.72)",
+  mediaScrim: "rgba(0, 0, 0, 0.25)",
+  mediaButtonText: "#111214",
 };
 
 /** Sis — yumuşak, gri tonlu koyu tema. */
@@ -187,6 +196,10 @@ const light: ThemePalette = {
   bentoShell: "#f7f7f8",
   scrim: "rgba(20, 22, 26, 0.38)",
   shadow: "rgba(16, 18, 22, 0.18)",
+  mediaText: "#ffffff",
+  mediaMuted: "rgba(255, 255, 255, 0.72)",
+  mediaScrim: "rgba(0, 0, 0, 0.25)",
+  mediaButtonText: "#111214",
 };
 
 export const themes: Record<ThemeId, ThemePalette> = { night, mist, oled, light };

@@ -8,13 +8,15 @@ import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
-import { Avatar, Button, Icon, type IconName } from "@/components/ui";
+import { Avatar, Icon, type IconName } from "@/components/ui";
 import { formatTime } from "@/lib/format";
+import { isOfficialProfile } from "@/lib/official";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { MessageEmbeds } from "./message-embeds";
 
 /**
  * Tek mesaj satırı — baloncuk düzeni.
@@ -30,6 +32,10 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 const AVATAR_SIZE = 32;
 const MAX_BUBBLE_WIDTH = "78%";
+const inviteMonthFormat = new Intl.DateTimeFormat("tr-TR", {
+  month: "short",
+  year: "numeric",
+});
 
 export function MessageItem({
   message,
@@ -63,6 +69,10 @@ export function MessageItem({
 
   const isMine = profile.id === myId;
   const showHeader = !grouped && !isMine;
+  const isOfficial = isOfficialProfile(profile);
+  const inviteCode = !message.fileUrl && !message.deleted
+    ? extractInviteCode(message.content)
+    : null;
 
   return (
     <Pressable
@@ -99,15 +109,19 @@ export function MessageItem({
 
       <View
         style={{
-          maxWidth: MAX_BUBBLE_WIDTH,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
+          maxWidth: inviteCode ? "100%" : MAX_BUBBLE_WIDTH,
+          paddingHorizontal: inviteCode ? 0 : spacing.md,
+          paddingVertical: inviteCode ? 0 : spacing.sm,
           borderRadius: radii.lg,
           // Baloncuğun "kuyruk" tarafı köşesi küçültülür; grup içindeki
           // ardışık mesajlarda düz kalır ki blok tek parça görünsün.
           borderBottomRightRadius: isMine && !grouped ? radii.sm : radii.lg,
           borderBottomLeftRadius: !isMine && !grouped ? radii.sm : radii.lg,
-          backgroundColor: isMine ? colors.bubbleOwn : colors.bubbleOther,
+          backgroundColor: inviteCode
+            ? "transparent"
+            : isMine
+              ? colors.bubbleOwn
+              : colors.bubbleOther,
           gap: 2,
         }}
       >
@@ -119,7 +133,7 @@ export function MessageItem({
             >
               {name}
             </Text>
-            {profile.isBot ? (
+            {isOfficial || profile.isBot ? (
               <View
                 style={{
                   paddingHorizontal: 5,
@@ -129,7 +143,7 @@ export function MessageItem({
                 }}
               >
                 <Text style={{ fontSize: 9, fontWeight: "700", color: colors.onBrand }}>
-                  BOT
+                  {isOfficial ? "RESMÎ" : "UYG"}
                 </Text>
               </View>
             ) : null}
@@ -151,25 +165,29 @@ export function MessageItem({
           </View>
         ) : null}
 
-        <Text
-          style={{
-            ...typography.body,
-            ...(largeEmoji ? { fontSize: 28, lineHeight: 34 } : null),
-            color: message.deleted ? colors.muted : colors.text,
-            fontStyle: message.deleted ? "italic" : "normal",
-          }}
-          selectable={!message.deleted}
-        >
-          {message.deleted ? "Bu mesaj silindi." : message.content}
-        </Text>
+        {!inviteCode && (message.deleted || message.content) ? (
+          <Text
+            style={{
+              ...typography.body,
+              ...(largeEmoji ? { fontSize: 28, lineHeight: 34 } : null),
+              color: message.deleted ? colors.muted : colors.text,
+              fontStyle: message.deleted ? "italic" : "normal",
+            }}
+            selectable={!message.deleted}
+          >
+            {message.deleted ? "Bu mesaj silindi." : message.content}
+          </Text>
+        ) : null}
 
         {message.fileUrl && !message.deleted ? (
           <Attachment url={message.fileUrl} />
         ) : null}
 
-        {!message.fileUrl && !message.deleted ? (
-          <ServerInviteCard inviteCode={extractInviteCode(message.content)} />
+        {inviteCode ? (
+          <ServerInviteCard inviteCode={inviteCode} />
         ) : null}
+
+        {!message.deleted ? <MessageEmbeds metadata={message.metadata} /> : null}
 
         <View
           style={{
@@ -322,63 +340,98 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
   const activityName = String(metadata.activityName || contentName?.trim() || "Aktivite");
   const description = String(metadata.activityDescription || contentDescription?.trim() || "Arkadaşlarınla birlikte katıl!");
   const activityIcon = typeof metadata.activityIcon === "string" ? metadata.activityIcon : undefined;
+  const activityColor = typeof metadata.activityColor === "string" ? metadata.activityColor : undefined;
   const activityId = typeof metadata.activityId === "string" ? metadata.activityId : undefined;
   const chatId = isChannelMessage(message) ? message.channelId : message.directId;
   const profile = isChannelMessage(message) ? message.member.profile : message.profile;
   const name = profile.name?.trim() || profile.username;
   const themeId = useTheme((s) => s.themeId);
   const hasRemoteIcon = Boolean(activityIcon?.startsWith("http") || activityIcon?.startsWith("data:image/"));
+  const isActive = Boolean(message.fileUrl) && !description.includes("Aktivite sona erdi");
+  const accent = safeActivityColor(activityColor) ?? colors.brand;
 
   return (
     <View style={{ flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
-      <Avatar profileId={profile.id} imageUrl={profile.imageUrl} fallbackText={profile.username} size={36} />
+      <Avatar profileId={profile.id} imageUrl={profile.imageUrl} fallbackText={profile.username} size={40} />
       <View style={{ flex: 1, gap: spacing.xs }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}>
           <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>{name}</Text>
           <Text style={{ fontSize: 10, color: colors.muted }}>{formatTime(message.createdAt)}</Text>
         </View>
-        <Text style={{ ...typography.caption, color: colors.muted }}>
-          <Text style={{ color: colors.brand, fontWeight: "700" }}>Aktivite</Text> kullandı · {activityName}
-        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.sm, backgroundColor: colors.bubbleOwn }}>
+            <Icon name="compass" size={14} color={colors.brand} />
+            <Text style={{ ...typography.caption, fontWeight: "700", color: colors.brand }}>Aktivite</Text>
+          </View>
+          <Text style={{ ...typography.caption, color: colors.muted }}>kullanıldı,</Text>
+          <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
+            <Text style={{ fontSize: 9, lineHeight: 13, fontWeight: "700", color: colors.onBrand }}>UYG</Text>
+          </View>
+          <Text style={{ ...typography.caption, fontWeight: "700", color: colors.bright }}>• {activityName}</Text>
+        </View>
         <View
           style={{
-            width: 280,
+            width: 320,
             maxWidth: "100%",
             padding: spacing.md,
             gap: spacing.md,
-            borderRadius: radii.lg,
+            borderRadius: radii.bento,
             borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: colors.bentoBorder,
-            backgroundColor: colors.panel,
+            backgroundColor: hasRemoteIcon ? colors.deep : accent,
             overflow: "hidden",
           }}
         >
-          {hasRemoteIcon ? <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -20, opacity: 0.18 }} /> : null}
-          <BlurView intensity={42} tint={themeId === "light" ? "light" : "dark"} style={{ position: "absolute", inset: 0 }} />
+          {hasRemoteIcon ? (
+            <>
+              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -64, opacity: 0.9 }} />
+              <BlurView intensity={72} tint={themeId === "light" ? "light" : "dark"} style={{ position: "absolute", inset: 0 }} />
+              <View style={{ position: "absolute", inset: 0, backgroundColor: colors.mediaScrim }} />
+            </>
+          ) : null}
+          <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: "600", color: colors.mediaMuted }}>
+            Etkinlik Daveti
+          </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
             {hasRemoteIcon ? (
-              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ width: 54, height: 54, borderRadius: radii.lg, backgroundColor: colors.raised }} />
+              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ width: 56, height: 56, borderRadius: radii.bento, backgroundColor: colors.mediaText }} />
             ) : (
-              <View style={{ width: 54, height: 54, borderRadius: radii.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.bubbleOwn }}>
-                <Icon name="compass" size={25} color={colors.brand} />
+              <View style={{ width: 56, height: 56, borderRadius: radii.bento, alignItems: "center", justifyContent: "center", backgroundColor: colors.mediaText }}>
+                <Icon name="compass" size={28} color={accent} />
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text style={{ ...typography.title, color: colors.bright }} numberOfLines={1}>{activityName}</Text>
-              <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={2}>{description}</Text>
+              <Text style={{ fontSize: 16, lineHeight: 20, fontWeight: "800", color: colors.mediaText }} numberOfLines={1}>{activityName}</Text>
+              <Text style={{ fontSize: isActive ? 13 : 11, lineHeight: 16, fontWeight: "600", color: colors.mediaMuted }} numberOfLines={2}>
+                {isActive ? "1 Katıldı" : description}
+              </Text>
             </View>
           </View>
-          <Button
-            label="Etkinliğe Katıl"
-            fullWidth
+          <Pressable
             disabled={!activityId}
             onPress={() => activityId && router.push({ pathname: "/activities/[clientId]", params: { clientId: activityId, chatId } })}
-          />
+            accessibilityRole="button"
+            accessibilityLabel={isActive ? "Etkinliğe Katıl" : "Aktiviteyi başlat"}
+            style={({ pressed }) => ({
+              height: 40,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: radii.md,
+              backgroundColor: colors.mediaText,
+              opacity: !activityId ? 0.45 : pressed ? 0.88 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 14, lineHeight: 18, fontWeight: "700", color: colors.mediaButtonText }}>
+              {isActive ? "Etkinliğe Katıl" : "Başlat"}
+            </Text>
+          </Pressable>
         </View>
       </View>
     </View>
   );
+}
+
+function safeActivityColor(value: string | undefined): string | undefined {
+  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : undefined;
 }
 
 interface InvitePreview {
@@ -414,14 +467,13 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
       style={{
         width: 280,
         maxWidth: "100%",
-        minHeight: 164,
+        height: 164,
         marginTop: spacing.xs,
         padding: spacing.md,
         borderRadius: radii.lg,
         borderWidth: 1,
         borderColor: colors.bentoBorder,
         backgroundColor: colors.panel,
-        gap: spacing.md,
         justifyContent: "space-between",
       }}
     >
@@ -442,10 +494,39 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
               <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{invite.data.ownerName} adlı kullanıcının sunucusu</Text>
             </View>
           </View>
-          <Text style={{ ...typography.caption, color: colors.muted }}>
-            <Text style={{ color: colors.success }}>●</Text> {invite.data.onlineCount} Aktif   ·   {invite.data.memberCount} Üye
-          </Text>
-          <Button label={join.isSuccess ? "Katıldın" : "Sunucuya Katıl"} fullWidth onPress={() => join.mutate()} loading={join.isPending} disabled={join.isSuccess} />
+          <View style={{ gap: 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <Text style={{ ...typography.caption, fontWeight: "600", color: colors.muted }}>
+                <Text style={{ color: colors.success }}>●</Text> {invite.data.onlineCount} Aktif
+              </Text>
+              <Text style={{ ...typography.caption, fontWeight: "600", color: colors.muted }}>
+                <Text style={{ color: colors.success }}>●</Text> {invite.data.memberCount} Üye
+              </Text>
+            </View>
+            {invite.data.createdAt ? (
+              <Text style={{ fontSize: 11, lineHeight: 14, fontWeight: "500", color: colors.muted }}>
+                {inviteMonthFormat.format(new Date(invite.data.createdAt))} tarihinde oluşturuldu
+              </Text>
+            ) : null}
+          </View>
+          <Pressable
+            onPress={() => join.mutate()}
+            disabled={join.isSuccess || join.isPending}
+            accessibilityRole="button"
+            accessibilityLabel="Sunucuya katıl"
+            style={({ pressed }) => ({
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: radii.md,
+              backgroundColor: colors.brand,
+              opacity: join.isSuccess ? 0.55 : pressed ? 0.86 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 13, lineHeight: 17, fontWeight: "700", color: colors.onBrand }}>
+              {join.isPending ? "Katılıyor…" : join.isSuccess ? "Katıldın" : "Sunucuya Katıl"}
+            </Text>
+          </Pressable>
         </>
       )}
     </View>
