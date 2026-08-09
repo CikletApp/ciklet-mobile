@@ -25,6 +25,7 @@ export interface ActivityFrameParams {
   instanceId: string;
   /** Aktivitenin bağlı olduğu sohbet (kanal veya DM). Yoksa boş. */
   channelId: string;
+  backgroundColor: string;
 }
 
 /** Aktiviteye geçirilen sorgu parametreleri — SDK bunları okur. */
@@ -57,7 +58,7 @@ export function buildHostDocument(params: ActivityFrameParams): string {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="referrer" content="strict-origin" />
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+  html, body { margin: 0; padding: 0; height: 100%; background: ${params.backgroundColor}; overflow: hidden; }
   iframe { border: 0; width: 100%; height: 100%; display: block; }
 </style>
 </head>

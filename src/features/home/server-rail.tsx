@@ -65,10 +65,10 @@ const RAIL_LAYOUT = LinearTransition.duration(RAIL_DURATION).easing(
 /** Seçim yayı — sekme çubuğuyla aynı sönümleme. */
 const SELECT_SPRING = { damping: 16 } as const;
 
-const TILE = 48;
-const FOLDER_TILE = 40;
+const TILE = 46;
+const FOLDER_TILE = 38;
 /** Bir öğenin dikey adımı: ikon + aradaki boşluk. */
-const STEP = TILE + spacing.sm;
+const STEP = TILE + 6;
 
 export function ServerRail({
   selectedServerId,
@@ -133,7 +133,7 @@ export function ServerRail({
   );
 
   return (
-    <View style={{ width: 72, alignItems: "center", paddingTop: spacing.sm }}>
+    <View style={{ width: 64, alignItems: "center", paddingTop: 6 }}>
       {/* Doğrudan mesajlar — kullanıcının kendi avatarı. Sürüklenmez. */}
       <RailButton
         active={selectedServerId === null}
@@ -165,7 +165,7 @@ export function ServerRail({
         scrollEnabled={draggingId === null}
         contentContainerStyle={{
           alignItems: "center",
-          gap: spacing.sm,
+          gap: 6,
           paddingBottom: spacing.lg,
         }}
       >
@@ -210,7 +210,9 @@ export function ServerRail({
               height: TILE,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: colors.bento,
+              borderWidth: 1,
+              borderColor: colors.bentoBorder,
+              backgroundColor: colors.raised,
             }}
           >
             <Icon name="plus" size={22} color={colors.brand} />
@@ -324,7 +326,9 @@ function FolderGroup({
     (sum, m) => sum + unreadOf(m.serverId),
     0
   );
-  const tint = item.folder.color?.startsWith("#") ? item.folder.color : colors.bento;
+  // Webden gelen klasör rengini biçimine göre elemeden aynen kullan.
+  // Önceki yalnız-hex kontrolü geçerli HSL/RGB renkleri varsayılana düşürüyordu.
+  const tint = item.folder.color?.trim() || colors.brand;
 
   return (
     <View style={{ alignItems: "center", gap: spacing.xs }}>
@@ -348,26 +352,10 @@ function FolderGroup({
             backgroundColor: tint,
             alignItems: "center",
             justifyContent: "center",
-            padding: open ? 0 : 4,
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 2,
+            padding: 4,
           }}
         >
-          {open ? (
-            <Icon name="bookmark" size={20} color={colors.bright} />
-          ) : (
-            item.members.slice(0, 4).map((membership) => (
-              <Avatar
-                key={membership.serverId}
-                imageUrl={membership.server.imageUrl}
-                fallbackText={membership.server.name}
-                size={18}
-                shape="circle"
-                backgroundColor={tint}
-              />
-            ))
-          )}
+          <Icon name="folder" size={23} color={colors.bright} />
         </View>
       </RailButton>
 

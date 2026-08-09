@@ -63,7 +63,7 @@ export function FloatingTabBar({
           borderWidth: 1,
           borderColor: colors.bentoBorder,
           backgroundColor: colors.bento,
-          boxShadow: "0 -6px 28px rgba(0, 0, 0, 0.28)",
+          boxShadow: `0 -6px 28px ${colors.shadow}`,
         }}
       >
         <View

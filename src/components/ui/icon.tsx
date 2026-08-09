@@ -1,4 +1,3 @@
-import { memo } from "react";
 import type { ColorValue } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
@@ -52,6 +51,7 @@ export type IconName =
   | "bell-off"
   | "link"
   | "bookmark"
+  | "folder"
   | "more";
 
 interface IconProps {
@@ -133,6 +133,7 @@ const PATHS: Record<IconName, string[]> = {
     "M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
   ],
   bookmark: ["M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"],
+  folder: ["M3 5.5A1.5 1.5 0 0 1 4.5 4H9l2 2h8.5A1.5 1.5 0 0 1 21 7.5v10A2.5 2.5 0 0 1 18.5 20h-14A2.5 2.5 0 0 1 2 17.5v-12z"],
   more: [],
 };
 
@@ -150,7 +151,7 @@ function Extras({ name, color }: { name: IconName; color: ColorValue }) {
   return null;
 }
 
-export const Icon = memo(function Icon({
+export function Icon({
   name,
   size = 24,
   color = colors.text,
@@ -176,7 +177,7 @@ export const Icon = memo(function Icon({
       <Extras name={name} color={color} />
     </Svg>
   );
-});
+}
 
 /**
  * Presence noktası — avatarın köşesinde ve üye listelerinde kullanılır.

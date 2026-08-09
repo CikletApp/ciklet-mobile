@@ -191,7 +191,7 @@ function VoiceRoomBody({
                       position: "absolute",
                       left: spacing.sm,
                       bottom: spacing.sm,
-                      backgroundColor: "rgba(0,0,0,0.55)",
+                      backgroundColor: colors.scrim,
                       paddingHorizontal: spacing.sm,
                       paddingVertical: 3,
                       borderRadius: radii.full,

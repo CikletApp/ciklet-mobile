@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { useState } from "react";
 import { Text, View } from "react-native";
 import { Image } from "expo-image";
 import type { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
@@ -44,7 +44,7 @@ interface AvatarProps {
   radius?: number;
 }
 
-export const Avatar = memo(function Avatar({
+export function Avatar({
   profileId,
   imageUrl,
   fallbackText,
@@ -116,4 +116,4 @@ export const Avatar = memo(function Avatar({
       ) : null}
     </View>
   );
-});
+}

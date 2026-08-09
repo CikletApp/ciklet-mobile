@@ -26,13 +26,13 @@ export function BentoCard({
       style={[
         {
           flex: 1,
-          borderRadius: radii.bento,
+          borderRadius: radii.lg,
           borderCurve: "continuous",
           borderWidth: 1,
           borderColor: colors.bentoBorder,
           backgroundColor: colors.bento,
           overflow: "hidden",
-          padding: flush ? 0 : spacing.sm,
+          padding: flush ? 0 : spacing.xs,
         },
         style,
       ]}
@@ -62,8 +62,8 @@ export function BentoShell({
         {
           flex: 1,
           flexDirection: "row",
-          gap: spacing.sm,
-          padding: spacing.sm,
+          gap: spacing.xs,
+          padding: spacing.xs,
           backgroundColor: colors.bentoShell,
         },
         style,
