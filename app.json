@@ -12,10 +12,11 @@
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.ciklet.mobile",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Sesli kanallarda konuşabilmek için mikrofon erişimi gerekir.",
-        "NSCameraUsageDescription": "Görüntülü görüşmelerde kamera erişimi gerekir.",
+        "NSMicrophoneUsageDescription": "Sesli kanallarda ve aramalarda konuşabilmek için mikrofon erişimi gerekir.",
+        "NSCameraUsageDescription": "Görüntülü görüşmelerde ve profil fotoğrafı çekiminde kamera erişimi gerekir.",
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -47,7 +48,11 @@
         "expo-notifications",
         {
           "color": "#98cb00",
-          "defaultChannel": "ciklet-messages"
+          "defaultChannel": "ciklet-messages",
+          "sounds": [
+            "./assets/audio/ciklet_call_ring.wav"
+          ],
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       [

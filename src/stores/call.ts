@@ -37,24 +37,39 @@ export interface CallSession {
   startedAt?: number;
 }
 
+/**
+ * Bildirim üzerinden verilen ama henüz uygulanamayan karar.
+ *
+ * Uygulama kapalıyken bildirimdeki "Kabul et"e basıldığında ortada bir çağrı
+ * OTURUMU yok: süreç yeni ayaklanıyor, soket bağlanıyor ve davet
+ * `pending_call_invites` ile birkaç saniye sonra geliyor. Karar burada
+ * bekletilip oturum gelir gelmez uygulanıyor; aksi halde düğmeye basmak
+ * hiçbir şey yapmaz, arayan tarafta telefon çalmaya devam ederdi.
+ */
+export type PendingCallIntent = "accept" | "decline";
+
 interface CallState {
   session: CallSession | null;
   /** Mikrofon kapalı mı (bağlı çağrıda). */
   muted: boolean;
   /** Hoparlör açık mı. */
   speaker: boolean;
+  pendingIntent: PendingCallIntent | null;
 
   start: (session: CallSession) => void;
   markConnected: (callId?: string | null) => void;
   end: () => void;
   setMuted: (muted: boolean) => void;
   setSpeaker: (speaker: boolean) => void;
+  setPendingIntent: (intent: PendingCallIntent) => void;
+  clearPendingIntent: () => void;
 }
 
 export const useCall = create<CallState>((set) => ({
   session: null,
   muted: false,
   speaker: true,
+  pendingIntent: null,
 
   start: (session) => set({ session, muted: false, speaker: true }),
 
@@ -72,8 +87,12 @@ export const useCall = create<CallState>((set) => ({
         : state
     ),
 
-  end: () => set({ session: null, muted: false, speaker: true }),
+  // Bekleyen niyet de temizlenir: bitmiş bir çağrının kararı, bir sonraki
+  // aramaya sızıp onu kendiliğinden açmamalı.
+  end: () => set({ session: null, muted: false, speaker: true, pendingIntent: null }),
 
   setMuted: (muted) => set({ muted }),
   setSpeaker: (speaker) => set({ speaker }),
+  setPendingIntent: (pendingIntent) => set({ pendingIntent }),
+  clearPendingIntent: () => set({ pendingIntent: null }),
 }));
