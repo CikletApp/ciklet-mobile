@@ -146,9 +146,28 @@ gerekiyor.
 
 **GitHub Actions ile (Mac gerekmez):**
 
-Actions → **iOS IPA** → *Run workflow*. Bittiğinde
-`ciklet-ios-unsigned-ipa` adlı artifact'i indir, zip'ten çıkan
-`ciklet-unsigned.ipa`'yı cihaza kur.
+```bash
+git tag ipa-1
+git push origin ipa-1
+```
+
+Actions sekmesinde derleme hemen başlar. Bittiğinde sayfanın altındaki
+`ciklet-ios-unsigned-ipa` artifact'ini indir; zip'ten çıkan
+`ciklet-unsigned.ipa`'yı cihaza kur. Sonraki derlemeler için sayıyı
+artır (`ipa-2`, `ipa-3`…).
+
+> **Neden etiket, neden Actions'ta düğme yok?**
+> `workflow_dispatch` ("Run workflow" düğmesi) yalnızca iş akışı dosyası
+> **varsayılan dalda** (`main`) olduğunda görünür — GitHub'ın kuralı.
+> Dosya bir özellik dalındayken Actions sekmesi bomboş kalır. Etiket
+> tetikleyicisi bu kısıtı aşar: `push` olayında GitHub, itilen ref'teki
+> iş akışı dosyasını okur. Dal `main`'e birleştikten sonra düğme de
+> çıkar ve etiket atmaya gerek kalmaz.
+
+> **⚠️ Maliyet.** Bu depo özel ve macOS koşucuları özel depolarda dakika
+> başına **10 kat** sayılıyor. Bir iOS derlemesi ~30-45 dk, yani ~300-450
+> faturalanabilir dakika — aylık kotanın kayda değer bir bölümü. Mac'in
+> varsa aşağıdaki yerel yol bedava; yoksa etiketi bilinçli at.
 
 **Yerelde (Mac'te):**
 
