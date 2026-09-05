@@ -13,7 +13,6 @@ import { canonicalizeCode } from "@ciklet/embedded-activities-sdk/types";
 
 import { api, ApiError } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
-import { CLIENT_TYPE, CLIENT_VERSION } from "@/lib/device";
 
 /**
  * Oturum AÇMADAN çağrılan kimlik uçları: kayıt, e-posta doğrulama ve şifre
@@ -158,12 +157,6 @@ export async function acceptEula() {
 }
 
 // ── Ortak ───────────────────────────────────────────────────────────
-
-/** İstemci telemetrisi — giriş ve kayıt isteklerine eklenir. */
-export const clientMeta = {
-  clientType: CLIENT_TYPE,
-  clientVersion: CLIENT_VERSION,
-} as const;
 
 /**
  * Hız sınırı yanıtı (429) her uçta aynı anlama gelir ve kullanıcıya aynı

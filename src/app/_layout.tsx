@@ -10,6 +10,7 @@ import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { CallOverlay } from "@/features/call/call-overlay";
 import { BrandSplash } from "@/features/auth/auth-shell";
+import { EulaGate } from "@/features/auth/eula-gate";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -85,7 +86,15 @@ export default function RootLayout() {
               yüzen kabuklar yeni paleti aynı karede yeniden okur.
             */}
             <Stack key={`${themeId}-${appFonts.revision}`} screenOptions={stackScreenOptions}>
-              <Stack.Protected guard={status === "signedIn"}>
+              {/*
+                Sözleşme kabul edilmemişken de uygulama yığını kurulur; kapı
+                bir ROTA değil, üstteki `EulaGate` modalıdır ve kapanana
+                kadar ekranı tamamen örter. Sebebi aşağıda, EulaGate'in
+                kendi başlığında: kapıyı korumalı bir rotaya bağlamak,
+                yığında hiç `index` bırakmıyor ve açılacak ekranın seçimini
+                yönlendiricinin geri düşme davranışına terk ediyordu.
+              */}
+              <Stack.Protected guard={status === "signedIn" || status === "pendingEula"}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />
                 <Stack.Screen
@@ -125,18 +134,6 @@ export default function RootLayout() {
                 />
               </Stack.Protected>
 
-              {/*
-                Yasal onay kapısı. Kimlik doğrulandı ama sözleşme kabul
-                edilmediyse mevcut TEK ekran budur — web'deki /redirect
-                sunucu kapısının karşılığı. Kapıyı bir bayrağa bağlayıp
-                ekranların kontrol etmesini beklemek yerine rota korumasının
-                kendisi yapmak, "kontrolü unutan ekran" ihtimalini ortadan
-                kaldırır.
-              */}
-              <Stack.Protected guard={status === "pendingEula"}>
-                <Stack.Screen name="(eula)/accept" options={{ headerShown: false }} />
-              </Stack.Protected>
-
               <Stack.Protected guard={status === "signedOut"}>
                 <Stack.Screen name="(auth)/index" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
@@ -153,6 +150,9 @@ export default function RootLayout() {
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
             <CallOverlay key={`call-${themeId}`} />
+            {/* Yasal onay kapısı — web'deki /redirect kontrolünün karşılığı.
+                Kabul edilene kadar uygulamanın tamamını örter. */}
+            <EulaGate key={`eula-${themeId}`} />
           </RealtimeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

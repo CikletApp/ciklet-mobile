@@ -114,6 +114,76 @@ kod verir.
 
 ---
 
+## iOS: IPA üretimi
+
+> iOS derlemesi **yalnızca macOS'ta** yapılabilir — Xcode başka bir
+> platformda yok. Mac'in yoksa aşağıdaki GitHub Actions yolu tam olarak bu
+> iş için var.
+
+### Hangi yolu seçmeli?
+
+| | İmzasız IPA | EAS (`ios-device`) |
+| --- | --- | --- |
+| Apple Developer hesabı | **gerekmez** | gerekir (99 $/yıl) |
+| Kurulum | Jailbreakli cihaz (TrollStore / AppSync) | Herhangi bir cihaz (UDID kayıtlı) |
+| **Push bildirimi** | **çalışmaz** | çalışır |
+| Uygulama açıkken arama | çalışır | çalışır |
+| Uygulama kapalıyken arama | **gelmez** | gelir |
+
+**Push neden imzasız derlemede çalışmaz:** APNs'e kayıt olmak, Apple'ın
+verdiği `aps-environment` yetkisini taşıyan geçerli bir provisioning profile
+ister. `CODE_SIGNING_ALLOWED=NO` ile derlenen uygulamada bu yetki bulunmaz;
+`getExpoPushTokenAsync()` hata verir, sunucuya cihaz kaydı yapılmaz ve
+uygulama kapalıyken hiçbir bildirim düşmez. Bu bir yapılandırma eksiği
+değil, imzasız dağıtımın sınırı.
+
+Yani: **arayüzü, girişi, sözleşmeyi ve uygulama açıkken gelen aramaları**
+imzasız IPA ile rahatça test edebilirsin (bunlar soket üzerinden gelir).
+**Uygulama kapalıyken telefonun çalmasını** test etmek için imzalı derleme
+gerekiyor.
+
+### Yol 1 — İmzasız IPA (jailbreakli cihaz)
+
+**GitHub Actions ile (Mac gerekmez):**
+
+Actions → **iOS IPA** → *Run workflow*. Bittiğinde
+`ciklet-ios-unsigned-ipa` adlı artifact'i indir, zip'ten çıkan
+`ciklet-unsigned.ipa`'yı cihaza kur.
+
+**Yerelde (Mac'te):**
+
+```bash
+./scripts/build-ipa.sh
+# → dist/ciklet-unsigned.ipa
+```
+
+Cihaza kurmak için: TrollStore ile aç, ya da AppSync Unified kuruluysa
+Filza / `ideviceinstaller` ile yükle.
+
+### Yol 2 — EAS ile imzalı derleme (push dahil)
+
+```bash
+npx eas-cli login
+npx eas-cli build --profile ios-device --platform ios
+```
+
+İlk çalıştırmada EAS, Apple hesabınla imzalama sertifikasını ve cihaz
+kaydını (UDID) kendisi yönetir. Build bitince indirme linki ve QR kod
+verir.
+
+### Uçtan uca push testi
+
+Bu ikisi yalnızca **imzalı** derlemede ve **gerçek cihazda** görülebilir:
+
+1. **Kapalıyken arama** — uygulamayı arka plandan da tamamen kapat, başka
+   bir hesaptan ara. Telefon zil sesiyle çalmalı, bildirimde "Kabul et" ve
+   "Reddet" düğmeleri görünmeli; "Kabul et"e basınca uygulama açılıp
+   görüşmeye bağlanmalı.
+2. **Kapalıyken DM** — başka bir hesaptan mesaj at. Bildirime dokununca
+   doğrudan o sohbet açılmalı.
+
+---
+
 ## Backend seçimi
 
 | Profil | `EXPO_PUBLIC_API_URL` | Kullanım |

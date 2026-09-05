@@ -1,0 +1,104 @@
+name: iOS IPA
+
+# İmzasız IPA üretir — jailbreakli cihaza (TrollStore / AppSync Unified)
+# doğrudan kurulabilir. Apple Developer hesabı GEREKTİRMEZ.
+#
+# ⚠️ İmzasız derlemede PUSH BİLDİRİMİ ÇALIŞMAZ. APNs kaydı, Apple'ın
+# verdiği `aps-environment` yetkisini taşıyan geçerli bir provisioning
+# profile ister; imzalama kapatıldığında bu yetki de düşer. Uygulamanın
+# geri kalanı (giriş, sözleşme, sohbet, uygulama AÇIKKEN gelen aramalar —
+# bunlar soket üzerinden gelir) sorunsuz çalışır.
+# Push'u uçtan uca denemek için `docs/BUILD.md` içindeki EAS yolunu kullan.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "EXPO_PUBLIC_API_URL (boşsa .env.production kullanılır)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    # iOS derlemesi yalnızca macOS'ta mümkün: Xcode başka bir platformda yok.
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Ortam değişkenleri
+        if: inputs.api_url != ''
+        run: echo "EXPO_PUBLIC_API_URL=${{ inputs.api_url }}" >> "$GITHUB_ENV"
+
+      - name: Native projeyi üret
+        # `--clean`: depoda ios/ dizini tutulmuyor (managed workflow), her
+        # derleme app.json'dan sıfırdan üretiliyor. Böylece eklenti
+        # değişiklikleri (bildirim sesi, arka plan modları) mutlaka uygulanır.
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: CocoaPods
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Şemayı bul
+        id: scheme
+        working-directory: ios
+        # Şema adı app.json'daki `name`den türüyor; sabit yazmak yerine
+        # projeden okumak, uygulama adı değiştiğinde derlemeyi kırmaz.
+        run: |
+          workspace=$(ls -d *.xcworkspace | head -n1)
+          scheme=$(xcodebuild -workspace "$workspace" -list -json | node -e "
+            let raw='';process.stdin.on('data',c=>raw+=c).on('end',()=>{
+              const {workspace}=JSON.parse(raw);
+              console.log(workspace.schemes.find(s=>!s.startsWith('Pods'))??workspace.schemes[0]);
+            });")
+          echo "workspace=$workspace" >> "$GITHUB_OUTPUT"
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
+          echo "Workspace: $workspace / Şema: $scheme"
+
+      - name: Derle (imzasız)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace "${{ steps.scheme.outputs.workspace }}" \
+            -scheme "${{ steps.scheme.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            build
+
+      - name: IPA paketle
+        working-directory: ios
+        # IPA, içinde `Payload/<Uygulama>.app` olan bir zip'ten ibarettir.
+        # Xcode'un `-exportArchive` adımı imza ister; imzasız derlemede
+        # paketi elle kurmak tek yol.
+        run: |
+          app=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -n1)
+          echo "Uygulama: $app"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$app" Payload/
+          zip -qry ciklet-unsigned.ipa Payload
+          ls -lh ciklet-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ciklet-ios-unsigned-ipa
+          path: ios/ciklet-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14

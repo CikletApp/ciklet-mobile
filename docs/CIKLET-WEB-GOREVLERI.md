@@ -185,6 +185,10 @@ io.to(receiverId).emit('incoming_call', {
 
 `pending_call_invites` yayınında da aynı alan taşınmalı (`sendPendingCalls`).
 
+> **Güncelleme (2026-09-05):** `sendPendingCalls` alanı taşımıyordu ve bu,
+> uygulama KAPALIYKEN gelen aramanın açılışta devralınmasını imkânsız
+> kılıyordu (davet geliyor, oda adı bilinmiyor). Eklendi.
+
 Mobil istemci bu alanı geldiğinde otomatik kullanır; gelmezse mevcut
 tahmin yoluna düşer. **Geriye dönük uyumlu.**
 

@@ -74,7 +74,16 @@ export function useMessageNotifications() {
     notificationSounds,
   ]);
 
-  // Bildirime dokunulunca ilgili yere git; arama düğmelerini de burada işle.
+  /**
+   * Bildirime dokunulunca ilgili yere git; arama düğmelerini de burada işle.
+   *
+   * Rota HEMEN uygulanmıyor, bekletiliyor. Soğuk başlatmada bu dinleyici
+   * oturum çözülmeden önce çalışabilir; o anda `/chat/direct/...`'e gitmek,
+   * rota koruması hâlâ giriş yığınını gösterirken var olmayan bir ekrana
+   * yönlendirmek olurdu. Hedef, oturum `signedIn` olduğunda uygulanıyor.
+   */
+  const pendingRoute = useRef<string | null>(null);
+
   useEffect(() => {
     const handle = (response: Notifications.NotificationResponse | null) => {
       const parsed = readNotificationResponse(response);
@@ -93,11 +102,14 @@ export function useMessageNotifications() {
         if (parsed.actionIdentifier === CALL_ACTION_ACCEPT) {
           useCall.getState().setPendingIntent("accept");
         } else if (parsed.actionIdentifier === CALL_ACTION_DECLINE) {
+          // Reddeden kullanıcı o sohbeti AÇMAK istemiyor; yalnızca aramayı
+          // kapatıyor. Sohbete atlamak, reddetme eylemiyle çelişirdi.
           useCall.getState().setPendingIntent("decline");
+          return;
         }
       }
 
-      if (parsed.route) router.push(parsed.route as never);
+      if (parsed.route) pendingRoute.current = parsed.route;
     };
 
     // Soğuk başlatmada dinleyici kurulmadan önce dokunulmuş olabilir.
@@ -105,6 +117,14 @@ export function useMessageNotifications() {
     const subscription = Notifications.addNotificationResponseReceivedListener(handle);
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    if (status !== "signedIn") return;
+    const route = pendingRoute.current;
+    if (!route) return;
+    pendingRoute.current = null;
+    router.push(route as never);
+  });
 
   usePendingCallIntent(acceptCall, declineCall);
 

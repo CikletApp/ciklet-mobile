@@ -18,11 +18,35 @@ başlığı** olarak eklenir — sunucu tarafında hiçbir özel mobil rota yokt
 ile aynı uçlar kullanılır. Token 30 günlük; son kullanmaya 3 gün kala kayan
 yenileme devreye girer, 401'de tek seferlik sessiz yenileme denenir.
 
+**Kimlik akışları web ile birebir aynıdır** ve aynı uçları kullanır:
+kayıt (`/api/register`) → e-posta doğrulama (`/api/auth/verify-email`) →
+giriş. Giriş, sunucunun döndüğü hata KODUNA göre dallanır:
+`email_not_verified` doğrulama ekranına, `totp_required` ikinci faktör
+adımına gider — üçünde de şifre doğrudur ve hepsini "şifre hatalı" diye
+göstermek hesabı telefondan erişilemez yapardı. Şifre kurtarma
+`/forgot-password` ve `/reset-password` rotalarının ikisinden de aynı iki
+adımlı akışı açar.
+
+**Yasal onay kapısı:** Web'de bu kapı sunucudadır (`/redirect` sayfası
+`eulaAccepted` false ise uygulamaya sokmaz). Mobilde karşılığı
+`features/auth/eula-gate.tsx`: oturum durumu `pendingEula` iken kapanmayan
+bir modal ekranı örter. Sözleşme metni web'dekiyle aynı bölümleri taşır
+(`features/auth/legal.tsx`) ve kayıt ekranındaki bağlantılardan salt-okunur
+olarak da açılabilir.
+
+**Aramalar:** `incoming_call` soket olayı uygulama açıkken çağrı ekranını
+açar; uygulama kapalıyken aynı işi Expo push yapar. Bildirimdeki "Kabul et"
+/ "Reddet" düğmeleri, davet henüz gelmemişse niyeti bekletir ve oturum
+gelince uygular. Uygulama kapalıyken gelen bir arama, açılışta
+`sync_call_state` → `pending_call_invites` turuyla devralınır. Zil sesleri
+`scripts/generate-call-tones.mjs` ile üretilir (telifsiz).
+
 ## Klasör düzeni
 
 ```
 src/app/          Expo Router — YALNIZCA rota dosyaları, iş mantığı yok
-  (auth)/           giriş
+  (auth)/           karşılama, giriş, kayıt, doğrulama, şifre sıfırlama
+  legal/            yasal belge (salt okunur; oturum gerektirmez)
   (tabs)/           Ana Sayfa · Bildirimler · Sen
   chat/             kanal ve DM sohbetleri
   servers/          kanal listesi
@@ -43,7 +67,10 @@ src/realtime/     Socket.IO katmanı
   provider.tsx      oturum + AppState bağlantısı, presence yayınları
   use-chat-stream.ts sohbet aboneliği ve cache'e doğrudan yazma
 
-src/features/     ekran mantığı (chat/, ileride voice/, activities/)
+src/features/     ekran mantığı
+  auth/             kimlik ekranlarının parçaları, OTP alanı, yasal belge
+  call/             çağrı ekranı, zil sesi, bulanık arka plan
+  chat/             sohbet görünümü ve composer
 src/components/ui tasarım sistemi primitifleri (ikon, avatar, ekran kabuğu)
 src/stores/       Zustand (auth, presence)
 src/theme/        tasarım token'ları — ciklet-web theme.css ile eş
