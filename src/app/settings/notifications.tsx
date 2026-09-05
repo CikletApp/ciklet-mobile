@@ -49,16 +49,20 @@ export default function NotificationSettingsScreen() {
           </ListGroup>
         </View>
 
+        {/* Tür anahtarları yalnızca tercihi yazar; sunucudaki cihaz
+            kaydını tazelemek tek bir yerin işi (realtime/
+            use-message-notifications.ts). Burada da çağırmak, her
+            dokunuşta aynı isteği iki kez gönderiyordu. */}
         <SectionHeader title="BİLDİRİM TÜRLERİ" />
         <View style={{ paddingHorizontal: spacing.lg, opacity: preferences.notificationsEnabled ? 1 : 0.45 }}>
           <ListGroup>
-            <ToggleRow title="Mesajlar ve bahsetmeler" value={preferences.messageNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("messageNotifications", value); void registerPushToken(); }} />
+            <ToggleRow title="Mesajlar ve bahsetmeler" value={preferences.messageNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => preferences.setPreference("messageNotifications", value)} />
             <Divider inset={16} />
-            <ToggleRow title="Gelen aramalar" value={preferences.callNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("callNotifications", value); void registerPushToken(); }} />
+            <ToggleRow title="Gelen aramalar" value={preferences.callNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => preferences.setPreference("callNotifications", value)} />
             <Divider inset={16} />
-            <ToggleRow title="Arkadaşlık istekleri" value={preferences.friendNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("friendNotifications", value); void registerPushToken(); }} />
+            <ToggleRow title="Arkadaşlık istekleri" value={preferences.friendNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => preferences.setPreference("friendNotifications", value)} />
             <Divider inset={16} />
-            <ToggleRow title="Bildirim sesleri" value={preferences.notificationSounds} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("notificationSounds", value); void registerPushToken(); }} />
+            <ToggleRow title="Bildirim sesleri" value={preferences.notificationSounds} disabled={!preferences.notificationsEnabled} onChange={(value) => preferences.setPreference("notificationSounds", value)} />
           </ListGroup>
         </View>
 

@@ -43,12 +43,16 @@ export function useMessageNotifications() {
   }, [notificationsEnabled, status]);
 
   /**
-   * Tercihler değiştiğinde sunucudaki cihaz kaydı da güncellenmeli.
+   * Bildirim TÜRÜ tercihleri değiştiğinde sunucudaki cihaz kaydını tazeler.
    *
-   * Sunucu gönderimden ÖNCE bu bayrakları süzüyor. İstemcinin gelen
-   * bildirimi bastırması yetmez: uygulama kapalıyken bastıracak kod
-   * çalışmıyor, bildirim yine de düşüyordu. "Arama bildirimlerini kapat"
-   * dedikten sonra telefonun çalması tam olarak buydu.
+   * Sunucu gönderimden ÖNCE bu bayrakları süzüyor (ciklet-web lib/push.ts).
+   * İstemcinin gelen bildirimi bastırması yetmez: uygulama kapalıyken
+   * bastıracak kod çalışmıyor ve bildirim yine de düşüyor.
+   *
+   * Ana anahtar (`notificationsEnabled`) bilerek bağımlılık DEĞİL: onu
+   * açıp kapatmak zaten ayarlar ekranında token kaydı/silmesi yapıyor
+   * (`toggleMaster`) ve burada da tetiklenirse aynı istek iki kez giderdi.
+   * Değeri anlık olarak store'dan okunuyor.
    */
   const messageNotifications = usePreferences((s) => s.messageNotifications);
   const callNotifications = usePreferences((s) => s.callNotifications);
@@ -57,7 +61,7 @@ export function useMessageNotifications() {
   const firstPreferenceSync = useRef(true);
 
   useEffect(() => {
-    if (status !== "signedIn" || !notificationsEnabled) return;
+    if (status !== "signedIn" || !usePreferences.getState().notificationsEnabled) return;
     // İlk çalıştırma yukarıdaki kurulum akışıyla çakışırdı; yalnızca
     // sonraki değişikliklerde yeniden kaydet.
     if (firstPreferenceSync.current) {
@@ -67,7 +71,6 @@ export function useMessageNotifications() {
     void registerPushToken();
   }, [
     status,
-    notificationsEnabled,
     messageNotifications,
     callNotifications,
     friendNotifications,

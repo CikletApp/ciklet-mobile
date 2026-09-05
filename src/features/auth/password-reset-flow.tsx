@@ -48,6 +48,7 @@ export function PasswordResetFlow({
   const [codeInvalid, setCodeInvalid] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
@@ -63,11 +64,16 @@ export function PasswordResetFlow({
     if (!identityValid || busy) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await requestPasswordReset({ username, email });
       setCooldown(RESEND_SECS);
       setStep("verify");
-      if (isResend) setError(null);
+      // Yeniden göndermede geri bildirim şart: ekranda görünür hiçbir şey
+      // değişmediği için kullanıcı isteğin gidip gitmediğini bilemez
+      // (sunucu, hesabın varlığını sızdırmamak adına her durumda aynı
+      // yanıtı veriyor — "gönderildi" diyebileceğimiz tek yer burası).
+      if (isResend) setNotice("Yeni kod gönderildi.");
     } catch (err) {
       setError(describeAuthError(err, "Kod gönderilemedi."));
     } finally {
@@ -192,6 +198,7 @@ export function PasswordResetFlow({
           setCode(value);
           setCodeInvalid(false);
           setError(null);
+          setNotice(null);
         }}
         length={ALPHANUMERIC_CODE_LENGTH}
         mode="alphanumeric"
@@ -217,6 +224,9 @@ export function PasswordResetFlow({
       />
 
       {error ? <Text style={{ ...typography.caption, color: colors.danger }}>{error}</Text> : null}
+      {notice ? (
+        <Text style={{ ...typography.caption, color: colors.success }}>{notice}</Text>
+      ) : null}
 
       <Button
         label="Şifreyi güncelle"
