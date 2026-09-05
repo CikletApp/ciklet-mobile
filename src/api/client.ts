@@ -214,13 +214,20 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 // ── Kimlik akışı ────────────────────────────────────────────────────
 
 export async function login(
-  credentials: Pick<MobileAuthRequest, "username" | "password">
+  credentials: Pick<MobileAuthRequest, "username" | "password" | "totp">
 ): Promise<MobileAuthResponse> {
   const data = await api<MobileAuthResponse>(endpoints.auth.login, {
     method: "POST",
     skipAuth: true,
+    // 401'de sessiz yenileme denenmemeli: burada yenilenecek bir oturum yok
+    // ve deneme, giriş hatasını (`totp_required` gibi) bir oturum-düştü
+    // olayına çevirip kullanıcıyı giriş ekranına geri atardı.
+    skipRefresh: true,
     body: {
       ...credentials,
+      // Boş kod göndermek "2FA denendi ve boştu" demek olurdu; sunucu bunu
+      // geçersiz koda sayıp hız sınırını tüketir. Kod yoksa alan hiç gitmez.
+      totp: credentials.totp?.trim() || undefined,
       clientType: CLIENT_TYPE,
       clientVersion: CLIENT_VERSION,
       // Donanım banı kontrolü bu alanı okur (ciklet-web lib/hwid.ts).

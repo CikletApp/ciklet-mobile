@@ -1,8 +1,9 @@
 import { create } from "zustand";
-import type { OwnProfile } from "@ciklet/embedded-activities-sdk/types";
 
 import * as apiClient from "@/api/client";
+import { acceptEula as postEulaAcceptance } from "@/api/auth";
 import { endpoints } from "@/api/endpoints";
+import type { CurrentProfile, SessionProfile } from "@/api/types";
 import { clearPersistedCache } from "@/api/query-client";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
 import { unregisterPushToken } from "@/lib/notifications";
@@ -10,25 +11,36 @@ import { unregisterPushToken } from "@/lib/notifications";
 /**
  * Oturum durumu — uygulamanın tek kimlik kaynağı.
  *
- * `status` üç değerden birini alır:
+ * `status` dört değerden birini alır:
  *  - `loading`   açılışta güvenli depo okunuyor (splash görünür)
  *  - `signedOut` giriş ekranı
+ *  - `pendingEula` kimlik doğrulandı ama Son Kullanıcı Sözleşmesi kabul
+ *    edilmedi — yalnızca sözleşme ekranı görünür
  *  - `signedIn`  uygulama kabuğu
+ *
+ * `pendingEula` neden ayrı bir durum: web'de bu kapı SUNUCUDA duruyor
+ * (`/redirect` sayfası profili okuyup sözleşmeyi kabul etmemiş kullanıcıyı
+ * uygulamaya hiç sokmuyor). Mobilde eşdeğer bir sunucu adımı yok; kapı
+ * `signedIn` içinde bir bayrak olsaydı, korumayı uygulamayı unutan ilk ekran
+ * sözleşmeyi sessizce atlatırdı. Ayrı bir durum, rota korumasının kendisini
+ * kapı yapar.
  *
  * Rota koruması bu değere bakar (`app/_layout.tsx` içindeki `Stack.Protected`).
  */
-type AuthStatus = "loading" | "signedOut" | "signedIn";
+type AuthStatus = "loading" | "signedOut" | "pendingEula" | "signedIn";
 
 interface AuthState {
   status: AuthStatus;
-  profile: OwnProfile | null;
+  profile: SessionProfile | null;
 
   /** Açılışta bir kez: depodan oturumu yükler, gerekiyorsa tazeler. */
   bootstrap: () => Promise<void>;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, totp?: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Profil düzenlendikten sonra kabuktaki avatar/ad'ı günceller. */
-  setProfile: (profile: OwnProfile) => void;
+  setProfile: (profile: SessionProfile) => void;
+  /** Sözleşmeyi kabul eder ve uygulamayı açar. */
+  acceptEula: () => Promise<void>;
   /** Token süresi dolmaya yaklaştıysa yeniler. Ön plana dönüşte çağrılır. */
   ensureFreshSession: () => Promise<void>;
 }
@@ -55,12 +67,20 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
 
     try {
-      const profile = await apiClient.api<OwnProfile>(endpoints.currentProfile);
-      set({ status: "signedIn", profile });
+      const profile = await apiClient.api<CurrentProfile>(endpoints.currentProfile);
+      set({
+        status: profile.eulaAccepted === false ? "pendingEula" : "signedIn",
+        profile,
+      });
     } catch (err) {
       // 401 ise client.ts zaten oturumu düşürdü. Ağ hatasıysa oturumu
       // KORU — çevrimdışı açılışta kullanıcıyı giriş ekranına atmak yanlış
       // olur; ekranlar cache'ten çalışabilir.
+      //
+      // Sözleşme durumu bu yolda bilinmiyor: çevrimdışı bir kullanıcıyı
+      // sözleşme ekranında kilitlemek, kabul isteğini gönderemeyeceği için
+      // uygulamayı tamamen kullanılamaz yapardı. Kapı, ağ geri geldiğindeki
+      // ilk `bootstrap`/`login` turunda uygulanır.
       if (err instanceof apiClient.ApiError && err.isNetwork) {
         set({ status: "signedIn", profile: null });
       } else {
@@ -69,9 +89,14 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 
-  login: async (username, password) => {
-    const res = await apiClient.login({ username, password });
-    set({ status: "signedIn", profile: res.profile });
+  login: async (username, password, totp) => {
+    const res = await apiClient.login({ username, password, totp });
+    set({
+      // Eski bir sunucu bu alanı hiç göndermeyebilir; `undefined` "bilinmiyor"
+      // demektir ve kullanıcıyı sözleşme ekranında tutmak için gerekçe değil.
+      status: res.profile.eulaAccepted === false ? "pendingEula" : "signedIn",
+      profile: res.profile,
+    });
   },
 
   logout: async () => {
@@ -86,8 +111,16 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   setProfile: (profile) => set({ profile }),
 
+  acceptEula: async () => {
+    await postEulaAcceptance();
+    set((state) => ({
+      status: "signedIn",
+      profile: state.profile ? { ...state.profile, eulaAccepted: true } : state.profile,
+    }));
+  },
+
   ensureFreshSession: async () => {
-    if (get().status !== "signedIn") return;
+    if (get().status === "signedOut" || get().status === "loading") return;
     const session = await apiClient.getSession();
     if (session && isExpiringSoon(session.expiresAt)) {
       await apiClient.refreshSession();

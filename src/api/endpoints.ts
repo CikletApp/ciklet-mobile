@@ -22,7 +22,20 @@ export const endpoints = {
   auth: {
     login: "/api/mobile/auth",
     refresh: "/api/mobile/auth/refresh",
+    /**
+     * Kayıt ve kurtarma uçları MOBİLE ÖZEL DEĞİLDİR — web istemcisi de tam
+     * olarak bunları çağırır. Ayrı bir mobil kayıt ucu açmak, doğrulama ve
+     * hız sınırı kurallarının iki yerde yaşaması ve zamanla ayrışması
+     * demekti; oturum gerektirmedikleri için aynılarını kullanmak yeterli.
+     */
+    register: "/api/register",
+    verifyEmail: "/api/auth/verify-email",
+    forgotPassword: "/api/auth/forgot-password",
+    resetPassword: "/api/auth/reset-password",
   },
+
+  /** Son Kullanıcı Sözleşmesi onayı — web'deki /redirect kapısının karşılığı. */
+  eula: "/api/eula",
 
   /** Expo push cihaz kaydı ve tercih güncellemesi. */
   pushRegister: "/api/push/register",

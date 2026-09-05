@@ -125,13 +125,30 @@ export default function RootLayout() {
                 />
               </Stack.Protected>
 
-              <Stack.Protected guard={status !== "signedIn"}>
+              {/*
+                Yasal onay kapısı. Kimlik doğrulandı ama sözleşme kabul
+                edilmediyse mevcut TEK ekran budur — web'deki /redirect
+                sunucu kapısının karşılığı. Kapıyı bir bayrağa bağlayıp
+                ekranların kontrol etmesini beklemek yerine rota korumasının
+                kendisi yapmak, "kontrolü unutan ekran" ihtimalini ortadan
+                kaldırır.
+              */}
+              <Stack.Protected guard={status === "pendingEula"}>
+                <Stack.Screen name="(eula)/accept" options={{ headerShown: false }} />
+              </Stack.Protected>
+
+              <Stack.Protected guard={status === "signedOut"}>
                 <Stack.Screen name="(auth)/index" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)/reset-password" options={{ headerShown: false }} />
               </Stack.Protected>
+
+              {/* Yasal belge her durumda okunabilir: kayıt olmadan önce de,
+                  giriş yaptıktan sonra da (Ayarlar → Gizlilik). */}
+              <Stack.Screen name="legal/document" options={{ title: "Yasal Belge" }} />
             </Stack>
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}

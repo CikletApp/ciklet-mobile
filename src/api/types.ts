@@ -15,6 +15,27 @@ import type {
  * değil tüketicisidir.
  */
 
+/**
+ * Oturumdaki kullanıcının profili — İKİ UCUN KESİŞİMİ.
+ *
+ * Kimlik iki farklı yoldan geliyor ve şekilleri aynı DEĞİL:
+ *  • `POST /api/mobile/auth` → `AuthenticatedProfile` (herkese açık alt küme
+ *    + `isRoot` + `eulaAccepted`)
+ *  • `GET /api/current-profile` → `CurrentProfile` (e-posta ve gizlilik
+ *    tercihlerini de taşır, ama `isRoot` YOK)
+ *
+ * Store daha önce ikisini de `OwnProfile` diye tutuyordu; `/current-profile`
+ * yolundan gelen profilde `isRoot` çalışma zamanında `undefined` oluyor,
+ * tip ise "var" diyordu. Bu tip yalnızca İKİ ucun da gerçekten döndürdüğü
+ * alanları zorunlu kılar — geri kalanı isteğe bağlıdır ve okuyan taraf
+ * yokluğunu ele almak zorundadır.
+ */
+export type SessionProfile = PublicProfile & {
+  eulaAccepted?: boolean;
+  isRoot?: boolean;
+  email?: string | null;
+};
+
 /** ciklet-web: `src/app/api/current-profile/route.ts` (stripSensitive çıktısı) */
 export interface CurrentProfile extends PublicProfile {
   email: string | null;
