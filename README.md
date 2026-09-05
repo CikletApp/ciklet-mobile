@@ -10,6 +10,12 @@ Fazlı yol haritası ve mimari kararlar: **[docs/ROADMAP.md](docs/ROADMAP.md)**
 |---|---|
 | `ciklet-web` API (`https://ciklet.xyz`) | Tüm veri + kimlik (`/api/mobile/auth`) |
 | `@ciklet/embedded-activities-sdk/types` | Paylaşılan tipler ve API/socket sözleşmeleri (GitHub'dan kurulur) |
+
+> ⚠️ `package.json` şu an SDK'yı `#claude/mobile-app-new-architecture-36p4do`
+> dalına sabitliyor: kimlik, yasal onay ve push sözleşmeleri o dalda yaşıyor.
+> **SDK dalı `main`'e birleştikten sonra** bağımlılık sadeleştirilmeli:
+> `"@ciklet/embedded-activities-sdk": "github:CikletApp/ciklet-sdk"`.
+> Unutulursa mobil, SDK'da sonradan yapılan düzeltmeleri hiç görmez.
 | LiveKit (`wss://ciklet.xyz/rtc`) | Sesli/görüntülü kanallar |
 
 **Kimlik modeli:** `/api/mobile/auth`'tan alınan NextAuth oturum token'ı
