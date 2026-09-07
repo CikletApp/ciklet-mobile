@@ -5,7 +5,7 @@
  * olduğu uygulama detayıdır; dosya bölmeleri çağrı yerlerini kırmamalı.
  */
 export { Avatar } from "./avatar";
-export { BentoCard, BentoShell } from "./bento";
+
 export { CikletLogo } from "./ciklet-logo";
 export { ModernRefreshIndicator } from "./refresh-indicator";
 export { UnreadBadge, Tag, Skeleton, ListSkeleton } from "./badge";

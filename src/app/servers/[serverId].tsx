@@ -1,4 +1,5 @@
-import { Pressable, SectionList, Text, View } from "react-native";
+import { useState } from "react";
+import { SectionList, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   ChannelType,
@@ -6,8 +7,19 @@ import {
   type Channel,
 } from "@ciklet/embedded-activities-sdk/types";
 
-import { useMyMembership, useServerChannels, useServerSummary } from "@/api/hooks";
-import { Icon, IconButton, type IconName } from "@/components/ui";
+import {
+  useMyMembership,
+  useServerChannels,
+  useServerSummary,
+  useUnreadCounts,
+} from "@/api/hooks";
+import {
+  Icon,
+  IconButton,
+  Pressable,
+  UnreadBadge,
+  type IconName,
+} from "@/components/ui";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -22,8 +34,20 @@ export default function ServerChannelsScreen() {
   const { data: server } = useServerSummary(serverId);
   const { data: channels, isLoading } = useServerChannels(serverId);
   const { data: membership } = useMyMembership(serverId);
+  const { data: unread } = useUnreadCounts();
   const canManageChannels =
     membership?.role === MemberRole.ADMIN || membership?.role === MemberRole.MODERATOR;
+
+  /** Katlanan kategoriler — uzun kanal listelerinde ses/görüntü bölümlerini
+      kapatmak metin kanallarına ulaşmayı tek kaydırmaya indiriyor. */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleSection = (type: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
 
   const sections = buildSections(channels ?? []);
 
@@ -65,28 +89,61 @@ export default function ServerChannelsScreen() {
         />
       ) : (
         <SectionList
-          sections={sections}
+          sections={sections.map((section) =>
+            collapsed.has(section.type) ? { ...section, data: [] } : section
+          )}
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled={false}
           contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
-          renderSectionHeader={({ section }) => (
-            <Text
-              style={{
-                ...typography.overline,
-                color: colors.muted,
-                paddingHorizontal: spacing.lg,
-                paddingTop: spacing.lg,
-                paddingBottom: spacing.sm,
-              }}
-            >
-              {section.title}
-            </Text>
-          )}
+          renderSectionHeader={({ section }) => {
+            const isCollapsed = collapsed.has(section.type);
+            // Kategori sayısı kapalıyken görünür: katlanmış bir kategoride
+            // okunmamış mesaj varsa kullanıcı bunu açmadan bilemezdi.
+            const hidden = isCollapsed
+              ? section.data.length ||
+                (channels ?? []).filter((c) => c.type === section.type).length
+              : 0;
+
+            return (
+              <Pressable
+                onPress={() => toggleSection(section.type)}
+                haptic="light"
+                noHitSlop
+                accessibilityRole="button"
+                accessibilityState={{ expanded: !isCollapsed }}
+                accessibilityLabel={`${section.title} kategorisi, ${isCollapsed ? "kapalı" : "açık"}`}
+                style={{
+                  minHeight: 42,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                  paddingHorizontal: spacing.lg,
+                  paddingTop: spacing.lg,
+                  paddingBottom: spacing.sm,
+                }}
+              >
+                <Icon
+                  name={isCollapsed ? "chevron-right" : "chevron-down"}
+                  size={15}
+                  color={colors.muted}
+                />
+                <Text style={{ ...typography.overline, color: colors.muted, flex: 1 }}>
+                  {section.title}
+                </Text>
+                {hidden > 0 ? (
+                  <Text style={{ ...typography.caption, color: colors.muted }}>
+                    {hidden}
+                  </Text>
+                ) : null}
+              </Pressable>
+            );
+          }}
           renderItem={({ item }) => (
             <ChannelRow
               serverId={serverId}
               channel={item}
               canManage={canManageChannels}
+              unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
             />
           )}
         />
@@ -101,7 +158,17 @@ const CHANNEL_ICON: Record<string, IconName> = {
   [ChannelType.VIDEO]: "video",
 };
 
-function ChannelRow({ serverId, channel, canManage }: { serverId: string; channel: Channel; canManage: boolean }) {
+function ChannelRow({
+  serverId,
+  channel,
+  canManage,
+  unread,
+}: {
+  serverId: string;
+  channel: Channel;
+  canManage: boolean;
+  unread: number;
+}) {
   const isText = channel.type === ChannelType.TEXT;
   const isAudio = channel.type === ChannelType.AUDIO;
   const isVideo = channel.type === ChannelType.VIDEO;
@@ -143,9 +210,17 @@ function ChannelRow({ serverId, channel, canManage }: { serverId: string; channe
         size={20}
         color={colors.muted}
       />
-      <Text style={{ ...typography.body, color: colors.text, flex: 1 }} numberOfLines={1}>
+      <Text
+        style={{
+          ...typography.body,
+          color: unread > 0 ? colors.bright : colors.text,
+          flex: 1,
+        }}
+        numberOfLines={1}
+      >
         {channel.name}
       </Text>
+      {unread > 0 ? <UnreadBadge count={unread} /> : null}
     </Pressable>
   );
 }

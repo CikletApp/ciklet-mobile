@@ -78,6 +78,17 @@ export const ServerEvent = {
   READ_STATE_UPDATED: "READ_STATE_UPDATED",
   /** Sohbet açık olmasa da gelen DM bildirimi. */
   NEW_MESSAGE: "new_message",
+  /**
+   * `{ directId }` — sohbet listesinin kendisi değişti.
+   *
+   * ciklet-web bunu grup kurulduğunda, üye eklenip çıkarıldığında ve biri
+   * gruptan ayrıldığında ETKİLENEN HER ÜYEYE yayınlıyor
+   * (`api/directs/groups/route.ts`, `api/directs/[directId]/route.ts`).
+   * `new_message`'tan farkı: ortada yeni bir mesaj yok, değişen üyelik.
+   * Dinlenmezse bir gruba eklenen kullanıcı, uygulamayı kapatıp açana
+   * kadar grubu hiç görmez.
+   */
+  DIRECTS_UPDATED: "directs_updated",
   FRIEND_REQUEST: "friend_request",
   FRIEND_REQUEST_UPDATED: "friend_request_updated",
   VOICE_CHANNEL_UPDATE: "voice_channel_update",

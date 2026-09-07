@@ -18,13 +18,38 @@ başlığı** olarak eklenir — sunucu tarafında hiçbir özel mobil rota yokt
 ile aynı uçlar kullanılır. Token 30 günlük; son kullanmaya 3 gün kala kayan
 yenileme devreye girer, 401'de tek seferlik sessiz yenileme denenir.
 
+## Bilgi mimarisi
+
+**Sohbetler ve Sunucular ayrı sekmelerdir.** Önceden Ana Sayfa'nın solunda
+kalıcı 64px'lik bir sunucu rayı vardı ve sağdaki panel seçime göre DM
+listesine ya da kanal listesine dönüşüyordu; yani mesaj listesi sürekli dar
+yaşıyor ve bir sunucuya bakmak onu ekrandan tamamen kaldırıyordu. Şimdi
+ikisi de kendi evinde ve biri diğerinin yerini almıyor.
+
+Grup sohbetleri desteklenir (`POST /api/directs/groups`). Grup/birebir
+ayrımını çözen TEK yer `useDirectDisplay` — ekranlar `profileOne`/`profileTwo`
+alanlarını doğrudan okumaz, çünkü **grup satırlarında bu iki alan anlamsızdır**
+(ciklet-web ikisini de grup sahibine bağlıyor). Bu kural bozulduğunda gruplar
+"kendinle sohbet" sanılıp listeden eleniyordu.
+
+Okunmamış durumu `readCursor` **snowflake**'i ile hesaplanır (ADR-0002); eski
+`readStates` dizisi artık dönmüyor. Karşılaştırma `lib/snowflake.ts`
+üzerinden yapılmalı — snowflake 2^53'ü aştığı için `Number` sessizce yuvarlar.
+
+> ⚠️ Kanal ve sunucu okunmamış rozetleri `/api/unread-counts` ucundan gelir
+> ve o uç şu an ciklet-web'de ÖLÜ PostgreSQL tablolarını okuyor (ADR-0006
+> kapsamında düşürülmeyi bekliyorlar). Yani bu rozetler doğru değil ve
+> düzeltme web tarafında. Mobil ucu olduğu gibi tüketiyor; uç düzelince
+> mobilde ek iş yok.
+
 ## Klasör düzeni
 
 ```
 src/app/          Expo Router — YALNIZCA rota dosyaları, iş mantığı yok
   (auth)/           giriş
-  (tabs)/           Ana Sayfa · Bildirimler · Sen
+  (tabs)/           Sohbetler · Sunucular · Bildirimler · Sen
   chat/             kanal ve DM sohbetleri
+  directs/          grup kurma, grup bilgisi
   servers/          kanal listesi
   friends/          arkadaşlar, arkadaş ekle
   profile/          profil görüntüleme ve düzenleme
@@ -61,9 +86,10 @@ görünüm render eder. Veri dönüşümü `api/hooks`'a, ekran mantığı
 Renkler `ciklet-web/src/app/theme.css` içindeki **Gece** temasıyla birebir
 aynı HSL bileşenlerinden gelir. Marka: `#98cb00` (lime) / `#45f3ff` (camgöbeği).
 
-İki dosya ikiz tutulmalıdır — biri değişirse diğeri de:
-- `src/theme/tokens.ts` — TypeScript tarafı (navigator, StyleSheet)
-- `tailwind.config.js` — NativeWind `className` tarafı
+Tek kaynak `src/theme/tokens.ts`; tüm renkler oradan okunur (navigator
+seçenekleri, `StyleSheet`, satır içi stiller). NativeWind kullanılmıyor —
+`className` tarafı ve `tailwind.config.js` kaldırıldı, iki dosyayı ikiz
+tutma yükü de onunla birlikte gitti.
 
 ## Geliştirme
 

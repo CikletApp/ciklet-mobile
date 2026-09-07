@@ -1,39 +1,44 @@
 import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { isSelfDirect, useDirect, useDirectPeer } from "@/api/hooks";
+import { useDirect, useDirectDisplay } from "@/api/hooks";
 import { Avatar, Icon, IconButton, Pressable } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { DirectExpiryButton } from "@/features/chat/components/direct-expiry-button";
-import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
 import { colors, radii, spacing } from "@/theme/tokens";
 
 /**
- * Doğrudan mesaj sohbeti (1:1).
+ * Doğrudan mesaj sohbeti — birebir, grup ve "Notlarım".
  *
- * Kendinle açılmış sohbet "Notlarım"dır — web'de de böyle adlandırılıyor
- * (chat-header.tsx). Karşı taraf sen olduğun için başlıkta kullanıcı adı
- * yerine bu etiket ve bir yer imi ikonu gösterilir.
+ * Üç durumun başlığı ve sağ üst eylemleri farklı, gövdesi (`ChatView`) aynı.
+ * Ayrımı `useDirectDisplay` yapıyor; ekran profil alanlarını kendisi
+ * yorumlamıyor — grup satırlarında o alanlar anlamsız (bkz. `DirectSummary`).
  */
 export default function DirectChatScreen() {
   const { directId } = useLocalSearchParams<{ directId: string }>();
   const { data: direct } = useDirect(directId);
-  const peer = useDirectPeer(direct);
-
-  const isNotes = direct ? isSelfDirect(direct) : false;
-  const isOfficial = isOfficialProfile(peer);
+  const display = useDirectDisplay(direct);
   const { placeCall } = useCallActions();
 
-  // Kendine arama anlamsız; not sohbetinde arama düğmeleri gizlenir.
-  const canCall = Boolean(peer) && !isNotes && !isOfficial;
+  const isGroup = display?.isGroup ?? false;
+  const isNotes = display?.isSelf ?? false;
+  const peer = display?.peer;
+  const isOfficial = isOfficialProfile(peer);
+
+  /**
+   * Arama birebir sohbete özgü: kendine aramak anlamsız, resmî hesap bir
+   * sistem hesabı, grup araması için de sunucuda bir akış yok (LiveKit
+   * odaları kanal/DM başına açılıyor).
+   */
+  const canCall = Boolean(peer) && !isGroup && !isNotes && !isOfficial;
 
   return (
     <>
       <Stack.Screen
         options={{
-          title: isNotes ? "Notlarım" : peer ? displayNameOf(peer) : "",
+          title: display?.title ?? "",
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
               {canCall && peer ? (
@@ -56,7 +61,10 @@ export default function DirectChatScreen() {
                   />
                 </>
               ) : null}
-              {!isNotes && !isOfficial ? <DirectExpiryButton directId={directId} /> : null}
+              {/* Süreli mesaj ayarı birebir sohbetin özelliği. */}
+              {!isGroup && !isNotes && !isOfficial ? (
+                <DirectExpiryButton directId={directId} />
+              ) : null}
               <IconButton
                 icon="search"
                 label="Sohbette ara"
@@ -77,6 +85,20 @@ export default function DirectChatScreen() {
                 >
                   <Icon name="bookmark" size={16} color={colors.brand} />
                 </View>
+              ) : isGroup ? (
+                <Pressable
+                  onPress={() => router.push(`/directs/${directId}/info`)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Grup bilgisi"
+                >
+                  <Avatar
+                    imageUrl={display?.imageUrl}
+                    fallbackText={display?.fallbackText}
+                    size={30}
+                    radius={radii.sm}
+                    backgroundColor={colors.bg}
+                  />
+                </Pressable>
               ) : peer ? (
                 <Pressable
                   onPress={() => router.push(`/profile/${peer.id}`)}
@@ -104,9 +126,11 @@ export default function DirectChatScreen() {
         placeholder={
           isNotes
             ? "Kendine bir not yaz"
-            : peer
-              ? `@${peer.username} kullanıcısına yaz`
-              : "Mesaj yaz"
+            : isGroup
+              ? `${display?.title} grubuna yaz`
+              : peer
+                ? `@${peer.username} kullanıcısına yaz`
+                : "Mesaj yaz"
         }
       />
     </>

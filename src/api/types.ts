@@ -147,15 +147,6 @@ export interface DirectPeer {
   isOfficial?: boolean;
 }
 
-export interface DirectReadState {
-  id: string;
-  profileId: string;
-  directId: string | null;
-  channelId: string | null;
-  messageId: string;
-  lastReadAt: string;
-}
-
 export interface DirectLatestMessage {
   id: string;
   content: string;
@@ -172,8 +163,28 @@ export interface DirectLatestMessage {
   createdAt: string;
 }
 
+/** Grup sohbetinin bir üyesi — `Direct.groupMembers` satırı. */
+export interface DirectGroupMember {
+  id: string;
+  directId: string;
+  profileId: string;
+  joinedAt: string;
+  profile: DirectPeer;
+}
+
 export interface DirectSummary {
   id: string;
+  /**
+   * ⚠️ GRUPTA ANLAMSIZ. ciklet-web grup satırlarında `profileOneId` ve
+   * `profileTwoId` alanlarının İKİSİNİ DE sahibe bağlıyor
+   * (`api/directs/groups/route.ts`): eski şemadaki iki zorunlu ilişki grup
+   * üyeliği için kullanılmıyor ve sıradan bir üye hesabı silinince grubun
+   * cascade ile gitmesini engellemek için sahibe sabitleniyorlar.
+   *
+   * Yani bir grupta bu iki alandan "karşı taraf" TÜRETİLEMEZ ve ikisi eşit
+   * olduğu için grup, kendinle sohbetle karışır. Başlık/karşı taraf çözümü
+   * için `useDirectDisplay` kullan — bu alanları doğrudan okuma.
+   */
   profileOneId: string;
   profileTwoId: string;
   latestMessageId: string | null;
@@ -183,8 +194,28 @@ export interface DirectSummary {
   latestMessage?: DirectLatestMessage | null;
   profileOne: DirectPeer;
   profileTwo: DirectPeer;
-  /** Yalnızca oturum sahibinin okuma durumu (uç `where: { profileId }` ile filtreler). */
-  readStates?: DirectReadState[];
+
+  // ── Grup sohbetleri ───────────────────────────────────────────────
+  /** Grup mu, birebir mi. Alan yoksa birebir varsayılır (eski yanıtlar). */
+  isGroup?: boolean;
+  /** Grubun adı — kullanıcı ad vermediyse `null`; başlık üyelerden türetilir. */
+  name?: string | null;
+  /** Grubun avatarı. */
+  imageUrl?: string | null;
+  /** Grubu kuran profil; üye yönetimi yetkisi bunda. */
+  ownerId?: string | null;
+  /** Grup üyeleri, katılma sırasına göre. Birebir sohbette yok. */
+  groupMembers?: DirectGroupMember[];
+
+  /**
+   * Oturum sahibinin bu sohbetteki okundu imleci — **snowflake string**.
+   *
+   * ADR-0002 ile okundu imleci mesajların yanına (MongoDB) taşındı; uç artık
+   * `readStates` dizisi DEĞİL bu tek değeri döndürüyor
+   * (`ciklet-web/src/lib/direct.ts`). Karşılaştırma `lib/snowflake.ts`
+   * üzerinden yapılır — `Number`'a çevrilirse sessizce yuvarlanır.
+   */
+  readCursor?: string | null;
 }
 
 /** ciklet-web: `src/app/api/search/route.ts` */
@@ -198,6 +229,8 @@ export interface SearchResults {
 export interface UnreadCounts {
   channelUnreads: Record<string, { count: number; serverId: string }>;
   serverUnreads: Record<string, number>;
+  /** Sohbet başına okunmamış sayısı. */
+  directUnreads?: Record<string, number>;
 }
 
 /** ciklet-web: `src/app/api/activities/route.ts` */

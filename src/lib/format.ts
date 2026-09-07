@@ -125,7 +125,14 @@ export function displayNameOf(profile: {
   return profile.name?.trim() || profile.username;
 }
 
-/** Discord yoğunluğundaki DM satırı için tek satırlık son mesaj özeti. */
+/**
+ * Sohbet listesi satırı için tek satırlık son mesaj özeti.
+ *
+ * `authorName` YALNIZCA grup sohbetlerinde verilir. Birebir sohbette yazarı
+ * yazmak gereksiz (zaten satırın başlığı o kişi), grupta ise şart: "dosyayı
+ * attım" önizlemesinin kimden geldiği bilinmeden satır okunmuyor.
+ * Kendi mesajın her iki durumda da "Sen:" önekini alır.
+ */
 export function formatDirectPreview(
   message: {
     content: string;
@@ -134,7 +141,8 @@ export function formatDirectPreview(
     type: string;
     deleted: boolean;
   } | null | undefined,
-  myId: string | undefined
+  myId: string | undefined,
+  authorName?: string
 ): string {
   if (!message) return "Henüz mesaj yok";
   if (message.deleted) return "Mesaj silindi";
@@ -160,7 +168,11 @@ export function formatDirectPreview(
   }
 
   const isUserMessage = message.type === "DEFAULT" || message.type === "ACTIVITY_REPLY";
-  return isUserMessage && message.profileId === myId ? `Sen: ${preview}` : preview;
+  if (!isUserMessage) return preview;
+  if (message.profileId === myId) return `Sen: ${preview}`;
+  // Sistem mesajlarına ("Arama sona erdi") yazar öneki takılmaz; onların
+  // öznesi zaten metnin içinde.
+  return authorName ? `${authorName}: ${preview}` : preview;
 }
 
 /** Türkçe'ye uygun baş harf — "istanbul" → "İ". */

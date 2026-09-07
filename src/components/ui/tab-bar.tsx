@@ -25,7 +25,8 @@ import { Pressable } from "./pressable";
  * yarı saydam düz yüzeye düşülür.
  */
 const ICONS: Record<string, IconName> = {
-  index: "home",
+  index: "message",
+  servers: "compass",
   notifications: "bell",
   me: "user",
 };

@@ -41,14 +41,22 @@ export function useSocialEvents() {
         void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
       };
 
+      // Üyelik değişimi: gruba eklendin, çıkarıldın ya da biri ayrıldı.
+      // Yeni mesaj yok, bu yüzden `new_message` bu durumu hiç yakalamıyor.
+      const onDirectsUpdated = () => {
+        void queryClient.invalidateQueries({ queryKey: qk.directs });
+      };
+
       socket.on(ServerEvent.FRIEND_REQUEST, refreshFriends);
       socket.on(ServerEvent.FRIEND_REQUEST_UPDATED, refreshFriends);
       socket.on(ServerEvent.NEW_MESSAGE, onNewMessage);
+      socket.on(ServerEvent.DIRECTS_UPDATED, onDirectsUpdated);
 
       detach = () => {
         socket.off(ServerEvent.FRIEND_REQUEST, refreshFriends);
         socket.off(ServerEvent.FRIEND_REQUEST_UPDATED, refreshFriends);
         socket.off(ServerEvent.NEW_MESSAGE, onNewMessage);
+        socket.off(ServerEvent.DIRECTS_UPDATED, onDirectsUpdated);
       };
     });
 

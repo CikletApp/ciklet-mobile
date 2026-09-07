@@ -94,6 +94,21 @@ export const endpoints = {
   directExpiry: (directId: string) => `/api/directs/${encodeURIComponent(directId)}/expiry`,
   directInit: "/api/directs/init",
 
+  /**
+   * Grup sohbetleri.
+   *
+   * POST `{ memberIds, name? }` — yalnızca ARKADAŞLAR eklenebilir ve toplam
+   * kişi sayısı 10'u aşamaz; uç ikisini de zorluyor.
+   * PATCH `{ name?, memberIds? }` — yalnızca GRUP SAHİBİ çağırabilir ve
+   * `memberIds` fark değil TAM LİSTEDİR.
+   *
+   * Not: gruptan ayrılmak için ayrı bir uç YOK; `DELETE /api/directs/[id]`
+   * grup satırında "ayrıl" anlamına gelir.
+   */
+  createGroupDirect: "/api/directs/groups",
+  groupDirect: (directId: string) =>
+    `/api/directs/groups/${encodeURIComponent(directId)}`,
+
   // ── Mesaj geçmişi ─────────────────────────────────────────────────
   channelMessages: (channelId: string, cursor?: string) =>
     `/api/messages${qs({ channelId, cursor })}`,

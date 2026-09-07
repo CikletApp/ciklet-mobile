@@ -6,7 +6,7 @@ import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { usePreferences } from "@/stores/preferences";
 
-import { colors } from "@/theme/tokens";
+import { brand } from "@/theme/tokens";
 
 /**
  * Bildirimler.
@@ -47,17 +47,31 @@ const ANDROID_CALL_CHANNEL = "ciklet-calls";
  */
 export async function setupNotifications(): Promise<boolean> {
   if (Platform.OS === "android") {
+    /**
+     * ⚠️ `lightColor` ANDROID'E GİDİYOR, React Native'e değil.
+     *
+     * Yerel taraf değeri `Color.parseColor` ile ayrıştırıyor ve o yalnızca
+     * `#RRGGBB` / `#AARRGGBB` kabul ediyor. Tema paletindeki `colors.brand`
+     * ise `hsl(74, 100%, 40%)` biçiminde bir DİZE — React Native'in kendi
+     * stil motoru bunu anlıyor ama Android anlamıyor ve çağrı
+     * `IllegalArgumentException: Unknown color` ile reddediliyordu.
+     *
+     * Sonuç, açılışta yakalanmayan bir promise reddi ve ekranın altını
+     * kaplayan kırmızı hata şeridiydi. Marka sabiti (`brand.primary`)
+     * zaten hex olduğu için doğru kaynak odur; tema paletinden okunan HSL
+     * dizesi buraya hiç uygun değil.
+     */
     await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL, {
       name: "Mesajlar",
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 180, 100, 180],
-      lightColor: colors.brand,
+      lightColor: brand.primary,
     });
     await Notifications.setNotificationChannelAsync(ANDROID_CALL_CHANNEL, {
       name: "Aramalar",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 500, 250, 500, 250, 500],
-      lightColor: colors.brand,
+      lightColor: brand.primary,
     });
   }
 

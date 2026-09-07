@@ -94,6 +94,11 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="chat/channel/[channelId]" options={{ title: "" }} />
                 <Stack.Screen name="chat/direct/[directId]" options={{ title: "" }} />
+                <Stack.Screen
+                  name="directs/new-group"
+                  options={{ ...modalScreenOptions, title: "Yeni Grup" }}
+                />
+                <Stack.Screen name="directs/[directId]/info" options={{ title: "Grup Bilgisi" }} />
                 <Stack.Screen name="voice/[channelId]" options={{ title: "" }} />
                 <Stack.Screen
                   name="activities/index"

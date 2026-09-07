@@ -37,7 +37,18 @@ export function SegmentedTabs<T extends string>({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        /**
+         * YATAY bir ScrollView dikey alan İSTEMEMELİ.
+         *
+         * Varsayılan `flexGrow: 1` ile bu şerit bir flex sütununun içine
+         * konduğunda kalan bütün yüksekliği yutuyor ve çipler ekranın
+         * yarısı boyunda dev haplara dönüşüyor. Kapsayıcıya sarmak
+         * çağıranın hatırlaması gereken bir kural olurdu; kısıtlama
+         * bileşenin kendisine ait.
+         */
+        style={{ flexGrow: 0, flexShrink: 0 }}
         contentContainerStyle={{
+          alignItems: "center",
           gap: spacing.sm,
           paddingHorizontal: spacing.lg,
           paddingVertical: spacing.sm,

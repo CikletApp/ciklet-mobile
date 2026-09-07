@@ -1,19 +1,22 @@
 import { useMemo, useRef, useState } from "react";
 import { Alert, FlatList, RefreshControl, Text, View } from "react-native";
 import { router } from "expo-router";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import ReanimatedSwipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 
-import { api } from "@/api/client";
-import { endpoints } from "@/api/endpoints";
-import { hasUnread, useConversationList, useOpenDirect, useSelfDirect } from "@/api/hooks";
-import { qk } from "@/api/query-keys";
+import {
+  directDisplay,
+  hasUnread,
+  useConversationList,
+  useOpenDirect,
+  useRemoveDirect,
+  useSelfDirect,
+  type DirectDisplay,
+} from "@/api/hooks";
 import type { DirectSummary } from "@/api/types";
 import {
   Avatar,
-  BentoCard,
-  BentoShell,
   Button,
   CikletLogo,
   EmptyState,
@@ -23,12 +26,12 @@ import {
   ModernRefreshIndicator,
   Pressable,
   Screen,
+  SegmentedTabs,
   UnreadBadge,
+  type TabItem,
 } from "@/components/ui";
 import { ActiveNow } from "@/features/home/active-now";
-import { ChannelPanel } from "@/features/home/channel-panel";
-import { ServerRail } from "@/features/home/server-rail";
-import { displayNameOf, formatDirectPreview, formatRelativeShort } from "@/lib/format";
+import { formatDirectPreview, formatRelativeShort } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
@@ -36,73 +39,62 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
 
 /**
- * Ana Sayfa — bento düzeni: solda kalıcı sunucu rayı kartı, sağda içerik
- * kartı, aralarında boşluk.
+ * Sohbetler — birebir ve grup mesajlarının tek evi.
  *
- * İçerik seçime göre değişir: sunucu seçili değilse doğrudan mesajlar,
- * seçiliyse o sunucunun kanal listesi. Sunucuya girmek AYRI EKRANA GİTMEZ —
- * ray her zaman görünür kalır. Panel geçişi çapraz solmayla yumuşatılır.
+ * Sunucu rayı bu ekrandan KALKTI (bkz. `(tabs)/_layout.tsx`); kazanılan
+ * 64px doğrudan satırlara gitti, böylece avatar 38→52 büyüdü ve önizleme
+ * metni artık iki kelimede kırpılmıyor.
  */
-export default function HomeScreen() {
-  const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
 
-  return (
-    <Screen edges={["top", "left", "right"]} style={{ backgroundColor: colors.deep }}>
-      <BentoShell>
-        <BentoCard style={{ flex: 0, width: 64 }} flush>
-          <ServerRail
-            selectedServerId={selectedServerId}
-            onSelect={setSelectedServerId}
-          />
-        </BentoCard>
+/** Liste filtreleri — WhatsApp'taki gibi, listenin üstünde çip olarak. */
+type Filter = "all" | "unread" | "groups";
 
-        <BentoCard flush>
-          {/*
-            Panel değişimi anlık yerine çapraz solmayla: rayda sunucu
-            değiştirmek sık bir eylem ve sert geçiş her seferinde göz
-            yoruyor. `key` ile eski panel çıkış animasyonunu tamamlar.
-          */}
-          <Animated.View
-            key={selectedServerId ?? "directs"}
-            entering={FadeIn.duration(180)}
-            exiting={FadeOut.duration(120)}
-            style={{ flex: 1 }}
-          >
-            {selectedServerId ? (
-              <ChannelPanel serverId={selectedServerId} />
-            ) : (
-              <DirectPanel />
-            )}
-          </Animated.View>
-        </BentoCard>
-      </BentoShell>
-    </Screen>
-  );
-}
+const FILTERS: TabItem<Filter>[] = [
+  { id: "all", label: "Tümü" },
+  { id: "unread", label: "Okunmamış" },
+  { id: "groups", label: "Gruplar" },
+];
 
-/** Doğrudan mesajlar bölümü. */
-function DirectPanel() {
-  // Not sohbeti ("Notlarım") listeden ayrılır — kullanıcı kendini sohbet
-  // listesinde görmemeli; web de böyle davranıyor.
+export default function ChatsScreen() {
   const { conversations, isLoading, refetch, isRefetching } = useConversationList();
   const { data: selfDirect } = useSelfDirect();
   const openDirect = useOpenDirect();
+  const removeDirect = useRemoveDirect();
   const myId = useAuth((s) => s.profile?.id);
-  const queryClient = useQueryClient();
   const pinnedDirectIds = usePreferences((s) => s.pinnedDirectIds);
   const setPreference = usePreferences((s) => s.setPreference);
-  const sortedConversations = useMemo(() => {
-    const pinned = new Set(pinnedDirectIds);
-    return [...conversations].sort((a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)));
-  }, [conversations, pinnedDirectIds]);
+  const [filter, setFilter] = useState<Filter>("all");
 
-  const removeDirect = useMutation({
-    mutationFn: (directId: string) => api(endpoints.direct(directId), { method: "DELETE" }),
-    onSuccess: (_data, directId) => {
-      queryClient.setQueryData<DirectSummary[]>(qk.directs, (current) => current?.filter((item) => item.id !== directId));
-      setPreference("pinnedDirectIds", pinnedDirectIds.filter((id) => id !== directId));
-    },
-  });
+  /**
+   * Sıralama sunucudan gelir (son mesaj zamanına göre); istemci yalnızca
+   * sabitlenmişleri öne çeker ve filtreyi uygular.
+   */
+  const visible = useMemo(() => {
+    const pinned = new Set(pinnedDirectIds);
+    const filtered = conversations.filter((direct) => {
+      if (filter === "unread") return hasUnread(direct, myId);
+      if (filter === "groups") return direct.isGroup === true;
+      return true;
+    });
+    return [...filtered].sort(
+      (a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id))
+    );
+  }, [conversations, pinnedDirectIds, filter, myId]);
+
+  const unreadTotal = useMemo(
+    () => conversations.filter((direct) => hasUnread(direct, myId)).length,
+    [conversations, myId]
+  );
+
+  const filterItems = useMemo<TabItem<Filter>[]>(
+    () =>
+      FILTERS.map((item) =>
+        item.id === "unread" && unreadTotal > 0
+          ? { ...item, count: unreadTotal }
+          : item
+      ),
+    [unreadTotal]
+  );
 
   const togglePinned = (directId: string) => {
     const next = pinnedDirectIds.includes(directId)
@@ -123,15 +115,50 @@ function DirectPanel() {
     });
   };
 
+  /**
+   * Aynı uç birebir sohbette "listemden kaldır", grupta "gruptan ayrıl"
+   * anlamına geliyor (`useRemoveDirect`). Onay metni bu yüzden ayrışır —
+   * "Sohbeti sil" diyip kullanıcıyı gruptan çıkarmak dürüst olmaz.
+   */
+  const confirmRemove = (direct: DirectSummary, display: DirectDisplay) => {
+    const [title, message, action] = display.isGroup
+      ? [
+          "Gruptan ayrıl",
+          `"${display.title}" grubundan ayrılacaksın. Yeniden eklenmen için bir üyenin seni davet etmesi gerekir.`,
+          "Ayrıl",
+        ]
+      : [
+          "Sohbeti sil",
+          `${display.title} ile sohbet yalnızca senin listenden kaldırılacak.`,
+          "Sil",
+        ];
+
+    Alert.alert(title, message, [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: action,
+        style: "destructive",
+        onPress: () =>
+          removeDirect.mutate(direct.id, {
+            onSuccess: () =>
+              setPreference(
+                "pinnedDirectIds",
+                pinnedDirectIds.filter((id) => id !== direct.id)
+              ),
+          }),
+      },
+    ]);
+  };
+
   return (
-    <View style={{ flex: 1 }}>
+    <Screen edges={["top", "left", "right"]}>
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
           gap: spacing.sm,
           paddingHorizontal: spacing.lg,
-          paddingTop: spacing.lg,
+          paddingTop: spacing.sm,
           paddingBottom: spacing.sm,
         }}
       >
@@ -153,7 +180,7 @@ function DirectPanel() {
           flexDirection: "row",
           gap: spacing.sm,
           paddingHorizontal: spacing.lg,
-          paddingBottom: spacing.md,
+          paddingBottom: spacing.xs,
         }}
       >
         <Pressable
@@ -187,29 +214,26 @@ function DirectPanel() {
         />
       </View>
 
+      <SegmentedTabs
+        items={filterItems}
+        value={filter}
+        onChange={setFilter}
+        variant="pill"
+      />
+
       {isLoading ? (
         <ListSkeleton />
       ) : (
         <FlatList
-          data={sortedConversations}
+          data={visible}
           keyExtractor={(d) => d.id}
           renderItem={({ item }) => (
-            <DirectRow
+            <ConversationRow
               item={item}
               myId={myId}
               pinned={pinnedDirectIds.includes(item.id)}
               onTogglePinned={() => togglePinned(item.id)}
-              onDelete={() => {
-                const peer = item.profileOne.id === myId ? item.profileTwo : item.profileOne;
-                Alert.alert(
-                  "Sohbeti sil",
-                  `${displayNameOf(peer)} ile sohbet yalnızca senin listenden kaldırılacak.`,
-                  [
-                    { text: "Vazgeç", style: "cancel" },
-                    { text: "Sil", style: "destructive", onPress: () => removeDirect.mutate(item.id) },
-                  ]
-                );
-              }}
+              onRemove={(display) => confirmRemove(item, display)}
             />
           )}
           refreshControl={
@@ -221,38 +245,15 @@ function DirectPanel() {
               progressBackgroundColor="transparent"
             />
           }
-          ListHeaderComponent={
-            <View>
-              <ActiveNow />
-              <Text
-                style={{
-                  ...typography.overline,
-                  color: colors.muted,
-                  paddingHorizontal: spacing.md,
-                  paddingBottom: spacing.sm,
-                }}
-              >
-                DİREKT MESAJLAR
-              </Text>
-            </View>
-          }
-          contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET + spacing.lg }}
-          ListEmptyComponent={
-            <View style={{ paddingTop: spacing.xl }}>
-              <EmptyState
-                icon="message"
-                title="Henüz sohbet yok"
-                description="Bir arkadaş ekleyip ilk mesajını gönder."
-                action={
-                  <Button
-                    label="Arkadaş Ekle"
-                    icon="user-plus"
-                    onPress={() => router.push("/friends/add")}
-                  />
-                }
-              />
-            </View>
-          }
+          /* Etkin arkadaşlar şeridi yalnızca filtresiz görünümde anlamlı;
+             "Okunmamış" filtresindeyken listeyi aşağı itip filtrenin
+             sonucunu gizliyordu. */
+          ListHeaderComponent={filter === "all" ? <ActiveNow /> : null}
+          contentContainerStyle={{
+            paddingTop: spacing.xs,
+            paddingBottom: FLOATING_TAB_INSET + spacing.lg,
+          }}
+          ListEmptyComponent={<EmptyChats filter={filter} />}
         />
       )}
 
@@ -275,32 +276,117 @@ function DirectPanel() {
           haptic="medium"
         />
       </View>
+    </Screen>
+  );
+}
+
+/** Boş durum filtreye göre değişir — yoksa "arkadaş ekle" yanlış tavsiye olur. */
+function EmptyChats({ filter }: { filter: Filter }) {
+  if (filter === "unread") {
+    return (
+      <View style={{ paddingTop: spacing.xl }}>
+        <EmptyState
+          icon="check"
+          title="Hepsi okundu"
+          description="Okunmamış mesajın yok."
+        />
+      </View>
+    );
+  }
+
+  if (filter === "groups") {
+    return (
+      <View style={{ paddingTop: spacing.xl }}>
+        <EmptyState
+          icon="users"
+          title="Henüz grubun yok"
+          description="Arkadaşlarınla bir grup kurup birlikte konuşmaya başla."
+          action={
+            <Button
+              label="Yeni Grup"
+              icon="users"
+              onPress={() => router.push("/directs/new-group")}
+            />
+          }
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ paddingTop: spacing.xl }}>
+      <EmptyState
+        icon="message"
+        title="Henüz sohbet yok"
+        description="Bir arkadaş ekleyip ilk mesajını gönder."
+        action={
+          <Button
+            label="Arkadaş Ekle"
+            icon="user-plus"
+            onPress={() => router.push("/friends/add")}
+          />
+        }
+      />
     </View>
   );
 }
 
-function DirectRow({
+function ConversationRow({
   item,
   myId,
   pinned,
   onTogglePinned,
-  onDelete,
+  onRemove,
 }: {
   item: DirectSummary;
   myId: string | undefined;
   pinned: boolean;
   onTogglePinned: () => void;
-  onDelete: () => void;
+  onRemove: (display: DirectDisplay) => void;
 }) {
   const swipeable = useRef<SwipeableMethods>(null);
-  const peer = item.profileOne.id === myId ? item.profileTwo : item.profileOne;
+  // Grup/birebir ayrımının TEK kaynağı; satır profil alanlarını okumaz.
+  const display = directDisplay(item, myId);
   const unreadHere = hasUnread(item, myId);
-  const isOfficial = isOfficialProfile(peer);
+  const isOfficial = !display.isGroup && isOfficialProfile(display.peer);
+
+  /**
+   * Grupta önizlemeye yazar adı eklenir: "dosyayı attım" satırının kimden
+   * geldiği bilinmeden grup listesi okunamıyor. Birebirde gereksiz —
+   * satırın başlığı zaten o kişi.
+   */
+  const authorName = display.isGroup
+    ? display.members.find((m) => m.id === item.latestMessage?.profileId)
+        ?.name?.trim() ||
+      display.members.find((m) => m.id === item.latestMessage?.profileId)
+        ?.username
+    : undefined;
 
   const action = (label: string, tint: string, icon: "bookmark" | "close") => (
-    <View style={{ width: 84, alignItems: "center", justifyContent: "center", gap: 3, backgroundColor: tint }}>
-      <Icon name={icon} size={19} color={colors.onBrand} filled={icon === "bookmark"} />
-      <Text style={{ ...typography.caption, fontWeight: "700", color: colors.onBrand }}>{label}</Text>
+    <View
+      style={{
+        width: 84,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 3,
+        backgroundColor: tint,
+      }}
+    >
+      <Icon
+        name={icon}
+        size={19}
+        color={colors.onBrand}
+        filled={icon === "bookmark"}
+      />
+      <Text
+        style={{
+          ...typography.caption,
+          fontWeight: "700",
+          color: colors.onBrand,
+        }}
+      >
+        {label}
+      </Text>
     </View>
   );
 
@@ -311,46 +397,113 @@ function DirectRow({
       overshootFriction={8}
       leftThreshold={52}
       rightThreshold={52}
-      renderLeftActions={() => action(pinned ? "Çöz" : "Sabitle", colors.brand, "bookmark")}
-      renderRightActions={() => action("Sil", colors.danger, "close")}
+      renderLeftActions={() =>
+        action(pinned ? "Çöz" : "Sabitle", colors.brand, "bookmark")
+      }
+      renderRightActions={() =>
+        action(display.isGroup ? "Ayrıl" : "Sil", colors.danger, "close")
+      }
       onSwipeableOpen={(direction) => {
         if (direction === "right") onTogglePinned();
-        else onDelete();
+        else onRemove(display);
         requestAnimationFrame(() => swipeable.current?.close());
       }}
-      containerStyle={{ marginHorizontal: spacing.xs, borderRadius: radii.md, overflow: "hidden" }}
+      containerStyle={{ borderRadius: radii.md, overflow: "hidden" }}
     >
       <Pressable
         onPress={() => router.push(`/chat/direct/${item.id}`)}
         haptic="light"
         noHitSlop
         accessibilityRole="button"
-        accessibilityLabel={`${displayNameOf(peer)} ile sohbet${unreadHere ? ", okunmamış mesaj var" : ""}`}
+        accessibilityLabel={`${display.title}${display.isGroup ? " grubu" : " ile sohbet"}${unreadHere ? ", okunmamış mesaj var" : ""}`}
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
-          gap: spacing.sm,
-          paddingHorizontal: spacing.sm,
-          paddingVertical: 4,
-          minHeight: 50,
-          backgroundColor: pressed ? colors.raised : colors.bento,
+          gap: spacing.md,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.sm,
+          minHeight: 72,
+          backgroundColor: pressed ? colors.raised : colors.bg,
         })}
       >
-        <Avatar profileId={peer.id} imageUrl={peer.imageUrl} fallbackText={peer.username} size={38} showPresence={!isOfficial} backgroundColor={colors.bento} />
-        <View style={{ flex: 1, gap: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-            {pinned ? <Icon name="bookmark" size={12} color={colors.brand} filled /> : null}
-            <Text style={{ ...typography.bodyStrong, color: unreadHere ? colors.bright : colors.text, flexShrink: 1 }} numberOfLines={1}>{displayNameOf(peer)}</Text>
+        <Avatar
+          profileId={display.peer?.id}
+          imageUrl={display.imageUrl}
+          fallbackText={display.fallbackText}
+          size={52}
+          /* Grubun tek bir "çevrimiçi" durumu yok; nokta yalnızca kişilerde. */
+          showPresence={!display.isGroup && !isOfficial}
+          backgroundColor={colors.bg}
+        />
+
+        <View style={{ flex: 1, gap: 2 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
+            }}
+          >
+            {pinned ? (
+              <Icon name="bookmark" size={12} color={colors.brand} filled />
+            ) : null}
+            {display.isGroup ? (
+              <Icon name="users" size={13} color={colors.muted} />
+            ) : null}
+            <Text
+              style={{
+                ...typography.bodyStrong,
+                color: unreadHere ? colors.bright : colors.text,
+                flexShrink: 1,
+              }}
+              numberOfLines={1}
+            >
+              {display.title}
+            </Text>
             {isOfficial ? (
-              <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
-                <Text style={{ fontSize: 9, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>RESMÎ</Text>
+              <View
+                style={{
+                  paddingHorizontal: 5,
+                  paddingVertical: 1,
+                  borderRadius: 4,
+                  backgroundColor: colors.brand,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 9,
+                    lineHeight: 12,
+                    fontWeight: "800",
+                    color: colors.onBrand,
+                  }}
+                >
+                  RESMÎ
+                </Text>
               </View>
             ) : null}
           </View>
-          <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{formatDirectPreview(item.latestMessage, myId)}</Text>
+          <Text
+            style={{
+              ...typography.caption,
+              color: unreadHere ? colors.text : colors.muted,
+            }}
+            numberOfLines={1}
+          >
+            {formatDirectPreview(item.latestMessage, myId, authorName)}
+          </Text>
         </View>
+
         <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
-          {item.latestMessageAt ? <Text style={{ ...typography.caption, color: colors.muted }}>{formatRelativeShort(item.latestMessageAt)}</Text> : null}
+          {item.latestMessageAt ? (
+            <Text
+              style={{
+                ...typography.caption,
+                color: unreadHere ? colors.brand : colors.muted,
+              }}
+            >
+              {formatRelativeShort(item.latestMessageAt)}
+            </Text>
+          ) : null}
           {unreadHere ? <UnreadBadge count={1} dot /> : null}
         </View>
       </Pressable>
