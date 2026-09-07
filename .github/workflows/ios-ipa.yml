@@ -48,9 +48,36 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - name: Xcode 26 seç
+        # `macos-15` imajının VARSAYILAN Xcode'u 16.4 ve o da Swift 6.1 ile
+        # geliyor. Expo SDK 57'nin `expo-modules-jsi` paketi ise kendi SwiftPM
+        # manifestinde (`node_modules/expo-modules-jsi/apple/Package.swift`)
+        # `swift-tools-version: 6.2` istiyor. Bu paketi CocoaPods'un
+        # "Build ExpoModulesJSI xcframework" betiği iç içe bir xcodebuild ile
+        # derlediği için derleme şurada patlıyordu:
+        #
+        #   xcodebuild: error: Could not resolve package dependencies:
+        #     package 'apple' is using Swift tools version 6.2.0
+        #     but the installed version is 6.1.0
+        #
+        # Xcode 26 imajda zaten KURULU, sadece seçili değil — seçmek yetiyor,
+        # runner'ı değiştirmeye gerek yok. `xcode-select` global olduğu için
+        # sonraki tüm adımlar (prebuild, pod install, xcodebuild) aynı
+        # araç zincirini kullanır; bu yüzden adım en başta duruyor.
+        run: |
+          xcode=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1)
+          if [ -z "$xcode" ]; then
+            echo "Xcode 26 bulunamadı. İmajdaki sürümler:" >&2
+            ls -d /Applications/Xcode*.app >&2
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode/Contents/Developer"
+          xcodebuild -version
+          swift --version
+
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -119,7 +146,7 @@ jobs:
           zip -qry ciklet-unsigned.ipa Payload
           ls -lh ciklet-unsigned.ipa
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ciklet-ios-unsigned-ipa
           path: ios/ciklet-unsigned.ipa
