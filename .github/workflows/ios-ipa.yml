@@ -50,26 +50,35 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Xcode 26 seç
-        # `macos-15` imajının VARSAYILAN Xcode'u 16.4 ve o da Swift 6.1 ile
-        # geliyor. Expo SDK 57'nin `expo-modules-jsi` paketi ise kendi SwiftPM
+      - name: Xcode sürümünü sabitle
+        # `macos-15` imajının VARSAYILAN Xcode'u 16.4 ve o Swift 6.1 ile
+        # geliyor. Expo SDK 57'nin `expo-modules-jsi` paketi ise SwiftPM
         # manifestinde (`node_modules/expo-modules-jsi/apple/Package.swift`)
-        # `swift-tools-version: 6.2` istiyor. Bu paketi CocoaPods'un
-        # "Build ExpoModulesJSI xcframework" betiği iç içe bir xcodebuild ile
-        # derlediği için derleme şurada patlıyordu:
+        # `swift-tools-version: 6.2` istiyor. Paketi CocoaPods'un "Build
+        # ExpoModulesJSI xcframework" betiği iç içe bir xcodebuild ile
+        # derlediğinden, derleme şurada düşüyordu:
         #
         #   xcodebuild: error: Could not resolve package dependencies:
         #     package 'apple' is using Swift tools version 6.2.0
         #     but the installed version is 6.1.0
         #
-        # Xcode 26 imajda zaten KURULU, sadece seçili değil — seçmek yetiyor,
-        # runner'ı değiştirmeye gerek yok. `xcode-select` global olduğu için
-        # sonraki tüm adımlar (prebuild, pod install, xcodebuild) aynı
-        # araç zincirini kullanır; bu yüzden adım en başta duruyor.
+        # Xcode 26 serisi Swift 6.2 taşıyor ve imajda zaten KURULU — sadece
+        # seçili değil, yani runner'ı değiştirmeye gerek yok.
+        #
+        # Neden "kurulu en yeni 26.x" değil de SABİT sürüm: bir denemede en
+        # yenisi (26.3) seçildi ve bu sefer Expo'nun KENDİ Swift kodu
+        # derlenmedi — `JavaScriptCodable+Date.swift` içinde "type of
+        # expression is ambiguous". Imaj güncellemeleriyle Xcode sessizce
+        # ilerlediği için araç zinciri altımızdan kayıyor. Yükseltmek
+        # istediğinde bilerek burayı değiştir.
+        env:
+          XCODE_VERSION: "26.1"
+        # `xcode-select` global olduğundan adım en başta duruyor: prebuild,
+        # pod install ve xcodebuild aynı araç zincirini görmeli.
         run: |
-          xcode=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1)
-          if [ -z "$xcode" ]; then
-            echo "Xcode 26 bulunamadı. İmajdaki sürümler:" >&2
+          xcode="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$xcode" ]; then
+            echo "Xcode ${XCODE_VERSION} imajda yok. Kurulu sürümler:" >&2
             ls -d /Applications/Xcode*.app >&2
             exit 1
           fi
