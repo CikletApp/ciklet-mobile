@@ -65,14 +65,21 @@ jobs:
         # Xcode 26 serisi Swift 6.2 taşıyor ve imajda zaten KURULU — sadece
         # seçili değil, yani runner'ı değiştirmeye gerek yok.
         #
-        # Neden "kurulu en yeni 26.x" değil de SABİT sürüm: bir denemede en
-        # yenisi (26.3) seçildi ve bu sefer Expo'nun KENDİ Swift kodu
-        # derlenmedi — `JavaScriptCodable+Date.swift` içinde "type of
-        # expression is ambiguous". Imaj güncellemeleriyle Xcode sessizce
-        # ilerlediği için araç zinciri altımızdan kayıyor. Yükseltmek
-        # istediğinde bilerek burayı değiştir.
+        # Sürüm neden SABİT ve neden bu kadar YENİ:
+        #
+        # 26.1 denendi, olmadı: expo-modules-jsi `weak let` kullanıyor ve
+        # 26.1'in Swift'i onu kabul etmiyor (15 hata, "weak must be a
+        # mutable variable" + C++ interop). Yani alt sınır 26.1 DEĞİL.
+        #
+        # 26.3 + jsi 57.0.4 ise tek bir hata veriyordu ("type of expression
+        # is ambiguous", JavaScriptCodable+Date.swift) — onu da 57.0.8
+        # düzeltti. Çalışan bileşim bu ikisi.
+        #
+        # Sabit tutulmasının sebebi: imaj güncellemeleriyle Xcode sessizce
+        # ilerlerse araç zinciri yine altımızdan kayar. Yükseltme bilinçli
+        # bir tercih olsun.
         env:
-          XCODE_VERSION: "26.1"
+          XCODE_VERSION: "26.3"
         # `xcode-select` global olduğundan adım en başta duruyor: prebuild,
         # pod install ve xcodebuild aynı araç zincirini görmeli.
         run: |
