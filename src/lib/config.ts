@@ -31,6 +31,20 @@ export const API_BASE_URL = normalizeBase(
 );
 
 /**
+ * Sunucunun verdiği görsel adresini <Image>'ın açabileceği hale getirir.
+ *
+ * Rich presence kapakları göreli yol olarak gelir
+ * (`/api/presence/covers/<sha256>`; web aynı kökenden çözer). Mobilde
+ * kök olmadığı için API adresine eklenir. Mutlak adresler olduğu gibi kalır;
+ * `//` ile başlayan protokol-göreli adres yol sayılmaz.
+ */
+export function resolveMediaUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith("/") && !url.startsWith("//")) return `${API_BASE_URL}${url}`;
+  return url;
+}
+
+/**
  * LiveKit sinyal adresi — **YOL EKLENMEZ**.
  *
  * `livekit-client` sunucu adresine `/rtc` yolunu KENDİSİ ekliyor

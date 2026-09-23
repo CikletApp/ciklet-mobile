@@ -7,6 +7,7 @@ import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import { useFriends, useOpenDirect } from "@/api/hooks";
 import { Avatar, Icon, Pressable } from "@/components/ui";
+import { resolveMediaUrl } from "@/lib/config";
 import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { usePresenceStore } from "@/stores/presence";
@@ -45,8 +46,11 @@ export function ActiveNow() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.md }}>
         {active.map(({ friend, entry }) => {
           const activity = entry?.activity;
-          const activityLogo = activity?.appIconUrl || activity?.largeImageUrl;
-          const backdrop = activity?.largeImageUrl || activityLogo;
+          // Kapaklar göreli yol olarak gelebilir (/api/presence/covers/…).
+          const largeImage = resolveMediaUrl(activity?.largeImageUrl);
+          const smallImage = resolveMediaUrl(activity?.smallImageUrl);
+          const activityLogo = resolveMediaUrl(activity?.appIconUrl) || largeImage;
+          const backdrop = largeImage || activityLogo;
           const label = activity
             ? `${activity.name} ${activity.type === "LISTENING" ? "dinliyor" : activity.type === "WATCHING" ? "izliyor" : activity.type === "PLAYING" ? "oynuyor" : "kullanıyor"}`
             : "Çevrimiçi";
@@ -129,9 +133,9 @@ export function ActiveNow() {
                   {activityLogo ? (
                     <View>
                       <Image source={{ uri: activityLogo }} contentFit="cover" style={{ width: 42, height: 42, borderRadius: radii.md, backgroundColor: colors.raised }} />
-                      {activity.smallImageUrl ? (
+                      {smallImage ? (
                         <Image
-                          source={{ uri: activity.smallImageUrl }}
+                          source={{ uri: smallImage }}
                           contentFit="cover"
                           style={{ position: "absolute", right: -3, bottom: -3, width: 17, height: 17, borderRadius: radii.full, borderWidth: 2, borderColor: colors.panel, backgroundColor: colors.raised }}
                         />
