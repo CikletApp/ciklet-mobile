@@ -37,6 +37,8 @@ export const qk = {
   },
 
   unreadCounts: ["unread-counts"] as const,
+  /** Sohbet başına okunmamış sayısı (gruplar dahil) — `/api/inbox`. */
+  inbox: ["inbox"] as const,
 
   search: (query: string) => ["search", query] as const,
 

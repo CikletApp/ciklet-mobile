@@ -64,22 +64,29 @@ export function SegmentedTabs<T extends string>({
               noHitSlop
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
+              /*
+               * Seçili çip dolgu yerine vurgunun yüzeye karışmış tonu ve
+               * ince vurgu kenarı taşır: tam dolgu, listedeki okunmamış
+               * rozetleriyle aynı ağırlıkta bağırıyordu.
+               */
               style={({ pressed }) => ({
                 flexDirection: "row",
                 alignItems: "center",
-                gap: spacing.xs,
-                paddingHorizontal: spacing.lg,
-                paddingVertical: spacing.sm,
+                gap: 6,
+                minHeight: 36,
+                paddingHorizontal: 14,
                 borderRadius: radii.full,
-                backgroundColor: active ? colors.brand : colors.panel,
-                opacity: pressed ? 0.8 : 1,
+                borderWidth: 1,
+                borderColor: active ? colors.brand : colors.border,
+                backgroundColor: active ? colors.brandSoft : pressed ? colors.raised : "transparent",
               })}
             >
               <Text
                 style={{
                   ...typography.caption,
-                  fontWeight: "600",
-                  color: active ? colors.onBrand : colors.text,
+                  fontSize: 14,
+                  fontWeight: active ? "700" : "600",
+                  color: active ? colors.brand : colors.text,
                 }}
               >
                 {item.label}
@@ -88,7 +95,8 @@ export function SegmentedTabs<T extends string>({
                 <Text
                   style={{
                     ...typography.caption,
-                    color: active ? colors.onBrand : colors.muted,
+                    fontWeight: "700",
+                    color: active ? colors.brand : colors.muted,
                   }}
                 >
                   {item.count}

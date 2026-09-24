@@ -32,10 +32,10 @@ export function useSocialEvents() {
       onGatewayEvent(ServerEvent.FRIEND_REQUEST_UPDATED, () => invalidate(qk.friends)),
       // Sohbet açık değilken gelen DM: liste sırası ve rozet sunucudan gelir,
       // istemcide yeniden hesaplamak yerine tazelemek doğrusu.
-      onGatewayEvent(ServerEvent.MESSAGE_NOTIFICATION, () => invalidate(qk.directs, qk.unreadCounts)),
+      onGatewayEvent(ServerEvent.MESSAGE_NOTIFICATION, () => invalidate(qk.directs, qk.unreadCounts, qk.inbox)),
       // Grup kuruldu, eklendin, çıkarıldın — yeni mesaj olmadığı için
       // bildirim olayı bunu yakalamaz.
-      onGatewayEvent(ServerEvent.DIRECTS_UPDATED, () => invalidate(qk.directs)),
+      onGatewayEvent(ServerEvent.DIRECTS_UPDATED, () => invalidate(qk.directs, qk.inbox)),
       onGatewayEvent(ServerEvent.CHANNEL_MESSAGE, () => invalidate(qk.unreadCounts)),
       onGatewayEvent(ServerEvent.SERVERS_REMOVED, () => invalidate(qk.memberships, qk.unreadCounts)),
       onGatewayEvent(ServerEvent.SERVER_DELETED, () => invalidate(qk.memberships, qk.unreadCounts)),

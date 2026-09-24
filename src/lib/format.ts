@@ -85,6 +85,26 @@ export function formatRelativeShort(iso: string): string {
 }
 
 /**
+ * Sohbet listesindeki zaman: bugün saat ("15:00"), dün "Dün", son bir hafta
+ * gün adı ("Salı"), daha eskisi tarih ("24.09.2026"). Mesajlaşma
+ * uygulamalarındaki alışkanlıkla aynı; "25d" gibi kısaltmalar Türkçede
+ * dakika mı gün mü belli değildi.
+ */
+export function formatChatListTime(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  if (isSameDay(date, now)) return timeFormat.format(date);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(date, yesterday)) return "Dün";
+  if (now.getTime() - date.getTime() < 6 * DAY) {
+    const day = weekdayFormat.format(date);
+    return day.charAt(0).toLocaleUpperCase("tr-TR") + day.slice(1);
+  }
+  return shortDateFormat.format(date);
+}
+
+/**
  * İki mesaj aynı gruba mı ait — aynı gönderen ve 5 dakikadan yakın.
  * Gruplanan mesajlarda avatar/ad tekrarlanmaz, liste okunur kalır.
  */

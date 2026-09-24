@@ -9,6 +9,7 @@ import {
   directDisplay,
   hasUnread,
   useConversationList,
+  useDirectUnreadCounts,
   useOpenDirect,
   useRemoveDirect,
   useSelfDirect,
@@ -18,20 +19,21 @@ import type { DirectSummary } from "@/api/types";
 import {
   Avatar,
   Button,
-  CikletLogo,
+  DropdownMenu,
   EmptyState,
+  HeaderButton,
   Icon,
-  IconButton,
   ListSkeleton,
   ModernRefreshIndicator,
   Pressable,
   Screen,
   SegmentedTabs,
+  TabHeader,
   UnreadBadge,
   type TabItem,
 } from "@/components/ui";
 import { ActiveNow } from "@/features/home/active-now";
-import { formatDirectPreview, formatRelativeShort } from "@/lib/format";
+import { formatChatListTime, formatDirectPreview } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
@@ -46,12 +48,13 @@ import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
  * metni artık iki kelimede kırpılmıyor.
  */
 
-/** Liste filtreleri — WhatsApp'taki gibi, listenin üstünde çip olarak. */
-type Filter = "all" | "unread" | "groups";
+/** Liste filtreleri — listenin üstünde çip olarak. */
+type Filter = "all" | "unread" | "pinned" | "groups";
 
 const FILTERS: TabItem<Filter>[] = [
   { id: "all", label: "Tümü" },
   { id: "unread", label: "Okunmamış" },
+  { id: "pinned", label: "Sabitlenenler" },
   { id: "groups", label: "Gruplar" },
 ];
 
@@ -64,6 +67,8 @@ export default function ChatsScreen() {
   const pinnedDirectIds = usePreferences((s) => s.pinnedDirectIds);
   const setPreference = usePreferences((s) => s.setPreference);
   const [filter, setFilter] = useState<Filter>("all");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { counts: unreadCounts } = useDirectUnreadCounts();
 
   /**
    * Sıralama sunucudan gelir (son mesaj zamanına göre); istemci yalnızca
@@ -73,6 +78,7 @@ export default function ChatsScreen() {
     const pinned = new Set(pinnedDirectIds);
     const filtered = conversations.filter((direct) => {
       if (filter === "unread") return hasUnread(direct, myId);
+      if (filter === "pinned") return pinned.has(direct.id);
       if (filter === "groups") return direct.isGroup === true;
       return true;
     });
@@ -152,73 +158,54 @@ export default function ChatsScreen() {
 
   return (
     <Screen edges={["top", "left", "right"]}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing.sm,
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.sm,
-          paddingBottom: spacing.sm,
-        }}
+      <TabHeader
+        title="Sohbetler"
+        left={<HeaderButton icon="more" label="Diğer seçenekler" onPress={() => setMenuOpen(true)} />}
+        right={
+          <>
+            <HeaderButton icon="user-plus" label="Arkadaş ekle" onPress={() => router.push("/friends/add")} />
+            <HeaderButton icon="plus" label="Yeni sohbet" accent onPress={() => router.push("/friends/quick-message")} />
+          </>
+        }
       >
-        <View style={{ flex: 1, justifyContent: "center" }}>
-          <CikletLogo height={22} color={colors.bright} />
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+          <Pressable
+            onPress={() => router.push("/search")}
+            noHitSlop
+            accessibilityRole="search"
+            accessibilityLabel="Mesajlarda ve kişilerde ara"
+            style={({ pressed }) => ({
+              minHeight: 44,
+              borderRadius: radii.full,
+              backgroundColor: pressed ? colors.raised : colors.panel,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.sm,
+              paddingHorizontal: spacing.md,
+            })}
+          >
+            <Icon name="search" size={19} color={colors.muted} />
+            <Text style={{ ...typography.body, color: colors.muted, flex: 1 }}>Sohbetlerde ve kişilerde ara</Text>
+          </Pressable>
         </View>
-        <IconButton
-          icon="bookmark"
-          label="Notlarım"
-          background="transparent"
-          tint={colors.muted}
-          onPress={openNotes}
-          disabled={openDirect.isPending}
-        />
-      </View>
-
-      <View
-        style={{
-          flexDirection: "row",
-          gap: spacing.sm,
-          paddingHorizontal: spacing.lg,
-          paddingBottom: spacing.xs,
-        }}
-      >
-        <Pressable
-          onPress={() => router.push("/search")}
-          noHitSlop
-          accessibilityRole="search"
-          accessibilityLabel="Mesajlarda ve kişilerde ara"
-          style={({ pressed }) => ({
-            flex: 1,
-            minHeight: 46,
-            borderRadius: radii.full,
-            backgroundColor: pressed ? colors.raised : colors.panel,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing.md,
-            paddingHorizontal: spacing.md,
-          })}
-        >
-          <Icon name="search" size={20} color={colors.muted} />
-          <Text style={{ ...typography.body, color: colors.muted, flex: 1 }}>
-            Ara
-          </Text>
-        </Pressable>
-        <IconButton
-          icon="user-plus"
-          label="Arkadaş ekle"
-          size={46}
-          background={colors.panel}
-          tint={colors.text}
-          onPress={() => router.push("/friends/add")}
-        />
-      </View>
+      </TabHeader>
 
       <SegmentedTabs
         items={filterItems}
         value={filter}
         onChange={setFilter}
         variant="pill"
+      />
+
+      <DropdownMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        items={[
+          { label: "Notlarım", icon: "bookmark", onPress: openNotes },
+          { label: "Yeni grup", icon: "users", onPress: () => router.push("/directs/new-group") },
+          { label: "Arkadaşlar", icon: "user", onPress: () => router.push("/friends") },
+          { label: "Ayarlar", icon: "settings", onPress: () => router.push("/settings") },
+        ]}
       />
 
       {isLoading ? (
@@ -231,6 +218,7 @@ export default function ChatsScreen() {
             <ConversationRow
               item={item}
               myId={myId}
+              unreadCount={unreadCounts[item.id] ?? 0}
               pinned={pinnedDirectIds.includes(item.id)}
               onTogglePinned={() => togglePinned(item.id)}
               onRemove={(display) => confirmRemove(item, display)}
@@ -259,23 +247,6 @@ export default function ChatsScreen() {
 
       <ModernRefreshIndicator visible={isRefetching} />
 
-      <View
-        style={{
-          position: "absolute",
-          right: spacing.lg,
-          bottom: FLOATING_TAB_INSET + spacing.md,
-        }}
-      >
-        <IconButton
-          icon="pencil"
-          label="Yeni mesaj"
-          size={52}
-          background={colors.brand}
-          tint={colors.onBrand}
-          onPress={() => router.push("/friends/quick-message")}
-          haptic="medium"
-        />
-      </View>
     </Screen>
   );
 }
@@ -289,6 +260,18 @@ function EmptyChats({ filter }: { filter: Filter }) {
           icon="check"
           title="Hepsi okundu"
           description="Okunmamış mesajın yok."
+        />
+      </View>
+    );
+  }
+
+  if (filter === "pinned") {
+    return (
+      <View style={{ paddingTop: spacing.xl }}>
+        <EmptyState
+          icon="bookmark"
+          title="Sabitlenmiş sohbet yok"
+          description="Bir sohbeti sağa kaydırarak listenin en üstüne sabitleyebilirsin."
         />
       </View>
     );
@@ -331,15 +314,22 @@ function EmptyChats({ filter }: { filter: Filter }) {
   );
 }
 
+/** Satır ölçüleri — ayraç avatarın sağından başlar, metin sütunuyla hizalı. */
+const ROW_AVATAR = 56;
+const ROW_GAP = spacing.md;
+
 function ConversationRow({
   item,
   myId,
+  unreadCount,
   pinned,
   onTogglePinned,
   onRemove,
 }: {
   item: DirectSummary;
   myId: string | undefined;
+  /** `/api/inbox` sayısı; yoksa okunmamış bilgisi imleçten türetilir. */
+  unreadCount: number;
   pinned: boolean;
   onTogglePinned: () => void;
   onRemove: (display: DirectDisplay) => void;
@@ -347,7 +337,7 @@ function ConversationRow({
   const swipeable = useRef<SwipeableMethods>(null);
   // Grup/birebir ayrımının TEK kaynağı; satır profil alanlarını okumaz.
   const display = directDisplay(item, myId);
-  const unreadHere = hasUnread(item, myId);
+  const unreadHere = unreadCount > 0 || hasUnread(item, myId);
   const isOfficial = !display.isGroup && isOfficialProfile(display.peer);
 
   /**
@@ -355,12 +345,10 @@ function ConversationRow({
    * geldiği bilinmeden grup listesi okunamıyor. Birebirde gereksiz —
    * satırın başlığı zaten o kişi.
    */
-  const authorName = display.isGroup
+  const author = display.isGroup
     ? display.members.find((m) => m.id === item.latestMessage?.profileId)
-        ?.name?.trim() ||
-      display.members.find((m) => m.id === item.latestMessage?.profileId)
-        ?.username
     : undefined;
+  const authorName = author?.name?.trim() || author?.username;
 
   const action = (label: string, tint: string, icon: "bookmark" | "close") => (
     <View
@@ -372,21 +360,8 @@ function ConversationRow({
         backgroundColor: tint,
       }}
     >
-      <Icon
-        name={icon}
-        size={19}
-        color={colors.onBrand}
-        filled={icon === "bookmark"}
-      />
-      <Text
-        style={{
-          ...typography.caption,
-          fontWeight: "700",
-          color: colors.onBrand,
-        }}
-      >
-        {label}
-      </Text>
+      <Icon name={icon} size={19} color={colors.onBrand} filled={icon === "bookmark"} />
+      <Text style={{ ...typography.caption, fontWeight: "700", color: colors.onBrand }}>{label}</Text>
     </View>
   );
 
@@ -397,114 +372,113 @@ function ConversationRow({
       overshootFriction={8}
       leftThreshold={52}
       rightThreshold={52}
-      renderLeftActions={() =>
-        action(pinned ? "Çöz" : "Sabitle", colors.brand, "bookmark")
-      }
-      renderRightActions={() =>
-        action(display.isGroup ? "Ayrıl" : "Sil", colors.danger, "close")
-      }
+      renderLeftActions={() => action(pinned ? "Çöz" : "Sabitle", colors.brand, "bookmark")}
+      renderRightActions={() => action(display.isGroup ? "Ayrıl" : "Sil", colors.danger, "close")}
       onSwipeableOpen={(direction) => {
         if (direction === "right") onTogglePinned();
         else onRemove(display);
         requestAnimationFrame(() => swipeable.current?.close());
       }}
-      containerStyle={{ borderRadius: radii.md, overflow: "hidden" }}
     >
       <Pressable
         onPress={() => router.push(`/chat/direct/${item.id}`)}
+        onLongPress={() => onTogglePinned()}
         haptic="light"
         noHitSlop
         accessibilityRole="button"
         accessibilityLabel={`${display.title}${display.isGroup ? " grubu" : " ile sohbet"}${unreadHere ? ", okunmamış mesaj var" : ""}`}
+        accessibilityHint="Sabitlemek için basılı tut"
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
-          gap: spacing.md,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.sm,
-          minHeight: 72,
+          gap: ROW_GAP,
+          paddingLeft: spacing.lg,
+          minHeight: 84,
           backgroundColor: pressed ? colors.raised : colors.bg,
         })}
       >
-        <Avatar
-          profileId={display.peer?.id}
-          imageUrl={display.imageUrl}
-          fallbackText={display.fallbackText}
-          size={52}
-          /* Grubun tek bir "çevrimiçi" durumu yok; nokta yalnızca kişilerde. */
-          showPresence={!display.isGroup && !isOfficial}
-          backgroundColor={colors.bg}
-        />
-
-        <View style={{ flex: 1, gap: 2 }}>
+        {display.isGroup && !display.imageUrl ? (
+          // Görselsiz grup: baş harfler yerine grup simgesi — satırın bir
+          // kişi değil grup olduğu ilk bakışta okunur.
           <View
             style={{
-              flexDirection: "row",
+              width: ROW_AVATAR,
+              height: ROW_AVATAR,
+              borderRadius: ROW_AVATAR / 2,
               alignItems: "center",
-              gap: spacing.xs,
+              justifyContent: "center",
+              backgroundColor: colors.brandSoft,
             }}
           >
-            {pinned ? (
-              <Icon name="bookmark" size={12} color={colors.brand} filled />
-            ) : null}
-            {display.isGroup ? (
-              <Icon name="users" size={13} color={colors.muted} />
-            ) : null}
-            <Text
-              style={{
-                ...typography.bodyStrong,
-                color: unreadHere ? colors.bright : colors.text,
-                flexShrink: 1,
-              }}
-              numberOfLines={1}
-            >
-              {display.title}
-            </Text>
-            {isOfficial ? (
-              <View
+            <Icon name="users" size={26} color={colors.brand} />
+          </View>
+        ) : (
+          <Avatar
+            profileId={display.peer?.id}
+            imageUrl={display.imageUrl}
+            fallbackText={display.fallbackText}
+            size={ROW_AVATAR}
+            /* Grubun tek bir "çevrimiçi" durumu yok; nokta yalnızca kişilerde. */
+            showPresence={!display.isGroup && !isOfficial}
+            backgroundColor={colors.bg}
+          />
+        )}
+
+        <View
+          style={{
+            flex: 1,
+            alignSelf: "stretch",
+            justifyContent: "center",
+            gap: 3,
+            paddingVertical: spacing.md,
+            paddingRight: spacing.lg,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text
+                style={{ ...typography.title, fontSize: 16.5, color: colors.bright, flexShrink: 1 }}
+                numberOfLines={1}
+              >
+                {display.title}
+              </Text>
+              {isOfficial ? (
+                <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
+                  <Text style={{ fontSize: 9, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>RESMÎ</Text>
+                </View>
+              ) : null}
+            </View>
+            {item.latestMessageAt ? (
+              <Text
                 style={{
-                  paddingHorizontal: 5,
-                  paddingVertical: 1,
-                  borderRadius: 4,
-                  backgroundColor: colors.brand,
+                  ...typography.caption,
+                  fontWeight: unreadHere ? "700" : "400",
+                  color: unreadHere ? colors.brand : colors.muted,
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 9,
-                    lineHeight: 12,
-                    fontWeight: "800",
-                    color: colors.onBrand,
-                  }}
-                >
-                  RESMÎ
-                </Text>
-              </View>
+                {formatChatListTime(item.latestMessageAt)}
+              </Text>
             ) : null}
           </View>
-          <Text
-            style={{
-              ...typography.caption,
-              color: unreadHere ? colors.text : colors.muted,
-            }}
-            numberOfLines={1}
-          >
-            {formatDirectPreview(item.latestMessage, myId, authorName)}
-          </Text>
-        </View>
 
-        <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
-          {item.latestMessageAt ? (
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm }}>
             <Text
-              style={{
-                ...typography.caption,
-                color: unreadHere ? colors.brand : colors.muted,
-              }}
+              style={{ ...typography.body, fontSize: 14.5, lineHeight: 20, color: colors.muted, flex: 1 }}
+              numberOfLines={2}
             >
-              {formatRelativeShort(item.latestMessageAt)}
+              {formatDirectPreview(item.latestMessage, myId, authorName)}
             </Text>
-          ) : null}
-          {unreadHere ? <UnreadBadge count={1} dot /> : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 1 }}>
+              {pinned ? <Icon name="bookmark" size={15} color={colors.muted} filled /> : null}
+              {unreadCount > 0 ? (
+                <UnreadBadge count={unreadCount} tone="brand" />
+              ) : unreadHere ? (
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand }} />
+              ) : null}
+            </View>
+          </View>
         </View>
       </Pressable>
     </ReanimatedSwipeable>

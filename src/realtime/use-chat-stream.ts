@@ -54,6 +54,7 @@ export function useChatStream(chatId: string | undefined) {
       // sıralamayı da güncellesin.
       if (!("member" in message)) {
         void queryClient.invalidateQueries({ queryKey: qk.directs });
+        void queryClient.invalidateQueries({ queryKey: qk.inbox });
       }
     };
 

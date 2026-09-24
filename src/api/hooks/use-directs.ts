@@ -308,3 +308,37 @@ export function useRemoveDirect() {
     },
   });
 }
+
+interface InboxItem {
+  type: string;
+  id: string;
+  count: number;
+}
+
+/**
+ * Sohbet başına okunmamış mesaj SAYISI — liste rozetleri ve sekme çubuğu.
+ *
+ * `/api/unread-counts` içindeki `directUnreads` grup sohbetlerini içermiyor;
+ * `/api/inbox` hem birebir hem grup sohbetlerini sayıyla döndürüyor (web'deki
+ * gelen kutusu da buradan okuyor). Kayıt yoksa sohbet okunmuş sayılır.
+ */
+export function useDirectUnreadCounts() {
+  const { data } = useQuery({
+    queryKey: qk.inbox,
+    queryFn: () => api<InboxItem[]>(endpoints.inbox),
+    staleTime: 30_000,
+  });
+  return useMemo(() => {
+    const counts: Record<string, number> = {};
+    let total = 0;
+    let chats = 0;
+    for (const item of data ?? []) {
+      if (item.type !== "direct" || item.count <= 0) continue;
+      counts[item.id] = item.count;
+      total += item.count;
+      chats += 1;
+    }
+    /** `chats`: okunmamış mesajı olan sohbet sayısı — sekme rozeti bunu gösterir. */
+    return { counts, total, chats };
+  }, [data]);
+}

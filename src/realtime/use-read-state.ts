@@ -54,6 +54,7 @@ export function useReadState(
     return onGatewayEvent(ServerEvent.READ_STATE_UPDATED, () => {
       void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
       void queryClient.invalidateQueries({ queryKey: qk.directs });
+      void queryClient.invalidateQueries({ queryKey: qk.inbox });
     });
   }, [queryClient]);
 }

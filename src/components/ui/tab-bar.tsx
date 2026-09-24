@@ -8,6 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useDirectUnreadCounts } from "@/api/hooks";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing } from "@/theme/tokens";
 import { Avatar } from "./avatar";
@@ -15,14 +16,13 @@ import { Icon, type IconName } from "./icon";
 import { Pressable } from "./pressable";
 
 /**
- * Yüzen oval sekme çubuğu.
+ * Yüzen sekme çubuğu.
  *
- * Ekranın altına yapışan tam genişlikte bir çubuk yerine, kenarlardan
- * boşluklu ve tamamen yuvarlatılmış bir ada. Arkası bulanık (`expo-blur`)
- * olduğu için altından kayan içerik hissedilir ama okunurluğu bozmaz.
- *
- * Blur Android'de daha pahalı ve bazı cihazlarda desteklenmiyor; orada
- * yarı saydam düz yüzeye düşülür.
+ * Kenarlardan boşluklu, tamamen yuvarlatılmış bir ada. Etkin sekme, ikon ve
+ * etiketi birlikte saran yumuşak bir hapla işaretlenir; yalnızca ince bir
+ * çizgi, özellikle açık temada, hangi sekmede olunduğunu yeterince
+ * söylemiyordu. Sohbetler sekmesi okunmamış mesaj sayısını rozetle taşır:
+ * kullanıcı başka bir sekmedeyken yeni mesajı buradan görür.
  */
 const ICONS: Record<string, IconName> = {
   index: "message",
@@ -38,19 +38,17 @@ const ICONS: Record<string, IconName> = {
  */
 export const FLOATING_TAB_INSET = 92;
 
-export function FloatingTabBar({
-  state,
-  descriptors,
-  navigation,
-}: BottomTabBarProps) {
+export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  // Rozet mesaj değil SOHBET sayar: "42" bir sayı yığını, "3 sohbet" bir yapılacak.
+  const { chats: unreadChats } = useDirectUnreadCounts();
 
   return (
     <View
       style={{
         position: "absolute",
-        left: spacing.sm,
-        right: spacing.sm,
+        left: spacing.md,
+        right: spacing.md,
         // Gezinme çubuğunun üstünde dursun; cihazda çubuk yoksa taban boşluk.
         bottom: Math.max(insets.bottom, spacing.sm),
       }}
@@ -58,50 +56,43 @@ export function FloatingTabBar({
     >
       <View
         style={{
-          borderRadius: radii.xl,
+          flexDirection: "row",
+          padding: 5,
+          borderRadius: radii.full,
           borderCurve: "continuous",
-          overflow: "hidden",
           borderWidth: 1,
           borderColor: colors.bentoBorder,
-          backgroundColor: colors.bento,
-          boxShadow: `0 -6px 28px ${colors.shadow}`,
+          backgroundColor: colors.panel,
+          boxShadow: `0 8px 30px ${colors.shadow}`,
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            paddingHorizontal: spacing.xs,
-            minHeight: 64,
-          }}
-        >
-          {state.routes.map((route, index) => {
-            const { options } = descriptors[route.key];
-            const focused = state.index === index;
-            const label =
-              typeof options.title === "string" ? options.title : route.name;
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const focused = state.index === index;
+          const label = typeof options.title === "string" ? options.title : route.name;
 
-            return (
-              <TabItem
-                key={route.key}
-                label={label}
-                icon={ICONS[route.name] ?? "home"}
-                /** "Sen" sekmesi ikon değil, kullanıcının avatarını taşır. */
-                avatar={route.name === "me"}
-                focused={focused}
-                onPress={() => {
-                  const event = navigation.emit({
-                    type: "tabPress",
-                    target: route.key,
-                    canPreventDefault: true,
-                  });
-                  if (!focused && !event.defaultPrevented) {
-                    navigation.navigate(route.name);
-                  }
-                }}
-              />
-            );
-          })}
-        </View>
+          return (
+            <TabItem
+              key={route.key}
+              label={label}
+              icon={ICONS[route.name] ?? "home"}
+              /** "Sen" sekmesi ikon değil, kullanıcının avatarını taşır. */
+              avatar={route.name === "me"}
+              badge={route.name === "index" ? unreadChats : 0}
+              focused={focused}
+              onPress={() => {
+                const event = navigation.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!focused && !event.defaultPrevented) {
+                  navigation.navigate(route.name);
+                }
+              }}
+            />
+          );
+        })}
       </View>
     </View>
   );
@@ -111,27 +102,31 @@ function TabItem({
   label,
   icon,
   avatar,
+  badge,
   focused,
   onPress,
 }: {
   label: string;
   icon: IconName;
   avatar?: boolean;
+  badge: number;
   focused: boolean;
   onPress: () => void;
 }) {
   const me = useAuth((s) => s.profile);
   const press = useSharedValue(0);
 
-  const style = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(focused ? 1 : 0.94, { damping: 16 }) }],
-    opacity: withTiming(1 - press.value * 0.3, { duration: 100 }),
+  const content = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(press.value ? 0.94 : 1, { damping: 16 }) }],
   }));
 
-  const indicator = useAnimatedStyle(() => ({
-    opacity: withTiming(focused ? 1 : 0, { duration: 160 }),
-    transform: [{ scaleX: withSpring(focused ? 1 : 0.4, { damping: 18 }) }],
+  const pill = useAnimatedStyle(() => ({
+    opacity: withTiming(focused ? 1 : 0, { duration: 180 }),
+    transform: [{ scale: withSpring(focused ? 1 : 0.86, { damping: 18 }) }],
   }));
+
+  const tint = focused ? colors.bright : colors.muted;
+  const badgeLabel = badge > 99 ? "99+" : String(badge);
 
   return (
     <Pressable
@@ -140,7 +135,7 @@ function TabItem({
       noHitSlop
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
-      accessibilityLabel={label}
+      accessibilityLabel={badge > 0 ? `${label}, ${badge} okunmamış sohbet` : label}
       onPressIn={() => {
         press.value = 1;
       }}
@@ -149,64 +144,61 @@ function TabItem({
       }}
       style={{ flex: 1 }}
     >
-      <Animated.View
-        style={[
-          {
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 3,
-            minHeight: 64,
-            borderRadius: radii.lg,
-            borderCurve: "continuous",
-          },
-          style,
-        ]}
-      >
-        {/* Seçili sekmenin arkasındaki hap — ikonla birlikte yumuşak belirir. */}
+      <Animated.View style={[{ alignItems: "center", justifyContent: "center", gap: 3, minHeight: 58 }, content]}>
+        {/* Etkin sekmenin hapı — ikon ve etiketi birlikte sarar. */}
         <Animated.View
           style={[
             {
               position: "absolute",
-              top: 3,
-              width: 22,
-              height: 3,
-              borderRadius: 2,
-              backgroundColor: colors.brand,
+              top: 0,
+              bottom: 0,
+              left: 2,
+              right: 2,
+              borderRadius: radii.full,
+              borderCurve: "continuous",
+              backgroundColor: colors.raised,
             },
-            indicator,
+            pill,
           ]}
         />
-        {avatar ? (
-          // Durum rozeti de görünür: kullanıcı kendi çevrimiçi/boşta
-          // durumunu sekme çubuğundan görebilmeli.
-          //
-          // Halka rengi SEÇİMDEN BAĞIMSIZ koyu: zemine göre değiştirildiğinde
-          // sekme seçiliyken marka rengine dönüyor ve gerçek durumdan
-          // bağımsız, sahte bir yeşil rozet gibi okunuyordu.
-          <Avatar
-            profileId={me?.id}
-            imageUrl={me?.imageUrl}
-            fallbackText={me?.username}
-            size={22}
-            showPresence
-            presenceSize={13}
-            backgroundColor={colors.bentoShell}
-          />
-        ) : (
-          <Icon
-            name={icon}
-            size={21}
-            color={focused ? colors.bright : colors.muted}
-            filled={focused}
-          />
-        )}
+        <View>
+          {avatar ? (
+            // Halka rengi seçimden bağımsız: gerçek durum rozeti olarak okunmalı.
+            <Avatar
+              profileId={me?.id}
+              imageUrl={me?.imageUrl}
+              fallbackText={me?.username}
+              size={24}
+              showPresence
+              presenceSize={12}
+              backgroundColor={colors.panel}
+            />
+          ) : (
+            <Icon name={icon} size={23} color={tint} filled={focused} />
+          )}
+          {badge > 0 ? (
+            <View
+              style={{
+                position: "absolute",
+                top: -6,
+                left: 14,
+                minWidth: 19,
+                height: 19,
+                paddingHorizontal: 5,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.brand,
+                borderWidth: 2,
+                borderColor: colors.panel,
+              }}
+            >
+              <Text style={{ fontSize: 10, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>{badgeLabel}</Text>
+            </View>
+          ) : null}
+        </View>
         <Text
-          style={{
-            fontSize: 10,
-            lineHeight: 13,
-            fontWeight: focused ? "700" : "500",
-            color: focused ? colors.bright : colors.muted,
-          }}
+          style={{ fontSize: 11, lineHeight: 14, fontWeight: focused ? "700" : "500", color: tint }}
           numberOfLines={1}
         >
           {label}

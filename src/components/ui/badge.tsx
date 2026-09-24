@@ -14,9 +14,15 @@ export function UnreadBadge({
   count,
   /** Sayı yerine sade bir nokta (sessize alınmış kanallar). */
   dot = false,
+  /**
+   * `brand`: sohbet listesi ve sekme çubuğu — tema vurgusu, okunacak bir şey
+   * var. `danger`: dikkat isteyen sayaçlar (bahsedilme, sunucu rayı).
+   */
+  tone = "danger",
 }: {
   count: number;
   dot?: boolean;
+  tone?: "brand" | "danger";
 }) {
   if (count <= 0) return null;
 
@@ -45,7 +51,7 @@ export function UnreadBadge({
         borderRadius: radii.full,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: colors.danger,
+        backgroundColor: tone === "brand" ? colors.brand : colors.danger,
       }}
       accessibilityLabel={`${count} okunmamış mesaj`}
     >
@@ -54,7 +60,7 @@ export function UnreadBadge({
           fontSize: 11,
           lineHeight: 14,
           fontWeight: "700",
-          color: colors.bright,
+          color: tone === "brand" ? colors.onBrand : colors.bright,
         }}
       >
         {label}
