@@ -305,8 +305,8 @@ function CustomPalette({
           disabled={!canCustomize}
           accessibilityLabel="Özel renkleri kullan"
           onValueChange={(on) => onChange(on ? { ...source } : {})}
-          trackColor={{ false: colors.raised, true: colors.brand }}
-          thumbColor={colors.bright}
+          trackColor={{ false: colors.border, true: colors.brand }}
+          thumbColor="#ffffff"
         />
       </View>
 

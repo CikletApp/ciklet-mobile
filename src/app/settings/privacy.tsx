@@ -186,8 +186,8 @@ export default function PrivacySettingsScreen() {
                       value={membership.allowServerDMs !== false}
                       disabled={updateServerDm.isPending}
                       onValueChange={(value) => updateServerDm.mutate({ memberId: membership.id, value })}
-                      trackColor={{ false: colors.deep, true: colors.brand }}
-                      thumbColor={colors.bright}
+                      trackColor={{ false: colors.border, true: colors.brand }}
+                      thumbColor="#ffffff"
                     />
                   </View>
                 </View>
@@ -334,8 +334,8 @@ function ToggleRow({ title, value, onChange }: { title: string; value: boolean; 
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: colors.deep, true: colors.brand }}
-        thumbColor={colors.bright}
+        trackColor={{ false: colors.border, true: colors.brand }}
+        thumbColor="#ffffff"
       />
     </View>
   );

@@ -75,7 +75,7 @@ function ToggleRow({ title, description, value, onChange, disabled, pending }: {
         <Text style={{ ...typography.body, color: colors.text }}>{title}</Text>
         {description ? <Text style={{ ...typography.caption, color: colors.muted }}>{description}</Text> : null}
       </View>
-      {pending ? <ActivityIndicator color={colors.brand} /> : <Switch value={value} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.deep, true: colors.brand }} thumbColor={colors.bright} />}
+      {pending ? <ActivityIndicator color={colors.brand} /> : <Switch value={value} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />}
     </View>
   );
 }

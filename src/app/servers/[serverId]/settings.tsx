@@ -205,7 +205,7 @@ function ToggleRow({ title, value, onChange, disabled }: { title: string; value:
   return (
     <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.lg, opacity: disabled ? 0.45 : 1 }}>
       <Text style={{ ...typography.body, color: colors.text, flex: 1 }}>{title}</Text>
-      <Switch value={value} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.deep, true: colors.brand }} thumbColor={colors.bright} />
+      <Switch value={value} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />
     </View>
   );
 }

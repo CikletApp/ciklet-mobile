@@ -72,8 +72,8 @@ function ToggleRow({
         value={value}
         disabled={disabled}
         onValueChange={onChange}
-        trackColor={{ false: colors.deep, true: colors.brand }}
-        thumbColor={colors.bright}
+        trackColor={{ false: colors.border, true: colors.brand }}
+        thumbColor="#ffffff"
       />
     </View>
   );
