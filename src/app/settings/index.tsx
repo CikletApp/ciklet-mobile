@@ -1,4 +1,4 @@
-import { Alert, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 
 import { useCurrentProfile } from "@/api/hooks";
@@ -9,6 +9,7 @@ import {
   ListRow,
   Screen,
   SectionHeader,
+  showDialog,
 } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
 import { CLIENT_VERSION } from "@/lib/device";
@@ -29,7 +30,7 @@ export default function SettingsScreen() {
   const themePreference = useTheme((s) => s.preference);
 
   const onLogout = () => {
-    Alert.alert("Çıkış yap", "Oturumun bu cihazda kapatılacak.", [
+    showDialog("Çıkış yap", "Oturumun bu cihazda kapatılacak.", [
       { text: "Vazgeç", style: "cancel" },
       {
         text: "Çıkış Yap",

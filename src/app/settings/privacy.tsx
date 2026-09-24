@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
 import { ApiError, api } from "@/api/client";
@@ -16,7 +16,7 @@ import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CurrentProfile } from "@/api/types";
-import { Avatar, Button, Divider, EmptyState, ListGroup, ListRow, Screen, SectionHeader } from "@/components/ui";
+import { Avatar, Button, Divider, EmptyState, ListGroup, ListRow, Screen, SectionHeader, showDialog } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { getDeviceId } from "@/lib/device";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -213,7 +213,7 @@ export default function PrivacySettingsScreen() {
                       detail="Engeli kaldır"
                       chevron={false}
                       disabled={unblock.isPending}
-                      onPress={() => Alert.alert("Engeli kaldır", `@${entry.profile.username} yeniden sana ulaşabilecek.`, [
+                      onPress={() => showDialog("Engeli kaldır", `@${entry.profile.username} yeniden sana ulaşabilecek.`, [
                         { text: "Vazgeç", style: "cancel" },
                         { text: "Kaldır", onPress: () => unblock.mutate(entry.profile.id) },
                       ])}
@@ -249,7 +249,7 @@ export default function PrivacySettingsScreen() {
                       chevron={false}
                       disabled={current || revoke.isPending}
                       onPress={() =>
-                        Alert.alert(
+                        showDialog(
                           "Oturumu kapat",
                           `${session.deviceName ?? "Bu cihaz"} için erişim kaldırılacak.`,
                           [

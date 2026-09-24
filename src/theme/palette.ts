@@ -160,6 +160,8 @@ export interface ThemePalette {
   /** Vurgunun yüzeye karışmış hafif tonu (seçili satır, aktif çip). */
   brandSoft: string;
   danger: string;
+  /** Dolgulu yıkıcı düğme zemini — üstünde beyaz metin okunur (web: --destructive). */
+  dangerSolid: string;
   success: string;
   warning: string;
   online: string;
@@ -226,6 +228,7 @@ export function buildPalette(source: ThemeSource): ThemePalette {
     onBrand: ink(brand),
     brandSoft: mix(panel, accent, light ? 0.1 : 0.16),
     danger,
+    dangerSolid: light ? hsl(0, 75, 48) : hsl(0, 65, 52),
     success,
     warning,
     online: success,

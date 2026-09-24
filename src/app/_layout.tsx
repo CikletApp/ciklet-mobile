@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { DialogHost } from "@/components/ui";
 import { CallOverlay } from "@/features/call/call-overlay";
 import { BrandSplash } from "@/features/auth/auth-shell";
 import { setupLiveKit } from "@/lib/livekit";
@@ -149,6 +150,7 @@ export default function RootLayout() {
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
             <CallOverlay key={`call-${themeRevision}`} />
+            <DialogHost key={`dialog-${themeRevision}`} />
           </RealtimeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

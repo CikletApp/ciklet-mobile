@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Alert, FlatList, RefreshControl, Text, View } from "react-native";
+import { FlatList, RefreshControl, Text, View } from "react-native";
 import { router } from "expo-router";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -31,6 +31,7 @@ import {
   TabHeader,
   UnreadBadge,
   type TabItem,
+  showDialog,
 } from "@/components/ui";
 import { ActiveNow } from "@/features/home/active-now";
 import { formatChatListTime, formatDirectPreview } from "@/lib/format";
@@ -140,7 +141,7 @@ export default function ChatsScreen() {
           "Sil",
         ];
 
-    Alert.alert(title, message, [
+    showDialog(title, message, [
       { text: "Vazgeç", style: "cancel" },
       {
         text: action,

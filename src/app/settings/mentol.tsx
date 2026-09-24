@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useMentolPlan } from "@/api/hooks";
-import { Button, Screen, SectionHeader, TextField } from "@/components/ui";
+import { Button, Screen, SectionHeader, TextField, showDialog } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export default function MentolSettingsScreen() {
@@ -15,8 +15,8 @@ export default function MentolSettingsScreen() {
   const plan = useMentolPlan();
   const redeem = useMutation({
     mutationFn: () => api<{ plan: string; expiresAt: string | null }>(endpoints.mentolRedeem, { method: "POST", body: { code } }),
-    onSuccess: () => { setCode(""); void queryClient.invalidateQueries({ queryKey: ["mentol-plan"] }); Alert.alert("Mentol etkin", "Kod hesabına uygulandı."); },
-    onError: (error) => Alert.alert("Kod kullanılamadı", error instanceof ApiError ? error.message : "Tekrar dene."),
+    onSuccess: () => { setCode(""); void queryClient.invalidateQueries({ queryKey: ["mentol-plan"] }); showDialog("Mentol etkin", "Kod hesabına uygulandı."); },
+    onError: (error) => showDialog("Kod kullanılamadı", error instanceof ApiError ? error.message : "Tekrar dene."),
   });
 
   return (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import {
   Screen,
   SectionHeader,
   TextField,
+  showDialog,
 } from "@/components/ui";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -59,11 +60,11 @@ export default function AccountSettingsScreen() {
 
   const refreshProfile = () => queryClient.invalidateQueries({ queryKey: qk.currentProfile });
   const showError = (error: unknown) =>
-    Alert.alert("İşlem tamamlanamadı", error instanceof ApiError ? error.message : "Tekrar dene.");
+    showDialog("İşlem tamamlanamadı", error instanceof ApiError ? error.message : "Tekrar dene.");
 
   const changeUsername = useMutation({
     mutationFn: () => api(endpoints.accountUsername, { method: "POST", body: { username, password: usernamePassword } }),
-    onSuccess: () => { setUsernamePassword(""); void refreshProfile(); Alert.alert("Tamam", "Kullanıcı adın güncellendi."); },
+    onSuccess: () => { setUsernamePassword(""); void refreshProfile(); showDialog("Tamam", "Kullanıcı adın güncellendi."); },
     onError: showError,
   });
   const startEmail = useMutation({
@@ -73,12 +74,12 @@ export default function AccountSettingsScreen() {
   });
   const verifyEmail = useMutation({
     mutationFn: () => api(endpoints.accountEmail, { method: "PATCH", body: { code: emailCode } }),
-    onSuccess: () => { setPendingEmail(null); setEmail(""); setEmailCode(""); void refreshProfile(); Alert.alert("Tamam", "E-posta adresin doğrulandı ve güncellendi."); },
+    onSuccess: () => { setPendingEmail(null); setEmail(""); setEmailCode(""); void refreshProfile(); showDialog("Tamam", "E-posta adresin doğrulandı ve güncellendi."); },
     onError: showError,
   });
   const changePassword = useMutation({
     mutationFn: () => api(endpoints.changePassword, { method: "POST", body: { currentPassword, newPassword } }),
-    onSuccess: () => { Alert.alert("Şifre güncellendi", "Güvenlik için tüm oturumların kapatıldı.", [{ text: "Giriş ekranına dön", onPress: () => void logout() }]); },
+    onSuccess: () => { showDialog("Şifre güncellendi", "Güvenlik için tüm oturumların kapatıldı.", [{ text: "Giriş ekranına dön", onPress: () => void logout() }]); },
     onError: showError,
   });
   const startTwoFactor = useMutation({
@@ -93,7 +94,7 @@ export default function AccountSettingsScreen() {
   });
   const disableTwoFactor = useMutation({
     mutationFn: () => api(endpoints.accountTwoFactor, { method: "DELETE", body: { password: disablePassword } }),
-    onSuccess: () => { setDisablePassword(""); void twoFactor.refetch(); Alert.alert("Tamam", "İki adımlı doğrulama kapatıldı."); },
+    onSuccess: () => { setDisablePassword(""); void twoFactor.refetch(); showDialog("Tamam", "İki adımlı doğrulama kapatıldı."); },
     onError: showError,
   });
 

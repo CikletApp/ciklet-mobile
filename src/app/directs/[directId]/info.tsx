@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
@@ -22,6 +22,7 @@ import {
   ScreenLoader,
   SectionHeader,
   TextField,
+  showDialog,
 } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
@@ -100,7 +101,7 @@ export default function GroupInfoScreen() {
       { memberIds: nextIds.filter((id) => id !== myId) },
       {
         onError: (error) =>
-          Alert.alert(
+          showDialog(
             "Güncellenemedi",
             error instanceof ApiError ? error.message : "Beklenmeyen bir hata oldu."
           ),
@@ -116,7 +117,7 @@ export default function GroupInfoScreen() {
       { name: next },
       {
         onError: (error) =>
-          Alert.alert(
+          showDialog(
             "Ad değiştirilemedi",
             error instanceof ApiError ? error.message : "Beklenmeyen bir hata oldu."
           ),
@@ -125,7 +126,7 @@ export default function GroupInfoScreen() {
   };
 
   const removeMember = (profileId: string, label: string) => {
-    Alert.alert("Üyeyi çıkar", `${label} gruptan çıkarılacak.`, [
+    showDialog("Üyeyi çıkar", `${label} gruptan çıkarılacak.`, [
       { text: "Vazgeç", style: "cancel" },
       {
         text: "Çıkar",
@@ -136,7 +137,7 @@ export default function GroupInfoScreen() {
   };
 
   const leave = () => {
-    Alert.alert(
+    showDialog(
       "Gruptan ayrıl",
       `"${display.title}" grubundan ayrılacaksın. Yeniden eklenmen için bir üyenin seni davet etmesi gerekir.`,
       [

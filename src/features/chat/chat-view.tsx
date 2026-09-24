@@ -1,7 +1,6 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
   Modal,
@@ -22,6 +21,7 @@ import {
   IconButton,
   KeyboardAvoider,
   ListSkeleton,
+  showDialog,
 } from "@/components/ui";
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
@@ -358,7 +358,7 @@ export function ChatView({
             if (ok) setSelectedMessage(null);
           }}
           onDelete={() =>
-            Alert.alert("Mesajı sil", "Bu mesaj herkes için silinecek.", [
+            showDialog("Mesajı sil", "Bu mesaj herkes için silinecek.", [
               { text: "Vazgeç", style: "cancel" },
               {
                 text: "Sil",

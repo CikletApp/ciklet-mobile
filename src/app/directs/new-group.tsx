@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { router } from "expo-router";
 
 import { ApiError } from "@/api/client";
@@ -18,6 +18,7 @@ import {
   ListSkeleton,
   Pressable,
   TextField,
+  showDialog,
 } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
@@ -71,7 +72,7 @@ export default function NewGroupScreen() {
       {
         onSuccess: (direct) => router.replace(`/chat/direct/${direct.id}`),
         onError: (error) =>
-          Alert.alert(
+          showDialog(
             "Grup kurulamadı",
             error instanceof ApiError
               ? error.message

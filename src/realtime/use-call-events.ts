@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { Alert, Vibration } from "react-native";
+import { Vibration } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/api/client";
@@ -10,6 +10,7 @@ import { useCall, type CallKind, type CallPeer } from "@/stores/call";
 import { usePresenceStore } from "@/stores/presence";
 import { ServerEvent } from "./events";
 import { onGatewayEvent, onGatewayOpen } from "./gateway";
+import { showDialog } from "@/components/ui";
 
 /**
  * DM aramaları — ADR-0012 sonrası.
@@ -170,7 +171,7 @@ export function useCallActions() {
             error instanceof ApiError && error.status === 403
               ? `${peer.name?.trim() || peer.username} şu an arama kabul etmiyor.`
               : "Arama başlatılamadı. Bağlantını kontrol edip tekrar dene.";
-          Alert.alert("Aranamıyor", reason);
+          showDialog("Aranamıyor", reason);
         });
     },
     [start, end]

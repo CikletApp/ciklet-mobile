@@ -10,6 +10,7 @@ export { CikletLogo } from "./ciklet-logo";
 export { ModernRefreshIndicator } from "./refresh-indicator";
 export { UnreadBadge, Tag, Skeleton, ListSkeleton } from "./badge";
 export { Button, IconButton, ActionBar } from "./button";
+export { DialogHost, showDialog, type DialogButton } from "./dialog";
 export { DropdownMenu, type MenuItem } from "./dropdown-menu";
 export { Icon, PresenceDot, type IconName } from "./icon";
 export { KeyboardAvoider } from "./keyboard";

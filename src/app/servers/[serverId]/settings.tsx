@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Share, Switch, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { ChannelType, MemberRole } from "@ciklet/embedded-activities-sdk/types";
@@ -13,7 +13,7 @@ import {
   useServerDetails,
   useUpdateServer,
 } from "@/api/hooks";
-import { Avatar, Divider, Icon, ListGroup, ListRow, Screen, ScreenLoader, SectionHeader, TextField } from "@/components/ui";
+import { Avatar, Divider, Icon, ListGroup, ListRow, Screen, ScreenLoader, SectionHeader, TextField, showDialog } from "@/components/ui";
 import { pickAndUploadServerBanner, pickAndUploadServerImage } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -71,7 +71,7 @@ export default function ServerSettingsScreen() {
 
   const leaveOrDelete = () => {
     const destructive = isOwner ? remove : leave;
-    Alert.alert(
+    showDialog(
       isOwner ? "Sunucuyu sil" : "Sunucudan ayrıl",
       isOwner
         ? "Sunucu, kanalları ve mesajları kalıcı olarak silinecek."

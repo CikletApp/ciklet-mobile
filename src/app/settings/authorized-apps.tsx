@@ -1,8 +1,8 @@
-import { Alert, Linking, ScrollView, Text, View } from "react-native";
+import { Linking, ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
 import { useAuthorizedApps, useRevokeAuthorizedApp } from "@/api/hooks";
-import { Avatar, EmptyState, IconButton, ListGroup, ListRow, ListSkeleton, Screen, SectionHeader } from "@/components/ui";
+import { Avatar, EmptyState, IconButton, ListGroup, ListRow, ListSkeleton, Screen, SectionHeader, showDialog } from "@/components/ui";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 export default function AuthorizedAppsScreen() {
@@ -46,7 +46,7 @@ export default function AuthorizedAppsScreen() {
                       tint={colors.danger}
                       disabled={revoke.isPending}
                       onPress={() =>
-                        Alert.alert(
+                        showDialog(
                           "Erişimi kaldır",
                           `${authorization.application.name} için verilen tüm erişim ve tokenlar iptal edilecek.`,
                           [

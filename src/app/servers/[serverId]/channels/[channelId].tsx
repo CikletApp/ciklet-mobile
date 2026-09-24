@@ -1,10 +1,10 @@
-import { Alert, ScrollView, Text } from "react-native";
+import { ScrollView, Text } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
 import { useChannel, useCreateChannel, useDeleteChannel, useUpdateChannel } from "@/api/hooks";
-import { Button, KeyboardAvoider, SegmentedTabs, TextField } from "@/components/ui";
+import { Button, KeyboardAvoider, SegmentedTabs, TextField, showDialog } from "@/components/ui";
 import { colors, spacing, typography } from "@/theme/tokens";
 import { useEffect, useState } from "react";
 
@@ -50,7 +50,7 @@ export default function ChannelSettingsScreen() {
             label="Kanalı Sil"
             variant="danger"
             fullWidth
-            onPress={() => Alert.alert("Kanalı sil", "Kanal ve mesajları kalıcı olarak silinecek.", [
+            onPress={() => showDialog("Kanalı sil", "Kanal ve mesajları kalıcı olarak silinecek.", [
               { text: "Vazgeç", style: "cancel" },
               { text: "Sil", style: "destructive", onPress: () => remove.mutate(undefined, { onSuccess: () => router.back() }) },
             ])}
