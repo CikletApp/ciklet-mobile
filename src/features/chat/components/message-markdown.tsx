@@ -63,7 +63,10 @@ export function MessageMarkdown({ value, style, compact = false }: MessageMarkdo
             </Text>
           </View>
         ) : (
-          <Text key={`text-${index}`} selectable style={{ ...typography.body, color: colors.text, ...style }}>
+          // Seçilebilir DEĞİL: Android'de metin seçimi uzun basmayı yutuyor ve
+          // mesaj eylemleri (yanıtla, tepki, kopyala) hiç açılmıyordu. Kopyalama
+          // eylem sayfasında.
+          <Text key={`text-${index}`} style={{ ...typography.body, color: colors.text, ...style }}>
             {renderInline(block.value, `b${index}`, revealed, toggleSpoiler)}
           </Text>
         )

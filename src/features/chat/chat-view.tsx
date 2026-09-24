@@ -12,6 +12,7 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import { router } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 
 import { ApiError } from "@/api/client";
 import { useChatMessages, type ChatKind } from "@/api/hooks";
@@ -22,6 +23,8 @@ import {
   KeyboardAvoider,
   ListSkeleton,
   showDialog,
+  Icon,
+  type IconName,
 } from "@/components/ui";
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
@@ -591,16 +594,26 @@ function MessageActionsSheet({
                 ))}
               </View>
 
-              <SheetButton label="Yanıtla" onPress={onReply} />
-
-              {isMine ? (
-                <View style={{ gap: spacing.sm }}>
-                  <SheetButton label="Mesajı düzenle" onPress={() => setEditing(true)} />
-                  <SheetButton label="Mesajı sil" destructive onPress={onDelete} />
-                </View>
-              ) : onReport ? (
-                <SheetButton label="Şikâyet et" destructive onPress={() => setReporting(true)} />
-              ) : null}
+              {/* Bağlam menüsü: ikonlu satırlar tek kartta, yıkıcı olanlar en altta. */}
+              <View style={{ borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.raised }}>
+                <SheetAction icon="reply" label="Yanıtla" onPress={onReply} />
+                {message.content && !message.deleted ? (
+                  <SheetAction
+                    icon="copy"
+                    label="Metni kopyala"
+                    onPress={() => {
+                      void Clipboard.setStringAsync(message.content);
+                      onClose();
+                    }}
+                  />
+                ) : null}
+                {isMine ? <SheetAction icon="pencil" label="Mesajı düzenle" onPress={() => setEditing(true)} /> : null}
+                {isMine ? (
+                  <SheetAction icon="trash" label="Mesajı sil" destructive onPress={onDelete} />
+                ) : onReport ? (
+                  <SheetAction icon="flag" label="Şikâyet et" destructive onPress={() => setReporting(true)} />
+                ) : null}
+              </View>
             </>
           )}
 
@@ -624,6 +637,36 @@ const REPORT_REASONS: { value: ReportReason; label: string }[] = [
   { value: "IMPERSONATION", label: "Taklit / sahtecilik" },
   { value: "OTHER", label: "Diğer" },
 ];
+
+function SheetAction({
+  icon,
+  label,
+  onPress,
+  destructive,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        minHeight: 52,
+        paddingHorizontal: spacing.lg,
+        backgroundColor: pressed ? colors.border : "transparent",
+      })}
+    >
+      <Icon name={icon} size={20} color={destructive ? colors.danger : colors.bright} />
+      <Text style={{ ...typography.body, color: destructive ? colors.danger : colors.bright, flex: 1 }}>{label}</Text>
+    </Pressable>
+  );
+}
 
 function SheetButton({
   label,

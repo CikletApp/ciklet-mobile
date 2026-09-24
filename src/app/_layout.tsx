@@ -31,6 +31,15 @@ import {
  * `PersistQueryClientProvider`'ın İÇİNDE olmak zorunda.
  */
 
+/**
+ * Derin bağlantıyla (bildirime dokunma, davet) doğrudan bir sohbete
+ * gelindiğinde yığının altında sekmeler olsun: aksi hâlde ekranda geri
+ * düğmesi çıkmıyor ve kullanıcı sohbette mahsur kalıyordu.
+ */
+export const unstable_settings = {
+  initialRouteName: "(tabs)",
+};
+
 void SplashScreen.preventAutoHideAsync();
 
 // WebRTC global'leri modül yüklenirken bir kez kaydedilir; React ağacına

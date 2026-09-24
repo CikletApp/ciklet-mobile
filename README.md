@@ -118,6 +118,23 @@ ve `ciklet-web`'de `pnpm dev`. Yerelde nginx yok: ağ geçidi doğrudan
 `EXPO_PUBLIC_GATEWAY_URL` bunu söyler; `.env` değişince Metro `--clear` ile
 yeniden başlatılmalı (değerler pakete gömülüyor).
 
+**Android emülatörü** (yerel yığınla):
+
+```bash
+# API ve ağ geçidi 10.0.2.2 üzerinden (emülatörün bilgisayar takma adresi):
+#   EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
+#   EXPO_PUBLIC_GATEWAY_URL=ws://10.0.2.2:4000/ws
+# Yerel LiveKit ICE adayı olarak 127.0.0.1 ilan ediyor; emülatörde bu
+# cihazın kendisi. Sinyal ve ICE-TCP yönlendirilir, medya TCP'den kurulur:
+adb reverse tcp:7880 tcp:7880
+adb reverse tcp:7881 tcp:7881
+#   EXPO_PUBLIC_LIVEKIT_URL=ws://localhost:7880
+```
+
+Yerel Turnstile anahtarı `10.0.2.2` alan adına izin vermediği için kayıt
+captcha'sı emülatörde çizilmez (20 sn sonra "yüklenemedi" gösterilir);
+kayıt testleri için `adb reverse tcp:3000 tcp:3000` + `localhost` kullan.
+
 ### Doğrulama
 
 ```bash
