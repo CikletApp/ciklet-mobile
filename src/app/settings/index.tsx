@@ -12,7 +12,7 @@ import {
 } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
 import { CLIENT_VERSION } from "@/lib/device";
-import { disconnectSocket } from "@/realtime/socket";
+import { stopGateway } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
 import { THEME_LABELS, useTheme } from "@/stores/theme";
 import { colors, spacing, typography } from "@/theme/tokens";
@@ -35,7 +35,7 @@ export default function SettingsScreen() {
         text: "Çıkış Yap",
         style: "destructive",
         onPress: () => {
-          disconnectSocket();
+          stopGateway();
           void logout();
         },
       },

@@ -61,6 +61,15 @@ export const LIVEKIT_URL =
   clean(process.env.EXPO_PUBLIC_LIVEKIT_URL) ??
   API_BASE_URL.replace(/^http/, "ws");
 
+/**
+ * Gerçek zamanlı ağ geçidi (ADR-0012). Üretimde nginx `/gateway/ws`'i
+ * Rust sürecine iletiyor; yerelde nginx yok ve ağ geçidi doğrudan
+ * `:4000/ws`'de dinliyor, bu yüzden `.env` ayrıca yazar.
+ */
+export const GATEWAY_URL =
+  clean(process.env.EXPO_PUBLIC_GATEWAY_URL) ??
+  `${API_BASE_URL.replace(/^http/, "ws")}/gateway/ws`;
+
 /** Tek bir HTTP isteğinin üst sınırı. Askıda kalan istek arayüzü kilitler. */
 export const REQUEST_TIMEOUT_MS = 15_000;
 

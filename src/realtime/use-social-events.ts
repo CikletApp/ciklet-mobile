@@ -3,19 +3,18 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { qk } from "@/api/query-keys";
 import { useAuth } from "@/stores/auth";
-import { ServerEvent, type FriendRequestPayload } from "./events";
-import { getSocket } from "./socket";
+import { ServerEvent } from "./events";
+import { onGatewayEvent } from "./gateway";
 
 /**
- * Uygulama genelinde dinlenen sosyal olaylar.
+ * Uygulama genelinde dinlenen sosyal olaylar (kök düzende bir kez).
  *
- * Sohbet ekranından bağımsız çalışır (kök düzende bir kez kurulur):
- *  - `friend_request` / `friend_request_updated` → arkadaş listesini tazeler
- *  - `new_message` → sohbet AÇIK DEĞİLKEN gelen DM'ler; liste ve okunmamış
- *    sayaçları güncellenir
- *
- * Bu olaylar olmadan kullanıcı, uygulamayı kapatıp açmadan yeni bir
- * arkadaşlık isteğini ya da yeni bir DM'yi göremez.
+ * Hepsi kullanıcının KENDİ odasına ya da üyesi olduğu sunucu odalarına
+ * geliyor; sohbet aboneliği gerekmez:
+ *  - arkadaşlık isteği geldi / yanıtlandı → arkadaş listesi
+ *  - DM bildirimi, okuma imleci, üyelik değişimi → sohbet listesi ve rozetler
+ *  - kanal mesajı → sunucu okunmamış rozetleri
+ *  - sunucudan çıkarıldın / sunucu silindi → sunucu listesi
  */
 export function useSocialEvents() {
   const queryClient = useQueryClient();
@@ -24,45 +23,24 @@ export function useSocialEvents() {
   useEffect(() => {
     if (status !== "signedIn") return;
 
-    let cancelled = false;
-    let detach: (() => void) | undefined;
-
-    void getSocket().then((socket) => {
-      if (!socket || cancelled) return;
-
-      const refreshFriends = (_payload?: FriendRequestPayload) => {
-        void queryClient.invalidateQueries({ queryKey: qk.friends });
-      };
-
-      const onNewMessage = () => {
-        // Sohbet listesi sırası ve okunmamış rozetleri sunucudan gelir;
-        // istemcide yeniden hesaplamak yerine tazelemek doğrusu.
-        void queryClient.invalidateQueries({ queryKey: qk.directs });
-        void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
-      };
-
-      // Üyelik değişimi: gruba eklendin, çıkarıldın ya da biri ayrıldı.
-      // Yeni mesaj yok, bu yüzden `new_message` bu durumu hiç yakalamıyor.
-      const onDirectsUpdated = () => {
-        void queryClient.invalidateQueries({ queryKey: qk.directs });
-      };
-
-      socket.on(ServerEvent.FRIEND_REQUEST, refreshFriends);
-      socket.on(ServerEvent.FRIEND_REQUEST_UPDATED, refreshFriends);
-      socket.on(ServerEvent.NEW_MESSAGE, onNewMessage);
-      socket.on(ServerEvent.DIRECTS_UPDATED, onDirectsUpdated);
-
-      detach = () => {
-        socket.off(ServerEvent.FRIEND_REQUEST, refreshFriends);
-        socket.off(ServerEvent.FRIEND_REQUEST_UPDATED, refreshFriends);
-        socket.off(ServerEvent.NEW_MESSAGE, onNewMessage);
-        socket.off(ServerEvent.DIRECTS_UPDATED, onDirectsUpdated);
-      };
-    });
-
-    return () => {
-      cancelled = true;
-      detach?.();
+    const invalidate = (...keys: readonly (readonly unknown[])[]) => {
+      for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
     };
+
+    const releases = [
+      onGatewayEvent(ServerEvent.FRIEND_REQUEST, () => invalidate(qk.friends)),
+      onGatewayEvent(ServerEvent.FRIEND_REQUEST_UPDATED, () => invalidate(qk.friends)),
+      // Sohbet açık değilken gelen DM: liste sırası ve rozet sunucudan gelir,
+      // istemcide yeniden hesaplamak yerine tazelemek doğrusu.
+      onGatewayEvent(ServerEvent.MESSAGE_NOTIFICATION, () => invalidate(qk.directs, qk.unreadCounts)),
+      // Grup kuruldu, eklendin, çıkarıldın — yeni mesaj olmadığı için
+      // bildirim olayı bunu yakalamaz.
+      onGatewayEvent(ServerEvent.DIRECTS_UPDATED, () => invalidate(qk.directs)),
+      onGatewayEvent(ServerEvent.CHANNEL_MESSAGE, () => invalidate(qk.unreadCounts)),
+      onGatewayEvent(ServerEvent.SERVERS_REMOVED, () => invalidate(qk.memberships, qk.unreadCounts)),
+      onGatewayEvent(ServerEvent.SERVER_DELETED, () => invalidate(qk.memberships, qk.unreadCounts)),
+    ];
+
+    return () => releases.forEach((release) => release());
   }, [status, queryClient]);
 }

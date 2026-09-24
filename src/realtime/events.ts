@@ -6,130 +6,104 @@ import type {
 } from "@ciklet/embedded-activities-sdk/types";
 
 import type { RichPresence } from "@/api/types";
+import type { MessageEnvelope } from "./gateway";
 
 /**
- * Socket.IO olay sözleşmesi.
+ * Ağ geçidi olay sözleşmesi (ADR-0012).
  *
- * Kaynak gerçeği `ciklet-web/src/pages/api/socket/io.ts` dosyasıdır; buradaki
- * her ad o dosyadaki `socket.on(...)` / `.emit(...)` çağrılarıyla BİREBİR
- * doğrulanmıştır.
+ * Kaynak gerçeği:
+ *   - istemci → ağ geçidi: `ciklet-web/gateway/src/main.rs` (dispatch) ve
+ *     `gateway/src/events.rs` (yük yapıları, `deny_unknown_fields`)
+ *   - Node → kullanıcı/sohbet odaları: `ciklet-web/src/lib/realtime/events.ts`
+ *     ve `src/lib/calls/service.ts`
  *
- * ⚠️ SDK'daki `SocketEvents` / `chatRoom()` yardımcıları bu noktada
- * güvenilmez:
- *   - `chatRoom(id)` → `chat:<id>` üretiyor. Sunucudaki ODA adı ise
- *     `chatroom:<id>` ve istemci odaya isimle KATILMIYOR; `chat:subscribe`
- *     yayınlıyor. Dinlenmesi gereken OLAY `chat:<id>:messages`.
- *   - `PresenceUpdatePayload` = `{profileId, presenceStatus}` diyor;
- *     sunucu `{userId, status}` yolluyor.
- * Bu yüzden mobil, sözleşmeyi buradan okur. (Düzeltmeler ciklet-sdk'ya
- * taşındığında burası oradan re-export'a indirgenecek.)
+ * İstemcinin gönderdiği alanlar snake_case, sunucunun yayınladıkları
+ * camelCase. Ağ geçidi tanımadığı alanı taşıyan yükü REDDEDİYOR; bir alan
+ * eklemeden önce Rust tarafındaki yapıya bak.
  */
 
-// ── İstemci → sunucu ────────────────────────────────────────────────
+// ── İstemci → ağ geçidi (`event_type`) ──────────────────────────────
 
 export const ClientEvent = {
-  /** `{ chatId }` veya `{ chatIds: [] }` — üyelik sunucuda doğrulanır. */
-  CHAT_SUBSCRIBE: "chat:subscribe",
-  CHAT_UNSUBSCRIBE: "chat:unsubscribe",
-  /** 30 sn'de bir; sunucu `heartbeat_ack` ile yanıtlar. */
+  CHAT_SUBSCRIBE: "chat.subscribe",
+  CHAT_UNSUBSCRIBE: "chat.unsubscribe",
+  /** 30 sn'de bir; `heartbeat.ack` döner. */
   HEARTBEAT: "heartbeat",
-  /** `{ isIdle }` — kullanıcı etkileşimi kesildiğinde. */
-  PRESENCE_IDLE: "presence:idle",
-  /** `{ status }` — kullanıcının elle seçtiği durum. */
-  PRESENCE_SET_STATUS: "presence:set_status",
-  /** Arkadaş/sunucu listesi değişince abonelikleri yeniden kurar. */
-  PRESENCE_SYNC: "presence:sync",
-  RICH_PRESENCE_UPDATE: "rich_presence:update",
-  /** `{ type: 'direct' | 'channel', id, isTyping }` */
+  /** `{ is_idle }` */
+  PRESENCE_IDLE: "presence.idle",
+  /** `{ status }` — ONLINE | IDLE | DND | INVISIBLE (elle seçilebilenler). */
+  PRESENCE_SET_STATUS: "presence.set_status",
+  /** Arkadaş/sunucu listesi değişti; presence kitlesi yeniden alınır. */
+  PRESENCE_SYNC: "presence.sync",
+  /** `{ chat_id, is_typing }` */
   TYPING: "typing",
-  /** `{ channelId? , directId?, messageId }` — okundu bilgisi. */
-  MESSAGE_ACK: "MESSAGE_ACK",
-  FRIEND_REQUEST: "friend_request",
-  FRIEND_REQUEST_UPDATED: "friend_request_updated",
-  GET_ACTIVE_VOICE_CHANNELS: "get_active_voice_channels",
-  JOIN_VOICE_CHANNEL: "join_voice_channel",
-  LEAVE_VOICE_CHANNEL: "leave_voice_channel",
-  /** `{ receiverId, type }` — arama başlat. */
-  INCOMING_CALL: "incoming_call",
-  /** `{ callerId, callId }` — gelen aramayı kabul et. */
-  CALL_ACCEPTED: "call_accepted",
-  /** `{ callerId, callId }` — gelen aramayı reddet. */
-  CALL_DENIED: "call_denied",
-  /** `{ receiverId, callId }` — kendi aramanı iptal et. */
-  CALL_CANCELLED: "call_cancelled",
-  /** Açılışta bekleyen davetleri iste (`pending_call_invites` döner). */
-  SYNC_CALL_STATE: "sync_call_state",
+  /** `{ channel_id, call_type? }` */
+  VOICE_JOIN: "voice.join",
+  /** `{ channel_id }` */
+  VOICE_LEAVE: "voice.leave",
+  /** `{ channel_id }` — kanaldakileri iste (`voice.update` döner). */
+  VOICE_MEMBERS: "voice.members",
+  VOICE_ACTIVE_CHANNELS: "voice.active_channels",
 } as const;
 
-// ── Sunucu → istemci ────────────────────────────────────────────────
+// ── Ağ geçidi → istemci (`eventType`) ───────────────────────────────
 
 export const ServerEvent = {
-  READY: "ready",
-  HEARTBEAT_ACK: "heartbeat_ack",
-  /** `{ statuses, activities }` — DİZİ DEĞİL. */
-  PRESENCE_BATCH: "presence:batch",
+  HEARTBEAT_ACK: "heartbeat.ack",
+  /** `{ statuses: [{ userId, status }] }` */
+  PRESENCE_BATCH: "presence.batch",
   /** `{ userId, status }` */
-  PRESENCE_UPDATE: "presence:update",
+  PRESENCE_UPDATE: "presence.update",
   /** `{ status }` — kendi görünür durumun. */
-  PRESENCE_SELF: "presence:self",
+  PRESENCE_SELF: "presence.self",
   /** `{ userId, activity }` */
-  RICH_PRESENCE_UPDATE: "rich_presence:update",
+  RICH_PRESENCE_UPDATE: "rich_presence.update",
+  /** `{ chatId, isTyping, profile }` — abone olunan sohbetlerden. */
   TYPING: "typing",
-  READ_STATE_UPDATED: "READ_STATE_UPDATED",
-  /** Sohbet açık olmasa da gelen DM bildirimi. */
-  NEW_MESSAGE: "new_message",
   /**
-   * `{ directId }` — sohbet listesinin kendisi değişti.
-   *
-   * ciklet-web bunu grup kurulduğunda, üye eklenip çıkarıldığında ve biri
-   * gruptan ayrıldığında ETKİLENEN HER ÜYEYE yayınlıyor
-   * (`api/directs/groups/route.ts`, `api/directs/[directId]/route.ts`).
-   * `new_message`'tan farkı: ortada yeni bir mesaj yok, değişen üyelik.
-   * Dinlenmezse bir gruba eklenen kullanıcı, uygulamayı kapatıp açana
-   * kadar grubu hiç görmez.
+   * Yeni mesaj. Tel üzerinde ayrı bir `eventType` DEĞİL — `messageId`
+   * taşıyan zarf; ağ geçidi istemcisi onu hem sohbet aboneliğine hem bu
+   * ada yayar (sohbet listesi önizlemesi için).
    */
-  DIRECTS_UPDATED: "directs_updated",
-  FRIEND_REQUEST: "friend_request",
-  FRIEND_REQUEST_UPDATED: "friend_request_updated",
-  VOICE_CHANNEL_UPDATE: "voice_channel_update",
-  ACTIVE_VOICE_CHANNELS: "active_voice_channels",
-  /** `{ caller, type, callId, expiresAt }` — sana arama geliyor. */
-  INCOMING_CALL: "incoming_call",
+  MESSAGE_CREATE: "message.create",
+  /** `{ chatId, message }` — düzenleme, silme, aktivite kartı, arama özeti. */
+  MESSAGE_UPDATE: "message.update",
+  /** `{ chatId, delta }` */
+  MESSAGE_REACTION: "message.reaction",
+  /** `{ message, sender, directId, isSpam }` — DM bildirimi (kullanıcı odası). */
+  MESSAGE_NOTIFICATION: "message.notification",
+  /** `{ readState }` */
+  READ_STATE_UPDATED: "read_state.updated",
+  /** `{ directId }` — grup kuruldu, üye eklendi/çıkarıldı, biri ayrıldı. */
+  DIRECTS_UPDATED: "directs.updated",
+  /** `{ serverId, channelId, messageId, senderId }` — sunucu okunmamış rozeti. */
+  CHANNEL_MESSAGE: "channel.message",
+  /** `{ serverId }` — sunucudan çıkarıldın. */
+  SERVERS_REMOVED: "servers.removed",
+  /** `{ serverId }` — sunucu silindi. */
+  SERVER_DELETED: "server.deleted",
+  /** `{ sender }` */
+  FRIEND_REQUEST: "friend.request",
+  FRIEND_REQUEST_UPDATED: "friend.request_updated",
+  /** `{ channelId, participants, startTime, info? }` */
+  VOICE_UPDATE: "voice.update",
+  /** `{ channels: [...] }` */
+  VOICE_ACTIVE_CHANNELS: "voice.active_channels",
+  /** `{ caller, type, callId, expiresAt, directChannelId }` */
+  CALL_INCOMING: "call.incoming",
   /** `{ profile, callId }` — karşı taraf kabul etti. */
-  CALL_ACCEPTED: "call_accepted",
-  /** `{ profile, callId }` — karşı taraf reddetti. */
-  CALL_DENIED: "call_denied",
-  /** `{ caller, callId }` — arayan vazgeçti veya davet zaman aşımına uğradı. */
-  CALL_CANCELLED: "call_cancelled",
-  /** `{ receiverId, reason }` — DM izinleri aramaya kapalı. */
-  CALL_REJECTED: "call_rejected",
+  CALL_ACCEPTED: "call.accepted",
+  /** `{ profile, callId }` */
+  CALL_DENIED: "call.denied",
+  /** `{ caller, callId }` — arayan vazgeçti ya da 45 sn doldu. */
+  CALL_CANCELLED: "call.cancelled",
   /** `{ callId, status }` — başka cihazında yanıtladın. */
-  CALL_HANDLED_ELSEWHERE: "call_handled_elsewhere",
-  /** Açılışta bekleyen davetler. */
-  PENDING_CALL_INVITES: "pending_call_invites",
-  ACTIVITY_UPDATE: "activity_update",
-  ACTIVITY_SYNC: "activity_sync",
-  ACTIVITY_ENDED: "activity_ended",
+  CALL_HANDLED_ELSEWHERE: "call.handled_elsewhere",
 } as const;
-
-// ── Sohbete özel dinamik olay adları ────────────────────────────────
-// ciklet-web: `SOCKET_EVENTS.chatMessages` / `chatUpdate` (lib/constants.ts)
-
-/** Yeni mesaj yayını. `chatId` = channelId veya directId. */
-export const chatMessagesEvent = (chatId: string) =>
-  `chat:${chatId}:messages` as const;
-
-/** Var olan mesajın güncellenmesi (düzenleme, silme, reaksiyon). */
-export const chatUpdateEvent = (chatId: string) =>
-  `chat:${chatId}:messages:update` as const;
-
-/** Mesaj reaksiyonunun eklenmesi veya kaldırılması. */
-export const chatReactionEvent = (chatId: string) =>
-  `chat:${chatId}:reaction` as const;
 
 // ── Yük tipleri ─────────────────────────────────────────────────────
 
-/** Kanal ve DM mesajları aynı olay adı deseninden gelir. */
+/** Kanal ve DM mesajları aynı cache'te, aynı listede yaşar. */
 export type ChatMessagePayload = MessageWithMember | DirectMessageWithProfile;
 
 export interface ReactionDelta {
@@ -150,69 +124,15 @@ export interface PresenceUpdatePayload {
   status: PresenceStatus;
 }
 
-export interface PresenceSelfPayload {
-  status: PresenceStatus;
-}
-
-/**
- * `presence:batch` yükü.
- *
- * ⚠️ `statuses` bir NESNE DEĞİL, DİZİdir. Sunucudaki
- * `presenceManager.getBulkStatus()` `PresenceUpdateEvent[]` döndürür
- * (`[{ userId, status }, …]`). Nesne sanıp `Object.entries()` uygulamak
- * anahtar olarak dizi indekslerini ("0", "1", …) verir ve hiçbir
- * kullanıcının durumu çözülmez — arkadaşlar kalıcı olarak çevrimdışı
- * görünür. Web istemcisi de bu diziyi `data.statuses.map(...)` ile okur.
- *
- * `activities` ise gerçekten kullanıcı kimliğine göre anahtarlı bir nesne.
- */
-export interface PresenceBatchPayload {
-  statuses: PresenceUpdatePayload[];
-  activities: Record<string, RichPresence>;
-}
-
-/**
- * Sunucunun eski sürümleri `presence:batch`'i sarmalayıcı olmadan, düz bir
- * dizi olarak yayınlıyordu. Web istemcisi hâlâ iki şekli de kabul ediyor;
- * mobil de aynısını yapar.
- */
-export type PresenceBatchMessage = PresenceBatchPayload | PresenceUpdatePayload[];
-
-/** Her iki yayın şeklini tek biçime indirger. */
-export function normalizePresenceBatch(message: PresenceBatchMessage): {
-  statuses: PresenceUpdatePayload[];
-  activities: Record<string, RichPresence>;
-} {
-  if (Array.isArray(message)) return { statuses: message, activities: {} };
-  return {
-    statuses: Array.isArray(message?.statuses) ? message.statuses : [],
-    activities: message?.activities ?? {},
-  };
-}
-
 export interface RichPresencePayload {
   userId: string;
   activity: RichPresence | null;
 }
 
 export interface TypingPayload {
-  type: "direct" | "channel";
-  id: string;
+  chatId: string;
   isTyping: boolean;
   profile: Pick<PublicProfile, "id" | "username" | "name" | "imageUrl">;
-}
-
-export interface FriendRequestPayload {
-  sender: Pick<PublicProfile, "id" | "username" | "name" | "imageUrl">;
-}
-
-export interface ReadStatePayload {
-  id: string;
-  profileId: string;
-  channelId: string | null;
-  directId: string | null;
-  messageId: string;
-  lastReadAt: string;
 }
 
 /**
@@ -223,4 +143,76 @@ export function isChannelMessage(
   message: ChatMessagePayload
 ): message is MessageWithMember {
   return "member" in message;
+}
+
+/**
+ * Ağ geçidi zarfı → sohbet listesinin beklediği mesaj.
+ *
+ * Web'deki `lib/gateway/message-envelope.ts` ile aynı kurallar: zarf
+ * kontrol düzleminin gönderim anındaki YAZAR ANLIK GÖRÜNTÜSÜNÜ taşıyor.
+ * Geçmiş yeniden çekildiğinde güncel ad gelir; canlı satırda gönderim
+ * anındaki ad görünür.
+ */
+export function messageFromEnvelope(event: MessageEnvelope): ChatMessagePayload {
+  const profile = {
+    id: event.authorId,
+    username: event.author.username,
+    name: event.author.name,
+    imageUrl: event.author.imageUrl,
+  } as PublicProfile;
+
+  const replyTo = event.replyTo
+    ? {
+        id: event.replyTo.messageId,
+        // Silinmiş mesajın önizlemesi gösterilmez (sunucudaki `presentReply`).
+        content: event.replyTo.deleted ? "" : event.replyTo.preview,
+        deleted: event.replyTo.deleted,
+        profile: {
+          id: event.replyTo.authorId,
+          username: event.replyTo.authorUsername,
+          name: null,
+          imageUrl: null,
+        },
+      }
+    : null;
+
+  const base = {
+    id: event.messageId,
+    content: event.content,
+    fileUrl: event.fileUrl,
+    type: event.messageType,
+    deleted: false,
+    metadata: event.metadata ?? null,
+    replyToId: event.replyTo?.messageId ?? null,
+    replyTo,
+    reactions: [],
+    createdAt: event.timestamp,
+    updatedAt: event.timestamp,
+    expiresAt: event.expiresAt,
+  };
+
+  if (event.scope === "channel") {
+    return {
+      ...base,
+      channelId: event.chatId,
+      memberId: event.memberId ?? event.authorId,
+      member: {
+        id: event.memberId ?? event.authorId,
+        // Zarf yetki rolünü taşımıyor; en dar varsayım.
+        role: "GUEST",
+        profileId: event.authorId,
+        serverId: event.serverId ?? "",
+        nickname: event.author.nickname,
+        roleColor: event.author.roleColor,
+        profile,
+      },
+    } as unknown as MessageWithMember;
+  }
+
+  return {
+    ...base,
+    directId: event.chatId,
+    profileId: event.authorId,
+    profile,
+  } as unknown as DirectMessageWithProfile;
 }

@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ClientEvent, ServerEvent, type TypingPayload } from "./events";
-import { getSocket, peekSocket } from "./socket";
+import { onGatewayEvent, sendGatewayEvent } from "./gateway";
 
 /**
  * "Yazıyor…" göstergesi.
  *
  * İki yönlü:
- *  - `typers`  : bu sohbette şu an yazanlar (sunucudan gelen)
+ *  - `typers`  : bu sohbette şu an yazanlar (ağ geçidinden gelen)
  *  - `notifyTyping()` : kendi yazma durumunu bildirir
  *
- * Giden bildirim kısılır (throttle): her tuş vuruşunda olay yollamak
- * hareketli bir kanalda soketi boğar. Bir kez "yazıyor" gönderilir, 3 sn
- * sessizlikten sonra "durdu" gönderilir.
+ * Ağ geçidi göstergeyi yalnızca SOHBETE ABONE bağlantılara yayıyor; abonelik
+ * `useChatStream` tarafından tutulur, bu hook ayrıca abone olmaz.
  *
- * Gelen kayıtlar da kendi kendine sönümlenir: karşı taraf uygulamayı
- * kapatırsa "durdu" olayı hiç gelmez ve gösterge sonsuza dek asılı kalırdı.
+ * Giden bildirim kısılır: her tuş vuruşunda olay yollamak hareketli bir
+ * kanalda bağlantıyı boğar. Bir kez "yazıyor" gönderilir, 3 sn sessizlikten
+ * sonra "durdu". Gelen kayıtlar da kendiliğinden söner: karşı taraf
+ * uygulamayı kapatırsa "durdu" hiç gelmez ve gösterge asılı kalırdı.
  */
 
 const THROTTLE_MS = 3_000;
@@ -27,7 +28,7 @@ interface Typer {
   at: number;
 }
 
-export function useTyping(chatId: string | undefined, kind: "channel" | "direct") {
+export function useTyping(chatId: string | undefined) {
   const [typers, setTypers] = useState<Typer[]>([]);
   const lastSent = useRef(0);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,36 +37,26 @@ export function useTyping(chatId: string | undefined, kind: "channel" | "direct"
   useEffect(() => {
     if (!chatId) return;
 
-    let cancelled = false;
-    let detach: (() => void) | undefined;
+    const release = onGatewayEvent(ServerEvent.TYPING, (frame) => {
+      const payload = frame as unknown as TypingPayload;
+      if (payload.chatId !== chatId || !payload.profile?.id) return;
 
-    void getSocket().then((socket) => {
-      if (!socket || cancelled) return;
-
-      const onTyping = (payload: TypingPayload) => {
-        if (payload.id !== chatId || !payload.profile) return;
-
-        setTypers((current) => {
-          const others = current.filter((t) => t.id !== payload.profile.id);
-          if (!payload.isTyping) return others;
-          return [
-            ...others,
-            {
-              id: payload.profile.id,
-              name: payload.profile.name?.trim() || payload.profile.username,
-              at: Date.now(),
-            },
-          ];
-        });
-      };
-
-      socket.on(ServerEvent.TYPING, onTyping);
-      detach = () => socket.off(ServerEvent.TYPING, onTyping);
+      setTypers((current) => {
+        const others = current.filter((t) => t.id !== payload.profile.id);
+        if (!payload.isTyping) return others;
+        return [
+          ...others,
+          {
+            id: payload.profile.id,
+            name: payload.profile.name?.trim() || payload.profile.username,
+            at: Date.now(),
+          },
+        ];
+      });
     });
 
     return () => {
-      cancelled = true;
-      detach?.();
+      release();
       setTypers([]);
     };
   }, [chatId]);
@@ -86,39 +77,30 @@ export function useTyping(chatId: string | undefined, kind: "channel" | "direct"
   // ── Giden ──────────────────────────────────────────────────────────
   const notifyTyping = useCallback(() => {
     if (!chatId) return;
-    const socket = peekSocket();
-    if (!socket?.connected) return;
 
     const now = Date.now();
     if (now - lastSent.current > THROTTLE_MS) {
-      lastSent.current = now;
-      socket.emit(ClientEvent.TYPING, { type: kind, id: chatId, isTyping: true });
+      if (sendGatewayEvent({ event_type: ClientEvent.TYPING, chat_id: chatId, is_typing: true })) {
+        lastSent.current = now;
+      }
     }
 
     if (stopTimer.current) clearTimeout(stopTimer.current);
     stopTimer.current = setTimeout(() => {
       lastSent.current = 0;
-      peekSocket()?.emit(ClientEvent.TYPING, {
-        type: kind,
-        id: chatId,
-        isTyping: false,
-      });
+      sendGatewayEvent({ event_type: ClientEvent.TYPING, chat_id: chatId, is_typing: false });
     }, THROTTLE_MS);
-  }, [chatId, kind]);
+  }, [chatId]);
 
   // Ekrandan çıkarken "yazmayı bıraktım" bildir.
   useEffect(() => {
     return () => {
       if (stopTimer.current) clearTimeout(stopTimer.current);
       if (chatId && lastSent.current > 0) {
-        peekSocket()?.emit(ClientEvent.TYPING, {
-          type: kind,
-          id: chatId,
-          isTyping: false,
-        });
+        sendGatewayEvent({ event_type: ClientEvent.TYPING, chat_id: chatId, is_typing: false });
       }
     };
-  }, [chatId, kind]);
+  }, [chatId]);
 
   return { typers, notifyTyping };
 }

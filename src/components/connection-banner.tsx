@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Animated, Text, View } from "react-native";
 
-import { onConnectionState, type ConnectionState } from "@/realtime/socket";
+import { onConnectionState, type ConnectionState } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
 import { colors, spacing, typography } from "@/theme/tokens";
 

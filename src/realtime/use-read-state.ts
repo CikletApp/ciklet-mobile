@@ -1,19 +1,21 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { api } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
-import { ClientEvent, ServerEvent, type ReadStatePayload } from "./events";
-import { getSocket, peekSocket } from "./socket";
+import { ServerEvent } from "./events";
+import { onGatewayEvent } from "./gateway";
 
 /**
  * Okundu bilgisi.
  *
- * Sohbet açıkken görülen en yeni mesaj sunucuya `MESSAGE_ACK` ile bildirilir;
- * sunucu okuma imlecini ilerletir ve `READ_STATE_UPDATED` yayınlar. Bu ikisi
- * olmadan okunmamış rozetleri hiç sıfırlanmaz.
+ * Sohbet açıkken görülen en yeni mesaj `/api/read-state/ack` ile bildirilir
+ * (ADR-0012 öncesi Socket.IO `MESSAGE_ACK` olayıydı). Sunucu imleci
+ * ilerletip `read_state.updated` yayınlar; rozetler oradan tazelenir.
  *
- * Aynı mesaj için tekrar tekrar ack göndermemek adına son bildirilen kimlik
- * hatırlanır — kullanıcı listede yukarı aşağı kaydırdıkça ack yağmuru olmaz.
+ * Aynı mesaj için tekrar ack gönderilmez — kullanıcı listede kaydırdıkça
+ * istek yağmuru olmaz.
  */
 export function useReadState(
   chatId: string | undefined,
@@ -28,14 +30,17 @@ export function useReadState(
   useEffect(() => {
     if (!chatId || !latestMessageId) return;
     if (lastAcked.current === latestMessageId) return;
-
-    const socket = peekSocket();
-    if (!socket?.connected) return;
-
     lastAcked.current = latestMessageId;
-    socket.emit(ClientEvent.MESSAGE_ACK, {
-      [kind === "channel" ? "channelId" : "directId"]: chatId,
-      messageId: latestMessageId,
+
+    void api(endpoints.readStateAck, {
+      method: "POST",
+      body: {
+        [kind === "channel" ? "channelId" : "directId"]: chatId,
+        messageId: latestMessageId,
+      },
+    }).catch(() => {
+      // Başarısız ack bir sonraki mesajda tekrar denenir.
+      if (lastAcked.current === latestMessageId) lastAcked.current = null;
     });
   }, [chatId, kind, latestMessageId]);
 
@@ -46,24 +51,9 @@ export function useReadState(
 
   // Sunucu okuma durumunu güncelleyince rozetleri tazele.
   useEffect(() => {
-    let cancelled = false;
-    let detach: (() => void) | undefined;
-
-    void getSocket().then((socket) => {
-      if (!socket || cancelled) return;
-
-      const onUpdated = (_payload: ReadStatePayload) => {
-        void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
-        void queryClient.invalidateQueries({ queryKey: qk.directs });
-      };
-
-      socket.on(ServerEvent.READ_STATE_UPDATED, onUpdated);
-      detach = () => socket.off(ServerEvent.READ_STATE_UPDATED, onUpdated);
+    return onGatewayEvent(ServerEvent.READ_STATE_UPDATED, () => {
+      void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
+      void queryClient.invalidateQueries({ queryKey: qk.directs });
     });
-
-    return () => {
-      cancelled = true;
-      detach?.();
-    };
   }, [queryClient]);
 }

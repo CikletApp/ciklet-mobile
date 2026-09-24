@@ -139,6 +139,12 @@ export const endpoints = {
   search: (q: string) => `/api/search${qs({ q })}`,
   unreadCounts: "/api/unread-counts",
   markUnread: "/api/read-state/unread",
+  /**
+   * POST `{ channelId | directId, messageId }` — okuma imlecini ilerletir.
+   * Eskiden Socket.IO `MESSAGE_ACK` olayıydı (ADR-0012 ile HTTP'ye taşındı);
+   * sonuç `read_state.updated` olarak ağ geçidinden geri gelir.
+   */
+  readStateAck: "/api/read-state/ack",
   inbox: "/api/inbox",
   linkPreview: (url: string) => `/api/link-preview${qs({ url })}`,
   klipy: (query?: string) =>
@@ -149,4 +155,13 @@ export const endpoints = {
     `/api/livekit${qs({ room, username })}`,
   activities: "/api/activities",
   activityAuthorize: "/api/activities/authorize",
+
+  // ── DM aramaları (ADR-0012: eylemler HTTP, sonuçları ağ geçidinden) ──
+  /** POST `{ receiverId, type }` → `{ callId, expiresAt, directChannelId }`. */
+  calls: "/api/calls",
+  callAccept: "/api/calls/accept",
+  callDecline: "/api/calls/decline",
+  callCancel: "/api/calls/cancel",
+  /** GET → `{ invites }` — bağlantı anında bekleyen davetler. */
+  callsPending: "/api/calls/pending",
 } as const;

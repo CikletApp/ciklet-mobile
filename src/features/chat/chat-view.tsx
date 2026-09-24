@@ -72,7 +72,7 @@ export function ChatView({
     isFetchingNextPage,
   } = useChatMessages(kind, chatId);
 
-  const { typers, notifyTyping } = useTyping(chatId, kind);
+  const { typers, notifyTyping } = useTyping(chatId);
   const { send, retry, discard } = useComposer(kind, chatId, serverId);
   const outbox = useChatOutbox(chatId);
   const myId = useAuth((state) => state.profile?.id);

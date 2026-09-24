@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 
 import { ClientEvent, ServerEvent } from "@/realtime/events";
-import { getSocket, peekSocket } from "@/realtime/socket";
+import { onGatewayEvent, onGatewayOpen, sendGatewayEvent } from "@/realtime/gateway";
 import { useVoice, type ActiveVoice, type VoiceParticipant } from "@/stores/voice";
 import { useVoiceToken } from "./use-voice-token";
 
@@ -11,10 +11,11 @@ import { useVoiceToken } from "./use-voice-token";
  * İKİ AYRI SİSTEM birlikte çalışır ve ikisi de gereklidir:
  *  - LiveKit  : gerçek ses akışı (token `useVoiceToken` üzerinden; sunucu
  *               kanal üyeliğini orada doğrular).
- *  - Socket.IO: "kim bu kanalda" listesi. Ciklet katılımcı listesini
- *               LiveKit'ten değil kendi soketinden yayınlar; bu yüzden
- *               `join_voice_channel` göndermezsek diğer kullanıcılar bizi
- *               kanalda GÖRMEZ (ses gelse bile).
+ *  - Ağ geçidi: "kim bu kanalda" listesi. Ciklet katılımcı listesini
+ *               LiveKit'ten değil ağ geçidinden yayınlar; bu yüzden
+ *               `voice.join` göndermezsek diğer kullanıcılar bizi kanalda
+ *               GÖRMEZ (ses gelse bile). Ağ geçidi yeniden başladığında
+ *               üyelik düşer; her açılışta katılım tekrar gönderilir.
  */
 export function useVoiceSession(session: ActiveVoice | null) {
   const joinStore = useVoice((s) => s.join);
@@ -28,46 +29,36 @@ export function useVoiceSession(session: ActiveVoice | null) {
     if (session && token) joinStore(session);
   }, [session, token, joinStore]);
 
-  // ── Soket: kanala katıl / ayrıl + katılımcı listesi ───────────────
+  // ── Ağ geçidi: kanala katıl / ayrıl + katılımcı listesi ─────────
   useEffect(() => {
     if (!session) return;
+    const channelId = session.roomId;
 
-    let cancelled = false;
-    let detach: (() => void) | undefined;
-
-    void getSocket().then((socket) => {
-      if (!socket || cancelled) return;
-
-      const onUpdate = (payload: {
-        channelId: string;
-        participants: VoiceParticipant[];
-      }) => {
-        if (payload.channelId !== session.roomId) return;
-        setParticipants(payload.participants ?? []);
-      };
-
-      socket.on(ServerEvent.VOICE_CHANNEL_UPDATE, onUpdate);
-      socket.emit(ClientEvent.JOIN_VOICE_CHANNEL, {
-        channelId: session.roomId,
-        callType: session.kind ?? "audio",
+    const join = () =>
+      sendGatewayEvent({
+        event_type: ClientEvent.VOICE_JOIN,
+        channel_id: channelId,
+        call_type: session.kind ?? "audio",
       });
 
-      detach = () => socket.off(ServerEvent.VOICE_CHANNEL_UPDATE, onUpdate);
+    const releaseUpdate = onGatewayEvent(ServerEvent.VOICE_UPDATE, (frame) => {
+      if (frame.channelId !== channelId) return;
+      setParticipants((frame.participants as VoiceParticipant[] | undefined) ?? []);
     });
+    const releaseOpen = onGatewayOpen(join);
+    join();
 
     return () => {
-      cancelled = true;
-      detach?.();
-      peekSocket()?.emit(ClientEvent.LEAVE_VOICE_CHANNEL, {
-        channelId: session.roomId,
-      });
+      releaseUpdate();
+      releaseOpen();
+      sendGatewayEvent({ event_type: ClientEvent.VOICE_LEAVE, channel_id: channelId });
     };
   }, [session, setParticipants]);
 
   const leave = useCallback(() => {
-    peekSocket()?.emit(ClientEvent.LEAVE_VOICE_CHANNEL, {
-      channelId: session?.roomId,
-    });
+    if (session) {
+      sendGatewayEvent({ event_type: ClientEvent.VOICE_LEAVE, channel_id: session.roomId });
+    }
     leaveStore();
   }, [session, leaveStore]);
 

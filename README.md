@@ -10,7 +10,8 @@ Fazlı yol haritası ve mimari kararlar: **[docs/ROADMAP.md](docs/ROADMAP.md)**
 |---|---|
 | `ciklet-web` API (`https://ciklet.xyz`) | Tüm veri + kimlik (`/api/mobile/auth`) |
 | `@ciklet/embedded-activities-sdk/types` | Paylaşılan tipler ve API/socket sözleşmeleri (GitHub'dan kurulur) |
-| LiveKit (`wss://ciklet.xyz/rtc`) | Sesli/görüntülü kanallar |
+| Ağ geçidi (`wss://ciklet.xyz/gateway/ws`) | Tüm gerçek zamanlı olaylar (ADR-0012) |
+| LiveKit (`wss://ciklet.xyz`) | Sesli/görüntülü kanallar |
 
 **Kimlik modeli:** `/api/mobile/auth`'tan alınan NextAuth oturum token'ı
 SecureStore'da saklanır ve her HTTP isteği + Socket.IO el sıkışmasına **Cookie
@@ -62,9 +63,9 @@ src/api/          HTTP katmanı
   types.ts          SDK'da henüz olmayan yanıt tipleri
   hooks/            veri hook'ları (profil, sunucu, DM, arkadaş, mesaj, arama)
 
-src/realtime/     Socket.IO katmanı
-  events.ts         sunucuyla BİREBİR doğrulanmış olay sözleşmesi
-  socket.ts         tekil bağlantı, yeniden abonelik, heartbeat
+src/realtime/     Ağ geçidi katmanı (Rust, ADR-0012 — Socket.IO KALDIRILDI)
+  gateway.ts        tekil WebSocket, yeniden bağlanma, abonelik, heartbeat
+  events.ts         ağ geçidiyle BİREBİR olay sözleşmesi + zarf dönüştürücü
   provider.tsx      oturum + AppState bağlantısı, presence yayınları
   use-chat-stream.ts sohbet aboneliği ve cache'e doğrudan yazma
 
@@ -83,11 +84,16 @@ görünüm render eder. Veri dönüşümü `api/hooks`'a, ekran mantığı
 
 ## Tema
 
-Renkler `ciklet-web/src/app/theme.css` içindeki **Gece** temasıyla birebir
-aynı HSL bileşenlerinden gelir. Marka: `#98cb00` (lime) / `#45f3ff` (camgöbeği).
+Web ile aynı 7 atmosfer (Ametist varsayılan, Gece, Sis, Porselen, Obsidyen,
+Okyanus, Orman) + Sistem. Her tema beş kaynak renkten (zemin, menü, sohbet,
+panel, vurgu) türetilir; metin/kenarlık/vurgu kontrasta göre hesaplanır.
+Kayıt ve hesap `src/theme/palette.ts` içinde, ciklet-web'deki
+`src/lib/themes.ts` + `src/lib/theme-palette.ts` ile birebir. Mentol
+planında kişisel palet açılır.
 
-Tek kaynak `src/theme/tokens.ts`; tüm renkler oradan okunur (navigator
-seçenekleri, `StyleSheet`, satır içi stiller). NativeWind kullanılmıyor —
+Bileşenler `colors` (etkin paletin Proxy'si) okur. Düz nesne bekleyen
+yerler (navigator seçenekleri) `useTheme((s) => s.palette)` kullanmalı:
+React Compiler modül sabiti olan Proxy'ye bağlı hesabı önbelleğe alıyor. NativeWind kullanılmıyor —
 `className` tarafı ve `tailwind.config.js` kaldırıldı, iki dosyayı ikiz
 tutma yükü de onunla birlikte gitti.
 
@@ -107,7 +113,10 @@ npm start
 ```
 
 Yerel backend için: `ciklet-infra`'da `docker compose -f docker-compose.dev.yml up -d`
-ve `ciklet-web`'de `pnpm dev`.
+ve `ciklet-web`'de `pnpm dev`. Yerelde nginx yok: ağ geçidi doğrudan
+`ws://<LAN-IP>:4000/ws` (üretimde `/gateway/ws`). `.env`'de
+`EXPO_PUBLIC_GATEWAY_URL` bunu söyler; `.env` değişince Metro `--clear` ile
+yeniden başlatılmalı (değerler pakete gömülüyor).
 
 ### Doğrulama
 

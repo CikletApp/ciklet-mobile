@@ -14,7 +14,9 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://ciklet.xyz"
+        "EXPO_PUBLIC_API_URL": "https://ciklet.xyz",
+        "EXPO_PUBLIC_GATEWAY_URL": "wss://ciklet.xyz/gateway/ws",
+        "EXPO_PUBLIC_LIVEKIT_URL": "wss://ciklet.xyz"
       },
       "android": {
         "buildType": "apk"
@@ -23,7 +25,9 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://ciklet.xyz"
+        "EXPO_PUBLIC_API_URL": "https://ciklet.xyz",
+        "EXPO_PUBLIC_GATEWAY_URL": "wss://ciklet.xyz/gateway/ws",
+        "EXPO_PUBLIC_LIVEKIT_URL": "wss://ciklet.xyz"
       },
       "android": {
         "buildType": "app-bundle"
