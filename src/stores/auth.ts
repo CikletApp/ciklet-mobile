@@ -5,6 +5,7 @@ import * as apiClient from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { clearPersistedCache } from "@/api/query-client";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
+import { clearNativeCookies } from "@/lib/cookies";
 import { unregisterPushToken } from "@/lib/notifications";
 
 /**
@@ -38,6 +39,9 @@ export const useAuth = create<AuthState>((set, get) => ({
   profile: null,
 
   bootstrap: async () => {
+    // Önceki sürümün WebView'ının kavanoza bıraktığı çerezler kimlik
+    // başlığını eziyordu; açılışta temizlenir (bkz. lib/cookies.ts).
+    await clearNativeCookies();
     const session = await apiClient.getSession();
     if (!session) {
       set({ status: "signedOut", profile: null });

@@ -173,6 +173,10 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
       headers,
       body: payload,
       signal: controller.signal,
+      // Yerel çerez kavanozu KULLANILMAZ: Android'de kavanozda tek bir çerez
+      // bile varsa elle yazdığımız `Cookie` başlığını eziyor (bkz.
+      // lib/cookies.ts). Kimlik yalnızca SecureStore'daki token'dan gelir.
+      credentials: "omit",
     });
   } catch (err) {
     const aborted = err instanceof Error && err.name === "AbortError";

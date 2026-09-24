@@ -1,5 +1,6 @@
 import { cookieHeaderFor, getSession, refreshSession } from "@/api/client";
 import { GATEWAY_URL, HEARTBEAT_INTERVAL_MS } from "@/lib/config";
+import { clearNativeCookies } from "@/lib/cookies";
 
 /**
  * Rust ağ geçidi bağlantısı — ADR-0012 "tek gerçek zamanlı kapı".
@@ -179,6 +180,10 @@ class GatewayConnection {
     this.setState(this.state === "connected" || this.reconnectAttempt > 0 ? "reconnecting" : "connecting");
 
     const session = await getSession();
+    // RN WebSocket kavanozdaki çerezleri AYRI bir `Cookie` başlığı olarak
+    // ekliyor ve ağ geçidi ilk başlığı okuyor; kavanozda bir WebView'ın
+    // bıraktığı çerez varsa oturum hiç görülmüyordu (bkz. lib/cookies.ts).
+    await clearNativeCookies();
     if (!session || !this.active) {
       this.opening = false;
       if (!session) this.setState("idle");

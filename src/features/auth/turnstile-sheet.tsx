@@ -5,6 +5,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { api } from "@/api/client";
 import { Button, IconButton } from "@/components/ui";
 import { API_BASE_URL } from "@/lib/config";
+import { clearNativeCookies } from "@/lib/cookies";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -49,6 +50,9 @@ export function useTurnstile(action: "signup") {
   const resolver = useRef<((outcome: Outcome) => void) | null>(null);
 
   const settle = useCallback((outcome: Outcome) => {
+    // Sayfanın bıraktığı çerezler (analitik, Cloudflare) API isteklerinin
+    // kimlik başlığını ezmesin diye kavanoz boşaltılır (bkz. lib/cookies.ts).
+    void clearNativeCookies();
     resolver.current?.(outcome);
     resolver.current = null;
     setUrl(null);
@@ -113,6 +117,7 @@ export function useTurnstile(action: "signup") {
             {url ? (
               <WebView
                 source={{ uri: url }}
+                incognito
                 onMessage={onMessage}
                 onError={() => setFailed(true)}
                 style={{ backgroundColor: "transparent" }}

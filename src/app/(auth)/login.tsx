@@ -28,6 +28,7 @@ function loginErrorMessage(err: unknown): string {
       return "Bu hesapta iki adımlı doğrulama açık. Şimdilik ciklet.xyz üzerinden giriş yapabilirsin.";
   }
   if (err.status === 429) return "Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.";
+  if (err.status >= 500) return "Sunucuda geçici bir sorun var. Biraz sonra tekrar dene.";
   if (err.isNetwork) return "Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.";
   return err.message;
 }
