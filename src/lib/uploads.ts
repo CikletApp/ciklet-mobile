@@ -7,21 +7,49 @@ import { API_BASE_URL } from "@/lib/config";
 
 const FREE_UPLOAD_LIMIT = 8 * 1024 * 1024;
 
+/** v7 yükleme sonucu; yalnızca kullandığımız alan. */
 interface UploadedFile {
-  url: string;
+  /** Uygulamaya özel CDN adresi (`<appId>.ufs.sh`); web de bunu kullanıyor. */
+  ufsUrl: string;
+}
+
+/**
+ * React Native'de dosya DÜZ nesne olarak verilir. v7 istemcisi `uri`
+ * alanını görünce FormData'ya `{ uri, type, name }` koyuyor; iOS'ta File ya
+ * da Blob eklemek "attempt to insert nil object" ile çöküyor. `size` ve
+ * `lastModified` sunucuya giden meta veri için.
+ */
+interface NativeUploadFile {
+  uri: string;
+  name: string;
+  type: string;
+  size: number;
+  lastModified: number;
 }
 
 interface UploadOptions {
-  files: File[];
+  files: NativeUploadFile[];
   headers: () => Promise<HeadersInit>;
   onUploadProgress?: (event: { progress: number }) => void;
-  skipPolling?: boolean;
 }
 
 type UploadFiles = (endpoint: string, options: UploadOptions) => Promise<UploadedFile[]>;
 
-const uploadFiles = (
-  genUploader as unknown as (options: { url: URL; package: string }) => UploadFiles
+/**
+ * Sunucu uploadthing v7 çalıştırıyor. v6 istemcisi (önceki sürüm) sunucunun
+ * yanıtını çözemiyordu: v6 S3 çok parçalı alanları ve `pollingUrl`
+ * bekliyor, v7 ise doğrudan UploadThing'in ingest adreslerini veriyor.
+ * Mobilden yükleme bu yüzden hiç çalışmıyordu. v7'de `genUploader` bir
+ * fonksiyon değil, `{ uploadFiles }` nesnesi döndürüyor; `skipPolling`
+ * de sunucu rotasına (`awaitServerData`) taşındı.
+ *
+ * Sunucunun dosya yönlendirici tipi bu repoda yok; istemci yalnızca uç adı
+ * ve dönüş adresiyle çalıştığı için yerel tiplerle daraltılıyor.
+ */
+const { uploadFiles } = (
+  genUploader as unknown as (options: { url: URL; package: string }) => {
+    uploadFiles: UploadFiles;
+  }
 )({
   url: new URL("/api/uploadthing", API_BASE_URL),
   package: "ciklet-mobile",
@@ -37,20 +65,25 @@ async function uploadPickedFile(
   endpoint: "messageFile" | "profileImage" | "serverImage" | "serverBanner",
   asset: DocumentPicker.DocumentPickerAsset,
   onProgress?: (progress: number) => void
-): Promise<{ url: string; source: ExpoFile }> {
-  if ((asset.size ?? 0) > FREE_UPLOAD_LIMIT) {
+): Promise<{ url: string; mimeType: string }> {
+  // Seçici boyutu ve türü çoğu zaman veriyor; vermezse dosyanın kendisinden.
+  const local = new ExpoFile(asset.uri);
+  const size = asset.size ?? local.size ?? 0;
+  if (size > FREE_UPLOAD_LIMIT) {
     throw new Error("Bu cihazda tek dosya için üst sınır 8 MB.");
   }
-
-  const source = new ExpoFile(asset.uri);
-  Object.defineProperty(source, "name", {
-    configurable: true,
-    enumerable: true,
-    value: asset.name,
-  });
+  const mimeType = asset.mimeType ?? (local.type || "application/octet-stream");
 
   const uploaded = await uploadFiles(endpoint, {
-    files: [source as unknown as File],
+    files: [
+      {
+        uri: asset.uri,
+        name: asset.name,
+        type: mimeType,
+        size,
+        lastModified: asset.lastModified ?? Date.now(),
+      },
+    ],
     headers: async () => {
       const session = await getSession();
       const headers = new Headers();
@@ -58,12 +91,11 @@ async function uploadPickedFile(
       return headers;
     },
     onUploadProgress: ({ progress }) => onProgress?.(progress),
-    skipPolling: true,
   });
 
   const file = uploaded[0];
-  if (!file?.url) throw new Error("Dosya yüklendi ancak adres alınamadı.");
-  return { url: file.url, source };
+  if (!file?.ufsUrl) throw new Error("Dosya yüklendi ancak adres alınamadı.");
+  return { url: file.ufsUrl, mimeType };
 }
 
 /**
@@ -83,13 +115,9 @@ export async function pickAndUploadMessageFile(
   if (result.canceled) return null;
   const asset = result.assets[0];
 
-  const { url, source } = await uploadPickedFile("messageFile", asset, onProgress);
+  const { url, mimeType } = await uploadPickedFile("messageFile", asset, onProgress);
 
-  return {
-    url,
-    name: asset.name,
-    mimeType: asset.mimeType ?? (source.type || "application/octet-stream"),
-  };
+  return { url, name: asset.name, mimeType };
 }
 
 /** Galeriden/dosyalardan bir görsel seçer ve webdeki profil rotasına yükler. */
