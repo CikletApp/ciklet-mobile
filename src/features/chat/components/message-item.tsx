@@ -21,6 +21,7 @@ import { MessageEmbeds } from "./message-embeds";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 import { fw } from "@/theme/fonts";
+import { readable, senderColor } from "@/theme/palette";
 
 /**
  * Tek mesaj satırı — baloncuk düzeni.
@@ -143,7 +144,7 @@ export function MessageItem({
         {showHeader ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <Text
-              style={{ ...typography.caption, ...fw(700), color: colors.brand }}
+              style={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
               numberOfLines={1}
             >
               {name}
@@ -270,6 +271,22 @@ export function MessageItem({
       </View>
     </Pressable>
   );
+}
+
+/**
+ * Gönderen adının rengi. Kanalda üyenin en üst renkli rolü (web'deki
+ * `getMessageNameColor`); yoksa ya da DM grubunda kişiye özgü kararlı renk.
+ * İkisi de baloncuk zemininde okunur hâle getirilir.
+ */
+function nameColor(message: ChatMessagePayload, profileId: string): string {
+  const member = (message as { member?: { roleColor?: string | null; roles?: { color?: string | null; position?: number }[] } }).member;
+  const roleColor =
+    member?.roleColor ??
+    [...(member?.roles ?? [])]
+      .filter((role) => role.color && /^#[0-9a-f]{6}$/i.test(role.color))
+      .sort((a, b) => (b.position ?? 0) - (a.position ?? 0))[0]?.color;
+  if (roleColor && /^#[0-9a-f]{6}$/i.test(roleColor)) return readable(roleColor, colors.bubbleOther);
+  return senderColor(profileId, colors.bubbleOther);
 }
 
 /** Alıntılanan mesajın yazarı — kanal ve DM yanıtlarının şekli farklı. */

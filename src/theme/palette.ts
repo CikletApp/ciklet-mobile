@@ -266,3 +266,16 @@ export function buildRegion(background: string, accent: string) {
     accent: readable(accent, background),
   };
 }
+
+/**
+ * Grup sohbetinde gönderen adının rengi — kişiye özgü ve kararlı (aynı kişi
+ * her zaman aynı renkte), ama o anki sohbet zemininde OKUNUR. Tek bir vurgu
+ * rengiyle kalabalık bir grupta kimin yazdığı ancak ada bakınca anlaşılıyordu.
+ */
+const NAME_HUES = ["#e0719a", "#f2a65a", "#e8c547", "#7ccf6b", "#4fc3b0", "#5aa9e6", "#8f8ff0", "#c77ddb"];
+
+export function senderColor(seed: string, background: string): string {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index++) hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  return readable(NAME_HUES[hash % NAME_HUES.length], background);
+}

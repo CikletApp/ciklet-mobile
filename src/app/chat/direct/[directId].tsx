@@ -11,6 +11,7 @@ import { formatActivity, formatPresenceStatus } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
+import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
 import { colors, radii, spacing } from "@/theme/tokens";
 
@@ -29,6 +30,7 @@ export default function DirectChatScreen() {
   const { data: direct } = useDirect(directId);
   const display = useDirectDisplay(direct);
   const { placeCall } = useCallActions();
+  const myId = useAuth((s) => s.profile?.id);
   const [menuOpen, setMenuOpen] = useState(false);
   const [expiryOpen, setExpiryOpen] = useState(false);
 
@@ -55,9 +57,12 @@ export default function DirectChatScreen() {
     : typing
       ? typing
       : isGroup
-        ? display?.members
-            .map((member) => member.name?.trim() || member.username)
-            .join(", ")
+        ? [
+            ...(display?.members ?? [])
+              .filter((member) => member.id !== myId)
+              .map((member) => member.name?.trim() || member.username),
+            "Sen",
+          ].join(", ")
         : isOfficial
           ? "Resmî hesap"
           : activity ?? formatPresenceStatus(presence.status);
@@ -175,7 +180,7 @@ export default function DirectChatScreen() {
         readOnlyOfficial={isOfficial}
         oneToOne={!isGroup}
         placeholder={
-          isNotes ? "Kendine bir not yaz" : isGroup ? `${display?.title ?? "Gruba"} grubuna yaz` : "Mesaj yaz"
+          isNotes ? "Kendine bir not yaz" : "Mesaj yaz"
         }
       />
     </>
