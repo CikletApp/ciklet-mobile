@@ -211,7 +211,8 @@ export function ChatView({
     );
   }
 
-  const typing = typingLabel(typers);
+  // DM başlığı "yazıyor…"u zaten gösteriyor; alt satır yalnızca kanallarda.
+  const typing = kind === "channel" ? typingLabel(typers) : null;
 
   return (
     <KeyboardAvoider style={{ backgroundColor: colors.chat }}>
