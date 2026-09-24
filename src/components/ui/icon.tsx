@@ -71,6 +71,12 @@ interface IconProps {
   color?: ColorValue;
   /** Dolu varyant — seçili sekme gibi durumlarda. */
   filled?: boolean;
+  /**
+   * Dolu varyantta iç detayların (pusula iğnesi, çan tokmağı) rengi —
+   * ikonun üstünde durduğu zemin. Verilmezse iç detaylar dış hatla aynı
+   * renge boyanıp dolgunun içinde kayboluyordu.
+   */
+  knockout?: ColorValue;
 }
 
 /**
@@ -178,6 +184,7 @@ export function Icon({
   size = 24,
   color = colors.text,
   filled = false,
+  knockout,
 }: IconProps) {
   const paths = PATHS[name];
 
@@ -187,13 +194,13 @@ export function Icon({
         <Path
           key={index}
           d={d}
-          stroke={color}
+          stroke={filled && index > 0 && knockout ? knockout : color}
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
           // Dolu varyantta yalnızca ilk (dış hat) yol boyanır; iç detaylar
-          // (ör. çan sarkacı) çizgi olarak kalmalı.
-          fill={filled && index === 0 ? color : "none"}
+          // (ör. pusula iğnesi) zemin renginde çizilir ki dolguda görünsün.
+          fill={filled && index === 0 ? color : filled && knockout ? knockout : "none"}
         />
       ))}
       <Extras name={name} color={color} />

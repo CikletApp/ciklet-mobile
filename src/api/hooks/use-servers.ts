@@ -148,7 +148,13 @@ export function useServerMembers(serverId: string | undefined) {
   return useQuery({
     queryKey: qk.members(serverId ?? "yok"),
     enabled: Boolean(serverId),
-    queryFn: () => api<MemberWithProfile[]>(endpoints.serverMembers(serverId!)),
+    queryFn: () =>
+      api<MemberWithProfile[] | { items: MemberWithProfile[] }>(endpoints.serverMembers(serverId!)),
+    // Uç sayfalı yanıta geçti (`{ items, nextCursor }`); eski düz dizi de
+    // kabul edilir. `select` diskteki eski önbelleğe de uygulanıyor —
+    // queryFn'de çevirmek kalıcı önbellekteki eski biçimi düzeltmezdi.
+    select: (data): MemberWithProfile[] =>
+      Array.isArray(data) ? data : (data?.items ?? []),
     staleTime: 60_000,
   });
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SectionList, Text, View } from "react-native";
+import { SectionList, Share, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   ChannelType,
@@ -10,16 +10,20 @@ import {
 import {
   useMyMembership,
   useServerChannels,
+  useServerDetails,
+  useServerMembers,
   useServerSummary,
   useUnreadCounts,
 } from "@/api/hooks";
 import {
+  Avatar,
   Icon,
   IconButton,
   Pressable,
   UnreadBadge,
   type IconName,
 } from "@/components/ui";
+import { usePresenceStore } from "@/stores/presence";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -55,7 +59,8 @@ export default function ServerChannelsScreen() {
     <Screen>
       <Stack.Screen
         options={{
-          title: server?.name ?? "",
+          // Ad üst kartta büyük yazıyor; başlıkta tekrarı gereksiz.
+          title: "",
           headerRight: () => (
             <View style={{ flexDirection: "row", gap: spacing.xs }}>
               {canManageChannels ? (
@@ -67,13 +72,6 @@ export default function ServerChannelsScreen() {
                   onPress={() => router.push(`/servers/${serverId}/channels/new`)}
                 />
               ) : null}
-              <IconButton
-                icon="settings"
-                label="Sunucu ayarları"
-                background="transparent"
-                tint={colors.muted}
-                onPress={() => router.push(`/servers/${serverId}/settings`)}
-              />
             </View>
           ),
         }}
@@ -94,6 +92,15 @@ export default function ServerChannelsScreen() {
           )}
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled={false}
+          ListHeaderComponent={
+            server ? (
+              <ServerHero
+                serverId={serverId}
+                name={server.name}
+                imageUrl={server.imageUrl}
+              />
+            ) : null
+          }
           contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
           renderSectionHeader={({ section }) => {
             const isCollapsed = collapsed.has(section.type);
@@ -152,6 +159,88 @@ export default function ServerChannelsScreen() {
   );
 }
 
+/**
+ * Sunucunun kimlik kartı — ikon, ad, üye ve çevrimiçi sayısı, en sık iki
+ * eylem. Kanal listesine girildiğinde "neredeyim" sorusu başlıktaki küçük
+ * yazıdan değil buradan okunur.
+ */
+function ServerHero({
+  serverId,
+  name,
+  imageUrl,
+}: {
+  serverId: string;
+  name: string;
+  imageUrl: string | null;
+}) {
+  const { data: members } = useServerMembers(serverId);
+  // Davet kodu özet listede yok; ayrıntı ucu önbellekte çoğu zaman hazır.
+  const { data: details } = useServerDetails(serverId);
+  const inviteCode = details?.inviteCode;
+  const memberIds = (members ?? []).map((member) => member.profileId);
+  const online = usePresenceStore((state) =>
+    memberIds.filter((id) => {
+      const status = state.entries[id]?.status;
+      return status === "ONLINE" || status === "IDLE" || status === "DND";
+    }).length
+  );
+
+  return (
+    <View style={{ alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md }}>
+      <View style={{ borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden" }}>
+        <Avatar imageUrl={imageUrl} fallbackText={name} size={76} radius={0} backgroundColor={colors.bento} />
+      </View>
+      <Text style={{ ...typography.display, color: colors.bright, textAlign: "center" }} numberOfLines={2}>
+        {name}
+      </Text>
+      {members ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{members.length} üye</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.online }} />
+            <Text style={{ ...typography.caption, color: colors.muted }}>{online} çevrimiçi</Text>
+          </View>
+        </View>
+      ) : null}
+      <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs }}>
+        {inviteCode ? (
+          <HeroAction
+            icon="user-plus"
+            label="Davet et"
+            onPress={() => void Share.share({ message: `https://ciklet.xyz/i/${inviteCode}` })}
+          />
+        ) : null}
+        <HeroAction icon="settings" label="Ayarlar" onPress={() => router.push(`/servers/${serverId}/settings`)} />
+      </View>
+    </View>
+  );
+}
+
+function HeroAction({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      haptic="light"
+      noHitSlop
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        minHeight: 40,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.full,
+        backgroundColor: pressed ? colors.raised : colors.panel,
+        borderWidth: 1,
+        borderColor: colors.bentoBorder,
+      })}
+    >
+      <Icon name={icon} size={17} color={colors.brand} />
+      <Text style={{ ...typography.caption, fontSize: 14, fontWeight: "700", color: colors.bright }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const CHANNEL_ICON: Record<string, IconName> = {
   [ChannelType.TEXT]: "hash",
   [ChannelType.AUDIO]: "volume",
@@ -201,26 +290,28 @@ function ChannelRow({
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.md,
         borderRadius: radii.md,
-        backgroundColor: pressed ? colors.panel : "transparent",
+        backgroundColor: pressed ? colors.raised : "transparent",
         opacity: enabled ? 1 : 0.5,
       })}
     >
       <Icon
         name={CHANNEL_ICON[channel.type] ?? "hash"}
         size={20}
-        color={colors.muted}
+        color={unread > 0 ? colors.bright : colors.muted}
       />
       <Text
         style={{
           ...typography.body,
-          color: unread > 0 ? colors.bright : colors.text,
+          fontWeight: unread > 0 ? "700" : "500",
+          // Okunmuş kanal geri çekilir; okunmamış olan listeden öne çıkar.
+          color: unread > 0 ? colors.bright : colors.muted,
           flex: 1,
         }}
         numberOfLines={1}
       >
         {channel.name}
       </Text>
-      {unread > 0 ? <UnreadBadge count={unread} /> : null}
+      {unread > 0 ? <UnreadBadge count={unread} tone="brand" /> : null}
     </Pressable>
   );
 }

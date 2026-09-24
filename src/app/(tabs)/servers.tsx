@@ -30,11 +30,12 @@ import {
   Avatar,
   Button,
   EmptyState,
+  HeaderButton,
   Icon,
-  IconButton,
   ListSkeleton,
   Pressable,
   Screen,
+  TabHeader,
   UnreadBadge,
 } from "@/components/ui";
 import { useAuth } from "@/stores/auth";
@@ -65,7 +66,7 @@ const REORDER_LAYOUT = LinearTransition.duration(REORDER_DURATION).easing(
 );
 
 /** Bir satırın dikey adımı — sürüklemenin kaç sıra kaydığını bundan hesaplarız. */
-const ROW_STEP = 64;
+const ROW_STEP = 72;
 
 export default function ServersScreen() {
   const { items, isLoading } = useRailItems();
@@ -131,43 +132,17 @@ export default function ServersScreen() {
 
   return (
     <Screen edges={["top", "left", "right"]}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing.sm,
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.sm,
-          paddingBottom: spacing.md,
-        }}
+      <TabHeader
+        title="Sunucular"
+        left={<HeaderButton icon="compass" label="Aktiviteler" onPress={() => router.push("/activities")} />}
+        right={<HeaderButton icon="plus" label="Sunucu ekle" accent onPress={() => router.push("/servers/new")} />}
       >
-        <View style={{ flex: 1 }}>
-          <Text style={{ ...typography.display, color: colors.bright }}>
-            Sunucular
+        {totalServers > 0 ? (
+          <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
+            {totalServers} sunucu · sıralamak için basılı tutup sürükle
           </Text>
-          {totalServers > 0 ? (
-            <Text style={{ ...typography.caption, color: colors.muted }}>
-              {totalServers} sunucu
-            </Text>
-          ) : null}
-        </View>
-        <IconButton
-          icon="compass"
-          label="Aktiviteler"
-          background="transparent"
-          tint={colors.muted}
-          onPress={() => router.push("/activities")}
-        />
-        <IconButton
-          icon="plus"
-          label="Sunucu ekle"
-          size={40}
-          background={colors.brand}
-          tint={colors.onBrand}
-          haptic="medium"
-          onPress={() => router.push("/servers/new")}
-        />
-      </View>
+        ) : null}
+      </TabHeader>
 
       {isLoading ? (
         <ListSkeleton rows={6} />
@@ -188,7 +163,7 @@ export default function ServersScreen() {
         <ScrollView
           scrollEnabled={draggingId === null}
           contentContainerStyle={{
-            paddingHorizontal: spacing.sm,
+            paddingTop: spacing.xs,
             paddingBottom: FLOATING_TAB_INSET + spacing.lg,
           }}
         >
@@ -218,16 +193,6 @@ export default function ServersScreen() {
             </DraggableRow>
           ))}
 
-          <Text
-            style={{
-              ...typography.caption,
-              color: colors.muted,
-              textAlign: "center",
-              paddingTop: spacing.md,
-            }}
-          >
-            Sıralamayı değiştirmek için bir satıra basılı tut ve sürükle.
-          </Text>
         </ScrollView>
       )}
     </Screen>
@@ -422,7 +387,7 @@ function ServerRow({
   const owner = Boolean(
     membership.server.profileId && membership.server.profileId === myId
   );
-  const size = compact ? 38 : 44;
+  const size = compact ? 44 : 52;
 
   return (
     <Pressable
@@ -435,15 +400,17 @@ function ServerRow({
         flexDirection: "row",
         alignItems: "center",
         gap: spacing.md,
-        minHeight: compact ? 52 : 56,
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.lg,
+        paddingLeft: spacing.lg,
+        minHeight: compact ? 60 : 72,
         backgroundColor: pressed ? colors.raised : "transparent",
       })}
     >
+      {/* Sabit kutu: sahip çerçevesi ikonu büyütüp metni kaydırmasın. */}
       <View
         style={{
-          borderRadius: radii.md,
+          width: size,
+          height: size,
+          borderRadius: radii.lg,
           borderCurve: "continuous",
           overflow: "hidden",
           borderWidth: owner ? 1.5 : 0,
@@ -453,31 +420,34 @@ function ServerRow({
         <Avatar
           imageUrl={membership.server.imageUrl}
           fallbackText={membership.server.name}
-          size={size}
+          size={owner ? size - 3 : size}
           radius={0}
           backgroundColor={colors.bento}
         />
       </View>
 
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            ...typography.bodyStrong,
-            color: unread > 0 ? colors.bright : colors.text,
-          }}
-          numberOfLines={1}
-        >
-          {membership.server.name}
-        </Text>
-        {owner ? (
-          <Text style={{ ...typography.caption, color: colors.muted }}>
-            Sahibi sensin
+      <View
+        style={{
+          flex: 1,
+          alignSelf: "stretch",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.sm,
+          paddingRight: spacing.lg,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        }}
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ ...typography.title, fontSize: 16.5, color: colors.bright }} numberOfLines={1}>
+            {membership.server.name}
           </Text>
-        ) : null}
+          <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
+            {owner ? "Sahibi sensin" : unread > 0 ? "Yeni mesajlar var" : "Üyesin"}
+          </Text>
+        </View>
+        {unread > 0 ? <UnreadBadge count={unread} tone="brand" /> : null}
       </View>
-
-      {unread > 0 ? <UnreadBadge count={unread} /> : null}
-      <Icon name="chevron-right" size={18} color={colors.muted} />
     </Pressable>
   );
 }

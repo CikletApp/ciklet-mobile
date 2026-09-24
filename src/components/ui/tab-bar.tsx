@@ -174,7 +174,7 @@ function TabItem({
               backgroundColor={colors.panel}
             />
           ) : (
-            <Icon name={icon} size={23} color={tint} filled={focused} />
+            <Icon name={icon} size={23} color={tint} filled={focused} knockout={colors.raised} />
           )}
           {badge > 0 ? (
             <View
