@@ -61,12 +61,12 @@ export function CallControls({
       }}
     >
       <IconButton
-        icon={isMicrophoneEnabled ? "volume" : "bell-off"}
+        icon={isMicrophoneEnabled ? "mic" : "mic-off"}
         label={isMicrophoneEnabled ? "Mikrofonu kapat" : "Mikrofonu aç"}
         onPress={toggleMic}
         size={56}
-        background={isMicrophoneEnabled ? colors.panel : colors.danger}
-        tint={isMicrophoneEnabled ? colors.text : colors.bright}
+        background={isMicrophoneEnabled ? colors.raised : colors.dangerSolid}
+        tint={isMicrophoneEnabled ? colors.bright : "#ffffff"}
         haptic="light"
       />
 
@@ -76,7 +76,7 @@ export function CallControls({
           label={isCameraEnabled ? "Kamerayı kapat" : "Kamerayı aç"}
           onPress={toggleCamera}
           size={56}
-          background={isCameraEnabled ? colors.brand : colors.danger}
+          background={isCameraEnabled ? colors.brand : colors.raised}
           tint={isCameraEnabled ? colors.onBrand : colors.bright}
           haptic="light"
         />
@@ -88,19 +88,19 @@ export function CallControls({
           label={speakerOn ? "Hoparlörü kapat" : "Hoparlöre al"}
           onPress={toggleSpeaker}
           size={56}
-          background={speakerOn ? colors.brand : colors.panel}
-          tint={speakerOn ? colors.onBrand : colors.text}
+          background={speakerOn ? colors.brand : colors.raised}
+          tint={speakerOn ? colors.onBrand : colors.bright}
           haptic="light"
         />
       ) : null}
 
       <IconButton
-        icon="close"
+        icon="phone-off"
         label={hangUpLabel}
         onPress={onHangUp}
         size={56}
-        background={colors.danger}
-        tint={colors.bright}
+        background={colors.dangerSolid}
+        tint="#ffffff"
         haptic="warning"
       />
     </View>

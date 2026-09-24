@@ -16,6 +16,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  Icon,
   Screen,
   ScreenLoader,
 } from "@/components/ui";
@@ -47,6 +48,13 @@ export default function VoiceChannelScreen() {
   useKeepAwake();
 
   const [joinedAt] = useState(() => Date.now());
+  /**
+   * LiveKit (medya) bağlantısı kurulamadı. Katılımcı listesi ağ geçidinden
+   * geldiği için ekran "dolu" görünebilir ama ses akmıyordur; kullanıcı
+   * bunu bilmeli. Anahtar yeniden deneme için odayı baştan kurar.
+   */
+  const [mediaError, setMediaError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   const session = useMemo<ActiveVoice | null>(
     () =>
@@ -95,12 +103,18 @@ export default function VoiceChannelScreen() {
 
   return (
     <LiveKitRoom
+      key={attempt}
       serverUrl={LIVEKIT_URL}
       token={token}
       connect
       audio
       video={isVideo}
       options={{ adaptiveStream: true, dynacast: true }}
+      onConnected={() => setMediaError(false)}
+      onError={() => setMediaError(true)}
+      // Kurulamayan medya bağlantısı hata olarak değil "koptu" olarak
+      // bildiriliyor. Kullanıcının kendi ayrılışında ekran zaten kapanıyor.
+      onDisconnected={() => setMediaError(true)}
     >
       <Stack.Screen options={{ title: channel?.name ?? "" }} />
       <VoiceRoomBody
@@ -108,6 +122,11 @@ export default function VoiceChannelScreen() {
         subtitle={server?.name}
         onLeave={onLeave}
         isVideo={isVideo}
+        mediaError={mediaError}
+        onRetry={() => {
+          setMediaError(false);
+          setAttempt((value) => value + 1);
+        }}
       />
     </LiveKitRoom>
   );
@@ -122,11 +141,15 @@ function VoiceRoomBody({
   subtitle,
   onLeave,
   isVideo,
+  mediaError,
+  onRetry,
 }: {
   title: string;
   subtitle?: string;
   onLeave: () => void;
   isVideo: boolean;
+  mediaError: boolean;
+  onRetry: () => void;
 }) {
   const participants = useVoice((s) => s.participants);
   const livekitParticipants = useParticipants();
@@ -249,6 +272,27 @@ function VoiceRoomBody({
             </View>
           )}
         </View>
+
+        {mediaError ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.md,
+              padding: spacing.md,
+              borderRadius: radii.lg,
+              backgroundColor: colors.panel,
+              borderWidth: 1,
+              borderColor: colors.danger,
+            }}
+          >
+            <Icon name="mic-off" size={20} color={colors.danger} />
+            <Text style={{ ...typography.caption, color: colors.text, flex: 1 }}>
+              Ses sunucusuna bağlanılamadı. Kanaldakileri görüyorsun ama ses akmıyor.
+            </Text>
+            <Button label="Tekrar dene" variant="secondary" onPress={onRetry} />
+          </View>
+        ) : null}
 
         <View style={{ paddingBottom: spacing.lg }}>
           <CallControls

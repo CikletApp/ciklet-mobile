@@ -44,7 +44,15 @@ export const useVoice = create<VoiceState>((set) => ({
   participants: [],
   muted: false,
 
-  join: (active) => set({ active, participants: [], muted: false }),
+  // Liste yalnızca BAŞKA bir odaya geçerken silinir. Ağ geçidinin katılım
+  // yanıtı token'dan önce geliyor; katılımda koşulsuz silmek o yanıtı
+  // yutup ekranı boş bırakıyordu. Ayrılışta `leave` zaten temizliyor.
+  join: (active) =>
+    set((state) =>
+      state.active && state.active.roomId !== active.roomId
+        ? { active, participants: [], muted: false }
+        : { active }
+    ),
   leave: () => set({ active: null, participants: [] }),
   setParticipants: (participants) => set({ participants }),
   setMuted: (muted) => set({ muted }),

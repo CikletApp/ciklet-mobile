@@ -58,7 +58,11 @@ export type IconName =
   | "palette"
   | "sparkles"
   | "monitor"
-  | "rotate-ccw";
+  | "rotate-ccw"
+  // Ses
+  | "mic"
+  | "mic-off"
+  | "phone-off";
 
 interface IconProps {
   name: IconName;
@@ -163,6 +167,20 @@ const PATHS: Record<IconName, string[]> = {
   ],
   monitor: ["M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z", "M8 20h8", "M12 16v4"],
   "rotate-ccw": ["M3 12a9 9 0 1 0 2.6-6.4L3 8", "M3 3v5h5"],
+  mic: ["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"],
+  "mic-off": [
+    "M15 9.3V5a3 3 0 0 0-5.7-1.3",
+    "M9 9v3a3 3 0 0 0 5.1 2.1",
+    "M18.9 12.9A7 7 0 0 0 19 12v-2",
+    "M5 10v2a7 7 0 0 0 12 5",
+    "M12 19v3",
+    "M2 2l20 20",
+  ],
+  "phone-off": [
+    "M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7 2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-3.3-2.6",
+    "M5.1 13.3A19.8 19.8 0 0 1 2 4.7 2 2 0 0 1 4.1 2.7h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.4 2.1L8.1 10.6",
+    "M22 2 2 22",
+  ],
 };
 
 /** Nokta/daire tabanlı ikonlar yol yerine ilkel şekil kullanır. */

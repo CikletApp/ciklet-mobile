@@ -34,12 +34,17 @@ export function useVoiceSession(session: ActiveVoice | null) {
     if (!session) return;
     const channelId = session.roomId;
 
-    const join = () =>
+    const join = () => {
       sendGatewayEvent({
         event_type: ClientEvent.VOICE_JOIN,
         channel_id: channelId,
         call_type: session.kind ?? "audio",
       });
+      // Ağ geçidi katılımı odadakilere yayınlıyor ama katılana ilk listeyi
+      // GÖNDERMİYOR; istenmezse ekranda kendini bile göremiyordun (web de
+      // katıldıktan sonra voice.members istiyor).
+      sendGatewayEvent({ event_type: ClientEvent.VOICE_MEMBERS, channel_id: channelId });
+    };
 
     const releaseUpdate = onGatewayEvent(ServerEvent.VOICE_UPDATE, (frame) => {
       if (frame.channelId !== channelId) return;
