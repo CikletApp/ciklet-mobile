@@ -91,6 +91,16 @@ async function uploadPickedFile(
       return headers;
     },
     onUploadProgress: ({ progress }) => onProgress?.(progress),
+  }).catch((err: unknown) => {
+    // UploadThing hataları ham gelir ("XHR failed 400 undefined"); ayrıntı
+    // geliştirici günlüğüne, kullanıcıya anlaşılır bir cümle.
+    const detail = err as { code?: string; message?: string; data?: unknown };
+    if (__DEV__) console.warn("[yükleme]", detail.code, detail.message, detail.data);
+    throw new Error(
+      detail.code === "TOO_LARGE" || detail.code === "FILE_LIMIT_EXCEEDED"
+        ? "Dosya bu plan için çok büyük."
+        : "Dosya yüklenemedi. Bağlantını kontrol edip tekrar dene."
+    );
   });
 
   const file = uploaded[0];
