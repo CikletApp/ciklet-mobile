@@ -309,25 +309,32 @@ export function useRemoveDirect() {
   });
 }
 
-interface InboxItem {
+export interface InboxItem {
   type: string;
+  /** directId */
   id: string;
+  name: string;
+  imageUrl: string | null;
   count: number;
+}
+
+/** Okunmamış sohbetler (gruplar dahil) — `/api/inbox`, sayıya göre sıralı. */
+export function useInbox() {
+  return useQuery({
+    queryKey: qk.inbox,
+    queryFn: () => api<InboxItem[]>(endpoints.inbox),
+    staleTime: 30_000,
+  });
 }
 
 /**
  * Sohbet başına okunmamış mesaj SAYISI — liste rozetleri ve sekme çubuğu.
  *
- * `/api/unread-counts` içindeki `directUnreads` grup sohbetlerini içermiyor;
  * `/api/inbox` hem birebir hem grup sohbetlerini sayıyla döndürüyor (web'deki
  * gelen kutusu da buradan okuyor). Kayıt yoksa sohbet okunmuş sayılır.
  */
 export function useDirectUnreadCounts() {
-  const { data } = useQuery({
-    queryKey: qk.inbox,
-    queryFn: () => api<InboxItem[]>(endpoints.inbox),
-    staleTime: 30_000,
-  });
+  const { data } = useInbox();
   return useMemo(() => {
     const counts: Record<string, number> = {};
     let total = 0;

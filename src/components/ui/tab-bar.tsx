@@ -8,7 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useDirectUnreadCounts } from "@/api/hooks";
+import { useDirectUnreadCounts, useFriends } from "@/api/hooks";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing } from "@/theme/tokens";
 import { Avatar } from "./avatar";
@@ -42,6 +42,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const insets = useSafeAreaInsets();
   // Rozet mesaj değil SOHBET sayar: "42" bir sayı yığını, "3 sohbet" bir yapılacak.
   const { chats: unreadChats } = useDirectUnreadCounts();
+  const { incoming } = useFriends();
+  const badges: Record<string, number> = { index: unreadChats, notifications: incoming.length };
 
   return (
     <View
@@ -78,7 +80,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
               icon={ICONS[route.name] ?? "home"}
               /** "Sen" sekmesi ikon değil, kullanıcının avatarını taşır. */
               avatar={route.name === "me"}
-              badge={route.name === "index" ? unreadChats : 0}
+              badge={badges[route.name] ?? 0}
               focused={focused}
               onPress={() => {
                 const event = navigation.emit({

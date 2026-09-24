@@ -77,7 +77,7 @@ export default function SettingsScreen() {
             />
             <Divider inset={52} />
             <ListRow
-              icon="bookmark"
+              icon="sparkles"
               title="Mentol"
               onPress={() => router.push("/settings/mentol")}
             />
@@ -112,7 +112,7 @@ export default function SettingsScreen() {
             />
             <Divider inset={52} />
             <ListRow
-              icon="compass"
+              icon="palette"
               title="Görünüm"
               detail={themePreference === "system" ? "Sistem" : THEME_LABELS[themePreference]}
               onPress={() => router.push("/settings/appearance")}
