@@ -134,7 +134,7 @@ export default function EditProfileScreen() {
               disabled={avatarBusy}
               accessibilityRole="button"
               accessibilityLabel="Avatarı değiştir"
-              style={{ marginTop: -26, marginLeft: spacing.md }}
+              style={{ marginTop: -34, marginLeft: spacing.md, alignSelf: "flex-start", borderRadius: 44, borderWidth: 4, borderColor: colors.panel }}
             >
               <Avatar
                 profileId={profile.id}

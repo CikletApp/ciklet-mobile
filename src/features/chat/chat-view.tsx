@@ -12,7 +12,6 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import { router } from "expo-router";
-import * as Clipboard from "expo-clipboard";
 
 import { ApiError } from "@/api/client";
 import { useChatMessages, type ChatKind } from "@/api/hooks";
@@ -602,7 +601,7 @@ function MessageActionsSheet({
                     icon="copy"
                     label="Metni kopyala"
                     onPress={() => {
-                      void Clipboard.setStringAsync(message.content);
+                      void copyText(message.content);
                       onClose();
                     }}
                   />
@@ -637,6 +636,21 @@ const REPORT_REASONS: { value: ReportReason; label: string }[] = [
   { value: "IMPERSONATION", label: "Taklit / sahtecilik" },
   { value: "OTHER", label: "Diğer" },
 ];
+
+/**
+ * Panoya kopyalar. expo-clipboard YEREL bir modül: modül üst düzeyde içe
+ * aktarılsaydı bu JS bir OTA güncellemesiyle modülü içermeyen eski bir
+ * APK'ya ulaştığında uygulama açılışta çökerdi. Tembel yükleme + yutulan
+ * hata ile en kötü durumda yalnızca kopyalama çalışmaz.
+ */
+async function copyText(text: string) {
+  try {
+    const Clipboard = await import("expo-clipboard");
+    await Clipboard.setStringAsync(text);
+  } catch {
+    // Eski yerel derleme: kopyalama yok, ama uygulama ayakta.
+  }
+}
 
 function SheetAction({
   icon,

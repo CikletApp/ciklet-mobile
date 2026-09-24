@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAuth } from "@/stores/auth";
 import { ClientEvent, ServerEvent, type TypingPayload } from "./events";
 import { onGatewayEvent, sendGatewayEvent } from "./gateway";
 
@@ -40,6 +41,9 @@ export function useTyping(chatId: string | undefined) {
     const release = onGatewayEvent(ServerEvent.TYPING, (frame) => {
       const payload = frame as unknown as TypingPayload;
       if (payload.chatId !== chatId || !payload.profile?.id) return;
+      // Ağ geçidi sinyali odadaki HERKESE, gönderene de yayıyor; kendi
+      // yazman başlıkta "Sen yazıyor…" olarak görünüyordu.
+      if (payload.profile.id === useAuth.getState().profile?.id) return;
 
       setTypers((current) => {
         const others = current.filter((t) => t.id !== payload.profile.id);

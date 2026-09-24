@@ -91,15 +91,18 @@ export default function ProfileScreen() {
           style={{ height: 110, backgroundColor: profile.bannerColor ?? colors.brand }}
         />
 
-        <View style={{ paddingHorizontal: spacing.lg, marginTop: -34, gap: spacing.lg }}>
-          <Avatar
-            profileId={profile.id}
-            imageUrl={profile.imageUrl}
-            fallbackText={profile.username}
-            size={80}
-            showPresence={!isOfficial}
-            backgroundColor={colors.bg}
-          />
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: -44, gap: spacing.lg }}>
+          {/* Zemin renginde halka: avatar banda binerken kenarı kaybolmasın. */}
+          <View style={{ alignSelf: "flex-start", borderRadius: 50, borderWidth: 5, borderColor: colors.bg }}>
+            <Avatar
+              profileId={profile.id}
+              imageUrl={profile.imageUrl}
+              fallbackText={profile.username}
+              size={80}
+              showPresence={!isOfficial}
+              backgroundColor={colors.bg}
+            />
+          </View>
 
           <View style={{ gap: 2 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
