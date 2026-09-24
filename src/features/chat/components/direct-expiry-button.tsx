@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, Text, View } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -25,6 +25,27 @@ const OPTIONS: { value: ExpiryMode; label: string; description: string }[] = [
 
 export function DirectExpiryButton({ directId }: { directId: string }) {
   const [visible, setVisible] = useState(false);
+  return (
+    <>
+      <IconButton icon="timer" label="Süreli mesajlar" background="transparent" tint={colors.muted} onPress={() => setVisible(true)} />
+      <DirectExpirySheet directId={directId} visible={visible} onClose={() => setVisible(false)} />
+    </>
+  );
+}
+
+/** Süreli mesaj seçimi — başlıktaki menüden ya da düğmeden açılır. */
+export function DirectExpirySheet({
+  directId,
+  visible,
+  onClose,
+}: {
+  directId: string;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const setVisible = (open: boolean) => {
+    if (!open) onClose();
+  };
   const current = useQuery({
     queryKey: ["direct-expiry", directId],
     queryFn: () => api<ExpiryResponse>(endpoints.directExpiry(directId)),
@@ -38,15 +59,13 @@ export function DirectExpiryButton({ directId }: { directId: string }) {
     },
   });
 
-  const open = () => {
-    setVisible(true);
-    void current.refetch();
-  };
-  const active = Boolean(current.data && current.data.mode !== "OFF");
+  useEffect(() => {
+    if (visible) void current.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnızca açılışta tazelenir
+  }, [visible]);
 
   return (
     <>
-      <IconButton icon="timer" label="Süreli mesajlar" background="transparent" tint={active ? colors.accent : colors.muted} onPress={open} />
       <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setVisible(false)}>
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
           <Pressable onPress={() => setVisible(false)} style={{ position: "absolute", inset: 0, backgroundColor: colors.scrim }} />

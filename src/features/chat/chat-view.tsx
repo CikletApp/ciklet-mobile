@@ -53,6 +53,7 @@ export function ChatView({
   serverId,
   placeholder,
   readOnlyOfficial = false,
+  oneToOne = false,
 }: {
   kind: ChatKind;
   chatId: string;
@@ -61,6 +62,11 @@ export function ChatView({
   placeholder: string;
   /** Ciklet resmî bildirim sohbeti tek yönlüdür. */
   readOnlyOfficial?: boolean;
+  /**
+   * Birebir sohbet (ve Notlarım): karşı tarafın adı ve avatarı her
+   * baloncukta tekrarlanmaz — kim olduğu başlıkta zaten yazıyor.
+   */
+  oneToOne?: boolean;
 }) {
   const {
     data,
@@ -176,6 +182,7 @@ export function ChatView({
         <DaySeparator iso={item.iso} />
       ) : (
         <MessageItem
+          oneToOne={oneToOne}
           message={item.message}
           grouped={item.grouped}
           onLongPress={readOnlyOfficial ? undefined : setSelectedMessage}
@@ -184,12 +191,12 @@ export function ChatView({
           }}
         />
       ),
-    [actions, readOnlyOfficial]
+    [actions, readOnlyOfficial, oneToOne]
   );
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <View style={{ flex: 1, backgroundColor: colors.chat }}>
         <ListSkeleton rows={8} />
       </View>
     );
@@ -207,7 +214,7 @@ export function ChatView({
   const typing = typingLabel(typers);
 
   return (
-    <KeyboardAvoider style={{ backgroundColor: colors.bg }}>
+    <KeyboardAvoider style={{ backgroundColor: colors.chat }}>
       <FlatList
         inverted
         data={items}
@@ -221,7 +228,7 @@ export function ChatView({
          * Rengi burada sabitlemek, react-native-screens'in ne yaptığından
          * bağımsız olarak doğru sonucu garanti eder.
          */
-        style={{ backgroundColor: colors.bg }}
+        style={{ backgroundColor: colors.chat }}
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
         }}
@@ -294,7 +301,7 @@ export function ChatView({
             color: colors.muted,
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.xs,
-            backgroundColor: colors.bg,
+            backgroundColor: colors.chat,
           }}
           accessibilityLiveRegion="polite"
           numberOfLines={1}

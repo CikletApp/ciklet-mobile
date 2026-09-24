@@ -8,7 +8,7 @@ import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 import { useFriends, useOpenDirect } from "@/api/hooks";
 import { Avatar, Icon, Pressable } from "@/components/ui";
 import { resolveMediaUrl } from "@/lib/config";
-import { displayNameOf } from "@/lib/format";
+import { displayNameOf, formatActivity } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { usePresenceStore } from "@/stores/presence";
 import { useTheme } from "@/stores/theme";
@@ -52,7 +52,7 @@ export function ActiveNow() {
           const activityLogo = resolveMediaUrl(activity?.appIconUrl) || largeImage;
           const backdrop = largeImage || activityLogo;
           const label = activity
-            ? `${activity.name} ${activity.type === "LISTENING" ? "dinliyor" : activity.type === "WATCHING" ? "izliyor" : activity.type === "PLAYING" ? "oynuyor" : "kullanıyor"}`
+            ? formatActivity(activity)
             : "Çevrimiçi";
 
           if (!activity) {

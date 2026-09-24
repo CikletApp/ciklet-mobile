@@ -218,3 +218,29 @@ export function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1).trimEnd()}…`;
 }
+
+/** Zengin durumun cümlesi — "Minecraft oynuyor", "Spotify dinliyor". */
+export function formatActivity(activity: { name: string; type?: string } | null | undefined): string | null {
+  if (!activity?.name) return null;
+  const verb =
+    activity.type === "LISTENING" ? "dinliyor"
+      : activity.type === "WATCHING" ? "izliyor"
+        : activity.type === "PLAYING" ? "oynuyor"
+          : activity.type === "STREAMING" ? "yayında"
+            : "kullanıyor";
+  return `${activity.name} ${verb}`;
+}
+
+/** Durumun kısa, küçük harfli karşılığı — sohbet başlığının alt satırı. */
+export function formatPresenceStatus(status: string | undefined): string {
+  switch (status) {
+    case "ONLINE":
+      return "çevrimiçi";
+    case "IDLE":
+      return "boşta";
+    case "DND":
+      return "rahatsız etmeyin";
+    default:
+      return "çevrimdışı";
+  }
+}

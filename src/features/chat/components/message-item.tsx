@@ -43,11 +43,14 @@ const inviteMonthFormat = new Intl.DateTimeFormat("tr-TR", {
 export function MessageItem({
   message,
   grouped = false,
+  oneToOne = false,
   onLongPress,
   onReactionPress,
 }: {
   message: ChatMessagePayload;
   grouped?: boolean;
+  /** Birebir sohbet: gelen mesajlarda ad ve avatar gösterilmez. */
+  oneToOne?: boolean;
   onLongPress?: (message: ChatMessagePayload) => void;
   onReactionPress?: (message: ChatMessagePayload, emoji: string) => void;
 }) {
@@ -72,7 +75,8 @@ export function MessageItem({
     : profile.name?.trim() || profile.username;
 
   const isMine = profile.id === myId;
-  const showHeader = !grouped && !isMine;
+  const showHeader = !grouped && !isMine && !oneToOne;
+  const showAvatar = !isMine && !oneToOne;
   const isOfficial = isOfficialProfile(profile);
   const inviteCode = !message.fileUrl && !message.deleted
     ? extractInviteCode(message.content)
@@ -104,7 +108,7 @@ export function MessageItem({
       }`}
     >
       {/* Gelen mesajlarda avatar; gruplananlarda sütun hizası korunur. */}
-      {!isMine ? (
+      {showAvatar ? (
         grouped ? (
           <View style={{ width: AVATAR_SIZE }} />
         ) : (
@@ -161,15 +165,28 @@ export function MessageItem({
         ) : null}
 
         {message.replyTo && !message.replyTo.deleted ? (
+          // Alıntı: tonlu kutu + vurgu çizgisi + yazarın adı. Yalnızca çizgi
+          // ve soluk metin, alıntının mesajın parçası mı ayrı bir şey mi
+          // olduğunu ayırt ettirmiyordu.
           <View
             style={{
-              borderLeftWidth: 2,
+              borderRadius: radii.md,
+              borderLeftWidth: 3,
               borderLeftColor: colors.brand,
-              paddingLeft: spacing.sm,
+              backgroundColor: isMine ? colors.bubbleOther : colors.deep,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 6,
+              gap: 1,
+              marginTop: 2,
               marginBottom: spacing.xs,
             }}
           >
-            <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={2}>
+            {replyAuthor(message.replyTo) ? (
+              <Text style={{ ...typography.caption, fontWeight: "700", color: colors.brand }} numberOfLines={1}>
+                {replyAuthor(message.replyTo)}
+              </Text>
+            ) : null}
+            <Text style={{ ...typography.caption, color: colors.text }} numberOfLines={2}>
               {message.replyTo.content}
             </Text>
           </View>
@@ -252,6 +269,16 @@ export function MessageItem({
       </View>
     </Pressable>
   );
+}
+
+/** Alıntılanan mesajın yazarı — kanal ve DM yanıtlarının şekli farklı. */
+function replyAuthor(reply: unknown): string | null {
+  const value = reply as {
+    profile?: { name?: string | null; username?: string } | null;
+    member?: { nickname?: string | null; profile?: { name?: string | null; username?: string } } | null;
+  };
+  const profile = value.member?.profile ?? value.profile;
+  return value.member?.nickname?.trim() || profile?.name?.trim() || profile?.username || null;
 }
 
 function isEmojiOnly(content: string) {
