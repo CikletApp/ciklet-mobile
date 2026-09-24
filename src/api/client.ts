@@ -139,7 +139,13 @@ export interface RequestOptions extends Omit<RequestInit, "body"> {
   skipRefresh?: boolean;
 }
 
-async function rawRequest(path: string, options: RequestOptions): Promise<Response> {
+/** Yanıt + isteğin hangi oturum token'ıyla gittiği (yoksa null). */
+interface RawResult {
+  res: Response;
+  sentToken: string | null;
+}
+
+async function rawRequest(path: string, options: RequestOptions): Promise<RawResult> {
   const { body, timeoutMs = REQUEST_TIMEOUT_MS, skipAuth, skipRefresh: _s, ...init } = options;
 
   const headers = new Headers(init.headers);
@@ -158,9 +164,13 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
     }
   }
 
+  let sentToken: string | null = null;
   if (!skipAuth) {
     const session = await getSession();
-    if (session) headers.set("Cookie", cookieHeaderFor(session));
+    if (session) {
+      headers.set("Cookie", cookieHeaderFor(session));
+      sentToken = session.token;
+    }
   }
 
   // AbortSignal.timeout() Hermes'in her sürümünde yok — elle kuruluyor.
@@ -168,7 +178,7 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers,
       body: payload,
@@ -178,6 +188,7 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
       // lib/cookies.ts). Kimlik yalnızca SecureStore'daki token'dan gelir.
       credentials: "omit",
     });
+    return { res, sentToken };
   } catch (err) {
     const aborted = err instanceof Error && err.name === "AbortError";
     throw new ApiError(
@@ -192,15 +203,22 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
 /**
  * Tipli API çağrısı. 401 alındığında bir kez sessiz yenileme denenir; o da
  * başarısızsa oturum düşürülür ve dinleyiciler bilgilendirilir.
+ *
+ * Oturum YALNIZCA 401'i alan istek bir oturumla gittiyse ve o oturum hâlâ
+ * geçerli olansa düşürülür. Oturumsuz giden bir isteğin 401'i "oturum
+ * bitti" demek değil; bu istekler çıkışa yol açsaydı, kullanıcı tam o
+ * sırada giriş yaptığında yeni kaydedilen oturum silinebilirdi (giriş
+ * yapan kullanıcının anında çıkışa düşmesi bu yarıştan da besleniyordu).
  */
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  let res = await rawRequest(path, options);
+  const first = await rawRequest(path, options);
+  let res = first.res;
 
-  if (res.status === 401 && !options.skipRefresh && !options.skipAuth) {
+  if (res.status === 401 && first.sentToken && !options.skipRefresh && !options.skipAuth) {
     const refreshed = await refreshSession();
     if (refreshed) {
-      res = await rawRequest(path, { ...options, skipRefresh: true });
-    } else {
+      res = (await rawRequest(path, { ...options, skipRefresh: true })).res;
+    } else if ((await getSession())?.token === first.sentToken) {
       await logout();
       notifySessionExpired();
     }
@@ -272,7 +290,9 @@ async function performRefresh(): Promise<boolean> {
   } catch (err) {
     // 401 = token ölü (süresi doldu, şifre değişti, hesap banlandı).
     // Ağ hatasında oturumu DÜŞÜRME — kullanıcı çevrimdışı olabilir.
-    if (err instanceof ApiError && err.isUnauthorized) {
+    // Bu arada yeni bir giriş yapıldıysa (token değiştiyse) o oturuma
+    // dokunulmaz.
+    if (err instanceof ApiError && err.isUnauthorized && (await getSession())?.token === session.token) {
       await logout();
     }
     return false;

@@ -16,9 +16,13 @@ import type { DirectPeer, DirectSummary } from "../types";
  * sıralamaz (aksi halde sunucunun kararlı sıralaması bozulur).
  */
 export function useDirects() {
+  // Çağrı katmanı (CallOverlay) kök düzende her zaman bağlı; oturum yokken
+  // bu sorgu açılışta boşuna 401 alıyordu.
+  const signedIn = useAuth((s) => s.status === "signedIn");
   return useQuery({
     queryKey: qk.directs,
     queryFn: () => api<DirectSummary[]>(endpoints.directs),
+    enabled: signedIn,
   });
 }
 
