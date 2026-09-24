@@ -13,6 +13,7 @@ import { isOfficialProfile } from "@/lib/official";
 import { usePresenceStore } from "@/stores/presence";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 const ACTIVE_STATUSES: PresenceStatus[] = [
   PresenceStatus.ONLINE,
@@ -147,7 +148,7 @@ export function ActiveNow() {
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: "700", color: colors.bright }} numberOfLines={1}>{activity.details || activity.name}</Text>
+                    <Text style={{ fontSize: 12, lineHeight: 16, ...fw(700), color: colors.bright }} numberOfLines={1}>{activity.details || activity.name}</Text>
                     <Text style={{ fontSize: 11, lineHeight: 15, color: colors.muted }} numberOfLines={1}>{activity.state || activity.name}</Text>
                   </View>
                 </View>

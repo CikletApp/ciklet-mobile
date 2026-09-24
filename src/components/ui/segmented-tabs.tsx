@@ -2,6 +2,7 @@ import { ScrollView, Text, View } from "react-native";
 
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { Pressable } from "./pressable";
+import { fw } from "@/theme/fonts";
 
 /**
  * Segment kontrolü.
@@ -85,7 +86,7 @@ export function SegmentedTabs<T extends string>({
                 style={{
                   ...typography.caption,
                   fontSize: 14,
-                  fontWeight: active ? "700" : "600",
+                  ...fw(active ? 700 : 600),
                   color: active ? colors.brand : colors.text,
                 }}
               >
@@ -95,7 +96,7 @@ export function SegmentedTabs<T extends string>({
                 <Text
                   style={{
                     ...typography.caption,
-                    fontWeight: "700",
+                    ...fw(700),
                     color: active ? colors.brand : colors.muted,
                   }}
                 >

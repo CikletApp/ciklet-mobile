@@ -4,6 +4,7 @@ import { Animated, Text, View } from "react-native";
 import { onConnectionState, type ConnectionState } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
 import { colors, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 /**
  * Bağlantı durumu şeridi.
@@ -65,7 +66,7 @@ function DelayedConnectionBanner() {
         }}
         accessibilityLiveRegion="polite"
       >
-        <Text style={{ ...typography.caption, fontWeight: "600", color: colors.deep }}>
+        <Text style={{ ...typography.caption, ...fw(600), color: colors.deep }}>
           Bağlantı yeniden kuruluyor…
         </Text>
       </View>

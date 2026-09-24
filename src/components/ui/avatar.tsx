@@ -8,6 +8,7 @@ import { API_BASE_URL } from "@/lib/config";
 import { usePresenceStatus } from "@/stores/presence";
 import { colors, radii } from "@/theme/tokens";
 import { PresenceDot } from "./icon";
+import { fw } from "@/theme/fonts";
 
 /**
  * Avatar + presence rozeti.
@@ -94,7 +95,7 @@ export function Avatar({
           <Text
             style={{
               fontSize: Math.round(size * 0.34),
-              fontWeight: "600",
+              ...fw(600),
               color: colors.text,
             }}
           >

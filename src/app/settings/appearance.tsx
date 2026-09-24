@@ -13,6 +13,7 @@ import {
   type ThemeSource,
 } from "@/theme/palette";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 /**
  * Görünüm — ciklet-web'deki "atmosfer" stüdyosunun mobil karşılığı
@@ -131,25 +132,25 @@ function ThemePreview({ source }: { source: ThemeSource }) {
           backgroundColor: panel.bg,
         }}
       >
-        <Text style={{ ...typography.caption, fontWeight: "700", color: panel.text }}>ciklet</Text>
+        <Text style={{ ...typography.caption, ...fw(700), color: panel.text }}>ciklet</Text>
         <Text style={{ ...typography.caption, color: panel.muted, flex: 1 }} numberOfLines={1}>/ senin köşen</Text>
-        <Text style={{ fontSize: 9, fontWeight: "700", letterSpacing: 0.6, color: panel.accent }}>CANLI ÖNİZLEME</Text>
+        <Text style={{ fontSize: 9, ...fw(700), letterSpacing: 0.6, color: panel.accent }}>CANLI ÖNİZLEME</Text>
       </View>
 
       <View style={{ flexDirection: "row", gap: 6, height: 176 }}>
         <View style={{ width: "40%", borderRadius: radii.md + 2, borderCurve: "continuous", backgroundColor: menu.bg, padding: spacing.sm, gap: 5 }}>
-          <Text style={{ ...typography.caption, fontWeight: "700", color: menu.text }}>bizim köşe</Text>
-          <Text style={{ fontSize: 8, fontWeight: "700", letterSpacing: 0.5, color: menu.muted, marginTop: 2 }}>METİN KANALLARI</Text>
+          <Text style={{ ...typography.caption, ...fw(700), color: menu.text }}>bizim köşe</Text>
+          <Text style={{ fontSize: 8, ...fw(700), letterSpacing: 0.5, color: menu.muted, marginTop: 2 }}>METİN KANALLARI</Text>
           <PreviewChannel icon="hash" label="muhabbet" color={menu.accent} background={menu.raised} />
           <PreviewChannel icon="hash" label="paylaşımlar" color={menu.muted} />
-          <Text style={{ fontSize: 8, fontWeight: "700", letterSpacing: 0.5, color: menu.muted, marginTop: 2 }}>SES ODALARI</Text>
+          <Text style={{ fontSize: 8, ...fw(700), letterSpacing: 0.5, color: menu.muted, marginTop: 2 }}>SES ODALARI</Text>
           <PreviewChannel icon="volume" label="salon" color={menu.muted} />
         </View>
 
         <View style={{ flex: 1, borderRadius: radii.md + 2, borderCurve: "continuous", backgroundColor: chat.bg, padding: spacing.sm, gap: spacing.sm }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <Icon name="hash" size={12} color={chat.muted} />
-            <Text style={{ ...typography.caption, fontWeight: "700", color: chat.text }}>muhabbet</Text>
+            <Text style={{ ...typography.caption, ...fw(700), color: chat.text }}>muhabbet</Text>
           </View>
           <PreviewMessage initial="e" name="Ece" time="Şimdi" text="Yeni renkler tam senlik olmuş! ✨" avatarBg={chat.raised} avatarText={chat.text} textColor={chat.text} muted={chat.muted} />
           <PreviewMessage initial="s" name="Sen" text="Burası artık benim köşem." avatarBg={source.accent} avatarText={onAccent} textColor={chat.text} muted={chat.muted} />
@@ -168,7 +169,7 @@ function PreviewChannel({ icon, label, color, background }: { icon: "hash" | "vo
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 5, paddingVertical: 3, borderRadius: 6, backgroundColor: background }}>
       <Icon name={icon} size={10} color={color} />
-      <Text style={{ fontSize: 10, fontWeight: background ? "700" : "500", color }} numberOfLines={1}>{label}</Text>
+      <Text style={{ fontSize: 10, ...fw(background ? 700 : 500), color }} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -177,12 +178,12 @@ function PreviewMessage(props: { initial: string; name: string; time?: string; t
   return (
     <View style={{ flexDirection: "row", gap: 6 }}>
       <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: props.avatarBg, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 9, fontWeight: "700", color: props.avatarText }}>{props.initial}</Text>
+        <Text style={{ fontSize: 9, ...fw(700), color: props.avatarText }}>{props.initial}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 10, fontWeight: "700", color: props.textColor }}>
+        <Text style={{ fontSize: 10, ...fw(700), color: props.textColor }}>
           {props.name}
-          {props.time ? <Text style={{ fontWeight: "400", color: props.muted }}>  {props.time}</Text> : null}
+          {props.time ? <Text style={{ ...fw(400), color: props.muted }}>  {props.time}</Text> : null}
         </Text>
         <Text style={{ fontSize: 10, lineHeight: 13, color: props.textColor }}>{props.text}</Text>
       </View>
@@ -294,7 +295,7 @@ function CustomPalette({
             <Text style={{ ...typography.bodyStrong, color: colors.bright }}>Senin paletin</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.full, backgroundColor: colors.brandSoft }}>
               <Icon name="sparkles" size={10} color={colors.brand} />
-              <Text style={{ fontSize: 9, fontWeight: "800", letterSpacing: 0.5, color: colors.brand }}>MENTOL</Text>
+              <Text style={{ fontSize: 9, ...fw(800), letterSpacing: 0.5, color: colors.brand }}>MENTOL</Text>
             </View>
           </View>
           <Text style={{ ...typography.caption, color: colors.muted }}>Menü başka, sohbet başka. Her alanı ayrı seç.</Text>
@@ -335,7 +336,7 @@ function CustomPalette({
           style={{ flexDirection: "row", alignItems: "center", gap: 4, opacity: enabled ? 1 : 0.4 }}
         >
           <Icon name="rotate-ccw" size={13} color={colors.brand} />
-          <Text style={{ ...typography.caption, fontWeight: "700", color: colors.brand }}>Paleti sıfırla</Text>
+          <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>Paleti sıfırla</Text>
         </Pressable>
       </View>
     </View>

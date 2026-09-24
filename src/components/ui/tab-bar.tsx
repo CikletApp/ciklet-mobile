@@ -14,6 +14,7 @@ import { colors, radii, spacing } from "@/theme/tokens";
 import { Avatar } from "./avatar";
 import { Icon, type IconName } from "./icon";
 import { Pressable } from "./pressable";
+import { fw } from "@/theme/fonts";
 
 /**
  * Yüzen sekme çubuğu.
@@ -195,12 +196,12 @@ function TabItem({
                 borderColor: colors.panel,
               }}
             >
-              <Text style={{ fontSize: 10, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>{badgeLabel}</Text>
+              <Text style={{ fontSize: 10, lineHeight: 12, ...fw(800), color: colors.onBrand }}>{badgeLabel}</Text>
             </View>
           ) : null}
         </View>
         <Text
-          style={{ fontSize: 11, lineHeight: 14, fontWeight: focused ? "700" : "500", color: tint }}
+          style={{ fontSize: 11, lineHeight: 14, ...fw(focused ? 700 : 500), color: tint }}
           numberOfLines={1}
         >
           {label}

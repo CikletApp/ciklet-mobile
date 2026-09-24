@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { Pressable } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { MessageMarkdown } from "./message-markdown";
+import { fw } from "@/theme/fonts";
 
 interface EmbedField {
   name: string;
@@ -76,7 +77,7 @@ function EmbedCard({ embed }: { embed: RichEmbed }) {
                   style={{ width: 24, height: 24, borderRadius: radii.full, backgroundColor: colors.raised }}
                 />
               ) : null}
-              <Text style={{ ...typography.caption, fontWeight: "600", color: colors.bright }} numberOfLines={1}>
+              <Text style={{ ...typography.caption, ...fw(600), color: colors.bright }} numberOfLines={1}>
                 {embed.author.name}
               </Text>
             </Pressable>
@@ -102,7 +103,7 @@ function EmbedCard({ embed }: { embed: RichEmbed }) {
                 <View key={rowIndex} style={{ flexDirection: "row", gap: spacing.lg }}>
                   {row.map((field, fieldIndex) => (
                     <View key={`${field.name}-${fieldIndex}`} style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                      <Text selectable style={{ ...typography.caption, fontWeight: "700", color: colors.bright }}>
+                      <Text selectable style={{ ...typography.caption, ...fw(700), color: colors.bright }}>
                         {field.name}
                       </Text>
                       <EmbedText value={field.value} color={colors.text} />
@@ -142,7 +143,7 @@ function EmbedCard({ embed }: { embed: RichEmbed }) {
               style={{ width: 20, height: 20, borderRadius: radii.full, backgroundColor: colors.raised }}
             />
           ) : null}
-          <Text selectable style={{ fontSize: 11, lineHeight: 15, fontWeight: "500", color: colors.muted, flex: 1 }}>
+          <Text selectable style={{ fontSize: 11, lineHeight: 15, ...fw(500), color: colors.muted, flex: 1 }}>
             {embed.footer?.text}
             {embed.footer?.text && timestamp ? "  •  " : ""}
             {timestamp}

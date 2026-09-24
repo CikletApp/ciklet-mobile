@@ -1,7 +1,6 @@
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   ScrollView,
   Text,
   TextInput,
@@ -11,7 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 
-import { CikletLogo, IconButton } from "@/components/ui";
+import { CikletLogo, IconButton, KeyboardAvoider } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export function AuthBackdrop() {
@@ -116,24 +115,44 @@ export function AuthShell({
   children: ReactNode;
   onBack?: () => void;
 }) {
+  const scroll = useRef<ScrollView>(null);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => {
+      setKeyboardOpen(true);
+      // Kart sıkışan başlığın altında; alttaki düğmeyi görünür tut.
+      requestAnimationFrame(() => scroll.current?.scrollToEnd({ animated: true }));
+    });
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bentoShell }} edges={["top", "bottom"]}>
       <AuthBackdrop />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      {/*
+        Android'de edge-to-edge açık: pencere klavyeyle yeniden boyutlanmıyor
+        ve KeyboardAvoidingView orada hiçbir şey yapmıyordu — klavye "Giriş
+        Yap" düğmesinin üstüne biniyordu. Reanimated klavye yüksekliğini her
+        iki platformda da doğrudan veriyor.
+      */}
+      <KeyboardAvoider applySafeArea={false}>
         <ScrollView
+          ref={scroll}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
             flexGrow: 1,
             justifyContent: "center",
             paddingHorizontal: spacing.xl,
-            paddingVertical: spacing["2xl"],
+            paddingVertical: keyboardOpen ? spacing.lg : spacing["2xl"],
           }}
         >
           <View style={{ width: "100%", maxWidth: 520, alignSelf: "center" }}>
-            {onBack ? (
+            {onBack && !keyboardOpen ? (
               <View style={{ marginBottom: spacing.lg }}>
                 <IconButton
                   icon="chevron-left"
@@ -146,12 +165,19 @@ export function AuthShell({
               </View>
             ) : null}
 
-            <View style={{ alignItems: "center", gap: spacing.sm, marginBottom: spacing["2xl"] }}>
-              <CikletLogo height={38} color={colors.brand} />
-              <Text style={{ ...typography.displayLg, color: colors.bright, textAlign: "center" }}>
+            {/* Klavye açıkken başlık sıkışır: form ve düğme görünür kalsın. */}
+            <View style={{ alignItems: "center", gap: spacing.sm, marginBottom: keyboardOpen ? spacing.lg : spacing["2xl"] }}>
+              {keyboardOpen ? null : <CikletLogo height={38} color={colors.brand} />}
+              <Text
+                style={{
+                  ...(keyboardOpen ? typography.display : typography.displayLg),
+                  color: colors.bright,
+                  textAlign: "center",
+                }}
+              >
                 {title}
               </Text>
-              {subtitle ? (
+              {subtitle && !keyboardOpen ? (
                 <Text
                   style={{
                     ...typography.body,
@@ -180,7 +206,7 @@ export function AuthShell({
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </SafeAreaView>
   );
 }

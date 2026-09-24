@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { Icon } from "@/components/ui";
 import { colors, radii, spacing } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 interface OpenGraphPreview {
   title?: string;
@@ -58,13 +59,13 @@ export function LinkPreviewCard({ url }: { url: string }) {
     >
       <View style={{ padding: spacing.md, gap: 4 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Text style={{ fontSize: 10, lineHeight: 13, fontWeight: "700", color: colors.muted }} numberOfLines={1}>
+          <Text style={{ fontSize: 10, lineHeight: 13, ...fw(700), color: colors.muted }} numberOfLines={1}>
             {siteName}
           </Text>
           <Icon name="link" size={11} color={colors.muted} />
         </View>
         {data.title ? (
-          <Text style={{ fontSize: 13, lineHeight: 17, fontWeight: "700", color: colors.accent }} numberOfLines={2}>
+          <Text style={{ fontSize: 13, lineHeight: 17, ...fw(700), color: colors.accent }} numberOfLines={2}>
             {data.title}
           </Text>
         ) : null}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 
 import { colors, radii, spacing } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 /**
  * Okunmamış rozeti.
@@ -59,7 +60,7 @@ export function UnreadBadge({
         style={{
           fontSize: 11,
           lineHeight: 14,
-          fontWeight: "700",
+          ...fw(700),
           color: tone === "brand" ? colors.onBrand : colors.bright,
         }}
       >
@@ -88,7 +89,7 @@ export function Tag({
         backgroundColor: background,
       }}
     >
-      <Text style={{ fontSize: 11, lineHeight: 15, fontWeight: "600", color: tint }}>
+      <Text style={{ fontSize: 11, lineHeight: 15, ...fw(600), color: tint }}>
         {label}
       </Text>
     </View>

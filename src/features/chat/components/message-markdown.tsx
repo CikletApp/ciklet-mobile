@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Linking, Text, View, type TextStyle } from "react-native";
 
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 interface MessageMarkdownProps {
   value: string;
@@ -9,15 +10,20 @@ interface MessageMarkdownProps {
   compact?: boolean;
 }
 
-type InlineStyle = Pick<TextStyle, "fontWeight" | "fontStyle" | "textDecorationLine">;
+type InlineStyle = Pick<TextStyle, "fontFamily" | "fontWeight" | "fontStyle" | "textDecorationLine">;
 
-const FORMATS: { open: string; close: string; style: InlineStyle }[] = [
-  { open: "***", close: "***", style: { fontWeight: "700", fontStyle: "italic" } },
-  { open: "___", close: "___", style: { fontWeight: "700", fontStyle: "italic", textDecorationLine: "underline" } },
-  { open: "**", close: "**", style: { fontWeight: "700" } },
-  { open: "__", close: "__", style: { textDecorationLine: "underline" } },
-  { open: "~~", close: "~~", style: { textDecorationLine: "line-through" } },
-  { open: "*", close: "*", style: { fontStyle: "italic" } },
+/**
+ * Biçim stilleri İSTEK ANINDA üretilir: kalın yüz uygulama fontu seçildikten
+ * sonra belli oluyor (bkz. `fw`); modül yüklenirken hesaplansaydı kalın
+ * metin sistem fontuna düşerdi.
+ */
+const FORMATS: { open: string; close: string; style: () => InlineStyle }[] = [
+  { open: "***", close: "***", style: () => ({ ...fw(700), fontStyle: "italic" }) },
+  { open: "___", close: "___", style: () => ({ ...fw(700), fontStyle: "italic", textDecorationLine: "underline" }) },
+  { open: "**", close: "**", style: () => ({ ...fw(700) }) },
+  { open: "__", close: "__", style: () => ({ textDecorationLine: "underline" }) },
+  { open: "~~", close: "~~", style: () => ({ textDecorationLine: "line-through" }) },
+  { open: "*", close: "*", style: () => ({ fontStyle: "italic" }) },
 ];
 
 /**
@@ -177,7 +183,7 @@ function findNextToken(value: string, from: number): InlineToken | null {
         start,
         end: end + format.close.length,
         value: value.slice(start + format.open.length, end),
-        style: format.style,
+        style: format.style(),
       });
     }
   }

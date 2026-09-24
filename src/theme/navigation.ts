@@ -1,3 +1,4 @@
+import { fw } from "./fonts";
 import { typography, type ThemePalette } from "./tokens";
 
 /**
@@ -11,6 +12,8 @@ export const createStackScreenOptions = (colors: ThemePalette) => ({
   headerTitleStyle: {
     color: colors.bright,
     fontSize: typography.title.fontSize,
+    // Yüz + normal kalınlık: `fontWeight` tek başına Android'de Roboto'ya düşürüyordu.
+    fontFamily: typography.title.fontFamily,
     fontWeight: typography.title.fontWeight,
   },
   headerTintColor: colors.bright,
@@ -27,7 +30,7 @@ export const createTabScreenOptions = (colors: ThemePalette) => ({
   },
   tabBarActiveTintColor: colors.bright,
   tabBarInactiveTintColor: colors.muted,
-  tabBarLabelStyle: { fontSize: 11, fontWeight: "600" as const },
+  tabBarLabelStyle: { fontSize: 11, ...fw(600) },
   sceneStyle: { backgroundColor: colors.bg },
 } as const);
 

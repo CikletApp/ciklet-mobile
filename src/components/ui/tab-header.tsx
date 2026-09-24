@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-import { fontFamily } from "@/theme/fonts";
+import { fw } from "@/theme/fonts";
 import { colors, spacing } from "@/theme/tokens";
 import { IconButton } from "./button";
 import type { IconName } from "./icon";
@@ -45,8 +45,7 @@ export function TabHeader({
         style={{
           fontSize: 32,
           lineHeight: 40,
-          fontWeight: "800",
-          fontFamily: fontFamily(700),
+          ...fw(800),
           letterSpacing: -0.6,
           color: colors.bright,
           paddingHorizontal: spacing.lg,

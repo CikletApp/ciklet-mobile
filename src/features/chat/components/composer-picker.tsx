@@ -9,6 +9,7 @@ import { endpoints } from "@/api/endpoints";
 import { useActivities } from "@/api/hooks";
 import { Avatar, Icon } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 export type ComposerPickerTab = "emoji" | "gif" | "activity";
 
@@ -91,7 +92,7 @@ export function ComposerPicker({
                 onPress={() => setTab(item)}
                 style={{ flex: 1, minHeight: 42, alignItems: "center", justifyContent: "center", borderRadius: radii.lg, backgroundColor: tab === item ? colors.raised : "transparent" }}
               >
-                <Text style={{ ...typography.caption, fontWeight: "700", color: tab === item ? colors.bright : colors.muted }}>
+                <Text style={{ ...typography.caption, ...fw(700), color: tab === item ? colors.bright : colors.muted }}>
                   {item === "emoji" ? "Emoji" : item === "gif" ? "GIF'ler" : "Aktiviteler"}
                 </Text>
               </Pressable>

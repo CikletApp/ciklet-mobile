@@ -2,6 +2,7 @@ import { Text, View } from "react-native";
 
 import { formatDaySeparator } from "@/lib/format";
 import { colors, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 /**
  * Sohbette gün değişimini işaretleyen ayraç.
@@ -28,7 +29,7 @@ export function DaySeparator({ iso }: { iso: string }) {
       <Text
         style={{
           ...typography.caption,
-          fontWeight: "600",
+          ...fw(600),
           color: colors.muted,
         }}
       >

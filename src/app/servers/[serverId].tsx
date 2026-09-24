@@ -26,6 +26,7 @@ import {
 import { usePresenceStore } from "@/stores/presence";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 /**
  * Sunucunun kanal listesi.
@@ -236,7 +237,7 @@ function HeroAction({ icon, label, onPress }: { icon: IconName; label: string; o
       })}
     >
       <Icon name={icon} size={17} color={colors.brand} />
-      <Text style={{ ...typography.caption, fontSize: 14, fontWeight: "700", color: colors.bright }}>{label}</Text>
+      <Text style={{ ...typography.caption, fontSize: 14, ...fw(700), color: colors.bright }}>{label}</Text>
     </Pressable>
   );
 }
@@ -302,7 +303,7 @@ function ChannelRow({
       <Text
         style={{
           ...typography.body,
-          fontWeight: unread > 0 ? "700" : "500",
+          ...fw(unread > 0 ? 700 : 500),
           // Okunmuş kanal geri çekilir; okunmamış olan listeden öne çıkar.
           color: unread > 0 ? colors.bright : colors.muted,
           flex: 1,

@@ -1,4 +1,4 @@
-import { fontFamily } from "./fonts";
+import { fw } from "./fonts";
 import {
   DEFAULT_THEME,
   THEMES,
@@ -99,19 +99,19 @@ export const radii = {
  * ğ/ş/ç gibi alt-çıkıntılı harfleri için bilerek geniş tutuldu.
  */
 export const typography = {
-  displayLg: { fontSize: 28, lineHeight: 34, fontWeight: "700", get fontFamily() { return fontFamily(700); } },
-  display: { fontSize: 22, lineHeight: 28, fontWeight: "700", get fontFamily() { return fontFamily(700); } },
-  title: { fontSize: 17, lineHeight: 22, fontWeight: "600", get fontFamily() { return fontFamily(600); } },
-  body: { fontSize: 15, lineHeight: 21, fontWeight: "400", get fontFamily() { return fontFamily(400); } },
-  bodyStrong: { fontSize: 15, lineHeight: 21, fontWeight: "600", get fontFamily() { return fontFamily(600); } },
-  caption: { fontSize: 13, lineHeight: 18, fontWeight: "400", get fontFamily() { return fontFamily(400); } },
+  displayLg: { fontSize: 28, lineHeight: 34, get fontWeight() { return fw(700).fontWeight; }, get fontFamily() { return fw(700).fontFamily; } },
+  display: { fontSize: 22, lineHeight: 28, get fontWeight() { return fw(700).fontWeight; }, get fontFamily() { return fw(700).fontFamily; } },
+  title: { fontSize: 17, lineHeight: 22, get fontWeight() { return fw(600).fontWeight; }, get fontFamily() { return fw(600).fontFamily; } },
+  body: { fontSize: 15, lineHeight: 21, get fontWeight() { return fw(400).fontWeight; }, get fontFamily() { return fw(400).fontFamily; } },
+  bodyStrong: { fontSize: 15, lineHeight: 21, get fontWeight() { return fw(600).fontWeight; }, get fontFamily() { return fw(600).fontFamily; } },
+  caption: { fontSize: 13, lineHeight: 18, get fontWeight() { return fw(400).fontWeight; }, get fontFamily() { return fw(400).fontFamily; } },
   /** Bölüm başlıkları — büyük harf, aralıklı. */
   overline: {
     fontSize: 11,
     lineHeight: 14,
-    fontWeight: "700",
     letterSpacing: 0.6,
-    get fontFamily() { return fontFamily(700); },
+    get fontWeight() { return fw(700).fontWeight; },
+    get fontFamily() { return fw(700).fontFamily; },
   },
 } as const;
 

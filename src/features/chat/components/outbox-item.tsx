@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { Icon, Pressable } from "@/components/ui";
 import type { OutboxMessage } from "@/stores/outbox";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 /**
  * Henüz sunucuya ulaşmamış mesaj.
@@ -63,7 +64,7 @@ export function OutboxItem({
               >
                 <Icon name="reply" size={14} color={colors.brand} />
                 <Text
-                  style={{ ...typography.caption, color: colors.brand, fontWeight: "600" }}
+                  style={{ ...typography.caption, color: colors.brand, ...fw(600) }}
                 >
                   Tekrar dene
                 </Text>
@@ -78,7 +79,7 @@ export function OutboxItem({
               >
                 <Icon name="close" size={14} color={colors.muted} />
                 <Text
-                  style={{ ...typography.caption, color: colors.muted, fontWeight: "600" }}
+                  style={{ ...typography.caption, color: colors.muted, ...fw(600) }}
                 >
                   Sil
                 </Text>

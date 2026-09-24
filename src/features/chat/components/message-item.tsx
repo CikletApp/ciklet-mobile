@@ -20,6 +20,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { MessageEmbeds } from "./message-embeds";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
+import { fw } from "@/theme/fonts";
 
 /**
  * Tek mesaj satırı — baloncuk düzeni.
@@ -142,7 +143,7 @@ export function MessageItem({
         {showHeader ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <Text
-              style={{ ...typography.caption, fontWeight: "700", color: colors.brand }}
+              style={{ ...typography.caption, ...fw(700), color: colors.brand }}
               numberOfLines={1}
             >
               {name}
@@ -156,7 +157,7 @@ export function MessageItem({
                   backgroundColor: colors.brand,
                 }}
               >
-                <Text style={{ fontSize: 9, fontWeight: "700", color: colors.onBrand }}>
+                <Text style={{ fontSize: 9, ...fw(700), color: colors.onBrand }}>
                   {isOfficial ? "RESMÎ" : "UYG"}
                 </Text>
               </View>
@@ -182,7 +183,7 @@ export function MessageItem({
             }}
           >
             {replyAuthor(message.replyTo) ? (
-              <Text style={{ ...typography.caption, fontWeight: "700", color: colors.brand }} numberOfLines={1}>
+              <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }} numberOfLines={1}>
                 {replyAuthor(message.replyTo)}
               </Text>
             ) : null}
@@ -449,13 +450,13 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.sm, backgroundColor: colors.bubbleOwn }}>
             <Icon name="compass" size={14} color={colors.brand} />
-            <Text style={{ ...typography.caption, fontWeight: "700", color: colors.brand }}>Aktivite</Text>
+            <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>Aktivite</Text>
           </View>
           <Text style={{ ...typography.caption, color: colors.muted }}>kullanıldı,</Text>
           <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
-            <Text style={{ fontSize: 9, lineHeight: 13, fontWeight: "700", color: colors.onBrand }}>UYG</Text>
+            <Text style={{ fontSize: 9, lineHeight: 13, ...fw(700), color: colors.onBrand }}>UYG</Text>
           </View>
-          <Text style={{ ...typography.caption, fontWeight: "700", color: colors.bright }}>• {activityName}</Text>
+          <Text style={{ ...typography.caption, ...fw(700), color: colors.bright }}>• {activityName}</Text>
         </View>
         <View
           style={{
@@ -486,7 +487,7 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
               <View style={{ position: "absolute", inset: 0, backgroundColor: colors.mediaScrim }} />
             </>
           ) : null}
-          <Text style={{ fontSize: 12, lineHeight: 16, fontWeight: "600", color: colors.mediaMuted }}>
+          <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: colors.mediaMuted }}>
             Etkinlik Daveti
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
@@ -498,8 +499,8 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, lineHeight: 20, fontWeight: "800", color: colors.mediaText }} numberOfLines={1}>{activityName}</Text>
-              <Text style={{ fontSize: isActive ? 13 : 11, lineHeight: 16, fontWeight: "600", color: colors.mediaMuted }} numberOfLines={2}>
+              <Text style={{ fontSize: 16, lineHeight: 20, ...fw(800), color: colors.mediaText }} numberOfLines={1}>{activityName}</Text>
+              <Text style={{ fontSize: isActive ? 13 : 11, lineHeight: 16, ...fw(600), color: colors.mediaMuted }} numberOfLines={2}>
                 {isActive ? "1 Katıldı" : description}
               </Text>
             </View>
@@ -517,7 +518,7 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
               opacity: pressed ? 0.88 : 1,
             })}
           >
-            <Text style={{ fontSize: 14, lineHeight: 18, fontWeight: "700", color: colors.mediaButtonText }}>
+            <Text style={{ fontSize: 14, lineHeight: 18, ...fw(700), color: colors.mediaButtonText }}>
               {isActive ? "Etkinliğe Katıl" : "Başlat"}
             </Text>
           </Pressable>
@@ -618,15 +619,15 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
           </View>
           <View style={{ gap: 2 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-              <Text style={{ ...typography.caption, fontWeight: "600", color: colors.muted }}>
+              <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }}>
                 <Text style={{ color: colors.success }}>●</Text> {invite.data.onlineCount} Aktif
               </Text>
-              <Text style={{ ...typography.caption, fontWeight: "600", color: colors.muted }}>
+              <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }}>
                 <Text style={{ color: colors.success }}>●</Text> {invite.data.memberCount} Üye
               </Text>
             </View>
             {invite.data.createdAt ? (
-              <Text style={{ fontSize: 11, lineHeight: 14, fontWeight: "500", color: colors.muted }}>
+              <Text style={{ fontSize: 11, lineHeight: 14, ...fw(500), color: colors.muted }}>
                 {inviteMonthFormat.format(new Date(invite.data.createdAt))} tarihinde oluşturuldu
               </Text>
             ) : null}
@@ -645,7 +646,7 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
               opacity: join.isSuccess ? 0.55 : pressed ? 0.86 : 1,
             })}
           >
-            <Text style={{ fontSize: 13, lineHeight: 17, fontWeight: "700", color: colors.onBrand }}>
+            <Text style={{ fontSize: 13, lineHeight: 17, ...fw(700), color: colors.onBrand }}>
               {join.isPending ? "Katılıyor…" : join.isSuccess ? "Açılıyor…" : "Sunucuya Katıl"}
             </Text>
           </Pressable>

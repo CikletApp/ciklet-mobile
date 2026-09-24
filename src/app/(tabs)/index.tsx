@@ -39,6 +39,7 @@ import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
+import { fw } from "@/theme/fonts";
 
 /**
  * Sohbetler — birebir ve grup mesajlarının tek evi.
@@ -361,7 +362,7 @@ function ConversationRow({
       }}
     >
       <Icon name={icon} size={19} color={colors.onBrand} filled={icon === "bookmark"} />
-      <Text style={{ ...typography.caption, fontWeight: "700", color: colors.onBrand }}>{label}</Text>
+      <Text style={{ ...typography.caption, ...fw(700), color: colors.onBrand }}>{label}</Text>
     </View>
   );
 
@@ -446,7 +447,7 @@ function ConversationRow({
               </Text>
               {isOfficial ? (
                 <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
-                  <Text style={{ fontSize: 9, lineHeight: 12, fontWeight: "800", color: colors.onBrand }}>RESMÎ</Text>
+                  <Text style={{ fontSize: 9, lineHeight: 12, ...fw(800), color: colors.onBrand }}>RESMÎ</Text>
                 </View>
               ) : null}
             </View>
@@ -454,7 +455,7 @@ function ConversationRow({
               <Text
                 style={{
                   ...typography.caption,
-                  fontWeight: unreadHere ? "700" : "400",
+                  ...fw(unreadHere ? 700 : 400),
                   color: unreadHere ? colors.brand : colors.muted,
                 }}
               >

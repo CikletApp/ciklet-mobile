@@ -39,6 +39,7 @@ import { OutboxItem } from "./components/outbox-item";
 import { useComposer } from "./use-composer";
 import { useChatItems, type ChatItem } from "./use-chat-items";
 import { useMessageActions, type ReportReason } from "./use-message-actions";
+import { fw } from "@/theme/fonts";
 
 /**
  * Kanal ve DM sohbetlerinin ortak gövdesi.
@@ -407,7 +408,7 @@ function OfficialFooter() {
           backgroundColor: colors.panel,
         }}
       >
-        <Text style={{ ...typography.caption, fontWeight: "500", color: colors.muted }}>
+        <Text style={{ ...typography.caption, ...fw(500), color: colors.muted }}>
           {OFFICIAL_FOOTER_TITLE}
         </Text>
       </View>
@@ -836,7 +837,7 @@ const Composer = forwardRef<
             backgroundColor: pressed ? colors.raised : "transparent",
           })}
         >
-          <Text style={{ fontSize: 11, fontWeight: "900", color: colors.muted }}>GIF</Text>
+          <Text style={{ fontSize: 11, ...fw(900), color: colors.muted }}>GIF</Text>
         </Pressable>
 
         <View style={{ flex: 1, minHeight: 40, maxHeight: 120, flexDirection: "row", alignItems: "flex-end", borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel }}>

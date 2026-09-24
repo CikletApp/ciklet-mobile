@@ -23,6 +23,7 @@ import { useAuth } from "@/stores/auth";
 import { usePresence, usePresenceStore } from "@/stores/presence";
 import { THEME_LABELS, useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { fw } from "@/theme/fonts";
 
 /**
  * "Sen" sekmesi — profil kartı, durum seçimi ve en sık kullanılan
@@ -87,7 +88,7 @@ export default function MeScreen() {
                 })}
               >
                 <Icon name="pencil" size={15} color={colors.onBrand} />
-                <Text style={{ ...typography.caption, fontSize: 14, fontWeight: "700", color: colors.onBrand }}>Düzenle</Text>
+                <Text style={{ ...typography.caption, fontSize: 14, ...fw(700), color: colors.onBrand }}>Düzenle</Text>
               </Pressable>
             </View>
             <Text style={{ ...typography.display, color: colors.bright, marginTop: spacing.sm }} numberOfLines={1}>
