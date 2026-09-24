@@ -53,7 +53,12 @@ export type IconName =
   | "link"
   | "bookmark"
   | "folder"
-  | "more";
+  | "more"
+  // Görünüm
+  | "palette"
+  | "sparkles"
+  | "monitor"
+  | "rotate-ccw";
 
 interface IconProps {
   name: IconName;
@@ -137,6 +142,21 @@ const PATHS: Record<IconName, string[]> = {
   bookmark: ["M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"],
   folder: ["M3 5.5A1.5 1.5 0 0 1 4.5 4H9l2 2h8.5A1.5 1.5 0 0 1 21 7.5v10A2.5 2.5 0 0 1 18.5 20h-14A2.5 2.5 0 0 1 2 17.5v-12z"],
   more: [],
+  palette: [
+    "M12 22a10 10 0 1 1 10-10c0 2.8-2.2 4-4 4h-2.2a2 2 0 0 0-1.5 3.3A1.6 1.6 0 0 1 12 22z",
+    "M7.5 11h.01",
+    "M10.5 7h.01",
+    "M15.5 7.5h.01",
+  ],
+  sparkles: [
+    "M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z",
+    "M19 3v4",
+    "M21 5h-4",
+    "M18 16v3",
+    "M19.5 17.5h-3",
+  ],
+  monitor: ["M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z", "M8 20h8", "M12 16v4"],
+  "rotate-ccw": ["M3 12a9 9 0 1 0 2.6-6.4L3 8", "M3 3v5h5"],
 };
 
 /** Nokta/daire tabanlı ikonlar yol yerine ilkel şekil kullanır. */

@@ -53,3 +53,22 @@ export function useRevokeAuthorizedApp() {
       queryClient.invalidateQueries({ queryKey: qk.authorizedApps }),
   });
 }
+
+export interface MentolPlan {
+  plan: "FREE" | "PLUS" | "PRO";
+  expiresAt: string | null;
+  features: { label: string; maxUploadMb: number; maxServers: number; customThemes: boolean; badge: boolean };
+}
+
+/**
+ * Oturum sahibinin Mentol planı — YALNIZCA arayüz için (web: `useMentolPlan`).
+ * Limitler sunucuda yeniden doğrulanır; burada amaç kilitli bir özelliği
+ * kullanıcıya dokunmadan önce göstermek.
+ */
+export function useMentolPlan() {
+  return useQuery({
+    queryKey: ["mentol-plan"],
+    queryFn: () => api<MentolPlan>(endpoints.mentolPlan),
+    staleTime: 5 * 60 * 1000,
+  });
+}

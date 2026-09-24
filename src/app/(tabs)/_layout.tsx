@@ -3,7 +3,6 @@ import { Tabs } from "expo-router";
 import { FloatingTabBar } from "@/components/ui";
 import { useTheme } from "@/stores/theme";
 import { createTabScreenOptions } from "@/theme/navigation";
-import { themes } from "@/theme/tokens";
 
 /**
  * Alt sekmeler — uygulamanın birincil gezinme ekseni.
@@ -23,8 +22,8 @@ import { themes } from "@/theme/tokens";
  * uzun etiket ("Bildirimler") 10px'te sığıyor. Beşincisi bu payı bitirir.
  */
 export default function TabsLayout() {
-  const themeId = useTheme((s) => s.themeId);
-  const tabScreenOptions = createTabScreenOptions(themes[themeId]);
+  const palette = useTheme((s) => s.palette);
+  const tabScreenOptions = createTabScreenOptions(palette);
 
   return (
     <Tabs

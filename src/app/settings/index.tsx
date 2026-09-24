@@ -26,7 +26,7 @@ import { colors, spacing, typography } from "@/theme/tokens";
 export default function SettingsScreen() {
   const { data: profile } = useCurrentProfile();
   const logout = useAuth((s) => s.logout);
-  const themeId = useTheme((s) => s.themeId);
+  const themePreference = useTheme((s) => s.preference);
 
   const onLogout = () => {
     Alert.alert("Çıkış yap", "Oturumun bu cihazda kapatılacak.", [
@@ -114,7 +114,7 @@ export default function SettingsScreen() {
             <ListRow
               icon="compass"
               title="Görünüm"
-              detail={THEME_LABELS[themeId]}
+              detail={themePreference === "system" ? "Sistem" : THEME_LABELS[themePreference]}
               onPress={() => router.push("/settings/appearance")}
             />
             <Divider inset={52} />

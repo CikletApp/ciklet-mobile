@@ -26,7 +26,7 @@ export function ActiveNow() {
   const { accepted } = useFriends();
   const entries = usePresenceStore((s) => s.entries);
   const openDirect = useOpenDirect();
-  const themeId = useTheme((s) => s.themeId);
+  const scheme = useTheme((s) => s.scheme);
   const active = useMemo(
     () => accepted
       .map((friend) => ({ friend, entry: entries[friend.profile.id] }))
@@ -125,7 +125,7 @@ export function ActiveNow() {
                 ) : null}
                 <BlurView
                   intensity={48}
-                  tint={themeId === "light" ? "light" : "dark"}
+                  tint={scheme}
                   blurMethod="dimezisBlurViewSdk31Plus"
                   style={{ position: "absolute", inset: 0 }}
                 />

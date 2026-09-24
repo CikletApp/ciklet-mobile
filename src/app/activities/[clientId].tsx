@@ -25,7 +25,7 @@ import {
 } from "@/features/activities/bridge";
 import { useAuth } from "@/stores/auth";
 import { useTheme } from "@/stores/theme";
-import { colors, radii, spacing, themes, typography } from "@/theme/tokens";
+import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
  * Aktivite çalıştırıcı.
@@ -56,7 +56,7 @@ export default function ActivityScreen() {
   }>();
 
   const profile = useAuth((s) => s.profile);
-  const themeId = useTheme((s) => s.themeId);
+  const deepColor = useTheme((s) => s.palette.deep);
   const { data: activities } = useActivities();
   const activity = activities?.find((a) => a.id === clientId);
 
@@ -177,10 +177,10 @@ export default function ActivityScreen() {
             clientId,
             instanceId,
             channelId: chatId ?? "",
-            backgroundColor: themes[themeId].deep,
+            backgroundColor: deepColor,
           })
         : null,
-    [activity, clientId, instanceId, chatId, themeId]
+    [activity, clientId, instanceId, chatId, deepColor]
   );
 
   if (!activity) {

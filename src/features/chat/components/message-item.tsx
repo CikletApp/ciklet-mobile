@@ -392,7 +392,7 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
   const chatId = isChannelMessage(message) ? message.channelId : message.directId;
   const profile = isChannelMessage(message) ? message.member.profile : message.profile;
   const name = profile.name?.trim() || profile.username;
-  const themeId = useTheme((s) => s.themeId);
+  const scheme = useTheme((s) => s.scheme);
   const hasRemoteIcon = Boolean(activityIcon?.startsWith("http") || activityIcon?.startsWith("data:image/"));
   const isActive = Boolean(message.fileUrl) && !description.includes("Aktivite sona erdi");
   const accent = safeActivityColor(activityColor) ?? colors.brand;
@@ -452,7 +452,7 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
               <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -64, opacity: 0.9, transform: [{ scale: 1.6 }] }} />
               <BlurView
                 intensity={80}
-                tint={themeId === "light" ? "light" : "dark"}
+                tint={scheme}
                 blurMethod="dimezisBlurViewSdk31Plus"
                 style={{ position: "absolute", inset: 0 }}
               />
@@ -574,7 +574,7 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
               />
               <BlurView
                 intensity={72}
-                tint={useTheme.getState().themeId === "light" ? "light" : "dark"}
+                tint={useTheme.getState().scheme}
                 blurMethod="dimezisBlurViewSdk31Plus"
                 style={{ position: "absolute", inset: 0 }}
               />

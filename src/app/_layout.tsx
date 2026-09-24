@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Appearance } from "react-native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -15,7 +16,6 @@ import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
-import { themes } from "@/theme/tokens";
 import { useAppFonts } from "@/theme/use-app-fonts";
 import {
   createModalScreenOptions,
@@ -40,11 +40,13 @@ export default function RootLayout() {
   const [splashElapsed, setSplashElapsed] = useState(false);
   const status = useAuth((s) => s.status);
   const bootstrap = useAuth((s) => s.bootstrap);
-  const themeId = useTheme((s) => s.themeId);
+  const themeRevision = useTheme((s) => s.revision);
+  const scheme = useTheme((s) => s.scheme);
+  const palette = useTheme((s) => s.palette);
   const hydrateTheme = useTheme((s) => s.hydrate);
+  const syncSystemTheme = useTheme((s) => s.syncSystem);
   const hydratePreferences = usePreferences((s) => s.hydrate);
   const appFonts = useAppFonts();
-  const palette = themes[themeId];
   const stackScreenOptions = createStackScreenOptions(palette);
   const modalScreenOptions = createModalScreenOptions(palette);
 
@@ -53,6 +55,12 @@ export default function RootLayout() {
     void hydratePreferences();
     void bootstrap();
   }, [bootstrap, hydratePreferences, hydrateTheme]);
+
+  // "Sistem" tercihi cihazın açık/koyu değişimini canlı izler.
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(syncSystemTheme);
+    return () => subscription.remove();
+  }, [syncSystemTheme]);
 
   useEffect(() => {
     const timer = setTimeout(() => setSplashElapsed(true), 1100);
@@ -75,8 +83,8 @@ export default function RootLayout() {
           persistOptions={persistOptions}
         >
           <RealtimeProvider>
-            <StatusBar style={themeId === "light" ? "dark" : "light"} />
-            <ConnectionBanner key={`connection-${themeId}`} />
+            <StatusBar style={scheme === "light" ? "dark" : "light"} />
+            <ConnectionBanner key={`connection-${themeRevision}`} />
             {/*
               React Compiler, prop'u değişmeyen alt bileşenleri otomatik
               memoize edebilir. Renk Proxy'sindeki değişimi bağımlılık olarak
@@ -84,7 +92,7 @@ export default function RootLayout() {
               Tema anahtarı navigator ağacını yeniden kurar; tüm ekranlar ve
               yüzen kabuklar yeni paleti aynı karede yeniden okur.
             */}
-            <Stack key={`${themeId}-${appFonts.revision}`} screenOptions={stackScreenOptions}>
+            <Stack key={`${themeRevision}-${appFonts.revision}`} screenOptions={stackScreenOptions}>
               <Stack.Protected guard={status === "signedIn"}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />
@@ -140,7 +148,7 @@ export default function RootLayout() {
             </Stack>
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
-            <CallOverlay key={`call-${themeId}`} />
+            <CallOverlay key={`call-${themeRevision}`} />
           </RealtimeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

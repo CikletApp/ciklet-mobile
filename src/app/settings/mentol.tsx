@@ -1,23 +1,18 @@
 import { useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
+import { useMentolPlan } from "@/api/hooks";
 import { Button, Screen, SectionHeader, TextField } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
-
-type MentolPlan = {
-  plan: "FREE" | "PLUS" | "PRO";
-  expiresAt: string | null;
-  features: { label: string; maxUploadMb: number; maxServers: number; customThemes: boolean; badge: boolean };
-};
 
 export default function MentolSettingsScreen() {
   const [code, setCode] = useState("");
   const queryClient = useQueryClient();
-  const plan = useQuery({ queryKey: ["mentol-plan"], queryFn: () => api<MentolPlan>(endpoints.mentolPlan) });
+  const plan = useMentolPlan();
   const redeem = useMutation({
     mutationFn: () => api<{ plan: string; expiresAt: string | null }>(endpoints.mentolRedeem, { method: "POST", body: { code } }),
     onSuccess: () => { setCode(""); void queryClient.invalidateQueries({ queryKey: ["mentol-plan"] }); Alert.alert("Mentol etkin", "Kod hesabına uygulandı."); },
