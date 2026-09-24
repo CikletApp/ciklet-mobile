@@ -185,6 +185,11 @@ export function formatDirectPreview(
       break;
     default:
       preview = content || (message.fileUrl ? "Bir dosya gönderdi" : "Yeni mesaj");
+      // Ek gönderilince içerik çoğu zaman dosyanın kendi adresi oluyor;
+      // listede uzun bir CDN bağlantısı yerine ne olduğu yazılır.
+      if (message.fileUrl && (!content || content === message.fileUrl.trim() || /^https?:\/\/\S+$/.test(content))) {
+        preview = /\.(png|jpe?g|gif|webp|heic|avif)(\?|$)/i.test(message.fileUrl) ? "📷 Fotoğraf" : "📎 Dosya";
+      }
   }
 
   const isUserMessage = message.type === "DEFAULT" || message.type === "ACTIVITY_REPLY";
