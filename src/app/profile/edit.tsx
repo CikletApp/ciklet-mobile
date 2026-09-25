@@ -9,11 +9,14 @@ import {
 } from "react-native";
 import { router, Stack } from "expo-router";
 
+import { Image } from "expo-image";
+
 import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMyMemberships, useUpdateProfile } from "@/api/hooks";
 import { Avatar } from "@/components/ui/avatar";
+import { showDialog } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
-import { pickAndUploadProfileImage } from "@/lib/uploads";
+import { pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -38,6 +41,8 @@ export default function EditProfileScreen() {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarProgress, setAvatarProgress] = useState(0);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [bannerBusy, setBannerBusy] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
 
   // Sunucudan gelen değerlerle formu bir kez doldur. Kullanıcı yazmaya
   // başladıktan sonra gelen bir refetch yazdıklarını EZMEMELİ; bu yüzden
@@ -54,6 +59,17 @@ export default function EditProfileScreen() {
 
   if (isLoading || !profile) return <ScreenLoader label="Profil yükleniyor…" />;
 
+  // `colors` Proxy'dir; modül düzeyinde sabitlense tema donar (bkz. hafıza:
+  // mobile-colors-proxy-trap). Bu yüzden render içinde kurulur.
+  const badgeStyle = {
+    width: 26,
+    height: 26,
+    borderRadius: radii.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.scrim,
+  } as const;
+
   const dirty =
     name !== (profile.name ?? "") ||
     pronouns !== (profile.pronouns ?? "") ||
@@ -69,6 +85,40 @@ export default function EditProfileScreen() {
       },
       { onSuccess: () => router.back() }
     );
+  };
+
+  /** Afiş görseli: dokun → seç → yükle → kaydet; kaldırma köşedeki çarpıdan. */
+  const onChangeBanner = async () => {
+    if (bannerBusy || updateProfile.isPending) return;
+    setBannerBusy(true);
+    setBannerError(null);
+    try {
+      const bannerUrl = await pickAndUploadProfileBanner();
+      if (!bannerUrl) return;
+      await updateProfile.mutateAsync({ bannerUrl });
+    } catch (reason) {
+      setBannerError(reason instanceof Error ? reason.message : "Afiş değiştirilemedi.");
+    } finally {
+      setBannerBusy(false);
+    }
+  };
+
+  const onRemoveBanner = () => {
+    showDialog("Afişi kaldır", "Profil afişin silinecek; renk degradesi görünecek.", [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Kaldır",
+        style: "destructive",
+        onPress: () => {
+          updateProfile.mutate(
+            { bannerUrl: null },
+            {
+              onError: () => setBannerError("Afiş kaldırılamadı."),
+            }
+          );
+        },
+      },
+    ]);
   };
 
   const onChangeAvatar = async () => {
@@ -121,14 +171,56 @@ export default function EditProfileScreen() {
       {tab === "user" ? (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.xl }}>
           <View style={{ alignItems: "flex-start" }}>
-            <View
+            <Pressable
+              onPress={onChangeBanner}
+              disabled={bannerBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Profil afişini değiştir"
               style={{
                 height: 88,
                 alignSelf: "stretch",
                 borderRadius: radii.lg,
                 backgroundColor: profile.bannerColor ?? colors.brand,
+                overflow: "hidden",
               }}
-            />
+            >
+              {profile.bannerUrl ? (
+                <Image
+                  source={{ uri: profile.bannerUrl }}
+                  contentFit="cover"
+                  transition={150}
+                  style={{ width: "100%", height: "100%" }}
+                />
+              ) : null}
+              <View
+                style={{
+                  position: "absolute",
+                  right: spacing.sm,
+                  top: spacing.sm,
+                  flexDirection: "row",
+                  gap: spacing.xs,
+                }}
+              >
+                {profile.bannerUrl && !bannerBusy ? (
+                  <Pressable
+                    onPress={onRemoveBanner}
+                    accessibilityRole="button"
+                    accessibilityLabel="Afişi kaldır"
+                    hitSlop={6}
+                    style={badgeStyle}
+                  >
+                    <Icon name="close" size={13} color={colors.onBrand} />
+                  </Pressable>
+                ) : null}
+                <View style={badgeStyle}>
+                  {bannerBusy ? (
+                    <ActivityIndicator size="small" color={colors.onBrand} />
+                  ) : (
+                    <Icon name="pencil" size={13} color={colors.onBrand} />
+                  )}
+                </View>
+              </View>
+            </Pressable>
             <Pressable
               onPress={onChangeAvatar}
               disabled={avatarBusy}
@@ -173,6 +265,8 @@ export default function EditProfileScreen() {
             </Text>
           ) : avatarError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>{avatarError}</Text>
+          ) : bannerError ? (
+            <Text style={{ ...typography.caption, color: colors.danger }}>{bannerError}</Text>
           ) : null}
 
           <View style={{ gap: spacing.xs }}>

@@ -62,7 +62,7 @@ export interface MessageAttachment {
 }
 
 async function uploadPickedFile(
-  endpoint: "messageFile" | "profileImage" | "serverImage" | "serverBanner",
+  endpoint: "messageFile" | "profileImage" | "profileBanner" | "serverImage" | "serverBanner",
   asset: DocumentPicker.DocumentPickerAsset,
   onProgress?: (progress: number) => void
 ): Promise<{ url: string; mimeType: string }> {
@@ -144,7 +144,7 @@ export async function pickAndUploadProfileImage(
 }
 
 async function pickAndUploadImage(
-  endpoint: "profileImage" | "serverImage" | "serverBanner",
+  endpoint: "profileImage" | "profileBanner" | "serverImage" | "serverBanner",
   onProgress?: (progress: number) => void
 ): Promise<string | null> {
   const result = await DocumentPicker.getDocumentAsync({
@@ -158,6 +158,10 @@ async function pickAndUploadImage(
 
 export const pickAndUploadServerImage = (onProgress?: (progress: number) => void) =>
   pickAndUploadImage("serverImage", onProgress);
+
+/** Profil afişi (görsel, 8 MB) — webdeki `profileBanner` rotası (2026-09-26). */
+export const pickAndUploadProfileBanner = (onProgress?: (progress: number) => void) =>
+  pickAndUploadImage("profileBanner", onProgress);
 
 export const pickAndUploadServerBanner = (onProgress?: (progress: number) => void) =>
   pickAndUploadImage("serverBanner", onProgress);

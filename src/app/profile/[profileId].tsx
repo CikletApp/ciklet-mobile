@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
+import { Image } from "expo-image";
 
 import { ApiError } from "@/api/client";
 import {
@@ -48,6 +49,8 @@ interface ProfileView {
   bio?: string | null;
   pronouns?: string | null;
   bannerColor?: string | null;
+  /** Yüklenen afiş görseli; varsa renk yerine bu çizilir (web ile aynı). */
+  bannerUrl?: string | null;
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -126,7 +129,16 @@ export default function ProfileScreen() {
       >
         <View
           style={{ height: 110, backgroundColor: profile.bannerColor ?? colors.brand }}
-        />
+        >
+          {profile.bannerUrl ? (
+            <Image
+              source={{ uri: profile.bannerUrl }}
+              contentFit="cover"
+              transition={150}
+              style={{ width: "100%", height: "100%" }}
+            />
+          ) : null}
+        </View>
 
         <View style={{ paddingHorizontal: spacing.lg, marginTop: -44, gap: spacing.lg }}>
           {/* Zemin renginde halka: avatar banda binerken kenarı kaybolmasın. */}

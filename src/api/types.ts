@@ -17,6 +17,8 @@ import type {
 
 /** ciklet-web: `src/app/api/current-profile/route.ts` (stripSensitive çıktısı) */
 export interface CurrentProfile extends PublicProfile {
+  /** Yüklenen afiş görseli; yoksa `bannerColor` degradesi çizilir (2026-09-26 eki). */
+  bannerUrl?: string | null;
   email: string | null;
   /** Ham numara sunucudan hiç çıkmaz; yalnızca maskeli hali gelir. */
   phoneMasked: string | null;
@@ -36,6 +38,8 @@ export interface UpdateProfileInput {
   pronouns?: string | null;
   bio?: string | null;
   bannerColor?: string | null;
+  /** `https://` adres ya da `null` (afişi kaldırır). Yükleme: uploadthing `profileBanner`. */
+  bannerUrl?: string | null;
   /** `null` → sunucu Multiavatar üretir. Aksi halde `https://` ile başlamalı. */
   imageUrl?: string | null;
   dmPermission?: CurrentProfile["dmPermission"];
@@ -357,6 +361,8 @@ export interface ForwardTargetsResponse {
 export interface ProfileCardResponse {
   profile: PublicProfile & {
     bannerColor?: string | null;
+    /** Yüklenen afiş görseli; öncelik görselde, yoksa renk (web ile aynı kural). */
+    bannerUrl?: string | null;
     isOfficial?: boolean;
   };
   isSelf: boolean;
