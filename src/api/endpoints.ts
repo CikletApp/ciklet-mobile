@@ -136,7 +136,32 @@ export const endpoints = {
   friendBlock: "/api/friends/block",
 
   // ── Keşif / okunmamış ─────────────────────────────────────────────
-  search: (q: string) => `/api/search${qs({ q })}`,
+  /** `scope` boşsa "all" — bkz. `SearchScope` (api/types.ts). */
+  search: (q: string, scope?: string) => `/api/search${qs({ q, scope })}`,
+  /**
+   * DM sohbetinin İÇİNDE arama. En az bir ölçüt zorunlu (yalnızca
+   * `directId` göndermek 400 döner); `order` newest (varsayılan) | oldest.
+   */
+  directMessageSearch: (
+    directId: string,
+    params: { q?: string; cursor?: string; order?: "newest" | "oldest" } = {}
+  ) => `/api/direct-messages/search${qs({ directId, ...params })}`,
+  /** Mesaj iletilebilecek sunucu kanalları — "Mesajı İlet" hedef listesi. */
+  forwardTargets: "/api/forward/targets",
+  /** Üye kartı — sohbette avatara dokununca açılan zengin profil. */
+  profileCard: (profileId: string) =>
+    `/api/profile/${encodeURIComponent(profileId)}/card`,
+  /** Başkaları hakkında tutulan kayıtlar (not, takma ad, yok say). */
+  profileAnnotations: "/api/profile-annotations",
+  profileAnnotation: (profileId: string) =>
+    `/api/profile-annotations/${encodeURIComponent(profileId)}`,
+  /**
+   * Keşfet — mobil için ciklet-web'den istenen JSON uçları (web tarafı SSR).
+   * Uç henüz yayında değilse ekran 404'ü "hazırlanıyor" olarak gösterir.
+   */
+  discoverServers: (q?: string, tab?: "popular" | "new") =>
+    `/api/discover/servers${qs({ q, tab })}`,
+  discoverApps: (q?: string) => `/api/discover/apps${qs({ q })}`,
   unreadCounts: "/api/unread-counts",
   markUnread: "/api/read-state/unread",
   /**

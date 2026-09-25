@@ -10,6 +10,7 @@ import {
   hasUnread,
   useConversationList,
   useDirectUnreadCounts,
+  useNicknames,
   useOpenDirect,
   useRemoveDirect,
   useSelfDirect,
@@ -71,6 +72,8 @@ export default function ChatsScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [menuOpen, setMenuOpen] = useState(false);
   const { counts: unreadCounts } = useDirectUnreadCounts();
+  // Arkadaş takma adları liste başlıklarında gerçek adın önüne geçer.
+  const nicknames = useNicknames();
 
   /**
    * Sıralama sunucudan gelir (son mesaj zamanına göre); istemci yalnızca
@@ -220,6 +223,7 @@ export default function ChatsScreen() {
             <ConversationRow
               item={item}
               myId={myId}
+              nicknames={nicknames}
               unreadCount={unreadCounts[item.id] ?? 0}
               pinned={pinnedDirectIds.includes(item.id)}
               onTogglePinned={() => togglePinned(item.id)}
@@ -323,6 +327,7 @@ const ROW_GAP = spacing.md;
 function ConversationRow({
   item,
   myId,
+  nicknames,
   unreadCount,
   pinned,
   onTogglePinned,
@@ -330,6 +335,8 @@ function ConversationRow({
 }: {
   item: DirectSummary;
   myId: string | undefined;
+  /** Arkadaş takma adları (profil kimliği → ad). */
+  nicknames: Record<string, string>;
   /** `/api/inbox` sayısı; yoksa okunmamış bilgisi imleçten türetilir. */
   unreadCount: number;
   pinned: boolean;
@@ -338,7 +345,7 @@ function ConversationRow({
 }) {
   const swipeable = useRef<SwipeableMethods>(null);
   // Grup/birebir ayrımının TEK kaynağı; satır profil alanlarını okumaz.
-  const display = directDisplay(item, myId);
+  const display = directDisplay(item, myId, nicknames);
   const unreadHere = unreadCount > 0 || hasUnread(item, myId);
   const isOfficial = !display.isGroup && isOfficialProfile(display.peer);
 

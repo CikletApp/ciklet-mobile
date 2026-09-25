@@ -40,7 +40,22 @@ export const qk = {
   /** Sohbet başına okunmamış sayısı (gruplar dahil) — `/api/inbox`. */
   inbox: ["inbox"] as const,
 
-  search: (query: string) => ["search", query] as const,
+  search: (query: string, scope: string) => ["search", scope, query] as const,
+  /** DM içinde arama — sohbet ve sorgu başına ayrı sayfa dizisi. */
+  directSearch: (directId: string, query: string) =>
+    ["direct-search", directId, query] as const,
+
+  /** Mesaj iletme hedefleri (yazılabilir sunucu kanalları). */
+  forwardTargets: ["forward-targets"] as const,
+
+  /** Üye kartı — profil başına. */
+  profileCard: (profileId: string) => ["profile-card", profileId] as const,
+
+  /** Kullanıcının başkaları hakkında tuttuğu kayıtlar (tek liste). */
+  annotations: ["profile-annotations"] as const,
+
+  /** Keşfet listeleri. */
+  discover: (tab: string, query: string) => ["discover", tab, query] as const,
 
   activities: ["activities"] as const,
 

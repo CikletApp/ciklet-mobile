@@ -73,7 +73,7 @@ export default function DirectChatScreen() {
   };
 
   const menu: MenuItem[] = [
-    { label: "Sohbette ara", icon: "search", onPress: () => router.push("/search") },
+    { label: "Sohbette ara", icon: "search", onPress: () => router.push(`/directs/${directId}/search`) },
     ...(canExpire ? [{ label: "Süreli mesajlar", icon: "timer" as const, onPress: () => setExpiryOpen(true) }] : []),
     ...(isGroup
       ? [{ label: "Grup bilgisi", icon: "users" as const, onPress: openDetails }]

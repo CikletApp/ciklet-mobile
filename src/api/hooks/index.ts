@@ -9,6 +9,7 @@ export * from "./use-servers";
 export * from "./use-folders";
 export * from "./use-directs";
 export * from "./use-friends";
+export * from "./use-annotations";
 export * from "./use-messages";
 export * from "./use-search";
 export * from "./use-settings";

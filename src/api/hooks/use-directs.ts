@@ -8,6 +8,7 @@ import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
 import type { DirectPeer, DirectSummary } from "../types";
+import { useNicknames } from "./use-annotations";
 
 /**
  * Doğrudan mesaj sohbetleri — birebir VE grup.
@@ -104,20 +105,25 @@ export interface DirectDisplay {
 /**
  * Hook dışında da çağrılabilsin diye saf fonksiyon (liste `renderItem`'ı,
  * bildirim başlığı, arama sonucu…).
+ *
+ * `nicknames`: kullanıcının verdiği arkadaş takma adları (profil kimliği →
+ * ad; bkz. `useNicknames`). Verilirse birebir başlıkta ve grup üye
+ * adlarında gerçek adın ÖNÜNE geçer — web'in DM kenar çubuğuyla aynı kural.
  */
 export function directDisplay(
   direct: DirectSummary,
-  myId: string | undefined
+  myId: string | undefined,
+  nicknames?: Record<string, string>
 ): DirectDisplay {
+  const nameOf = (profile: DirectPeer) =>
+    nicknames?.[profile.id] || profile.name?.trim() || profile.username;
+
   if (isGroupDirect(direct)) {
     const members = (direct.groupMembers ?? []).map((member) => member.profile);
     const others = members.filter((member) => member.id !== myId);
     // Ad verilmemiş grubu web de üye adlarından türetiyor (`api/inbox`);
     // iki istemcinin aynı grubu farklı adlandırması kafa karıştırır.
-    const derived = others
-      .map((member) => member.name?.trim() || member.username)
-      .filter(Boolean)
-      .join(", ");
+    const derived = others.map(nameOf).filter(Boolean).join(", ");
     const title = direct.name?.trim() || derived || "Grup Sohbeti";
     return {
       title,
@@ -136,7 +142,7 @@ export function directDisplay(
   const isSelf = isSelfDirect(direct);
 
   return {
-    title: isSelf ? "Notlarım" : peer.name?.trim() || peer.username,
+    title: isSelf ? "Notlarım" : nameOf(peer),
     imageUrl: peer.imageUrl,
     fallbackText: peer.username,
     isGroup: false,
@@ -147,14 +153,15 @@ export function directDisplay(
   };
 }
 
-/** `directDisplay`'in hook sarmalayıcısı. */
+/** `directDisplay`'in hook sarmalayıcısı — takma adları da uygular. */
 export function useDirectDisplay(
   direct: DirectSummary | undefined
 ): DirectDisplay | undefined {
   const myId = useAuth((s) => s.profile?.id);
+  const nicknames = useNicknames();
   return useMemo(
-    () => (direct ? directDisplay(direct, myId) : undefined),
-    [direct, myId]
+    () => (direct ? directDisplay(direct, myId, nicknames) : undefined),
+    [direct, myId, nicknames]
   );
 }
 

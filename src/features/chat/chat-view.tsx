@@ -36,8 +36,10 @@ import { OFFICIAL_FOOTER_TITLE } from "@/lib/official";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { DaySeparator } from "./components/day-separator";
 import { ComposerPicker, type ComposerPickerTab } from "./components/composer-picker";
+import { ForwardSheet } from "./components/forward-sheet";
 import { MessageItem } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
+import { canForwardMessage } from "./forward";
 import { useComposer } from "./use-composer";
 import { useChatItems, type ChatItem } from "./use-chat-items";
 import { useMessageActions, type ReportReason } from "./use-message-actions";
@@ -96,6 +98,7 @@ export function ChatView({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<ChatMessagePayload | null>(null);
   const [replyingTo, setReplyingTo] = useState<ChatMessagePayload | null>(null);
+  const [forwarding, setForwarding] = useState<ChatMessagePayload | null>(null);
   const composerRef = useRef<TextInput>(null);
   /** Kaydırma yönünü anlamak için son dikey konum. */
   const lastOffset = useRef(0);
@@ -355,6 +358,14 @@ export function ChatView({
             setSelectedMessage(null);
             requestAnimationFrame(() => composerRef.current?.focus());
           }}
+          onForward={
+            canForwardMessage(selectedMessage)
+              ? () => {
+                  setForwarding(selectedMessage);
+                  setSelectedMessage(null);
+                }
+              : undefined
+          }
           onEdit={async (content) => {
             const ok = await actions.edit(selectedMessage.id, content);
             if (ok) setSelectedMessage(null);
@@ -387,6 +398,10 @@ export function ChatView({
                 }
           }
         />
+      ) : null}
+
+      {forwarding ? (
+        <ForwardSheet message={forwarding} onClose={() => setForwarding(null)} />
       ) : null}
     </KeyboardAvoider>
   );
@@ -432,6 +447,7 @@ function MessageActionsSheet({
   onClose,
   onReact,
   onReply,
+  onForward,
   onEdit,
   onDelete,
   onReport,
@@ -443,6 +459,8 @@ function MessageActionsSheet({
   onClose: () => void;
   onReact: (emoji: string) => Promise<void>;
   onReply: () => void;
+  /** Yalnızca iletilebilir mesajlarda (bkz. `canForwardMessage`). */
+  onForward?: () => void;
   onEdit: (content: string) => Promise<void>;
   onDelete: () => void;
   onReport?: (reason: ReportReason, detail: string) => Promise<void>;
@@ -596,6 +614,9 @@ function MessageActionsSheet({
               {/* Bağlam menüsü: ikonlu satırlar tek kartta, yıkıcı olanlar en altta. */}
               <View style={{ borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.raised }}>
                 <SheetAction icon="reply" label="Yanıtla" onPress={onReply} />
+                {onForward ? (
+                  <SheetAction icon="forward" label="İlet" onPress={onForward} />
+                ) : null}
                 {message.content && !message.deleted ? (
                   <SheetAction
                     icon="copy"

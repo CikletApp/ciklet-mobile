@@ -17,6 +17,7 @@ import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { isForwardedMessage } from "../forward";
 import { MessageEmbeds } from "./message-embeds";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
@@ -109,17 +110,25 @@ export function MessageItem({
         message.deleted ? "silinmiş mesaj" : message.content
       }`}
     >
-      {/* Gelen mesajlarda avatar; gruplananlarda sütun hizası korunur. */}
+      {/* Gelen mesajlarda avatar; gruplananlarda sütun hizası korunur.
+          Dokunma üye kartına (profil ekranı) gider — web'deki üye kartının
+          mobil karşılığı. */}
       {showAvatar ? (
         grouped ? (
           <View style={{ width: AVATAR_SIZE }} />
         ) : (
-          <Avatar
-            profileId={profile.id}
-            imageUrl={profile.imageUrl}
-            fallbackText={profile.username}
-            size={AVATAR_SIZE}
-          />
+          <Pressable
+            onPress={() => router.push(`/profile/${profile.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`${name} profilini görüntüle`}
+          >
+            <Avatar
+              profileId={profile.id}
+              imageUrl={profile.imageUrl}
+              fallbackText={profile.username}
+              size={AVATAR_SIZE}
+            />
+          </Pressable>
         )
       ) : null}
 
@@ -144,6 +153,7 @@ export function MessageItem({
         {showHeader ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <Text
+              onPress={() => router.push(`/profile/${profile.id}`)}
               style={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
               numberOfLines={1}
             >
@@ -163,6 +173,17 @@ export function MessageItem({
                 </Text>
               </View>
             ) : null}
+          </View>
+        ) : null}
+
+        {isForwardedMessage(message) && !message.deleted ? (
+          // İletilen mesaj kaynağını taşımaz (Discord kuralı); yalnızca
+          // iletilmiş olduğu işaretlenir.
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name="forward" size={12} color={colors.muted} />
+            <Text style={{ fontSize: 11, lineHeight: 15, fontStyle: "italic", color: colors.muted }}>
+              İletildi
+            </Text>
           </View>
         ) : null}
 

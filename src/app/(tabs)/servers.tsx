@@ -134,7 +134,9 @@ export default function ServersScreen() {
     <Screen edges={["top", "left", "right"]}>
       <TabHeader
         title="Sunucular"
-        left={<HeaderButton icon="compass" label="Aktiviteler" onPress={() => router.push("/activities")} />}
+        // Aktiviteler sohbet içinden zaten açılıyor (composer + kanal başlığı);
+        // köşedeki pusula artık Keşfet'e gidiyor (kullanıcı isteği, 2026-09-25).
+        left={<HeaderButton icon="compass" label="Keşfet" onPress={() => router.push("/discover")} />}
         right={<HeaderButton icon="plus" label="Sunucu ekle" accent onPress={() => router.push("/servers/new")} />}
       >
         {totalServers > 0 ? (

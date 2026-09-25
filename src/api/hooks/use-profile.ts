@@ -8,6 +8,7 @@ import { qk } from "../query-keys";
 import type {
   CurrentProfile,
   MembershipWithServer,
+  ProfileCardResponse,
   UpdateMemberProfileInput,
   UpdateProfileInput,
 } from "../types";
@@ -38,6 +39,21 @@ export function useUpdateProfile() {
       queryClient.setQueryData(qk.currentProfile, updated);
       setProfile(updated as unknown as OwnProfile);
     },
+  });
+}
+
+/**
+ * Üye kartı — başka bir kullanıcının zengin profili (bio, pronouns, banner
+ * rengi, Mentol rozeti, arkadaşlık durumu, ortak arkadaşlar). Sohbette
+ * avatara dokununca ve profil ekranında kullanılır; mesaj listesi payload'ı
+ * bu alanları bilerek taşımıyor (ciklet-web `profile-select.ts`).
+ */
+export function useProfileCard(profileId: string | undefined) {
+  return useQuery({
+    queryKey: qk.profileCard(profileId ?? "yok"),
+    enabled: Boolean(profileId),
+    queryFn: () => api<ProfileCardResponse>(endpoints.profileCard(profileId!)),
+    staleTime: 60_000,
   });
 }
 

@@ -218,11 +218,57 @@ export interface DirectSummary {
   readCursor?: string | null;
 }
 
-/** ciklet-web: `src/app/api/search/route.ts` */
-export interface SearchResults {
-  servers: { id: string; name: string; imageUrl: string }[];
-  channels: { id: string; name: string; serverId: string; type: string }[];
-  people: PublicProfile[];
+/**
+ * ciklet-web: `src/lib/global-search.ts` — `GET /api/search?q=&scope=`.
+ *
+ * ⚠️ Uç 2026-09-25'te `{servers, channels, people}` yapısından tek düz
+ * `{items}` listesine geçti (Ctrl/Cmd+K hızlı geçiş yeniden yazımı). Her
+ * öğe `kind` ile ayrılır; kapsam `scope` parametresiyle daraltılır.
+ */
+export type SearchScope = "all" | "people" | "text" | "voice" | "servers";
+
+export interface SearchProfileSlim {
+  id: string;
+  username: string;
+  name: string | null;
+  imageUrl: string | null;
+}
+
+export interface SearchPerson extends SearchProfileSlim {
+  kind: "person";
+  isBot: boolean;
+  isOfficial: boolean;
+  /** Nereden tanıdığı: arkadaş, DM geçmişi ya da ortak sunucu. */
+  relation: "friend" | "dm" | "member";
+}
+
+export interface SearchGroup {
+  kind: "group";
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  members: SearchProfileSlim[];
+}
+
+export interface SearchChannel {
+  kind: "channel";
+  id: string;
+  name: string;
+  type: "TEXT" | "AUDIO" | "VIDEO";
+  server: { id: string; name: string; imageUrl: string };
+}
+
+export interface SearchServer {
+  kind: "server";
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
+export type SearchItem = SearchPerson | SearchGroup | SearchChannel | SearchServer;
+
+export interface SearchResponse {
+  items: SearchItem[];
 }
 
 /** ciklet-web: `src/app/api/unread-counts/route.ts` */
@@ -281,4 +327,105 @@ export interface RichPresence {
 /** Üye listesi ekranlarında profil + presence birleştirilmiş görünüm. */
 export interface MemberWithPresence extends MemberWithProfile {
   presence: PresenceEntry | undefined;
+}
+
+// ── Mesaj iletme ────────────────────────────────────────────────────
+
+/**
+ * ciklet-web: `GET /api/forward/targets` — mesaj İLETİLEBİLECEK sunucu
+ * kanalları. Yalnızca görünür + yazılabilir METİN kanalları döner; DM
+ * hedefleri istemcide zaten yüklü olan sohbet listesinden gelir.
+ */
+export interface ForwardTargetServer {
+  id: string;
+  name: string;
+  imageUrl: string;
+  channels: { id: string; name: string }[];
+}
+
+export interface ForwardTargetsResponse {
+  servers: ForwardTargetServer[];
+}
+
+// ── Üye kartı ───────────────────────────────────────────────────────
+
+/**
+ * ciklet-web: `GET /api/profile/[profileId]/card` — sohbette nick/avatara
+ * dokununca açılan üye kartının verisi. `profile`, `PROFILE_PUBLIC_SELECT`
+ * alt kümesidir (bio/pronouns/bannerColor dahil).
+ */
+export interface ProfileCardResponse {
+  profile: PublicProfile & {
+    bannerColor?: string | null;
+    isOfficial?: boolean;
+  };
+  isSelf: boolean;
+  /** Mentol planı — rozet metni istemcide eşlenir. */
+  plan: "FREE" | "PLUS" | "PRO";
+  /** Planın rozet hakkı var mı (`PLAN_FEATURES[plan].badge`). */
+  badge: boolean;
+  friendship: {
+    id: string;
+    status: "PENDING" | "ACCEPTED" | "BLOCKED";
+    profileOneId: string;
+    blockedById: string | null;
+  } | null;
+  mutualFriendsCount: number;
+  mutualFriends: SearchProfileSlim[];
+}
+
+// ── Profil ek açıklamaları ──────────────────────────────────────────
+
+/**
+ * ciklet-web: `GET /api/profile-annotations` + `PUT …/[profileId]`.
+ * Kullanıcının başkaları hakkında tuttuğu ÖZEL kayıtlar: kişisel not,
+ * arkadaş takma adı, yok say. Karşı taraf bu kayıtları hiçbir yolla göremez.
+ */
+export interface ProfileAnnotation {
+  nickname: string | null;
+  note: string | null;
+  ignored: boolean;
+}
+
+export interface ProfileAnnotationEntry extends ProfileAnnotation {
+  targetId: string;
+}
+
+/** PUT gövdesi bir YAMA: gönderilmeyen alan korunur, null/boş temizler. */
+export type ProfileAnnotationPatch = Partial<ProfileAnnotation>;
+
+// ── Keşfet ──────────────────────────────────────────────────────────
+
+/**
+ * ciklet-web: `GET /api/discover/servers` — mobil için istenen JSON ucu
+ * (web'deki /discover sayfaları SSR; sözleşme ciklet-web oturumuyla
+ * SendMessage üzerinden kararlaştırıldı, 2026-09-25).
+ */
+export interface DiscoverServerItem {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  bannerUrl: string | null;
+  description: string | null;
+  memberCount: number;
+  onlineCount: number | null;
+  isMember: boolean;
+}
+
+/**
+ * ciklet-web: `GET /api/discover/apps` (src/lib/discover/apps.ts).
+ * Listeleme kuralı: (activityUrl dolu VE reviewStatus APPROVED) VEYA bot
+ * ilişkisi olan uygulamalar; sıra isVerified desc, createdAt desc.
+ */
+export interface DiscoverAppItem {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  description: string | null;
+  /** Uygulamanın COVER (yoksa BACKGROUND) görseli. */
+  bannerUrl: string | null;
+  isVerified: boolean;
+  botUsername: string | null;
+  isActivity: boolean;
+  hasBot: boolean;
 }

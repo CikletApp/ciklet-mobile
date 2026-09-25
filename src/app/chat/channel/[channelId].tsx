@@ -20,6 +20,11 @@ export default function ChannelChatScreen() {
   const channel = useChannel(serverId, channelId);
   const { data: server } = useServerSummary(serverId);
 
+  // Kanal ayarlarındaki açıklama (2026-09 web güncellemesi). SDK'nın Channel
+  // tipi henüz taşımıyor; uç Prisma satırını olduğu gibi döndürdüğü için
+  // alan yanıtta var.
+  const topic = (channel as { topic?: string | null } | undefined)?.topic?.trim();
+
   return (
     <>
       <Stack.Screen
@@ -44,7 +49,7 @@ export default function ChannelChatScreen() {
                 </View>
               }
               title={channel?.name ?? ""}
-              subtitle={server?.name}
+              subtitle={topic || server?.name}
               onPress={serverId ? () => router.back() : undefined}
               accessibilityLabel={server ? `${server.name} kanal listesine dön` : undefined}
             />
