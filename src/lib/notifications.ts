@@ -40,6 +40,10 @@ Notifications.setNotificationHandler({
 const ANDROID_CHANNEL = "ciklet-messages";
 const ANDROID_CALL_CHANNEL = "ciklet-calls";
 
+function getExpoProjectId(): string | undefined {
+  return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+}
+
 /**
  * İzin ister ve Android bildirim kanalını kurar.
  * İzin reddedilirse sessizce `false` döner — bildirim, uygulamanın
@@ -120,8 +124,11 @@ export async function clearBadge() {
  */
 export async function registerPushToken(): Promise<void> {
   try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!projectId) return;
+    const projectId = getExpoProjectId();
+    if (!projectId) {
+      console.warn("[bildirim] Expo project ID bulunamadı; push token kaydedilemedi");
+      return;
+    }
 
     const { data: token } = await Notifications.getExpoPushTokenAsync({
       projectId,
@@ -153,7 +160,7 @@ export async function registerPushToken(): Promise<void> {
 /** Çıkışta token'ı sunucudan düşür — sonraki kullanıcı bildirim almasın. */
 export async function unregisterPushToken(): Promise<void> {
   try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const projectId = getExpoProjectId();
     if (!projectId) return;
     const { data: token } = await Notifications.getExpoPushTokenAsync({
       projectId,
