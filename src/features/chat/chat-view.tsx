@@ -1,10 +1,8 @@
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Keyboard,
-  Modal,
-  Pressable,
   Text,
   TextInput,
   View,
@@ -12,19 +10,13 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import { router } from "expo-router";
+import { BlurTargetView } from "expo-blur";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
-import { useChatMessages, type ChatKind } from "@/api/hooks";
-import {
-  EmptyState,
-  ErrorState,
-  IconButton,
-  KeyboardAvoider,
-  ListSkeleton,
-  showDialog,
-  Icon,
-  type IconName,
-} from "@/components/ui";
+import { useChatMessages, useMyMembership, type ChatKind } from "@/api/hooks";
+import { EmptyState, ErrorState, ListSkeleton, showDialog, showToast } from "@/components/ui";
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
@@ -35,15 +27,23 @@ import { pickAndUploadMessageFile, type MessageAttachment } from "@/lib/uploads"
 import { OFFICIAL_FOOTER_TITLE } from "@/lib/official";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { DaySeparator } from "./components/day-separator";
-import { ComposerPicker, type ComposerPickerTab } from "./components/composer-picker";
+import { CommandSuggestions, matchCommands, useBotCommands } from "./components/command-suggestions";
+import { Composer } from "./components/composer";
 import { ForwardSheet } from "./components/forward-sheet";
-import { MessageItem } from "./components/message-item";
+import { MessageContextMenu } from "./components/message-context-menu";
+import { flashMessage } from "./components/message-flash";
+import { MessageItem, type MessageAnchor } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
+import { PinnedBar, PinnedListSheet } from "./components/pinned-bar";
 import { canForwardMessage } from "./forward";
+import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
 import { useComposer } from "./use-composer";
 import { useChatItems, type ChatItem } from "./use-chat-items";
-import { useMessageActions, type ReportReason } from "./use-message-actions";
+import { useMessageActions } from "./use-message-actions";
 import { fw } from "@/theme/fonts";
+
+/** Atlanacak mesaj bulunana kadar en çok bu kadar eski sayfa çekilir. */
+const MAX_JUMP_PAGES = 15;
 
 /**
  * Kanal ve DM sohbetlerinin ortak gövdesi.
@@ -88,6 +88,24 @@ export function ChatView({
   const outbox = useChatOutbox(chatId);
   const myId = useAuth((state) => state.profile?.id);
   const actions = useMessageActions(kind, chatId, serverId);
+  const insets = useSafeAreaInsets();
+  // "/" komutları yalnızca sunucu kanallarında (botlar orada).
+  const commandBots = useBotCommands(
+    kind === "channel" && !readOnlyOfficial ? serverId : undefined,
+    kind === "channel" ? chatId : undefined
+  );
+
+  // Sabitlenen mesajlar. Yetki kuralı web'le aynı (sunucu yine denetler):
+  // DM ve grupta herkes, kanalda yönetici ve moderatör.
+  const pins = usePins(kind, chatId);
+  const pinAction = usePinAction(kind, chatId);
+  const membership = useMyMembership(kind === "channel" ? serverId : undefined);
+  const canPin =
+    !readOnlyOfficial &&
+    (kind !== "channel" ||
+      membership.data?.role === MemberRole.ADMIN ||
+      membership.data?.role === MemberRole.MODERATOR);
+  const [pinListOpen, setPinListOpen] = useState(false);
 
   // Canlı akış: gelen mesajlar doğrudan cache'e yazılır.
   useChatStream(chatId);
@@ -96,12 +114,29 @@ export function ChatView({
   const [attachment, setAttachment] = useState<MessageAttachment | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [selectedMessage, setSelectedMessage] = useState<ChatMessagePayload | null>(null);
+  /** Basılı tutulan mesaj ve balonunun ekrandaki yeri (bağlam menüsü). */
+  const [selected, setSelected] = useState<{ message: ChatMessagePayload; anchor: MessageAnchor } | null>(null);
   const [replyingTo, setReplyingTo] = useState<ChatMessagePayload | null>(null);
   const [forwarding, setForwarding] = useState<ChatMessagePayload | null>(null);
   const composerRef = useRef<TextInput>(null);
+  /** Bağlam menüsünün Android'de bulandırdığı yüzey — sohbet gövdesi. */
+  const blurTargetRef = useRef<View>(null);
   /** Kaydırma yönünü anlamak için son dikey konum. */
   const lastOffset = useRef(0);
+  const listRef = useRef<FlatList<ChatItem>>(null);
+  /** Yüklü sayfalarda henüz bulunamayan atlama hedefi; eski sayfalar geldikçe yeniden denenir. */
+  const pendingJump = useRef<{ id: string; pages: number } | null>(null);
+  /** `scrollToIndex` henüz ölçülmemiş satırda başarısız olunca kaç kez yeniden denendi. */
+  const scrollRetries = useRef(0);
+  /**
+   * Atlama zinciri olay işleyicilerinden ve karelerden yürüyor; en güncel
+   * liste ve sayfa durumu buradan okunur (kapanıştaki eski değer değil).
+   */
+  const latest = useRef<{ items: ChatItem[]; hasNextPage: boolean; isFetchingNextPage: boolean }>({
+    items: [],
+    hasNextPage: false,
+    isFetchingNextPage: false,
+  });
 
   /**
    * Sohbete girer girmez klavye açılır — mesaj yazmak birincil eylem.
@@ -140,6 +175,62 @@ export function ChatView({
   // Okundu bilgisi — listedeki en yeni GERÇEK mesaj (outbox hariç).
   useReadState(chatId, kind, messages[0]?.id);
 
+  useEffect(() => {
+    latest.current = { items, hasNextPage: Boolean(hasNextPage), isFetchingNextPage };
+  }, [items, hasNextPage, isFetchingNextPage]);
+
+  /** Mesaj yüklü listedeyse ortasına kaydırır ve kısa vurgular. */
+  const scrollToMessage = useCallback((messageId: string): boolean => {
+    const index = latest.current.items.findIndex(
+      (item) => item.kind === "message" && item.message.id === messageId
+    );
+    if (index < 0) return false;
+    scrollRetries.current = 0;
+    listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    flashMessage(messageId);
+    return true;
+  }, []);
+
+  /**
+   * Hedef yüklü değil: bir eski sayfa daha çekilir. Cache yalnızca eskiye
+   * doğru sayfalandığı için `?around=` yerine bu yol; en çok 15 sayfa.
+   */
+  const continueJump = useCallback(() => {
+    const pending = pendingJump.current;
+    if (!pending) return;
+    if (!latest.current.hasNextPage || pending.pages >= MAX_JUMP_PAGES) {
+      pendingJump.current = null;
+      showToast("Mesaj bulunamadı");
+      return;
+    }
+    pending.pages += 1;
+    void fetchNextPage();
+  }, [fetchNextPage]);
+
+  /** Sabit çubuğu, sabit listesi, "bir mesajı sabitledi" satırı ve alıntılar buraya gelir. */
+  const jumpToMessage = useCallback(
+    (messageId: string) => {
+      pendingJump.current = null;
+      if (scrollToMessage(messageId)) return;
+      pendingJump.current = { id: messageId, pages: 0 };
+      if (!latest.current.isFetchingNextPage) continueJump();
+    },
+    [scrollToMessage, continueJump]
+  );
+
+  // Atlama hedefi eski sayfalardaysa her yeni sayfada yeniden denenir. Yeni
+  // satırlar listeye yerleşsin diye bir kare beklenir.
+  useEffect(() => {
+    if (!pendingJump.current || isFetchingNextPage) return;
+    const frame = requestAnimationFrame(() => {
+      const pending = pendingJump.current;
+      if (!pending) return;
+      if (scrollToMessage(pending.id)) pendingJump.current = null;
+      else continueJump();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [items, isFetchingNextPage, scrollToMessage, continueJump]);
+
   const onChangeDraft = useCallback(
     (text: string) => {
       setDraft(text);
@@ -150,14 +241,14 @@ export function ChatView({
 
   const onSend = useCallback(() => {
     if (!draft.trim() && !attachment) return;
-    send(draft, attachment?.url, attachment?.name, replyingTo?.id);
+    send(draft, attachment ?? undefined, replyingTo?.id);
     setDraft("");
     setAttachment(null);
     setReplyingTo(null);
   }, [attachment, draft, replyingTo?.id, send]);
 
   const onSelectGif = useCallback((url: string) => {
-    send("", url, "GIF");
+    send("", { url, name: "GIF", mimeType: "image/gif" });
   }, [send]);
 
   const onSelectActivity = useCallback((activityId: string) => {
@@ -182,6 +273,20 @@ export function ChatView({
     }
   }, []);
 
+  const onLongPressMessage = useCallback((message: ChatMessagePayload, anchor: MessageAnchor) => {
+    setSelected({ message, anchor });
+  }, []);
+
+  /** Komut önerisi seçildi: "/komut " yazılır, imleç sona geçer. */
+  const onPickCommand = (name: string) => {
+    const next = `/${name} `;
+    setDraft(next);
+    composerRef.current?.focus();
+    requestAnimationFrame(() => composerRef.current?.setSelection(next.length, next.length));
+  };
+
+  const commandMatches = matchCommands(commandBots.data ?? [], draft);
+
   const renderItem = useCallback(
     ({ item }: { item: ChatItem }) =>
       item.kind === "day" ? (
@@ -191,13 +296,14 @@ export function ChatView({
           oneToOne={oneToOne}
           message={item.message}
           grouped={item.grouped}
-          onLongPress={readOnlyOfficial ? undefined : setSelectedMessage}
+          onLongPress={readOnlyOfficial ? undefined : onLongPressMessage}
           onReactionPress={(message, emoji) => {
             void actions.toggleReaction(message.id, emoji);
           }}
+          onJumpToMessage={jumpToMessage}
         />
       ),
-    [actions, readOnlyOfficial, oneToOne]
+    [actions, readOnlyOfficial, oneToOne, onLongPressMessage, jumpToMessage]
   );
 
   if (isLoading) {
@@ -221,154 +327,190 @@ export function ChatView({
   const typing = kind === "channel" ? typingLabel(typers) : null;
 
   return (
-    <KeyboardAvoider style={{ backgroundColor: colors.chat }}>
-      <FlatList
-        inverted
-        data={items}
-        keyExtractor={(item) => item.key}
-        renderItem={renderItem}
-        /**
-         * Zemin rengi listenin KENDİSİNDE açıkça verilir.
-         * Ölçümle görüldü: bazı ekranlarda liste yüzeyi kap rengini değil,
-         * altındaki native ekran yüzeyini gösteriyordu (#313235 — hiçbir
-         * token'a karşılık gelmeyen, üzerine beyaz katman binmiş bir ton).
-         * Rengi burada sabitlemek, react-native-screens'in ne yaptığından
-         * bağımsız olarak doğru sonucu garanti eder.
-         */
-        style={{ backgroundColor: colors.chat }}
-        onEndReached={() => {
-          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-        }}
-        onEndReachedThreshold={0.5}
-        keyboardDismissMode="interactive"
-        onScroll={onScroll}
-        scrollEventThrottle={64}
-        /**
-         * Uzun sohbetlerde bellek ve kare süresi ayarı. Değerler ölçülerek
-         * değil, mesaj satırının yüksekliği (~56pt) ve tipik ekran boyu
-         * baz alınarak seçildi; cihazda profillenmeleri gerekir.
-         *
-         * NOT: `@shopify/flash-list` bilinçli olarak KULLANILMADI —
-         * v2 tersine (inverted) listelerde farklı davranıyor ve fiziksel
-         * cihazda doğrulanmadan geçilmesi sohbet kaydırmasında regresyon
-         * riski taşıyor.
-         */
-        initialNumToRender={16}
-        maxToRenderPerBatch={12}
-        windowSize={11}
-        removeClippedSubviews
-        updateCellsBatchingPeriod={50}
-        /**
-         * Ters listede "header" görsel olarak EN ALTTA durur — bekleyen
-         * mesajların doğru yeri burası (en yeni içerik altta).
-         */
-        ListHeaderComponent={
-          outbox.length > 0 ? (
-            <View>
-              {/* Ters çizimde sıra da tersine döner; en yenisi altta kalsın. */}
-              {[...outbox].reverse().map((message) => (
-                <OutboxItem
-                  key={message.id}
-                  message={message}
-                  onRetry={() => retry(message.id, message.content)}
-                  onDiscard={() => discard(message.id)}
+    // Klavye ve emoji paneli boşluğunu yazma çubuğu kendisi ayırıyor
+    // (bkz. components/composer.tsx); burada `KeyboardAvoider` YOK.
+    <View style={{ flex: 1, backgroundColor: colors.chat }}>
+      {/* Bağlam menüsü açılınca Android'de bulanıklaşan yüzey. Başlık bu
+          ekranın dışında (yerel yığın başlığı); o yalnızca kararır. */}
+      <BlurTargetView ref={blurTargetRef} style={{ flex: 1, backgroundColor: colors.chat }}>
+        {/* Telegram gibi başlığın hemen altında; sabit yoksa hiçbir şey çizmez. */}
+        <PinnedBar pins={pins.data ?? []} onJump={jumpToMessage} onOpenList={() => setPinListOpen(true)} />
+
+        <View style={{ flex: 1 }}>
+          <FlatList
+            ref={listRef}
+            inverted
+            data={items}
+            keyExtractor={(item) => item.key}
+            renderItem={renderItem}
+            /**
+             * Zemin rengi listenin KENDİSİNDE açıkça verilir.
+             * Ölçümle görüldü: bazı ekranlarda liste yüzeyi kap rengini değil,
+             * altındaki native ekran yüzeyini gösteriyordu (#313235 — hiçbir
+             * token'a karşılık gelmeyen, üzerine beyaz katman binmiş bir ton).
+             * Rengi burada sabitlemek, react-native-screens'in ne yaptığından
+             * bağımsız olarak doğru sonucu garanti eder.
+             */
+            style={{ backgroundColor: colors.chat }}
+            onEndReached={() => {
+              if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+            }}
+            onEndReachedThreshold={0.5}
+            onScrollToIndexFailed={(info) => {
+              // Hedef satır henüz ölçülmedi (sanallaştırma): önce tahmini
+              // konuma gidilir, satırlar çizilince yeniden denenir.
+              if (scrollRetries.current >= 3) return;
+              scrollRetries.current += 1;
+              listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+              setTimeout(() => {
+                listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0.5, animated: true });
+              }, 120);
+            }}
+            keyboardDismissMode="interactive"
+            onScroll={onScroll}
+            scrollEventThrottle={64}
+            /**
+             * Uzun sohbetlerde bellek ve kare süresi ayarı. Değerler ölçülerek
+             * değil, mesaj satırının yüksekliği (~56pt) ve tipik ekran boyu
+             * baz alınarak seçildi; cihazda profillenmeleri gerekir.
+             *
+             * NOT: `@shopify/flash-list` bilinçli olarak KULLANILMADI —
+             * v2 tersine (inverted) listelerde farklı davranıyor ve fiziksel
+             * cihazda doğrulanmadan geçilmesi sohbet kaydırmasında regresyon
+             * riski taşıyor.
+             */
+            initialNumToRender={16}
+            maxToRenderPerBatch={12}
+            windowSize={11}
+            removeClippedSubviews
+            updateCellsBatchingPeriod={50}
+            /**
+             * Ters listede "header" görsel olarak EN ALTTA durur — bekleyen
+             * mesajların doğru yeri burası (en yeni içerik altta).
+             */
+            ListHeaderComponent={
+              outbox.length > 0 ? (
+                <View>
+                  {/* Ters çizimde sıra da tersine döner; en yenisi altta kalsın. */}
+                  {[...outbox].reverse().map((message) => (
+                    <OutboxItem
+                      key={message.id}
+                      message={message}
+                      onRetry={() => retry(message)}
+                      onDiscard={() => discard(message.id)}
+                    />
+                  ))}
+                </View>
+              ) : null
+            }
+            ListFooterComponent={
+              isFetchingNextPage ? (
+                <ActivityIndicator
+                  color={colors.muted}
+                  style={{ marginVertical: spacing.lg }}
                 />
-              ))}
-            </View>
-          ) : null
-        }
-        ListFooterComponent={
-          isFetchingNextPage ? (
-            <ActivityIndicator
-              color={colors.muted}
-              style={{ marginVertical: spacing.lg }}
-            />
-          ) : null
-        }
-        contentContainerStyle={
-          items.length === 0 && outbox.length === 0
-            ? { flex: 1 }
-            : { paddingVertical: spacing.sm }
-        }
-        ListEmptyComponent={
-          <View style={{ flex: 1 }}>
-            <EmptyState
-              icon="message"
-              title="Sohbet burada başlıyor"
-              description="İlk mesajı sen gönder."
-            />
-          </View>
-        }
-      />
+              ) : null
+            }
+            contentContainerStyle={
+              items.length === 0 && outbox.length === 0
+                ? { flex: 1 }
+                : { paddingVertical: spacing.sm }
+            }
+            ListEmptyComponent={
+              <View style={{ flex: 1 }}>
+                <EmptyState
+                  icon="message"
+                  title="Sohbet burada başlıyor"
+                  description="İlk mesajı sen gönder."
+                />
+              </View>
+            }
+          />
 
-      {typing && !readOnlyOfficial ? (
-        <Text
-          style={{
-            ...typography.caption,
-            color: colors.muted,
-            paddingHorizontal: spacing.lg,
-            paddingBottom: spacing.xs,
-            backgroundColor: colors.chat,
-          }}
-          accessibilityLiveRegion="polite"
-          numberOfLines={1}
-        >
-          {typing}
-        </Text>
-      ) : null}
+          {/* "/" komut önerileri mesajların üstünde, yazma çubuğunun hemen
+              üzerinde yüzer; listenin kabı içinde kaldığı için dokunuşlar
+              kesin olarak ona gelir. */}
+          {commandMatches.length > 0 ? (
+            <CommandSuggestions matches={commandMatches} onPick={onPickCommand} />
+          ) : null}
+        </View>
 
-      {readOnlyOfficial ? (
-        <OfficialFooter />
-      ) : (
-        <Composer
-          ref={composerRef}
-          value={draft}
-          onChangeText={onChangeDraft}
-          onSend={onSend}
-          attachment={attachment}
-          replyingTo={replyingTo}
-          uploadProgress={uploadProgress}
-          uploadError={uploadError}
-          onPickAttachment={onPickAttachment}
-          onRemoveAttachment={() => setAttachment(null)}
-          onCancelReply={() => setReplyingTo(null)}
-          onSelectGif={onSelectGif}
-          onSelectActivity={onSelectActivity}
-          placeholder={placeholder}
-        />
-      )}
+        {typing && !readOnlyOfficial ? (
+          <Text
+            style={{
+              ...typography.caption,
+              color: colors.muted,
+              paddingHorizontal: spacing.lg,
+              paddingBottom: spacing.xs,
+              backgroundColor: colors.chat,
+            }}
+            accessibilityLiveRegion="polite"
+            numberOfLines={1}
+          >
+            {typing}
+          </Text>
+        ) : null}
 
-      {selectedMessage ? (
-        <MessageActionsSheet
-          key={selectedMessage.id}
-          message={selectedMessage}
-          isMine={messageAuthorId(selectedMessage) === myId}
+        {readOnlyOfficial ? (
+          <>
+            <OfficialFooter />
+            <View style={{ height: insets.bottom }} />
+          </>
+        ) : (
+          <Composer
+            inputRef={composerRef}
+            commandsAvailable={Boolean(commandBots.data?.length)}
+            value={draft}
+            onChangeText={onChangeDraft}
+            onSend={onSend}
+            attachment={attachment}
+            replyingTo={replyingTo}
+            uploadProgress={uploadProgress}
+            uploadError={uploadError}
+            onPickAttachment={onPickAttachment}
+            onRemoveAttachment={() => setAttachment(null)}
+            onCancelReply={() => setReplyingTo(null)}
+            onSelectGif={onSelectGif}
+            onSelectActivity={onSelectActivity}
+            placeholder={placeholder}
+          />
+        )}
+      </BlurTargetView>
+
+      {selected ? (
+        <MessageContextMenu
+          key={selected.message.id}
+          message={selected.message}
+          anchor={selected.anchor}
+          isMine={messageAuthorId(selected.message) === myId}
+          oneToOne={oneToOne}
           pending={actions.pending}
           error={actions.error}
+          blurTarget={blurTargetRef}
           onClose={() => {
             actions.clearError();
-            setSelectedMessage(null);
+            setSelected(null);
           }}
           onReact={async (emoji) => {
-            const ok = await actions.toggleReaction(selectedMessage.id, emoji);
-            if (ok) setSelectedMessage(null);
+            const ok = await actions.toggleReaction(selected.message.id, emoji);
+            if (ok) setSelected(null);
           }}
           onReply={() => {
-            setReplyingTo(selectedMessage);
-            setSelectedMessage(null);
+            setReplyingTo(selected.message);
+            setSelected(null);
             requestAnimationFrame(() => composerRef.current?.focus());
           }}
           onForward={
-            canForwardMessage(selectedMessage)
+            canForwardMessage(selected.message)
               ? () => {
-                  setForwarding(selectedMessage);
-                  setSelectedMessage(null);
+                  setForwarding(selected.message);
+                  setSelected(null);
                 }
               : undefined
           }
           onEdit={async (content) => {
-            const ok = await actions.edit(selectedMessage.id, content);
-            if (ok) setSelectedMessage(null);
+            const ok = await actions.edit(selected.message.id, content);
+            if (ok) setSelected(null);
           }}
           onDelete={() =>
             showDialog("Mesajı sil", "Bu mesaj herkes için silinecek.", [
@@ -377,25 +519,39 @@ export function ChatView({
                 text: "Sil",
                 style: "destructive",
                 onPress: () => {
-                  void actions.remove(selectedMessage.id).then((ok) => {
-                    if (ok) setSelectedMessage(null);
+                  void actions.remove(selected.message.id).then((ok) => {
+                    if (ok) setSelected(null);
                   });
                 },
               },
             ])
           }
           onReport={
-            messageAuthorId(selectedMessage) === myId
+            messageAuthorId(selected.message) === myId
               ? undefined
               : async (reason, detail) => {
                   const ok = await actions.report(
-                    selectedMessage.id,
-                    messageAuthorId(selectedMessage),
+                    selected.message.id,
+                    messageAuthorId(selected.message),
                     reason,
                     detail
                   );
-                  if (ok) setSelectedMessage(null);
+                  if (ok) setSelected(null);
                 }
+          }
+          pin={
+            canPin && canBePinned(selected.message)
+              ? {
+                  pinned: Boolean(pinnedAtOf(selected.message)),
+                  onToggle: () => {
+                    const { id } = selected.message;
+                    const pinned = Boolean(pinnedAtOf(selected.message));
+                    // Menü hemen kapanır; hata olursa şerit söyler.
+                    setSelected(null);
+                    void pinAction(id, !pinned);
+                  },
+                }
+              : undefined
           }
         />
       ) : null}
@@ -403,7 +559,16 @@ export function ChatView({
       {forwarding ? (
         <ForwardSheet message={forwarding} onClose={() => setForwarding(null)} />
       ) : null}
-    </KeyboardAvoider>
+
+      <PinnedListSheet
+        visible={pinListOpen}
+        pins={pins.data ?? []}
+        canUnpin={canPin}
+        onClose={() => setPinListOpen(false)}
+        onJump={jumpToMessage}
+        onUnpin={(messageId) => void pinAction(messageId, false)}
+      />
+    </View>
   );
 }
 
@@ -436,545 +601,3 @@ function OfficialFooter() {
 function messageAuthorId(message: ChatMessagePayload) {
   return isChannelMessage(message) ? message.member.profile.id : message.profile.id;
 }
-
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
-
-function MessageActionsSheet({
-  message,
-  isMine,
-  pending,
-  error,
-  onClose,
-  onReact,
-  onReply,
-  onForward,
-  onEdit,
-  onDelete,
-  onReport,
-}: {
-  message: ChatMessagePayload;
-  isMine: boolean;
-  pending: boolean;
-  error: string | null;
-  onClose: () => void;
-  onReact: (emoji: string) => Promise<void>;
-  onReply: () => void;
-  /** Yalnızca iletilebilir mesajlarda (bkz. `canForwardMessage`). */
-  onForward?: () => void;
-  onEdit: (content: string) => Promise<void>;
-  onDelete: () => void;
-  onReport?: (reason: ReportReason, detail: string) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [reporting, setReporting] = useState(false);
-  const [content, setContent] = useState(message.content);
-  const [reportReason, setReportReason] = useState<ReportReason | null>(null);
-  const [reportDetail, setReportDetail] = useState("");
-
-  return (
-    <Modal
-      visible
-      transparent
-      animationType="slide"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <View style={{ flex: 1, justifyContent: "flex-end" }}>
-        <Pressable
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Mesaj eylemlerini kapat"
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundColor: colors.scrim,
-          }}
-        />
-        <View
-          style={{
-            padding: spacing.lg,
-            paddingBottom: spacing["3xl"],
-            gap: spacing.lg,
-            borderTopLeftRadius: radii.xl,
-            borderTopRightRadius: radii.xl,
-            borderCurve: "continuous",
-            backgroundColor: colors.bento,
-          }}
-        >
-          <View
-            style={{
-              width: 38,
-              height: 4,
-              borderRadius: radii.full,
-              backgroundColor: colors.border,
-              alignSelf: "center",
-            }}
-          />
-
-          {reporting ? (
-            <View style={{ gap: spacing.md }}>
-              <Text style={{ ...typography.display, color: colors.bright }}>Mesajı şikâyet et</Text>
-              <View style={{ gap: spacing.xs }}>
-                {REPORT_REASONS.map((reason) => (
-                  <Pressable
-                    key={reason.value}
-                    onPress={() => setReportReason(reason.value)}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: spacing.sm,
-                      minHeight: 40,
-                      paddingHorizontal: spacing.md,
-                      borderRadius: radii.md,
-                      borderWidth: 1,
-                      borderColor: reportReason === reason.value ? colors.brand : colors.border,
-                      backgroundColor: pressed || reportReason === reason.value ? colors.raised : colors.panel,
-                    })}
-                  >
-                    <View style={{ width: 14, height: 14, borderRadius: radii.full, borderWidth: 2, borderColor: reportReason === reason.value ? colors.brand : colors.muted, alignItems: "center", justifyContent: "center" }}>
-                      {reportReason === reason.value ? <View style={{ width: 6, height: 6, borderRadius: radii.full, backgroundColor: colors.brand }} /> : null}
-                    </View>
-                    <Text style={{ ...typography.caption, color: colors.text }}>{reason.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <TextInput
-                value={reportDetail}
-                onChangeText={setReportDetail}
-                placeholder="Eklemek istediğin detay (isteğe bağlı)"
-                placeholderTextColor={colors.muted}
-                multiline
-                maxLength={2000}
-                style={{ minHeight: 72, maxHeight: 120, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.panel, color: colors.bright, textAlignVertical: "top", ...typography.body }}
-              />
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }}>
-                <SheetButton label="Geri" onPress={() => setReporting(false)} />
-                <SheetButton label="Şikâyet Et" destructive disabled={!reportReason || pending} onPress={() => reportReason && void onReport?.(reportReason, reportDetail)} />
-              </View>
-            </View>
-          ) : editing ? (
-            <View style={{ gap: spacing.md }}>
-              <Text style={{ ...typography.display, color: colors.bright }}>
-                Mesajı düzenle
-              </Text>
-              <TextInput
-                value={content}
-                onChangeText={setContent}
-                multiline
-                autoFocus
-                maxLength={2000}
-                placeholderTextColor={colors.muted}
-                style={{
-                  minHeight: 96,
-                  maxHeight: 180,
-                  padding: spacing.md,
-                  borderRadius: radii.lg,
-                  borderCurve: "continuous",
-                  backgroundColor: colors.panel,
-                  color: colors.bright,
-                  textAlignVertical: "top",
-                  ...typography.body,
-                }}
-              />
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }}>
-                <SheetButton label="Vazgeç" onPress={() => setEditing(false)} />
-                <SheetButton
-                  label="Kaydet"
-                  primary
-                  disabled={!content.trim() || pending}
-                  onPress={() => void onEdit(content.trim())}
-                />
-              </View>
-            </View>
-          ) : (
-            <>
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                {QUICK_REACTIONS.map((emoji) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => void onReact(emoji)}
-                    disabled={pending}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${emoji} tepkisi ekle veya kaldır`}
-                    style={({ pressed }) => ({
-                      width: 46,
-                      height: 46,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: radii.full,
-                      backgroundColor: pressed ? colors.raised : colors.panel,
-                      opacity: pending ? 0.5 : 1,
-                    })}
-                  >
-                    <Text style={{ fontSize: 23 }}>{emoji}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* Bağlam menüsü: ikonlu satırlar tek kartta, yıkıcı olanlar en altta. */}
-              <View style={{ borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.raised }}>
-                <SheetAction icon="reply" label="Yanıtla" onPress={onReply} />
-                {onForward ? (
-                  <SheetAction icon="forward" label="İlet" onPress={onForward} />
-                ) : null}
-                {message.content && !message.deleted ? (
-                  <SheetAction
-                    icon="copy"
-                    label="Metni kopyala"
-                    onPress={() => {
-                      void copyText(message.content);
-                      onClose();
-                    }}
-                  />
-                ) : null}
-                {isMine ? <SheetAction icon="pencil" label="Mesajı düzenle" onPress={() => setEditing(true)} /> : null}
-                {isMine ? (
-                  <SheetAction icon="trash" label="Mesajı sil" destructive onPress={onDelete} />
-                ) : onReport ? (
-                  <SheetAction icon="flag" label="Şikâyet et" destructive onPress={() => setReporting(true)} />
-                ) : null}
-              </View>
-            </>
-          )}
-
-          {error ? (
-            <Text style={{ ...typography.caption, color: colors.danger }}>{error}</Text>
-          ) : null}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const REPORT_REASONS: { value: ReportReason; label: string }[] = [
-  { value: "SPAM", label: "Spam veya reklam" },
-  { value: "HARASSMENT", label: "Taciz veya zorbalık" },
-  { value: "HATE_SPEECH", label: "Nefret söylemi" },
-  { value: "VIOLENCE", label: "Şiddet veya tehdit" },
-  { value: "SELF_HARM", label: "Kendine zarar / intihar" },
-  { value: "CSAM", label: "Çocuk istismarı" },
-  { value: "ILLEGAL", label: "Yasa dışı içerik" },
-  { value: "IMPERSONATION", label: "Taklit / sahtecilik" },
-  { value: "OTHER", label: "Diğer" },
-];
-
-/**
- * Panoya kopyalar. expo-clipboard YEREL bir modül: modül üst düzeyde içe
- * aktarılsaydı bu JS bir OTA güncellemesiyle modülü içermeyen eski bir
- * APK'ya ulaştığında uygulama açılışta çökerdi. Tembel yükleme + yutulan
- * hata ile en kötü durumda yalnızca kopyalama çalışmaz.
- */
-async function copyText(text: string) {
-  try {
-    const Clipboard = await import("expo-clipboard");
-    await Clipboard.setStringAsync(text);
-  } catch {
-    // Eski yerel derleme: kopyalama yok, ama uygulama ayakta.
-  }
-}
-
-function SheetAction({
-  icon,
-  label,
-  onPress,
-  destructive,
-}: {
-  icon: IconName;
-  label: string;
-  onPress: () => void;
-  destructive?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        gap: spacing.md,
-        minHeight: 52,
-        paddingHorizontal: spacing.lg,
-        backgroundColor: pressed ? colors.border : "transparent",
-      })}
-    >
-      <Icon name={icon} size={20} color={destructive ? colors.danger : colors.bright} />
-      <Text style={{ ...typography.body, color: destructive ? colors.danger : colors.bright, flex: 1 }}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function SheetButton({
-  label,
-  onPress,
-  primary,
-  destructive,
-  disabled,
-}: {
-  label: string;
-  onPress: () => void;
-  primary?: boolean;
-  destructive?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(disabled) }}
-      style={({ pressed }) => ({
-        minHeight: 46,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii.lg,
-        borderCurve: "continuous",
-        backgroundColor: primary
-          ? colors.brand
-          : destructive
-            ? colors.panel
-            : pressed
-              ? colors.raised
-              : colors.panel,
-        opacity: disabled ? 0.45 : 1,
-      })}
-    >
-      <Text
-        style={{
-          ...typography.bodyStrong,
-          color: primary ? colors.onBrand : destructive ? colors.danger : colors.bright,
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-/** Mesaj yazma çubuğu. */
-const Composer = forwardRef<
-  TextInput,
-  {
-    value: string;
-    onChangeText: (text: string) => void;
-    onSend: () => void;
-    placeholder: string;
-    attachment: MessageAttachment | null;
-    replyingTo: ChatMessagePayload | null;
-    uploadProgress: number | null;
-    uploadError: string | null;
-    onPickAttachment: () => void;
-    onRemoveAttachment: () => void;
-    onCancelReply: () => void;
-    onSelectGif: (url: string) => void;
-    onSelectActivity: (activityId: string) => void;
-  }
->(function Composer(
-  {
-    value,
-    onChangeText,
-    onSend,
-    placeholder,
-    attachment,
-    replyingTo,
-    uploadProgress,
-    uploadError,
-    onPickAttachment,
-    onRemoveAttachment,
-    onCancelReply,
-    onSelectGif,
-    onSelectActivity,
-  },
-  ref
-) {
-  const canSend = value.trim().length > 0 || Boolean(attachment);
-  const isUploading = uploadProgress !== null;
-  const [picker, setPicker] = useState<ComposerPickerTab | null>(null);
-
-  const openPicker = (tab: ComposerPickerTab) => {
-    Keyboard.dismiss();
-    setPicker(tab);
-  };
-
-  return (
-    <View
-      style={{
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        backgroundColor: colors.deep,
-        gap: spacing.sm,
-      }}
-    >
-      {attachment ? (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing.sm,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm,
-            borderRadius: radii.md,
-            borderCurve: "continuous",
-            backgroundColor: colors.panel,
-          }}
-        >
-          <IconButton
-            icon="attachment"
-            label="Ek"
-            background="transparent"
-            tint={colors.brand}
-            disabled
-            size={28}
-          />
-          <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
-            {attachment.name}
-          </Text>
-          <IconButton
-            icon="close"
-            label="Eki kaldır"
-            background="transparent"
-            tint={colors.muted}
-            onPress={onRemoveAttachment}
-            size={28}
-          />
-        </View>
-      ) : null}
-
-      {replyingTo ? (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing.sm,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm,
-            borderLeftWidth: 2,
-            borderLeftColor: colors.brand,
-            borderRadius: radii.sm,
-            backgroundColor: colors.panel,
-          }}
-        >
-          <IconButton
-            icon="reply"
-            label="Yanıt"
-            background="transparent"
-            tint={colors.brand}
-            disabled
-            size={28}
-          />
-          <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
-            {replyingTo.content}
-          </Text>
-          <IconButton
-            icon="close"
-            label="Yanıtı iptal et"
-            background="transparent"
-            tint={colors.muted}
-            onPress={onCancelReply}
-            size={28}
-          />
-        </View>
-      ) : null}
-
-      {isUploading || uploadError ? (
-        <Text style={{ ...typography.caption, color: uploadError ? colors.danger : colors.muted }}>
-          {uploadError ?? `Dosya yükleniyor… %${Math.round(uploadProgress ?? 0)}`}
-        </Text>
-      ) : null}
-
-      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
-        <IconButton
-          icon="plus"
-          label="Dosya ekle"
-          background="transparent"
-          tint={colors.muted}
-          disabled={isUploading}
-          onPress={onPickAttachment}
-        />
-
-        <IconButton
-          icon="compass"
-          label="Aktivite seç"
-          background="transparent"
-          tint={colors.muted}
-          onPress={() => openPicker("activity")}
-        />
-
-        <Pressable
-          onPress={() => openPicker("gif")}
-          accessibilityRole="button"
-          accessibilityLabel="GIF seç"
-          style={({ pressed }) => ({
-            width: 40,
-            height: 40,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: radii.full,
-            backgroundColor: pressed ? colors.raised : "transparent",
-          })}
-        >
-          <Text style={{ fontSize: 11, ...fw(900), color: colors.muted }}>GIF</Text>
-        </Pressable>
-
-        <View style={{ flex: 1, minHeight: 40, maxHeight: 120, flexDirection: "row", alignItems: "flex-end", borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel }}>
-          <TextInput
-            ref={ref}
-            autoFocus
-            value={value}
-            onChangeText={onChangeText}
-            placeholder={placeholder}
-            placeholderTextColor={colors.muted}
-            multiline
-            style={{
-              flex: 1,
-              maxHeight: 120,
-              minHeight: 40,
-              paddingLeft: spacing.md,
-              paddingVertical: spacing.sm,
-              color: colors.bright,
-              ...typography.body,
-            }}
-            accessibilityLabel="Mesaj yaz"
-          />
-          <IconButton
-            icon="emoji"
-            label="Emoji seç"
-            background="transparent"
-            tint={colors.muted}
-            size={36}
-            onPress={() => openPicker("emoji")}
-          />
-        </View>
-
-        <IconButton
-          icon="send"
-          label="Gönder"
-          onPress={onSend}
-          disabled={!canSend || isUploading}
-          background={canSend ? colors.brand : colors.panel}
-          tint={canSend ? colors.onBrand : colors.muted}
-          size={40}
-          haptic="light"
-        />
-      </View>
-
-      <ComposerPicker
-        key={picker ?? "closed"}
-        visible={picker !== null}
-        initialTab={picker ?? "emoji"}
-        onClose={() => setPicker(null)}
-        onEmoji={(emoji) => onChangeText(`${value}${emoji}`)}
-        onGif={(url) => {
-          setPicker(null);
-          onSelectGif(url);
-        }}
-        onActivity={(activityId) => {
-          setPicker(null);
-          onSelectActivity(activityId);
-        }}
-      />
-    </View>
-  );
-});

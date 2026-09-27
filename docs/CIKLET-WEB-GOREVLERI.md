@@ -17,8 +17,11 @@ Hiçbir görev ücretli servis, abonelik veya kredi kartı gerektirmemeli.
 - **Push için Expo Push Notification Service kullanılacak.** Ücretsiz,
   sınırsız, hesap/kart istemez. Uygulama zaten Expo ile derleniyor.
   Uç: `POST https://exp.host/--/api/v2/push/send` (kimlik doğrulama
-  isteğe bağlı). FCM/APNs anahtarı YÖNETMEYE GEREK YOK — Expo aradaki
-  röleyi üstlenir.
+  isteğe bağlı). Sunucu tarafında FCM/APNs anahtarı yönetilmez — Expo aradaki
+  röleyi üstlenir. AMA Expo'nun Android'e iletebilmesi için Firebase
+  projesinin FCM V1 servis hesabı anahtarı expo.dev → Credentials'a
+  yüklenmiş olmalı ve uygulama `google-services.json` ile derlenmeli
+  (2026-09-27'ye kadar eksikti; Android'de token hiç alınamıyordu).
 - Firebase Cloud Messaging'e doğrudan entegrasyon, OneSignal, Pusher,
   Twilio vb. **kullanılmayacak**.
 - Yeni altyapı bileşeni (Redis kuyruğu, ayrı worker servisi vb.)
@@ -244,6 +247,108 @@ Gerekli:
 - Socket.IO oda adları ve `verifyChatMembership` genişletmesi.
 
 Bu görev diğerlerinden bağımsız ve büyüktür; en sona bırakılabilir.
+
+---
+
+## Görev 6 — Mobilde telefon doğrulaması (öncelik: yüksek)
+
+**Durum: YAZILDI, dağıtılmadı (2026-09-27).** ciklet-web'de yapıldı ve
+testleri geçiyor; commit ve deploy kullanıcının kararına bırakıldı. Ek:
+`/api/current-profile` artık `phoneVerificationRequired` döndürüyor (root
+panelinden zorunluluk kaldırılabiliyor); mobil yoklama bunu da okuyor.
+
+**Sorun:** Telefon doğrulaması gereken yeni hesap mobilde hiç giriş
+yapamıyor. `/api/mobile/auth` bu hesaba `phone_verification_required`
+koduyla 403 dönüyor ve token vermiyor; doğrulama bağlantısını üreten
+`POST /api/phone/telegram/start` ise oturum istiyor. Kullanıcıya "bunu
+ciklet.xyz üzerinden yap" demekten başka yol yok.
+
+**Mobil taraf hazır** (`app/(auth)/verify-phone.tsx`): kısıtlı oturumla
+`/api/phone/telegram/start`'tan bağlantıyı alıyor, "Telegram'da doğrula"
+düğmesiyle Telegram uygulamasını doğrudan açıyor, `/api/current-profile`'ı
+yoklayıp `isPhoneVerified` gelince `/api/mobile/auth/refresh` ile tam oturuma
+geçiyor. Eksik olan yalnızca kısıtlı token'ın verilmesi.
+
+### 6a. `/api/mobile/auth` — isteğe bağlı kısıtlı oturum
+
+Yeni mobil sürüm istek gövdesine `phoneVerification: "telegram"` ekliyor.
+`isPhonePending(profile)` doğruyken:
+
+- **Alan VARSA:** 403 yerine 200 dön; token `phonePending: true` claim'i
+  taşısın:
+  ```json
+  { "token": "...", "cookieName": "...", "expiresAt": "...",
+    "profile": { ... }, "phoneVerificationRequired": true }
+  ```
+- **Alan YOKSA:** bugünkü 403 aynen kalsın. 0.2.x sürümlerinde doğrulama
+  ekranı yok; onlara kısıtlı token verilirse her istekleri 403 alır ve
+  uygulama bozuk görünür.
+
+Kapının yeri değişmiyor: şifre ve ikinci faktör doğrulandıktan SONRA.
+
+### 6b. `issueMobileToken` — claim'i yazabilsin
+
+`lib/mobile-auth.ts` → `issueMobileToken(profile, { phonePending?: boolean })`.
+Claim yalnızca doğruyken yazılsın (auth-options'taki web oturumuyla aynı).
+Proxy mobil çerezi `withAuth` ile aynı şekilde çözdüğü için
+`blocksPendingPhoneApi` kapısı ek bir değişiklik olmadan uygulanır:
+yalnızca `/api/current-profile`, `/api/phone/*`, `/api/sessions`,
+`/api/account-status` açık kalır. `/api/internal/session` zaten reddediyor;
+ağ geçidine bağlanılamaz.
+
+### Değişiklik GEREKMEYENLER (kontrol edildi)
+
+- `/api/mobile/auth/refresh`: bekleyen hesaba zaten 403 dönüyor, doğrulanınca
+  claim'siz token veriyor. Matcher `api/mobile/auth` önekini dışarıda
+  bıraktığı için proxy kapısına takılmıyor.
+- `/api/phone/telegram/start` ve `/api/current-profile`: `getProfile()`
+  mobil çerezle çalışıyor, ikisi de izinli listede.
+
+### Test
+
+- Alan varken bekleyen hesap → 200 + `phoneVerificationRequired: true`;
+  bu token'la `/api/servers` 403 `phone_verification_required`,
+  `/api/phone/telegram/start` 200.
+- Alan yokken → 403 `phone_verification_required` (değişmedi).
+- Doğrulamadan sonra `/refresh` → claim'siz token; `/api/servers` 200.
+
+---
+
+## Görev 7 — Auth açıkları: kullanıcı adı, ban, EULA (öncelik: yüksek)
+
+**Durum: web oturumuna devredildi (2026-09-27).** Mobil taraf aşağıdaki
+sözleşmeye göre yazıldı; alanlar gelmezse eski davranışa düşüyor.
+
+### 7a. Kullanıcı adı büyük/küçük harfe duyarsız
+
+Web girişi `lower(username) = comparableUsername(x)` ile arıyor;
+`/api/mobile/auth`, `/api/auth/verify-email` (POST/PUT) ve şifre sıfırlama
+birebir arıyor. Hepsi web girişi gibi duyarsız olmalı. Mobil sözleşme
+değişmez.
+
+### 7b. Ban bilgisi mobile
+
+- `/api/mobile/auth`: ban kontrolü şifre doğrulandıktan SONRA (web gibi);
+  erişim yoksa `403 { error: "Account banned", code: "account_banned",
+  ban: { reason, type, expiresAt } }`.
+- `/api/mobile/auth/refresh`: banlı hesaba 401 yerine aynı 403 gövdesi.
+- Donanım banı: mevcut 403'e `code: "device_banned"`.
+
+Mobil: `app/(auth)/banned.tsx` (web `/banned` karşılığı), `api/client.ts`
+`banNoticeFrom`.
+
+### 7c. EULA kapısı sunucuda
+
+- Claim `eulaPending` (eulaAccepted=false); proxy, telefonla AYNI izinli
+  liste dışında `403 { error: "eula_required" }`; ağ geçidi reddeder.
+- `/api/mobile/auth`: `eulaScreen: true` geldiyse 200 + claim'li token +
+  `eulaRequired: true`; gelmediyse (eski sürüm) 403 `eula_required` ve
+  kullanıcıya gösterilecek Türkçe metin.
+- `/api/mobile/auth/refresh`: eula-pending hesaba 403 VERMEZ; claim'leri
+  güncel duruma göre yeniden hesaplar (telefon bekliyorsa 403 kalır).
+
+Mobil: `app/(auth)/eula.tsx` kabulden sonra `POST /api/eula` ve (telefon
+beklemiyorsa) `/refresh` ile claim'siz token alır.
 
 ---
 

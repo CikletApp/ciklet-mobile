@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ScrollView, Switch, Text, TextInput, View } from "react-native";
 
 import { useMentolPlan } from "@/api/hooks";
 import { Icon, Pressable, Screen } from "@/components/ui";
+import { ColorPickerSheet } from "@/features/appearance/color-picker-sheet";
 import { THEME_LABELS, useTheme } from "@/stores/theme";
 import {
   THEMES,
@@ -35,21 +36,69 @@ const FIELDS: { id: keyof ThemeSource; label: string; description: string }[] = 
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+/**
+ * Kaydırma konumu tema yenilemesinde korunur.
+ *
+ * Tema/palet değişince kök düzen gezinme ağacını ANAHTARLA yeniden kuruyor
+ * (renk Proxy'si eski renklerde takılmasın diye, bkz. app/_layout.tsx); bu
+ * ekran da sıfırdan açılıyor ve kullanıcı palet anahtarına ya da bir renge
+ * dokunduğu anda sayfanın en üstüne fırlıyordu. Konum modül düzeyinde
+ * tutulur ve YALNIZCA birkaç saniye içindeki yeniden kurulumda geri yüklenir;
+ * ekrana sonradan girildiğinde her zamanki gibi en üstten açılır.
+ */
+const REMOUNT_WINDOW_MS = 4000;
+const scrollMemory = { y: 0, changedAt: 0 };
+
+function rememberScroll(y: number) {
+  scrollMemory.y = y;
+}
+
+/** Tema değişimi ağacı yeniden kuracak: o an damgalanır (kullanıcı kaydırıp beklemiş olsa bile). */
+function markThemeChange() {
+  scrollMemory.changedAt = Date.now();
+}
+
+/** Yeniden kurulumdan hemen sonraysa geri yüklenecek konum; değilse 0. */
+function restorableScrollY(): number {
+  return Date.now() - scrollMemory.changedAt < REMOUNT_WINDOW_MS ? scrollMemory.y : 0;
+}
+
 export default function AppearanceScreen() {
   const preference = useTheme((s) => s.preference);
   const themeId = useTheme((s) => s.themeId);
   const customColors = useTheme((s) => s.customColors);
-  const setTheme = useTheme((s) => s.setTheme);
-  const setCustomColors = useTheme((s) => s.setCustomColors);
+  const applyTheme = useTheme((s) => s.setTheme);
+  const applyCustomColors = useTheme((s) => s.setCustomColors);
+  const setTheme: typeof applyTheme = (preference) => {
+    markThemeChange();
+    return applyTheme(preference);
+  };
+  const setCustomColors: typeof applyCustomColors = (next) => {
+    markThemeChange();
+    return applyCustomColors(next);
+  };
   const plan = useMentolPlan();
   const canCustomize = plan.data?.features.customThemes === true;
 
   const source: ThemeSource = { ...getTheme(themeId).source, ...customColors };
   const customEnabled = Object.keys(customColors).length > 0;
 
+  const scrollRef = useRef<ScrollView>(null);
+  // İlk içerik ölçümünde bir kez; sonraki boyut değişimleri kaydırmayı ezmesin.
+  const restored = useRef(false);
+
   return (
     <Screen>
       <ScrollView
+        ref={scrollRef}
+        onScroll={(event) => rememberScroll(event.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={100}
+        onContentSizeChange={() => {
+          if (restored.current) return;
+          restored.current = true;
+          const y = restorableScrollY();
+          if (y > 0) scrollRef.current?.scrollTo({ y, animated: false });
+        }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing["4xl"] }}
       >
@@ -344,20 +393,36 @@ function CustomPalette({
 }
 
 /**
- * Tek bir renk alanı: HEX girişi + hazır temalardaki aynı alanın renkleri.
- * React Native'de yerleşik renk seçici yok; öneri şeridi, HEX bilmeyen
- * kullanıcıya da uyumlu bir başlangıç noktası veriyor.
+ * Tek bir renk alanı: renk karesi (dokununca renk seçici — web'deki
+ * `<input type="color">`), HEX girişi ve hazır temalardaki aynı alanın
+ * renkleri. Öneri şeridi, HEX bilmeyen kullanıcıya uyumlu bir başlangıç
+ * noktası veriyor; şeridin sonundaki palet düğmesi de seçiciyi açar.
  */
 function ColorField({ field, value, onChange }: { field: (typeof FIELDS)[number]; value: string; onChange: (color: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   const shown = draft ?? value;
   const invalid = draft !== null && !HEX.test(draft);
   const suggestions = [...new Set(THEMES.map((theme) => theme.source[field.id]))];
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <View style={{ gap: spacing.sm }}>
+      {pickerOpen ? (
+        <ColorPickerSheet
+          visible
+          title={field.label}
+          value={value}
+          onClose={() => setPickerOpen(false)}
+          onApply={onChange}
+        />
+      ) : null}
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-        <View style={{ width: 34, height: 34, borderRadius: radii.md, backgroundColor: value, borderWidth: 1, borderColor: colors.border }} />
+        <Pressable
+          onPress={() => setPickerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`${field.label} rengi seç`}
+          style={{ width: 34, height: 34, borderRadius: radii.md, backgroundColor: value, borderWidth: 1, borderColor: colors.border }}
+        />
         <View style={{ flex: 1 }}>
           <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{field.label}</Text>
           <Text style={{ ...typography.caption, color: colors.muted }}>{field.description}</Text>
@@ -409,6 +474,24 @@ function ColorField({ field, value, onChange }: { field: (typeof FIELDS)[number]
             }}
           />
         ))}
+        <Pressable
+          onPress={() => setPickerOpen(true)}
+          noHitSlop
+          accessibilityRole="button"
+          accessibilityLabel={`${field.label}: özel renk seç`}
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.deep,
+          }}
+        >
+          <Icon name="palette" size={14} color={colors.bright} />
+        </Pressable>
       </ScrollView>
     </View>
   );

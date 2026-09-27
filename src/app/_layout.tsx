@@ -9,9 +9,11 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
-import { DialogHost } from "@/components/ui";
+import { DialogHost, ToastHost } from "@/components/ui";
 import { CallOverlay } from "@/features/call/call-overlay";
 import { BrandSplash } from "@/features/auth/auth-shell";
+import { useScreenTracking } from "@/lib/analytics";
+import { loadDokimorjiManifest } from "@/lib/emoji";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -46,6 +48,15 @@ void SplashScreen.preventAutoHideAsync();
 // bağlı değildir ve render sırasında çağrılmamalıdır.
 setupLiveKit();
 
+// Oturum yokken auth ekranları temadan bağımsız koyu paletle çizilir (web
+// `.ciklet-auth`); girişte kullanıcının teması geri gelir. Efekt yerine
+// abonelik: durum değiştiği ANDA, render'dan önce çalışır — efekt bir kare
+// geç kalır ve yeni ekran bir an yanlış paletle görünürdü.
+useAuth.subscribe((state, previous) => {
+  if (state.status === previous.status || state.status === "loading") return;
+  useTheme.getState().setAuthIsland(state.status !== "signedIn");
+});
+
 export default function RootLayout() {
   const [splashElapsed, setSplashElapsed] = useState(false);
   const status = useAuth((s) => s.status);
@@ -58,12 +69,14 @@ export default function RootLayout() {
   const hydratePreferences = usePreferences((s) => s.hydrate);
   const appFonts = useAppFonts();
   const stackScreenOptions = createStackScreenOptions(palette);
+  useScreenTracking();
   const modalScreenOptions = createModalScreenOptions(palette);
 
   useEffect(() => {
     void hydrateTheme();
     void hydratePreferences();
     void bootstrap();
+    void loadDokimorjiManifest();
   }, [bootstrap, hydratePreferences, hydrateTheme]);
 
   // "Sistem" tercihi cihazın açık/koyu değişimini canlı izler.
@@ -142,24 +155,38 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="profile/[profileId]" options={{ title: "" }} />
                 <Stack.Screen name="settings/index" options={{ title: "Ayarlar" }} />
+                <Stack.Screen name="settings/help" options={{ title: "Yardım" }} />
                 <Stack.Screen
                   name="settings/appearance"
                   options={{ title: "Görünüm" }}
                 />
               </Stack.Protected>
 
-              <Stack.Protected guard={status !== "signedIn"}>
+              <Stack.Protected guard={status === "signedOut"}>
                 <Stack.Screen name="(auth)/index" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
               </Stack.Protected>
+
+              {/* Girişten sonraki kapılar — web /redirect sırasıyla: sözleşme,
+                  telefon. Her biri bekleyen oturumun gidebileceği TEK yer. */}
+              <Stack.Protected guard={status === "eulaPending"}>
+                <Stack.Screen name="(auth)/eula" options={{ headerShown: false }} />
+              </Stack.Protected>
+              <Stack.Protected guard={status === "phonePending"}>
+                <Stack.Screen name="(auth)/verify-phone" options={{ headerShown: false }} />
+              </Stack.Protected>
+              <Stack.Protected guard={status === "banned"}>
+                <Stack.Screen name="(auth)/banned" options={{ headerShown: false }} />
+              </Stack.Protected>
             </Stack>
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
             <CallOverlay key={`call-${themeRevision}`} />
             <DialogHost key={`dialog-${themeRevision}`} />
+            <ToastHost key={`toast-${themeRevision}`} />
           </RealtimeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

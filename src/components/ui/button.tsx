@@ -1,6 +1,6 @@
 import { ActivityIndicator, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
-import { colors, radii, spacing, typography, MIN_TOUCH_TARGET } from "@/theme/tokens";
+import { authBrand, colors, radii, spacing, typography, MIN_TOUCH_TARGET } from "@/theme/tokens";
 import { Icon, type IconName } from "./icon";
 import { Pressable, type HapticKind } from "./pressable";
 
@@ -13,7 +13,8 @@ import { Pressable, type HapticKind } from "./pressable";
  * hisseder.
  */
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+/** `lime`: auth ekranlarının birincil düğmesi (web `.auth-submit`). */
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "lime";
 type Size = "md" | "lg";
 
 interface ButtonProps {
@@ -47,7 +48,9 @@ export function Button({
   const inactive = disabled || loading;
   // Tema rengi render anında okunur. Modül seviyesindeki sabit bir nesne
   // renkleri ilk temaya kilitler ve tema değişiminde karışık palet üretir.
-  const palette = variantPalette(inactive ? "disabled" : variant);
+  // Lime düğme kapalıyken de lime kalır, yalnızca soluklaşır (web'le aynı);
+  // gri "disabled" dolgusu mor/lime adada başka bir uygulamaya aitmiş gibi duruyordu.
+  const palette = variantPalette(inactive && variant !== "lime" ? "disabled" : variant);
   const height = size === "lg" ? 52 : MIN_TOUCH_TARGET;
 
   return (
@@ -73,7 +76,7 @@ export function Button({
           borderWidth: palette.border ? 1 : 0,
           borderColor: palette.border,
           alignSelf: fullWidth ? "stretch" : "flex-start",
-          opacity: pressed ? 0.78 : 1,
+          opacity: variant === "lime" && inactive ? 0.55 : pressed ? 0.78 : 1,
         },
         style,
       ]}
@@ -98,6 +101,7 @@ function variantPalette(variant: Variant | "disabled") {
     case "secondary": return { bg: colors.panel, fg: colors.bright, border: undefined };
     case "ghost": return { bg: "transparent", fg: colors.text, border: colors.border };
     case "danger": return { bg: "transparent", fg: colors.danger, border: colors.danger };
+    case "lime": return { bg: authBrand.lime, fg: authBrand.onLime, border: undefined };
     case "disabled": return { bg: colors.raised, fg: colors.muted, border: undefined };
   }
 }
@@ -107,6 +111,7 @@ const DEFAULT_HAPTIC: Record<Variant, HapticKind> = {
   secondary: "light",
   ghost: "light",
   danger: "warning",
+  lime: "light",
 };
 
 /**

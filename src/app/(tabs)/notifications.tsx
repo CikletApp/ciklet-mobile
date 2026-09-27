@@ -16,6 +16,7 @@ import {
   EmptyState,
   HeaderButton,
   Icon,
+  ModernRefreshIndicator,
   Pressable,
   Screen,
   SectionHeader,
@@ -71,7 +72,17 @@ export default function NotificationsScreen() {
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET + spacing.lg, flexGrow: 1 }}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refresh} tintColor={colors.brand} colors={[colors.brand]} />}
+        // Uygulamanın tek yenileme dili: sistem çemberi gizli, yerine Ciklet
+        // logolu rozet (Sohbetler ve Sunucular'la aynı).
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refresh}
+            colors={["transparent"]}
+            tintColor="transparent"
+            progressBackgroundColor="transparent"
+          />
+        }
       >
         {nothing ? (
           <View style={{ flex: 1, paddingTop: spacing["3xl"] }}>
@@ -140,6 +151,7 @@ export default function NotificationsScreen() {
           </>
         ) : null}
       </ScrollView>
+      <ModernRefreshIndicator visible={isRefetching} top={72} />
     </Screen>
   );
 }

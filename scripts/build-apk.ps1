@@ -77,7 +77,14 @@ if ($Clean -and (Test-Path -LiteralPath $WorkDir)) {
 New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
 New-Item -ItemType File -Path $lock -Force | Out-Null
 
-$excludeDirs = @("node_modules", "android", "ios", ".git", ".expo", "dist")
+# android/ios YALNIZCA kökte dışlanır (prebuild yeniden üretiyor). Adla
+# dışlamak `modules/<yerel-modül>/android`'i de atlıyordu ve yerel Expo
+# modülleri APK'ya hiç girmiyordu.
+$excludeDirs = @(
+  "node_modules", ".git", ".expo", "dist",
+  (Join-Path $projectRoot "android"),
+  (Join-Path $projectRoot "ios")
+)
 robocopy $projectRoot $WorkDir /E /MT:16 /NFL /NDL /NJH /NJS /XD $excludeDirs | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with code $LASTEXITCODE" }
 

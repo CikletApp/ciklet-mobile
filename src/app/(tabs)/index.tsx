@@ -21,6 +21,7 @@ import {
   Avatar,
   Button,
   DropdownMenu,
+  emojify,
   EmptyState,
   HeaderButton,
   Icon,
@@ -477,7 +478,7 @@ function ConversationRow({
               style={{ ...typography.body, fontSize: 14.5, lineHeight: 20, color: colors.muted, flex: 1 }}
               numberOfLines={2}
             >
-              {formatDirectPreview(item.latestMessage, myId, authorName)}
+              {emojify(formatDirectPreview(item.latestMessage, myId, authorName), `p-${item.id}`, 17)}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 1 }}>
               {pinned ? <Icon name="bookmark" size={15} color={colors.muted} filled /> : null}

@@ -46,3 +46,7 @@ example
 .env
 error.html
 /artifacts/
+
+# Firebase servis hesabı anahtarları (FCM V1) — GİZLİ, expo.dev Credentials'a yüklenir, depoya girmez.
+*-firebase-adminsdk-*.json
+service-account*.json

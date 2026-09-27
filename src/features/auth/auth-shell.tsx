@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 
-import { CikletLogo, IconButton, KeyboardAvoider } from "@/components/ui";
+import { CikletLogo, Icon, IconButton, KeyboardAvoider, Pressable } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export function AuthBackdrop() {
@@ -167,7 +167,7 @@ export function AuthShell({
 
             {/* Klavye açıkken başlık sıkışır: form ve düğme görünür kalsın. */}
             <View style={{ alignItems: "center", gap: spacing.sm, marginBottom: keyboardOpen ? spacing.lg : spacing["2xl"] }}>
-              {keyboardOpen ? null : <CikletLogo height={38} color={colors.brand} />}
+              {keyboardOpen ? null : <CikletLogo height={38} color={colors.bright} />}
               <Text
                 style={{
                   ...(keyboardOpen ? typography.display : typography.displayLg),
@@ -212,34 +212,52 @@ export function AuthShell({
 }
 
 export const AuthField = forwardRef<TextInput, TextInputProps & { label: string; error?: string }>(
-function AuthField({ label, error, ...props }, ref) {
+function AuthField({ label, error, secureTextEntry, ...props }, ref) {
+  // Şifre alanlarında göz düğmesi — web'deki AuthPasswordField gibi. Telefonda
+  // yanlış yazmak kolay; gizli alanda hatayı görmenin başka yolu yok.
+  const [revealed, setRevealed] = useState(false);
+
   return (
     <View style={{ gap: spacing.xs }}>
       <Text style={{ ...typography.overline, color: error ? colors.danger : colors.muted }}>
         {label}
       </Text>
-      <TextInput
-        ref={ref}
-        {...props}
-        placeholderTextColor={colors.muted}
-        selectionColor={colors.brand}
-        style={[
-          {
-            minHeight: 52,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-            borderRadius: radii.lg,
-            borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: error ? colors.danger : colors.border,
-            backgroundColor: colors.deep,
-            color: colors.bright,
-            ...typography.body,
-          },
-          props.multiline ? { minHeight: 88, textAlignVertical: "top" } : null,
-          props.style,
-        ]}
-      />
+      <View style={{ justifyContent: "center" }}>
+        <TextInput
+          ref={ref}
+          {...props}
+          secureTextEntry={secureTextEntry && !revealed}
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.brand}
+          style={[
+            {
+              minHeight: 52,
+              paddingHorizontal: spacing.lg,
+              paddingVertical: spacing.md,
+              borderRadius: radii.lg,
+              borderCurve: "continuous",
+              borderWidth: 1,
+              borderColor: error ? colors.danger : colors.border,
+              backgroundColor: colors.deep,
+              color: colors.bright,
+              ...typography.body,
+            },
+            secureTextEntry ? { paddingRight: 52 } : null,
+            props.multiline ? { minHeight: 88, textAlignVertical: "top" } : null,
+            props.style,
+          ]}
+        />
+        {secureTextEntry ? (
+          <Pressable
+            onPress={() => setRevealed((value) => !value)}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? "Şifreyi gizle" : "Şifreyi göster"}
+            style={{ position: "absolute", right: 4, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
+            <Icon name={revealed ? "eye-off" : "eye"} size={18} color={colors.muted} />
+          </Pressable>
+        ) : null}
+      </View>
       {error ? <Text style={{ ...typography.caption, color: colors.danger }}>{error}</Text> : null}
     </View>
   );

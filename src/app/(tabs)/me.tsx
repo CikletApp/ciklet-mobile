@@ -48,7 +48,10 @@ export default function MeScreen() {
   const sessionProfile = useAuth((s) => s.profile);
   const { data: profile } = useCurrentProfile();
   const { accepted, incoming } = useFriends();
-  const selfStatus = usePresenceStore((s) => s.selfStatus);
+  // Seçicideki ✓ ELLE seçilen durumu gösterir; otomatik boşta onu değiştirmez.
+  const selfManual = usePresenceStore((s) => s.selfManual);
+  // Sunucudan gerçek durum gelmeden varsayılan ONLINE'a ✓ konmaz.
+  const selfKnown = usePresenceStore((s) => s.selfKnown);
   const preference = useTheme((s) => s.preference);
   const plan = useMentolPlan();
 
@@ -115,7 +118,7 @@ export default function MeScreen() {
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
             {STATUSES.map((item, index) => {
-              const active = selfStatus === item.status;
+              const active = selfKnown && selfManual === item.status;
               return (
                 <View key={item.status}>
                   {index > 0 ? <Divider inset={52} /> : null}

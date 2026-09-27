@@ -23,6 +23,12 @@ export interface StoredSession {
   cookieName: string;
   /** ISO tarih. Yaklaşınca kayan yenileme tetiklenir. */
   expiresAt: string;
+  /**
+   * Telefon doğrulaması bekleyen kısıtlı oturum: sunucu bu token'la yalnızca
+   * doğrulama uçlarını açıyor. Uygulama kabuğu açılmaz, doğrulama ekranı
+   * gösterilir; doğrulanınca /refresh işaretsiz token verir.
+   */
+  phonePending?: boolean;
 }
 
 function isValid(value: unknown): value is StoredSession {

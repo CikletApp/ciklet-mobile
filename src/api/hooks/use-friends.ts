@@ -10,6 +10,7 @@ import { useAuth } from "@/stores/auth";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
+import { showToast } from "@/components/ui/toast";
 
 /**
  * Arkadaşlık kayıtları. Sunucu tek listede üç durumu birden döner
@@ -87,13 +88,18 @@ export function useAcceptFriendRequest() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (friendId: string) =>
+      // Web ucunun sözleşmesi `{ action: "ACCEPT" }` (ciklet-web
+      // app/api/friends/[friendId]). Eskiden `{ status: "ACCEPTED" }`
+      // gönderiliyordu; sunucu 400 dönüyor ve istek hiç kabul edilmiyordu.
       api(endpoints.friend(friendId), {
         method: "PATCH",
-        body: { status: FriendRequestStatus.ACCEPTED },
+        body: { action: "ACCEPT" },
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.friends });
     },
+    // Sessiz başarısızlık, düğmenin "hiçbir şey yapmadığı" izlenimini veriyordu.
+    onError: () => showToast("İstek kabul edilemedi. Tekrar dene.", "error"),
   });
 }
 
@@ -106,6 +112,7 @@ export function useRemoveFriend() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.friends });
     },
+    onError: () => showToast("İşlem tamamlanamadı. Tekrar dene.", "error"),
   });
 }
 

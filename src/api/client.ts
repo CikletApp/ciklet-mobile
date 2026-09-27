@@ -30,7 +30,9 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     /** Bazı uçlar makine-okunur kod döner (ör. `server_limit`). */
-    readonly code?: string
+    readonly code?: string,
+    /** Çözülmüş JSON gövdesi — koda eşlik eden ayrıntı için (ör. ban bilgisi). */
+    readonly body?: unknown
   ) {
     super(message);
     this.name = "ApiError";
@@ -60,7 +62,7 @@ async function toApiError(res: Response): Promise<ApiError> {
     try {
       const body = JSON.parse(raw) as { error?: string; code?: string };
       if (typeof body?.error === "string" && body.error) {
-        return new ApiError(res.status, body.error, body.code);
+        return new ApiError(res.status, body.error, body.code, body);
       }
     } catch {
       /* JSON değil — düz metin gövde. */
@@ -114,6 +116,52 @@ export function onSessionExpired(listener: SessionExpiredListener): () => void {
   return () => {
     expiredListeners.delete(listener);
   };
+}
+
+// ── Ban bildirimi ───────────────────────────────────────────────────
+// Yenileme banlı hesaba `account_banned` dönerse oturum düşer ve ekran
+// "oturumun bitti" yerine ban ekranını göstermeli (web: /banned).
+
+export interface BanNotice {
+  kind: "account" | "device";
+  reason: string | null;
+  /** "TEMPORARY" ise `expiresAt` kalkış zamanı. */
+  type: string | null;
+  expiresAt: string | null;
+}
+
+/** 403 gövdesinden ban bilgisini çıkarır; ban değilse null. */
+export function banNoticeFrom(err: unknown): BanNotice | null {
+  if (!(err instanceof ApiError) || err.status !== 403) return null;
+  if (err.code === "device_banned") return { kind: "device", reason: null, type: null, expiresAt: null };
+  if (err.code !== "account_banned") return null;
+  const ban = (err.body as { ban?: Record<string, unknown> } | undefined)?.ban ?? {};
+  return {
+    kind: "account",
+    reason: typeof ban.reason === "string" && ban.reason ? ban.reason : null,
+    type: typeof ban.type === "string" ? ban.type : null,
+    expiresAt: typeof ban.expiresAt === "string" ? ban.expiresAt : null,
+  };
+}
+
+type BannedListener = (notice: BanNotice) => void;
+const bannedListeners = new Set<BannedListener>();
+
+export function onAccountBanned(listener: BannedListener): () => void {
+  bannedListeners.add(listener);
+  return () => {
+    bannedListeners.delete(listener);
+  };
+}
+
+function notifyBanned(notice: BanNotice) {
+  for (const listener of bannedListeners) {
+    try {
+      listener(notice);
+    } catch (err) {
+      if (__DEV__) console.warn("[api] ban dinleyicisi hata verdi", err);
+    }
+  }
 }
 
 function notifySessionExpired() {
@@ -235,10 +283,25 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
 // ── Kimlik akışı ────────────────────────────────────────────────────
 
+export interface LoginResult extends MobileAuthResponse {
+  /**
+   * Hesap telefon doğrulamasını bitirmemiş: dönen token KISITLI (sunucu
+   * yalnızca doğrulama uçlarını açıyor). Yalnızca istekte
+   * `phoneVerification` bildirildiyse gelir; eski sunucu bunun yerine
+   * `phone_verification_required` koduyla 403 döner.
+   */
+  phoneVerificationRequired?: boolean;
+  /** Sözleşme kabul edilmedi; token yalnızca kabul/doğrulama uçlarını açar. */
+  eulaRequired?: boolean;
+}
+
 export async function login(
-  credentials: Pick<MobileAuthRequest, "username" | "password">
-): Promise<MobileAuthResponse> {
-  const data = await api<MobileAuthResponse>(endpoints.auth.login, {
+  credentials: Pick<MobileAuthRequest, "username" | "password"> & {
+    /** İki adımlı doğrulama kodu ya da kurtarma kodu; sunucu `totp_required` dediyse. */
+    totp?: string;
+  }
+): Promise<LoginResult> {
+  const data = await api<LoginResult>(endpoints.auth.login, {
     method: "POST",
     skipAuth: true,
     body: {
@@ -247,6 +310,12 @@ export async function login(
       clientVersion: CLIENT_VERSION,
       // Donanım banı kontrolü bu alanı okur (ciklet-web lib/hwid.ts).
       hwid: await getDeviceId(),
+      // Uygulamada Telegram doğrulama ve sözleşme ekranları var: bu
+      // hesaplara 403 yerine kısıtlı oturum verilebilir. Bayrak olmadan
+      // sunucu eski davranışta kalır — ekranı olmayan sürümler kısıtlı
+      // oturumla her istekte 403 alıp bozulurdu.
+      phoneVerification: "telegram",
+      eulaScreen: true,
     },
   });
 
@@ -254,6 +323,7 @@ export async function login(
     token: data.token,
     cookieName: data.cookieName,
     expiresAt: data.expiresAt,
+    ...(data.phoneVerificationRequired ? { phonePending: true } : {}),
   });
   return data;
 }
@@ -288,12 +358,19 @@ async function performRefresh(): Promise<boolean> {
     });
     return true;
   } catch (err) {
-    // 401 = token ölü (süresi doldu, şifre değişti, hesap banlandı).
-    // Ağ hatasında oturumu DÜŞÜRME — kullanıcı çevrimdışı olabilir.
-    // Bu arada yeni bir giriş yapıldıysa (token değiştiyse) o oturuma
-    // dokunulmaz.
-    if (err instanceof ApiError && err.isUnauthorized && (await getSession())?.token === session.token) {
+    // 401 = token ölü (süresi doldu, şifre değişti). 403 `account_banned`
+    // = hesap banlandı; ban ekranı gösterilir. Ağ hatasında oturumu
+    // DÜŞÜRME — kullanıcı çevrimdışı olabilir. Bu arada yeni bir giriş
+    // yapıldıysa (token değiştiyse) o oturuma dokunulmaz.
+    //
+    // Arayüz burada bilgilendirilmek ZORUNDA: eskiden yalnızca oturum
+    // siliniyordu; 401'i alan `api()` artık farklı (boş) oturum gördüğü için
+    // bildirimi atlıyor ve uygulama oturumsuz "girişli" ekranda kalıyordu.
+    const ban = banNoticeFrom(err);
+    if ((ban || (err instanceof ApiError && err.isUnauthorized)) && (await getSession())?.token === session.token) {
       await logout();
+      if (ban) notifyBanned(ban);
+      else notifySessionExpired();
     }
     return false;
   }

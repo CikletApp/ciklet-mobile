@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import type { ChatKind } from "@/api/hooks";
-import { useOutbox } from "@/stores/outbox";
+import { useOutbox, type OutboxMessage, type OutboxPayload } from "@/stores/outbox";
 
 /**
  * Mesaj gönderimi — iyimser.
@@ -19,6 +19,14 @@ import { useOutbox } from "@/stores/outbox";
  * Not: başarı yanıtında kaydı SİLMİYORUZ. Yayın her zaman yanıttan sonra
  * gelmez; silseydik mesaj bir kare kaybolur, sonra yeniden belirirdi.
  */
+/** Gönderilen ek — yükleme sonucundan ya da GIF seçiciden. */
+export interface ComposerAttachment {
+  url: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+}
+
 export function useComposer(
   kind: ChatKind,
   chatId: string | undefined,
@@ -30,14 +38,14 @@ export function useComposer(
   const remove = useOutbox((s) => s.remove);
 
   const deliver = useCallback(
-    async (outboxId: string, content: string, fileUrl?: string, replyToId?: string) => {
+    async (outboxId: string, content: string, payload: OutboxPayload) => {
       if (!chatId) return;
       try {
         await api(
           kind === "channel"
             ? endpoints.sendChannelMessage(chatId, serverId ?? "")
             : endpoints.sendDirectMessage(chatId),
-          { method: "POST", body: { content, fileUrl, replyToId } }
+          { method: "POST", body: { content, ...payload } }
         );
       } catch (err) {
         markFailed(
@@ -50,20 +58,42 @@ export function useComposer(
   );
 
   const send = useCallback(
-    (raw: string, fileUrl?: string, attachmentName?: string, replyToId?: string) => {
-      const content = raw.trim();
-      if ((!content && !fileUrl) || !chatId) return;
-      const displayContent = content || attachmentName || "Dosya";
-      const outboxId = enqueue(chatId, displayContent);
-      void deliver(outboxId, displayContent, fileUrl, replyToId);
+    (raw: string, attachment?: ComposerAttachment, replyToId?: string) => {
+      const text = raw.trim();
+      if ((!text && !attachment) || !chatId) return;
+      // Web'le aynı gövde (chat-input-area): içerik boşsa dosyanın adresi
+      // gider — iki istemci de ek adresini metin olarak göstermiyor. Dosya
+      // adı içeriğe yazılsaydı web'de görselin altında başlık gibi dururdu.
+      const content = text || attachment?.url || "";
+      const payload: OutboxPayload = {
+        ...(attachment ? { fileUrl: attachment.url } : {}),
+        ...(replyToId ? { replyToId } : {}),
+        // UploadThing adresi ne ad ne tür taşıyor; önizleme (görsel, video,
+        // dosya kartı) web'de de mobilde de bu bilgiye bakıyor.
+        ...(attachment
+          ? {
+              metadata: {
+                attachment: {
+                  name: attachment.name,
+                  ...(attachment.mimeType ? { type: attachment.mimeType } : {}),
+                  ...(attachment.size !== undefined ? { size: attachment.size } : {}),
+                },
+              },
+            }
+          : {}),
+      };
+      const outboxId = enqueue(chatId, content, payload, text ? undefined : `📎 ${attachment?.name ?? "Dosya"}`);
+      void deliver(outboxId, content, payload);
     },
     [chatId, enqueue, deliver]
   );
 
   const retry = useCallback(
-    (outboxId: string, content: string) => {
-      markSending(outboxId);
-      void deliver(outboxId, content);
+    (message: OutboxMessage) => {
+      markSending(message.id);
+      // Ek, yanıt ve meta veri de yeniden gider; eskiden yalnızca içerik
+      // gidiyordu ve başarısız dosya mesajı dosyasız yeniden gönderiliyordu.
+      void deliver(message.id, message.content, message.payload);
     },
     [markSending, deliver]
   );

@@ -35,8 +35,15 @@ export const endpoints = {
   accountTwoFactor: "/api/account/two-factor",
   changePassword: "/api/auth/change-password",
   accountStatus: "/api/account-status",
+  /** Son Kullanıcı Sözleşmesi onayı (POST). */
+  eula: "/api/eula",
+  /** Telegram doğrulama botuna tek kullanımlık bağlantı (kısıtlı oturumla da açık). */
+  phoneTelegramStart: "/api/phone/telegram/start",
   mentolPlan: "/api/mentol/me",
   mentolRedeem: "/api/mentol/redeem",
+  /** Ödüllü reklam durumu (GET) ve tek kullanımlık SSV nonce'u (POST). */
+  rewardedAds: "/api/ads/rewarded",
+  rewardedAdsSession: "/api/ads/rewarded/session",
   sessions: "/api/sessions",
   session: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`,
   authorizedApps: "/api/oauth/authorized-apps",
@@ -55,6 +62,13 @@ export const endpoints = {
     `/api/servers/${encodeURIComponent(serverId)}/join`,
   serverActivities: (serverId: string) =>
     `/api/servers/${encodeURIComponent(serverId)}/activities`,
+  /**
+   * GET: kanalda "/" önerileri — `{ bots: [{ id, applicationId, name,
+   * username, imageUrl, commands: [{ name, description }] }] }`. Kanalı
+   * göremeyen botlar sunucuda elenir; bu yüzden `channelId` her zaman gider.
+   */
+  botCommands: (serverId: string, channelId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/bot-commands${qs({ channelId })}`,
   invite: (code: string) => `/api/i/${encodeURIComponent(code)}`,
 
   // ── Sunucu klasörleri ─────────────────────────────────────────────
@@ -129,6 +143,21 @@ export const endpoints = {
     `/api/socket/direct-messages/${encodeURIComponent(directMessageId)}${qs({ directId })}`,
   reactions: "/api/socket/reactions",
   reports: "/api/reports",
+
+  // ── Sabitlenen mesajlar ───────────────────────────────────────────
+  /**
+   * POST sabitler, DELETE kaldırır; yanıt güncel mesaj. İdempotent. Hatalar:
+   * 403 yetki yok, 409 `PIN_LIMIT` (sohbet başına 50), 422 `NOT_PINNABLE`
+   * (arama/süre/sabit sistem satırları). Kanalda yetki sunucu ADMIN/MODERATOR
+   * ya da "Mesajları Yönet"; DM ve grupta her katılımcı.
+   */
+  pinChannelMessage: (messageId: string, channelId: string) =>
+    `/api/messages/${encodeURIComponent(messageId)}/pin${qs({ channelId })}`,
+  pinDirectMessage: (messageId: string, directId: string) =>
+    `/api/direct-messages/${encodeURIComponent(messageId)}/pin${qs({ directId })}`,
+  /** `{ items }` — en son sabitlenen başta, en çok 50, sayfalama yok. */
+  channelPins: (channelId: string) => `/api/messages/pins${qs({ channelId })}`,
+  directPins: (directId: string) => `/api/direct-messages/pins${qs({ directId })}`,
 
   // ── Arkadaşlar ────────────────────────────────────────────────────
   friends: "/api/friends",

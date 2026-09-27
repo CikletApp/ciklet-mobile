@@ -7,6 +7,8 @@ import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useMentolPlan } from "@/api/hooks";
 import { Button, Screen, SectionHeader, TextField, showDialog } from "@/components/ui";
+import { RewardedCard } from "@/features/mentol/rewarded-card";
+import { formatTime } from "@/lib/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export default function MentolSettingsScreen() {
@@ -26,11 +28,24 @@ export default function MentolSettingsScreen() {
         <SectionHeader title="MEVCUT PLANIN" />
         <View style={{ marginHorizontal: spacing.lg, padding: spacing.xl, gap: spacing.sm, borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel, borderWidth: 1, borderColor: plan.data?.plan === "FREE" ? colors.border : colors.brand }}>
           <Text style={{ ...typography.display, color: colors.bright }}>{plan.data?.features.label ?? "Yükleniyor…"}</Text>
-          {plan.data?.expiresAt ? <Text style={{ ...typography.caption, color: colors.muted }}>Bitiş: {new Date(plan.data.expiresAt).toLocaleDateString("tr-TR")}</Text> : null}
+          {plan.data?.expiresAt ? (
+            <Text style={{ ...typography.caption, color: colors.muted }}>
+              {plan.data.source === "reward"
+                ? `Reklam ödülü · ${formatTime(plan.data.expiresAt)}'e kadar`
+                : `Bitiş: ${new Date(plan.data.expiresAt).toLocaleDateString("tr-TR")}`}
+            </Text>
+          ) : null}
           <Text style={{ ...typography.body, color: colors.text }}>• {plan.data?.features.maxUploadMb ?? 8} MB dosya yükleme</Text>
           <Text style={{ ...typography.body, color: colors.text }}>• {plan.data?.features.maxServers ?? 100} sunucu</Text>
           <Text style={{ ...typography.body, color: colors.text }}>• {plan.data?.features.customThemes ? "Özel temalar açık" : "Standart temalar"}</Text>
         </View>
+
+        {plan.data?.plan === "FREE" || plan.data?.source === "reward" ? (
+          <>
+            <SectionHeader title="ÜCRETSİZ DENE" />
+            <RewardedCard />
+          </>
+        ) : null}
 
         <SectionHeader title="HEDİYE VEYA PROMOSYON KODU" />
         <View style={{ marginHorizontal: spacing.lg, padding: spacing.lg, gap: spacing.md, borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel }}>

@@ -40,9 +40,13 @@ onGatewayEvent(ServerEvent.PRESENCE_UPDATE, (frame) => {
   presence().setStatus(frame.userId, frame.status as PresenceStatus);
 });
 
+// Kendi durumun bütün cihazlarına gider (telefon ↔ masaüstü eşzamanı).
+// `status` etkin (özet) durum, `manual` elle seçilen; eski ağ geçidi
+// `manual` göndermez.
 onGatewayEvent(ServerEvent.PRESENCE_SELF, (frame) => {
   if (typeof frame.status !== "string") return;
-  presence().setSelfStatus(frame.status as PresenceStatus);
+  const manual = typeof frame.manual === "string" ? (frame.manual as PresenceStatus) : undefined;
+  presence().setSelfStatus(frame.status as PresenceStatus, manual);
 });
 
 onGatewayEvent(ServerEvent.RICH_PRESENCE_UPDATE, (frame) => {

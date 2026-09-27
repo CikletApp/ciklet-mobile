@@ -56,6 +56,7 @@ export default function WelcomeScreen() {
         />
         <Button
           label="Giriş Yap"
+          variant="lime"
           size="lg"
           fullWidth
           onPress={() => router.push("/(auth)/login")}

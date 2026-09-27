@@ -47,7 +47,7 @@ export function OutboxItem({
         }}
       >
         <Text style={{ ...typography.body, color: colors.text }}>
-          {message.content}
+          {message.label ?? message.content}
         </Text>
 
         {failed ? (

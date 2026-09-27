@@ -38,6 +38,22 @@ export const brand = {
   secondary: "#45f3ff",
 } as const;
 
+/**
+ * Auth "marka adası" — ciklet-web `components/auth/auth.css` (`.ciklet-auth`).
+ * Giriş, kayıt ve doğrulama ekranlarında vurgu TEMA RENGİ DEĞİL, landing'le
+ * aynı lime: bağlantılar, birincil düğme, odak ve not kutuları. Bu ekranlar
+ * zaten temadan bağımsız koyu paletle çiziliyor (stores/theme `authIsland`);
+ * lime açık zeminde okunmazdı.
+ */
+export const authBrand = {
+  lime: "#a8e000",
+  /** Lime dolgunun üstündeki metin. */
+  onLime: "#162000",
+  /** Not kutusu zemini ve çerçevesi (`.auth-note`). */
+  limeSoft: "#a8e0001a",
+  limeBorder: "#a8e00040",
+} as const;
+
 // ── Tema paletleri ──────────────────────────────────────────────────
 
 /** Hazır temaların özel renk uygulanmamış paletleri (önizleme kartları için). */

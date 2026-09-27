@@ -6,6 +6,8 @@
  * düzeyinde bir kez kurulur, her çağrıda yeniden yaratılmaz.
  */
 
+import { attachmentPreviewLabel, readAttachmentInfo } from "./attachments";
+
 const timeFormat = new Intl.DateTimeFormat("tr-TR", {
   hour: "2-digit",
   minute: "2-digit",
@@ -157,6 +159,8 @@ export function formatDirectPreview(
   message: {
     content: string;
     fileUrl: string | null;
+    /** Varsa `metadata.attachment` türü belirler (web'le aynı). */
+    metadata?: unknown;
     profileId: string;
     type: string;
     deleted: boolean;
@@ -183,12 +187,16 @@ export function formatDirectPreview(
     case "ACTIVITY_INVITE":
       preview = content || "Aktivite daveti";
       break;
+    case "MESSAGE_PINNED":
+      // Sistem satırı; öznesi sabitleyen kişi (içerik "bir mesajı sabitledi.").
+      if (message.profileId === myId) return "Bir mesajı sabitledin";
+      return authorName ? `${authorName} bir mesajı sabitledi` : "Bir mesaj sabitlendi";
     default:
       preview = content || (message.fileUrl ? "Bir dosya gönderdi" : "Yeni mesaj");
       // Ek gönderilince içerik çoğu zaman dosyanın kendi adresi oluyor;
       // listede uzun bir CDN bağlantısı yerine ne olduğu yazılır.
       if (message.fileUrl && (!content || content === message.fileUrl.trim() || /^https?:\/\/\S+$/.test(content))) {
-        preview = /\.(png|jpe?g|gif|webp|heic|avif)(\?|$)/i.test(message.fileUrl) ? "📷 Fotoğraf" : "📎 Dosya";
+        preview = attachmentPreviewLabel(message.fileUrl, readAttachmentInfo(message.metadata));
       }
   }
 

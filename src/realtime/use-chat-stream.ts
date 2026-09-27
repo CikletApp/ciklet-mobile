@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/api/query-keys";
 import { useOutbox } from "@/stores/outbox";
 import { applyReactionDelta, type MessageCache } from "@/features/chat/reaction-cache";
+import { applyPinUpdate } from "@/features/chat/pins";
 import {
   ServerEvent,
   messageFromEnvelope,
@@ -22,7 +23,8 @@ import { onGatewayEvent, subscribeToChat } from "./gateway";
  *
  * Üç kapı var (web: `hooks/use-chat-socket.ts`):
  *   - yeni mesaj  → sohbet aboneliği (`chat.subscribe`), zarf olarak
- *   - düzenleme   → `message.update` oda olayı, TAM mesaj olarak
+ *   - düzenleme   → `message.update` oda olayı, TAM mesaj olarak (sabitleme
+ *                   ve kaldırma da bu olay; `pinnedAt` alanıyla)
  *   - tepki       → `message.reaction` oda olayı, delta olarak
  * Son ikisi de aynı odadan geliyor ama olay türüyle dağıtılıyor; bu yüzden
  * `chatId` süzgeci şart.
@@ -81,6 +83,9 @@ export function useChatStream(chatId: string | undefined) {
           })),
         };
       });
+      // Sabitleme/kaldırma da bu olayla geliyor (ayrı olay yok): sabit
+      // çubuğu listesi `pinnedAt`'e göre güncellenir.
+      applyPinUpdate(queryClient, chatId, incoming);
       if (!("member" in incoming)) {
         void queryClient.invalidateQueries({ queryKey: qk.directs });
       }

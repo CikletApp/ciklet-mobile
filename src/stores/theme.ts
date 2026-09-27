@@ -52,6 +52,15 @@ interface ThemeState {
    */
   revision: number;
   hydrated: boolean;
+  /**
+   * Auth adası açık: oturum yokken (giriş, kayıt, doğrulama) kullanıcının
+   * teması yerine varsayılan koyu palet çizilir — web'deki `.ciklet-auth`
+   * gibi. Tercih saklanmaya devam eder; ada kapanınca geri uygulanır.
+   * Açık temada lime vurgu okunmuyordu ve ekranlar web'le başka bir
+   * uygulamaya aitmiş gibi görünüyordu.
+   */
+  authIsland: boolean;
+  setAuthIsland: (active: boolean) => void;
   hydrate: () => Promise<void>;
   setTheme: (preference: ThemePreference) => Promise<void>;
   setCustomColors: (colors: CustomColors) => Promise<void>;
@@ -66,9 +75,10 @@ function parsePreference(value: string | null): ThemePreference {
 
 export const useTheme = create<ThemeState>((set, get) => {
   /** Paleti uygular ve türetilmiş alanları tek seferde döner. */
-  const apply = (preference: ThemePreference, customColors: CustomColors) => {
+  const apply = (preference: ThemePreference, customColors: CustomColors, island = get().authIsland) => {
     const themeId = resolveTheme(preference);
-    setActiveTheme(themeId, customColors);
+    if (island) setActiveTheme(DEFAULT_THEME);
+    else setActiveTheme(themeId, customColors);
     return {
       preference,
       themeId,
@@ -87,6 +97,14 @@ export const useTheme = create<ThemeState>((set, get) => {
     palette: themes[DEFAULT_THEME],
     revision: 0,
     hydrated: false,
+    // Açılışta oturum bilinmiyor; splash ve giriş ekranı adayla başlar.
+    authIsland: true,
+
+    setAuthIsland: (active) => {
+      if (get().authIsland === active) return;
+      const { preference, customColors } = get();
+      set({ ...apply(preference, customColors, active), authIsland: active });
+    },
 
     hydrate: async () => {
       const [stored, storedColors] = await Promise.all([

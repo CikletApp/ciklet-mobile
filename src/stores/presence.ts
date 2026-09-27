@@ -11,8 +11,23 @@ import type { PresenceEntry, RichPresence } from "@/api/types";
  */
 interface PresenceState {
   entries: Record<string, PresenceEntry>;
-  /** Kendi görünür durumun — `INVISIBLE` yalnızca burada görünür. */
+  /**
+   * Kendi ETKİN durumun — bütün cihazların özetinden (ör. hepsi boştaysa
+   * IDLE). `INVISIBLE` yalnızca burada görünür. Kendi durum noktası bunu çizer.
+   */
   selfStatus: PresenceStatus;
+  /**
+   * Elle SEÇTİĞİN durum — seçicideki ✓ bunu gösterir. Etkin durumdan ayrı:
+   * otomatik boşta seni "Boşta" gösterir ama seçimin "Çevrimiçi" kalır
+   * (Discord davranışı). Ağ geçidi `manual` göndermiyorsa etkinle aynı.
+   */
+  selfManual: PresenceStatus;
+  /**
+   * Ağ geçidinden `presence.self` geldi mi? Gelmeden önceki `selfStatus` /
+   * `selfManual` yalnızca varsayılan (ONLINE); soğuk açılışta DND'deki
+   * kullanıcıya bir an "Çevrimiçi ✓" göstermemek için seçici bunu bekler.
+   */
+  selfKnown: boolean;
 
   /** `statuses` sunucudan DİZİ olarak gelir — bkz. realtime/events.ts. */
   applyBatch: (
@@ -21,7 +36,7 @@ interface PresenceState {
   ) => void;
   setStatus: (userId: string, status: PresenceStatus) => void;
   setActivity: (userId: string, activity: RichPresence | null) => void;
-  setSelfStatus: (status: PresenceStatus) => void;
+  setSelfStatus: (status: PresenceStatus, manual?: PresenceStatus) => void;
   reset: () => void;
 }
 
@@ -30,6 +45,8 @@ const EMPTY: PresenceEntry = { status: PresenceStatus.OFFLINE, activity: null };
 export const usePresenceStore = create<PresenceState>((set) => ({
   entries: {},
   selfStatus: PresenceStatus.ONLINE,
+  selfManual: PresenceStatus.ONLINE,
+  selfKnown: false,
 
   applyBatch: (statuses, activities) =>
     set((state) => {
@@ -74,9 +91,9 @@ export const usePresenceStore = create<PresenceState>((set) => ({
       },
     })),
 
-  setSelfStatus: (selfStatus) => set({ selfStatus }),
+  setSelfStatus: (selfStatus, manual) => set({ selfStatus, selfManual: manual ?? selfStatus, selfKnown: true }),
 
-  reset: () => set({ entries: {}, selfStatus: PresenceStatus.ONLINE }),
+  reset: () => set({ entries: {}, selfStatus: PresenceStatus.ONLINE, selfManual: PresenceStatus.ONLINE, selfKnown: false }),
 }));
 
 /**

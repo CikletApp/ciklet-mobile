@@ -141,8 +141,12 @@ export async function registerPushToken(): Promise<void> {
       },
     });
   } catch (err) {
-    // Bildirim kaydı uygulamanın ana akışını engellemez.
-    if (__DEV__) console.info("[bildirim] push kaydı yapılamadı:", err);
+    // Bildirim kaydı uygulamanın ana akışını engellemez — ama SESSİZ de
+    // kalmamalı: Firebase yapılandırması (google-services.json) eksikken
+    // Android'de token hiç alınamıyordu ve bu hata yalnızca geliştirme
+    // modunda görünüyordu; üretimde bildirimler iz bırakmadan gelmiyordu.
+    // Release'te de logcat'e düşer (ReactNativeJS etiketi).
+    console.warn("[bildirim] push kaydı yapılamadı:", err instanceof Error ? err.message : err);
   }
 }
 

@@ -57,6 +57,11 @@ export function useRevokeAuthorizedApp() {
 export interface MentolPlan {
   plan: "FREE" | "PLUS" | "PRO";
   expiresAt: string | null;
+  /**
+   * "reward": plan reklam ödülüyle açık (ödüllü reklam, 2026-09-27 eki);
+   * "paid": abonelik (ödeme, promosyon kodu ya da root). FREE'de null.
+   */
+  source?: "paid" | "reward" | null;
   features: { label: string; maxUploadMb: number; maxServers: number; customThemes: boolean; badge: boolean };
 }
 

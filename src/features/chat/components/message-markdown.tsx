@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Linking, Text, View, type TextStyle } from "react-native";
 
+import { emojify, emojiSizeFor } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -33,6 +34,9 @@ const FORMATS: { open: string; close: string; style: () => InlineStyle }[] = [
 export function MessageMarkdown({ value, style, compact = false }: MessageMarkdownProps) {
   const [revealed, setRevealed] = useState<Set<string>>(() => new Set());
   const blocks = useMemo(() => splitCodeBlocks(value), [value]);
+  // Emojiler Twemoji görseli (lib/emoji.ts); boyut metinle birlikte büyür —
+  // yalnızca emojiden oluşan mesajlarda `style.fontSize` büyük geliyor.
+  const emojiSize = emojiSizeFor(style, typography.body.fontSize);
 
   const toggleSpoiler = (key: string) => {
     setRevealed((current) => {
@@ -67,7 +71,7 @@ export function MessageMarkdown({ value, style, compact = false }: MessageMarkdo
           // mesaj eylemleri (yanıtla, tepki, kopyala) hiç açılmıyordu. Kopyalama
           // eylem sayfasında.
           <Text key={`text-${index}`} style={{ ...typography.body, color: colors.text, ...style }}>
-            {renderInline(block.value, `b${index}`, revealed, toggleSpoiler)}
+            {renderInline(block.value, `b${index}`, revealed, toggleSpoiler, emojiSize)}
           </Text>
         )
       )}
@@ -93,7 +97,8 @@ function renderInline(
   value: string,
   prefix: string,
   revealed: Set<string>,
-  toggleSpoiler: (key: string) => void
+  toggleSpoiler: (key: string) => void,
+  emojiSize: number
 ): ReactNode[] {
   const nodes: ReactNode[] = [];
   let cursor = 0;
@@ -101,10 +106,10 @@ function renderInline(
   while (cursor < value.length) {
     const token = findNextToken(value, cursor);
     if (!token) {
-      nodes.push(value.slice(cursor));
+      nodes.push(...emojify(value.slice(cursor), `${prefix}-t${cursor}`, emojiSize));
       break;
     }
-    if (token.start > cursor) nodes.push(value.slice(cursor, token.start));
+    if (token.start > cursor) nodes.push(...emojify(value.slice(cursor, token.start), `${prefix}-t${cursor}`, emojiSize));
     const key = `${prefix}-${token.start}`;
 
     if (token.kind === "url") {
@@ -132,13 +137,13 @@ function renderInline(
             backgroundColor: visible ? colors.raised : colors.text,
           }}
         >
-          {visible ? renderInline(token.value, `${key}-spoiler`, revealed, toggleSpoiler) : token.value.replace(/./g, "•")}
+          {visible ? renderInline(token.value, `${key}-spoiler`, revealed, toggleSpoiler, emojiSize) : token.value.replace(/./g, "•")}
         </Text>
       );
     } else {
       nodes.push(
         <Text key={key} style={token.style}>
-          {renderInline(token.value, `${key}-format`, revealed, toggleSpoiler)}
+          {renderInline(token.value, `${key}-format`, revealed, toggleSpoiler, emojiSize)}
         </Text>
       );
     }

@@ -11,8 +11,7 @@ import {
   SectionHeader,
   showDialog,
 } from "@/components/ui";
-import { displayNameOf } from "@/lib/format";
-import { CLIENT_VERSION } from "@/lib/device";
+import { displayNameOf, formatDate } from "@/lib/format";
 import { stopGateway } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
 import { THEME_LABELS, useTheme } from "@/stores/theme";
@@ -133,6 +132,18 @@ export default function SettingsScreen() {
           </ListGroup>
         </View>
 
+        <SectionHeader title="DESTEK" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <ListGroup>
+            <ListRow
+              icon="help"
+              title="Yardım"
+              subtitle="Destek, geri bildirim, koşullar"
+              onPress={() => router.push("/settings/help")}
+            />
+          </ListGroup>
+        </View>
+
         <SectionHeader title="OTURUM" />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
@@ -147,16 +158,20 @@ export default function SettingsScreen() {
           </ListGroup>
         </View>
 
-        <Text
-          style={{
-            ...typography.caption,
-            color: colors.muted,
-            textAlign: "center",
-            paddingTop: spacing.xl,
-          }}
-        >
-          Ciklet {CLIENT_VERSION}
-        </Text>
+        {/* Sürüm artık Yardım sayfasının başlığında; burada üyelik tarihi
+            ("Sen" sekmesindekiyle aynı ifade). */}
+        {profile?.createdAt ? (
+          <Text
+            style={{
+              ...typography.caption,
+              color: colors.muted,
+              textAlign: "center",
+              paddingTop: spacing.xl,
+            }}
+          >
+            {formatDate(profile.createdAt)} tarihinden beri Ciklet’te
+          </Text>
+        ) : null}
       </ScrollView>
     </Screen>
   );

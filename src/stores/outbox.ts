@@ -13,11 +13,25 @@ import { create } from "zustand";
  *          └──► (hata) ──► failed ──► kullanıcı yeniden dener veya siler
  */
 
+/** Sunucuya giden gövdenin içerik dışı kısmı — yeniden denemede aynen gider. */
+export interface OutboxPayload {
+  fileUrl?: string;
+  replyToId?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface OutboxMessage {
   /** İstemci tarafı geçici kimlik — sunucudaki id ile karışmasın diye önekli. */
   id: string;
   chatId: string;
+  /** Sunucuya giden içerik; yayınla eşleştirme buna göre yapılır. */
   content: string;
+  /**
+   * Satırda gösterilecek metin. Yalnızca dosya gönderilince içerik dosyanın
+   * adresi oluyor (web'le aynı); kullanıcıya adres değil dosya adı görünür.
+   */
+  label?: string;
+  payload: OutboxPayload;
   createdAt: string;
   status: "sending" | "failed";
   /** Başarısızlık sebebi — satırda gösterilir. */
@@ -28,7 +42,7 @@ interface OutboxState {
   /** chatId → gönderim sırası (eskiden yeniye). */
   byChat: Record<string, OutboxMessage[]>;
 
-  enqueue: (chatId: string, content: string) => string;
+  enqueue: (chatId: string, content: string, payload?: OutboxPayload, label?: string) => string;
   markFailed: (id: string, error: string) => void;
   markSending: (id: string) => void;
   remove: (id: string) => void;
@@ -48,13 +62,15 @@ let counter = 0;
 export const useOutbox = create<OutboxState>((set) => ({
   byChat: {},
 
-  enqueue: (chatId, content) => {
+  enqueue: (chatId, content, payload = {}, label) => {
     counter += 1;
     const id = `outbox-${Date.now()}-${counter}`;
     const message: OutboxMessage = {
       id,
       chatId,
       content,
+      label,
+      payload,
       createdAt: new Date().toISOString(),
       status: "sending",
     };

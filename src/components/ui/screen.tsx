@@ -97,7 +97,10 @@ export function EmptyState({
           {description}
         </Text>
       ) : null}
-      {action}
+      {/* Sarmalayıcı şart: `Button` tam genişlik değilken kendine
+          `alignSelf: "flex-start"` veriyor ve kutunun ortalamasını eziyordu —
+          "Yeni Grup" gibi eylemler sola kayıyordu. */}
+      {action ? <View style={{ alignItems: "center", paddingTop: spacing.xs }}>{action}</View> : null}
     </View>
   );
 }

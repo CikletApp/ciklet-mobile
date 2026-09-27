@@ -23,6 +23,11 @@ export interface CurrentProfile extends PublicProfile {
   /** Ham numara sunucudan hiç çıkmaz; yalnızca maskeli hali gelir. */
   phoneMasked: string | null;
   isPhoneVerified: boolean;
+  /**
+   * Hesap telefon doğrulaması bekliyor mu (kayıtta dondurulur; root panelinden
+   * kaldırılabilir). Eski sunucu göndermez (2026-09-27 eki).
+   */
+  phoneVerificationRequired?: boolean;
   dmPermission: "EVERYONE" | "FRIENDS_ONLY" | "NOBODY" | null;
   spamFilter: "ALL" | "NON_FRIENDS" | "NONE" | null;
   friendReqEveryone: boolean | null;
@@ -162,7 +167,9 @@ export interface DirectLatestMessage {
     | "CALL_STARTED"
     | "CALL_ENDED"
     | "ACTIVITY_INVITE"
-    | "ACTIVITY_REPLY";
+    | "ACTIVITY_REPLY"
+    /** "X bir mesajı sabitledi." — metadata.pinnedMessageId (sabitler v1). */
+    | "MESSAGE_PINNED";
   deleted: boolean;
   createdAt: string;
 }
@@ -434,4 +441,27 @@ export interface DiscoverAppItem {
   botUsername: string | null;
   isActivity: boolean;
   hasBot: boolean;
+}
+
+/**
+ * Sabitleme alanları — ciklet-web sabitlenen mesajlar sözleşmesi v1
+ * (ciklet-web-37, 2026-09-27). `GET /api/messages`, `/api/direct-messages`,
+ * `message.update`, gönderim yanıtları ve sabit listesi bu iki alanı taşır;
+ * canlı `message.create` zarfında YOK (yeni mesaj sabitlenmemiş sayılır).
+ * SDK tiplerinde olmadığı için ayrı tanımlı; okumak için
+ * `features/chat/pins.ts` → `pinnedAtOf`.
+ */
+export interface PinnedByProfile {
+  id: string;
+  /** Sabitleyenin hesabı silinmişse "" — "bir kullanıcı" gösterilir. */
+  username: string;
+  name: string | null;
+  imageUrl: string | null;
+  isBot?: boolean;
+  isOfficial?: boolean;
+}
+
+export interface PinFields {
+  pinnedAt?: string | null;
+  pinnedBy?: PinnedByProfile | null;
 }

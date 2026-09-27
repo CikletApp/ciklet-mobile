@@ -5,7 +5,8 @@
  */
 /* eslint-disable react-hooks/immutability, react-hooks/refs */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -33,11 +34,13 @@ import {
   HeaderButton,
   Icon,
   ListSkeleton,
+  ModernRefreshIndicator,
   Pressable,
   Screen,
   TabHeader,
   UnreadBadge,
 } from "@/components/ui";
+import { qk } from "@/api/query-keys";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
@@ -78,6 +81,32 @@ export default function ServersScreen() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const ordered = draft ?? items;
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Sohbetler ekranıyla aynı dil: aşağı çekince Ciklet logolu rozet.
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: qk.memberships }),
+        queryClient.refetchQueries({ queryKey: qk.folders }),
+        queryClient.refetchQueries({ queryKey: qk.unreadCounts }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [queryClient]);
+
+  // Arama klasörlerin İÇİNE de bakar; sonuç düz listedir (sürükleme yok —
+  // süzülmüş listede sıra değiştirmek anlamsız olurdu).
+  const needle = query.trim().toLocaleLowerCase("tr");
+  const matches = useMemo(() => {
+    if (!needle) return [];
+    const all = items.flatMap((item) => (item.kind === "folder" ? item.members : [item.membership]));
+    return all.filter((membership) => membership.server.name.toLocaleLowerCase("tr").includes(needle));
+  }, [items, needle]);
 
   const serverUnread = useCallback(
     (serverId: string) => unread?.serverUnreads?.[serverId] ?? 0,
@@ -140,9 +169,44 @@ export default function ServersScreen() {
         right={<HeaderButton icon="plus" label="Sunucu ekle" accent onPress={() => router.push("/servers/new")} />}
       >
         {totalServers > 0 ? (
-          <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
-            {totalServers} sunucu · sıralamak için basılı tutup sürükle
-          </Text>
+          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm }}>
+            {/* Sohbetler ekranındaki arama kutusunun aynısı; sunucular yerelde
+                olduğu için ayrı ekrana gitmeden yerinde süzüyor. */}
+            <View
+              style={{
+                minHeight: 44,
+                borderRadius: radii.full,
+                backgroundColor: colors.panel,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.sm,
+                paddingHorizontal: spacing.md,
+              }}
+            >
+              <Icon name="search" size={19} color={colors.muted} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Sunucularda ara"
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.brand}
+                autoCorrect={false}
+                returnKeyType="search"
+                accessibilityRole="search"
+                style={{ ...typography.body, flex: 1, color: colors.bright, paddingVertical: spacing.sm }}
+              />
+              {query ? (
+                <Pressable onPress={() => setQuery("")} accessibilityRole="button" accessibilityLabel="Aramayı temizle">
+                  <Icon name="close" size={16} color={colors.muted} />
+                </Pressable>
+              ) : null}
+            </View>
+            {needle ? null : (
+              <Text style={{ ...typography.caption, color: colors.muted, paddingBottom: spacing.xs }}>
+                {totalServers} sunucu · sıralamak için basılı tutup sürükle
+              </Text>
+            )}
+          </View>
         ) : null}
       </TabHeader>
 
@@ -164,12 +228,36 @@ export default function ServersScreen() {
       ) : (
         <ScrollView
           scrollEnabled={draggingId === null}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refresh}
+              colors={["transparent"]}
+              tintColor="transparent"
+              progressBackgroundColor="transparent"
+            />
+          }
           contentContainerStyle={{
             paddingTop: spacing.xs,
             paddingBottom: FLOATING_TAB_INSET + spacing.lg,
           }}
         >
-          {ordered.map((item, index) => (
+          {needle ? (
+            matches.length > 0 ? (
+              matches.map((membership) => (
+                <ServerRow
+                  key={membership.serverId}
+                  membership={membership}
+                  unread={serverUnread(membership.serverId)}
+                />
+              ))
+            ) : (
+              <Text style={{ ...typography.body, color: colors.muted, textAlign: "center", padding: spacing.xl }}>
+                &quot;{query.trim()}&quot; ile eşleşen sunucu yok.
+              </Text>
+            )
+          ) : ordered.map((item, index) => (
             <DraggableRow
               key={item.id}
               index={index}
@@ -197,6 +285,8 @@ export default function ServersScreen() {
 
         </ScrollView>
       )}
+
+      <ModernRefreshIndicator visible={refreshing} />
     </Screen>
   );
 }

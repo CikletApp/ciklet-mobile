@@ -59,13 +59,15 @@ export interface MessageAttachment {
   url: string;
   name: string;
   mimeType: string;
+  /** Bayt — mesajın `metadata.attachment.size` alanına yazılır. */
+  size: number;
 }
 
 async function uploadPickedFile(
   endpoint: "messageFile" | "profileImage" | "profileBanner" | "serverImage" | "serverBanner",
   asset: DocumentPicker.DocumentPickerAsset,
   onProgress?: (progress: number) => void
-): Promise<{ url: string; mimeType: string }> {
+): Promise<{ url: string; mimeType: string; size: number }> {
   // Seçici boyutu ve türü çoğu zaman veriyor; vermezse dosyanın kendisinden.
   const local = new ExpoFile(asset.uri);
   const size = asset.size ?? local.size ?? 0;
@@ -105,7 +107,7 @@ async function uploadPickedFile(
 
   const file = uploaded[0];
   if (!file?.ufsUrl) throw new Error("Dosya yüklendi ancak adres alınamadı.");
-  return { url: file.ufsUrl, mimeType };
+  return { url: file.ufsUrl, mimeType, size };
 }
 
 /**
@@ -125,9 +127,9 @@ export async function pickAndUploadMessageFile(
   if (result.canceled) return null;
   const asset = result.assets[0];
 
-  const { url, mimeType } = await uploadPickedFile("messageFile", asset, onProgress);
+  const { url, mimeType, size } = await uploadPickedFile("messageFile", asset, onProgress);
 
-  return { url, name: asset.name, mimeType };
+  return { url, name: asset.name, mimeType, size };
 }
 
 /** Galeriden/dosyalardan bir görsel seçer ve webdeki profil rotasına yükler. */

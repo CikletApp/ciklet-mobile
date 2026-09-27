@@ -1,0 +1,130 @@
+CIKLET MOBİL — REKLAM PLANI (Mentol almayan kullanıcılar)
+Tarih: 2026-09-27
+Durum: Aşama 2 (ödüllü reklam) yapılıyor — mobil yazıldı, sunucu web oturumunda.
+
+==========================================================================
+ÇIKIŞ NOKTASI
+==========================================================================
+
+WhatsApp reklamı sohbetlere değil, yalnızca Güncellemeler > Durum
+bölümüne koyuyor. Kişisel mesajlar şifreli kalıyor, hedefleme sohbet
+içeriğinden değil temel hesap bilgisi, genel konum ve işletmelerle
+etkileşimden yapılıyor.
+
+Ciklet için ilke aynı: reklam, kullanıcının zaten "keşif" modunda olduğu
+yerlerde durur; sohbetlere, aramalara ve bildirimlere hiç girmez.
+
+==========================================================================
+AŞAMA 1 — Kendi "Öne çıkan" alanımız (sponsorlu içerik)
+==========================================================================
+
+Ne:
+  - Keşfet'te "Sponsorlu" etiketli öne çıkan sunucular.
+  - Aktivite kataloğunda sponsorlu aktiviteler.
+
+Kim öder:
+  - Sunucu sahipleri / topluluklar (büyümek isteyenler).
+
+Neden önce bu:
+  - Üçüncü taraf reklam SDK'sı yok, reklam kimliği yok, kişisel hedefleme
+    yok. KVKK açısından en temiz yol; Play Store "Veri güvenliği" beyanı
+    değişmez.
+  - İçerik ürünle uyumlu: kullanıcıya zaten topluluk öneriyoruz.
+
+Hedefleme:
+  - Yalnızca bağlam: Keşfet kategorisi, dil, genel konum.
+  - Mesaj içeriği ve kişi listesi ASLA kullanılmaz.
+
+Mentol:
+  - Mentol kullanıcıları sponsorlu kartları görmez ("Mentol'de reklam yok").
+
+İş bölümü:
+  - Web: sponsorluk envanteri, root panelinde yönetim, toplu
+    (kişiye bağlı olmayan) gösterim/tıklama sayısı.
+  - Mobil: Keşfet'te etiketli kart, Mentol'de gizleme.
+
+==========================================================================
+AŞAMA 2 — İsteğe bağlı ödüllü reklam (ŞİMDİ YAPILIYOR)
+==========================================================================
+
+Ne:
+  - Ücretsiz kullanıcı isterse kısa bir video izler, karşılığında belirli
+    bir süre için Mentol ayrıcalığı açılır.
+  - Kullanıcı kendisi başlatır; hiçbir yerde kendiliğinden çıkmaz.
+  - Mentol'ü "denetme" görevi görür (dönüşüm kanalı).
+
+Nerede:
+  - Ayarlar > Mentol ekranı ve kilitli bir Mentol özelliğine dokunulduğunda
+    çıkan "Mentol gerekli" yerleri ("Reklam izle, 24 saat aç").
+  - Sohbet, arama, bildirim içinde YOK.
+
+Teknik:
+  - Google AdMob, react-native-google-mobile-ads (Expo config plugin).
+  - Onay: Google UMP (AdsConsent). Varsayılan KİŞİSELLEŞTİRİLMEMİŞ reklam.
+  - Ödül SUNUCUDA verilir: AdMob Server-Side Verification (SSV).
+    Uygulama ödülü kendisi açamaz; aksi hâlde istemciyi değiştiren herkes
+    reklamsız ödül alırdı.
+    1) Mobil reklamı yüklerken SSV'ye userId (profil kimliği) ve
+       customData (ödül türü) verir.
+    2) Reklam tamamlanınca AdMob, ciklet-web'deki SSV ucunu imzalı
+       parametrelerle çağırır.
+    3) Web imzayı Google'ın açık anahtarlarıyla doğrular, tekrarı
+       (transaction_id) reddeder, ödülü yazar.
+    4) Mobil /api/mentol/me'yi yeniden okur ve açılan süreyi gösterir.
+  - Geliştirmede Google'ın TEST reklam kimlikleri kullanılır; gerçek
+    kimlikler AdMob hesabı açılınca eklenir.
+
+Bedeli (kabul edilmesi gerekenler):
+  - Android'e reklam kimliği (AD_ID) izni eklenir.
+  - Gizlilik politikası güncellenir (AdMob, UMP).
+  - Play Console "Veri güvenliği" formu ve "Reklam içerir" beyanı
+    güncellenir.
+
+Kararlar (2026-09-27, kullanıcı):
+  - Ödül: KISA SÜRELİ Mentol Plus.
+  - Satışlar korunmalı. Süre ve sıklık uygulamaya GÖMÜLMEZ; root
+    panelinden ayarlanır ve reklam geliri görüldükçe değiştirilir.
+    Başlangıç: 120 dakika Plus, günde 1 kez.
+  - Ücretli Plus/Pro kullanıcısına ödüllü reklam gösterilmez.
+
+Sunucu sözleşmesi (ciklet-web-65'e verildi):
+  GET  /api/ads/rewarded          durum: enabled, reason, rewardMinutes,
+                                  dailyLimit, remainingToday, activeUntil,
+                                  nextAvailableAt, adUnitIds{android,ios}
+  POST /api/ads/rewarded/session  tek kullanımlık nonce (SSV customData)
+  GET  /api/ads/rewarded/ssv      AdMob geri çağırma; imza + nonce +
+                                  transaction_id + günlük sınır; ödülü yazar
+  /api/mentol/me                  ödül aktifken plan PLUS, source "reward"
+  Root paneli                     enabled, rewardMinutes, dailyLimit,
+                                  reklam birimi kimlikleri, toplu sayılar
+
+Mobil (yazıldı):
+  - src/lib/rewarded-ads.ts        reklamı yükle/göster, SSV bilgisi ekle
+  - src/features/mentol/rewarded-card.tsx  Mentol ekranındaki kart
+  - app.json                       AdMob eklentisi (şimdilik Google TEST
+                                   uygulama kimlikleri). Kimlik İKİ yerde:
+                                   expo.plugins içindeki eklenti ayarı VE
+                                   kökteki "react-native-google-mobile-ads"
+                                   anahtarı. İkincisi kütüphanenin Gradle
+                                   betiği için şart (yoksa derleme çöküyor);
+                                   gerçek kimlik gelince ikisi de değişmeli.
+
+Kullanıcının yapacakları:
+  - AdMob hesabı aç, Android (ve sonra iOS) uygulamasını ekle.
+  - Ödüllü reklam birimi oluştur; SSV adresi:
+      https://ciklet.xyz/api/ads/rewarded/ssv
+  - AdMob uygulama kimliğini bana ilet (app.json'a, derleme gerektirir).
+    Reklam birimi kimliği root panelinden girilir (derleme gerektirmez).
+  - AdMob'da gizlilik mesajı (UMP) tanımla.
+
+==========================================================================
+YAPILMAYACAKLAR
+==========================================================================
+
+  - Sohbet listesinde, konuşmalarda, sesli kanallarda, bildirimlerde reklam.
+  - Uygulama açılışında tam ekran (interstitial) reklam.
+  - Mesaj içeriğine dayalı hedefleme.
+
+Gerekçe: kullanıcıyı kaçırır ve platformun gizlilik vaadiyle çelişir.
+Kullanıcı sayısı küçükken ağ reklamlarının geliri de düşüktür; doğrudan
+sponsorluk (Aşama 1) genelde daha fazla getirir.

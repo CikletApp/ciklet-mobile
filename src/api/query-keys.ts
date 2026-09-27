@@ -36,6 +36,9 @@ export const qk = {
     chat: (chatId: string) => ["messages", chatId] as const,
   },
 
+  /** Bir sohbetin sabitlenen mesajları (chatId = channelId veya directId). */
+  pins: (chatId: string) => ["pins", chatId] as const,
+
   unreadCounts: ["unread-counts"] as const,
   /** Sohbet başına okunmamış sayısı (gruplar dahil) — `/api/inbox`. */
   inbox: ["inbox"] as const,

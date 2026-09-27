@@ -1,4 +1,6 @@
-import { Linking, Pressable, Text, View } from "react-native";
+import { useRef } from "react";
+import { Pressable, Text, View } from "react-native";
+import Animated, { Easing, Keyframe } from "react-native-reanimated";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
@@ -9,7 +11,9 @@ import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useActivities } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
-import { Avatar, Icon, type IconName } from "@/components/ui";
+import { Avatar, Icon, emojify, type IconName } from "@/components/ui";
+import { classifyAttachment, readAttachmentInfo } from "@/lib/attachments";
+import { isEmojiOnly } from "@/lib/emoji";
 import { formatTime } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
@@ -18,7 +22,10 @@ import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { isForwardedMessage } from "../forward";
+import { pinnedAtOf } from "../pins";
 import { MessageEmbeds } from "./message-embeds";
+import { MEDIA_BUBBLE_WIDTH, MessageAttachment } from "./message-attachment";
+import { FLASH_DURATION, useMessageFlash } from "./message-flash";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 import { fw } from "@/theme/fonts";
@@ -43,26 +50,67 @@ const inviteMonthFormat = new Intl.DateTimeFormat("tr-TR", {
   year: "numeric",
 });
 
+/**
+ * Atlanılan mesajın vurgusu: marka tonu hızla gelir, kısa durur, söner.
+ * Görünümün kendi saydamlığı 0 — animasyon bitince vurgu geri gelmez.
+ */
+const FLASH = new Keyframe({
+  0: { opacity: 0 },
+  12: { opacity: 1 },
+  55: { opacity: 1 },
+  100: { opacity: 0, easing: Easing.out(Easing.quad) },
+}).duration(FLASH_DURATION);
+
+/**
+ * Basılı tutulan balonun pencere koordinatları (`measureInWindow`). Bağlam
+ * menüsü balonun kopyasını tam bu dikdörtgene çizer; `grouped` kopyanın
+ * köşeleri asıl balonla aynı olsun diye taşınır.
+ */
+export interface MessageAnchor {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  grouped: boolean;
+}
+
 export function MessageItem({
   message,
   grouped = false,
   oneToOne = false,
+  preview = false,
   onLongPress,
   onReactionPress,
+  onJumpToMessage,
 }: {
   message: ChatMessagePayload;
   grouped?: boolean;
   /** Birebir sohbet: gelen mesajlarda ad ve avatar gösterilmez. */
   oneToOne?: boolean;
-  onLongPress?: (message: ChatMessagePayload) => void;
+  /**
+   * Yalnızca balonun kendisi — satır, avatar ve basılı tutma yok. Bağlam
+   * menüsünde odaklanan kopya bu; genişliği çağıran belirler.
+   */
+  preview?: boolean;
+  onLongPress?: (message: ChatMessagePayload, anchor: MessageAnchor) => void;
   onReactionPress?: (message: ChatMessagePayload, emoji: string) => void;
+  /** Alıntıya ya da "bir mesajı sabitledi" satırına dokununca o mesaja git. */
+  onJumpToMessage?: (messageId: string) => void;
 }) {
   const myId = useAuth((s) => s.profile?.id);
   const density = usePreferences((state) => state.chatDensity);
   const bigEmoji = usePreferences((state) => state.bigEmoji);
   const linkPreviews = usePreferences((state) => state.linkPreviews);
+  const flash = useMessageFlash(message.id);
+  const bubbleRef = useRef<View>(null);
   const compact = density === "compact";
   const largeEmoji = bigEmoji && !compact && isEmojiOnly(message.content);
+
+  // "X bir mesajı sabitledi." — içerik ham gösterilmez, satır kurulur.
+  // (SDK'nın tür listesinde henüz yok; bu yüzden düz metinle karşılaştırılır.)
+  if ((message.type as string) === "MESSAGE_PINNED") {
+    return <PinnedNotice message={message} onJump={onJumpToMessage} />;
+  }
 
   // Sistem mesajları (çağrı, aktivite daveti) tarafsızdır — ortada çizilir.
   if (message.type !== MessageType.DEFAULT) {
@@ -90,10 +138,253 @@ export function MessageItem({
   const linkUrl = !message.fileUrl && !inviteCode && !message.deleted
     ? extractFirstWebUrl(message.content)
     : null;
+  const attachmentKind = message.fileUrl && !message.deleted
+    ? classifyAttachment(message.fileUrl, readAttachmentInfo(message.metadata))
+    : null;
+  const visualMedia =
+    attachmentKind === "image" || attachmentKind === "probe" || attachmentKind === "video";
+  const hasQuote = Boolean(message.replyTo && !message.replyTo.deleted);
+  const forwarded = isForwardedMessage(message) && !message.deleted;
+  // WhatsApp gibi: altyazısız görsel/video balonsuz çizilir, saat medyanın
+  // üstüne biner. Gönderen adı, alıntı ya da "İletildi" varsa balon kalır —
+  // o bilgilerin duracağı bir zemin gerekiyor.
+  const bareMedia = visualMedia && hideAttachmentUrl && !showHeader && !hasQuote && !forwarded;
+  // Telegram gibi: altyazılı görsel/video TEK balondur. Medya balonun üst ve
+  // yan kenarlarına yaslanır (köşeyi balon kırpar); altyazı ve saat altında
+  // normal boşlukla durur. Balonun genişliği medyanınki, altyazı ona sarar.
+  const captionedMedia = visualMedia && !hideAttachmentUrl;
+  const flat = Boolean(inviteCode) || bareMedia;
+
+  // Konum satırdan değil balonun kendisinden ölçülür: bağlam menüsü
+  // kopyayı tam üstüne çizer. Ters (inverted) listede de pencere
+  // koordinatı doğru gelir; dönüşümü Fabric hesaba katıyor.
+  const handleLongPress = onLongPress
+    ? () => {
+        bubbleRef.current?.measureInWindow((x, y, width, height) => {
+          onLongPress(message, { x, y, width, height, grouped });
+        });
+      }
+    : undefined;
+
+  const header = showHeader ? (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+      <Text
+        onPress={() => router.push(`/profile/${profile.id}`)}
+        style={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
+        numberOfLines={1}
+      >
+        {name}
+      </Text>
+      {isOfficial || profile.isBot ? (
+        <View
+          style={{
+            paddingHorizontal: 5,
+            paddingVertical: 1,
+            borderRadius: 4,
+            backgroundColor: colors.brand,
+          }}
+        >
+          <Text style={{ fontSize: 9, ...fw(700), color: colors.onBrand }}>
+            {isOfficial ? "RESMÎ" : "UYG"}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
+  const forwardedLabel = forwarded ? (
+    // İletilen mesaj kaynağını taşımaz (Discord kuralı); yalnızca
+    // iletilmiş olduğu işaretlenir.
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+      <Icon name="forward" size={12} color={colors.muted} />
+      <Text style={{ fontSize: 11, lineHeight: 15, fontStyle: "italic", color: colors.muted }}>
+        İletildi
+      </Text>
+    </View>
+  ) : null;
+
+  const replyTarget = message.replyTo && !message.replyTo.deleted ? message.replyTo : null;
+  const quote = replyTarget ? (
+    // Alıntı: tonlu kutu + vurgu çizgisi + yazarın adı. Yalnızca çizgi
+    // ve soluk metin, alıntının mesajın parçası mı ayrı bir şey mi
+    // olduğunu ayırt ettirmiyordu. Dokununca alıntılanan mesaja gidilir.
+    <Pressable
+      onPress={onJumpToMessage ? () => onJumpToMessage(replyTarget.id) : undefined}
+      onLongPress={handleLongPress}
+      delayLongPress={280}
+      disabled={!onJumpToMessage && !onLongPress}
+      accessibilityRole="button"
+      accessibilityLabel="Alıntılanan mesaja git"
+      style={{
+        borderRadius: radii.md,
+        borderLeftWidth: 3,
+        borderLeftColor: colors.brand,
+        backgroundColor: isMine ? colors.bubbleOther : colors.deep,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 6,
+        gap: 1,
+        marginTop: 2,
+        marginBottom: spacing.xs,
+      }}
+    >
+      {replyAuthor(replyTarget) ? (
+        <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }} numberOfLines={1}>
+          {replyAuthor(replyTarget)}
+        </Text>
+      ) : null}
+      <Text style={{ ...typography.caption, color: colors.text }} numberOfLines={2}>
+        {replyTarget.content}
+      </Text>
+    </Pressable>
+  ) : null;
+
+  const reactions = message.reactions?.length ? (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+      {groupReactions(message.reactions).map(({ emoji, count }) => (
+        <Pressable
+          key={emoji}
+          onPress={() => onReactionPress?.(message, emoji)}
+          accessibilityRole="button"
+          accessibilityLabel={`${emoji} tepkisi, ${count}`}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: 3,
+            borderRadius: radii.full,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: pressed ? colors.raised : colors.panel,
+          })}
+        >
+          <Text style={{ fontSize: 14 }}>{emojify(emoji, `r-${emoji}`, 17)}</Text>
+          <Text style={{ fontSize: 11, color: colors.muted }}>{count}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+
+  const caption = message.content ? (
+    <MessageMarkdown
+      value={message.content}
+      compact={compact}
+      style={largeEmoji ? { fontSize: 28, lineHeight: 34 } : undefined}
+    />
+  ) : null;
+
+  const bubble = (
+    <View
+      ref={bubbleRef}
+      collapsable={false}
+      style={{
+        width: captionedMedia ? MEDIA_BUBBLE_WIDTH : undefined,
+        maxWidth: preview || inviteCode ? "100%" : MAX_BUBBLE_WIDTH,
+        paddingHorizontal: flat || captionedMedia ? 0 : spacing.md,
+        paddingVertical: flat || captionedMedia ? 0 : spacing.sm,
+        borderRadius: radii.lg,
+        // Baloncuğun "kuyruk" tarafı köşesi küçültülür; grup içindeki
+        // ardışık mesajlarda düz kalır ki blok tek parça görünsün.
+        borderBottomRightRadius: isMine && !grouped ? radii.sm : radii.lg,
+        borderBottomLeftRadius: !isMine && !grouped ? radii.sm : radii.lg,
+        backgroundColor: flat
+          ? "transparent"
+          : isMine
+            ? colors.bubbleOwn
+            : colors.bubbleOther,
+        // Altyazılı medyada köşeleri balon belirler; medyanın kendi köşesi yok.
+        overflow: captionedMedia ? "hidden" : undefined,
+        gap: captionedMedia ? 0 : 2,
+      }}
+    >
+      {captionedMedia && message.fileUrl ? (
+        <>
+          {header || forwardedLabel || quote ? (
+            <View
+              style={{
+                paddingHorizontal: spacing.md,
+                paddingTop: spacing.sm,
+                paddingBottom: spacing.xs,
+                gap: 2,
+              }}
+            >
+              {header}
+              {forwardedLabel}
+              {quote}
+            </View>
+          ) : null}
+
+          <MessageAttachment
+            url={message.fileUrl}
+            metadata={message.metadata}
+            variant="bubble"
+            onLongPress={handleLongPress}
+          />
+
+          <View
+            style={{
+              paddingHorizontal: spacing.md,
+              paddingTop: 6,
+              paddingBottom: spacing.sm,
+              gap: 2,
+            }}
+          >
+            {caption}
+            <MessageEmbeds metadata={message.metadata} />
+            <MessageTime message={message} />
+            {reactions}
+          </View>
+        </>
+      ) : (
+        <>
+          {header}
+          {forwardedLabel}
+          {quote}
+
+          {!inviteCode && !hideAttachmentUrl && message.deleted ? (
+            <Text
+              style={{
+                ...typography.body,
+                color: colors.muted,
+                fontStyle: "italic",
+              }}
+            >
+              Bu mesaj silindi.
+            </Text>
+          ) : null}
+
+          {!inviteCode && !hideAttachmentUrl && !message.deleted ? caption : null}
+
+          {message.fileUrl && !message.deleted ? (
+            <MessageAttachment
+              url={message.fileUrl}
+              metadata={message.metadata}
+              overlay={bareMedia ? <MessageTime message={message} onMedia /> : undefined}
+              onLongPress={handleLongPress}
+            />
+          ) : null}
+
+          {inviteCode ? (
+            <ServerInviteCard inviteCode={inviteCode} />
+          ) : null}
+
+          {linkPreviews && linkUrl ? <LinkPreviewCard url={linkUrl} /> : null}
+
+          {!message.deleted ? <MessageEmbeds metadata={message.metadata} /> : null}
+
+          {bareMedia ? null : <MessageTime message={message} />}
+
+          {reactions}
+        </>
+      )}
+    </View>
+  );
+
+  if (preview) return bubble;
 
   return (
     <Pressable
-      onLongPress={() => onLongPress?.(message)}
+      onLongPress={handleLongPress}
       delayLongPress={280}
       style={{
         flexDirection: "row",
@@ -110,6 +401,15 @@ export function MessageItem({
         message.deleted ? "silinmiş mesaj" : message.content
       }`}
     >
+      {flash !== null ? (
+        <Animated.View
+          key={flash}
+          entering={FLASH}
+          pointerEvents="none"
+          style={{ position: "absolute", inset: 0, opacity: 0, backgroundColor: colors.brandSoft }}
+        />
+      ) : null}
+
       {/* Gelen mesajlarda avatar; gruplananlarda sütun hizası korunur.
           Dokunma üye kartına (profil ekranı) gider — web'deki üye kartının
           mobil karşılığı. */}
@@ -132,164 +432,92 @@ export function MessageItem({
         )
       ) : null}
 
-      <View
-        style={{
-          maxWidth: inviteCode ? "100%" : MAX_BUBBLE_WIDTH,
-          paddingHorizontal: inviteCode ? 0 : spacing.md,
-          paddingVertical: inviteCode ? 0 : spacing.sm,
-          borderRadius: radii.lg,
-          // Baloncuğun "kuyruk" tarafı köşesi küçültülür; grup içindeki
-          // ardışık mesajlarda düz kalır ki blok tek parça görünsün.
-          borderBottomRightRadius: isMine && !grouped ? radii.sm : radii.lg,
-          borderBottomLeftRadius: !isMine && !grouped ? radii.sm : radii.lg,
-          backgroundColor: inviteCode
-            ? "transparent"
-            : isMine
-              ? colors.bubbleOwn
-              : colors.bubbleOther,
-          gap: 2,
-        }}
-      >
-        {showHeader ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <Text
-              onPress={() => router.push(`/profile/${profile.id}`)}
-              style={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
-              numberOfLines={1}
-            >
-              {name}
-            </Text>
-            {isOfficial || profile.isBot ? (
-              <View
-                style={{
-                  paddingHorizontal: 5,
-                  paddingVertical: 1,
-                  borderRadius: 4,
-                  backgroundColor: colors.brand,
-                }}
-              >
-                <Text style={{ fontSize: 9, ...fw(700), color: colors.onBrand }}>
-                  {isOfficial ? "RESMÎ" : "UYG"}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
+      {bubble}
+    </Pressable>
+  );
+}
 
-        {isForwardedMessage(message) && !message.deleted ? (
-          // İletilen mesaj kaynağını taşımaz (Discord kuralı); yalnızca
-          // iletilmiş olduğu işaretlenir.
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Icon name="forward" size={12} color={colors.muted} />
-            <Text style={{ fontSize: 11, lineHeight: 15, fontStyle: "italic", color: colors.muted }}>
-              İletildi
-            </Text>
-          </View>
-        ) : null}
+/**
+ * Menüdeki "Kopyala"nın metni; kopyalanacak bir şey yoksa null. Ekin ham
+ * CDN adresi metin sayılmaz — dosya bağlantısını kopyalatmak kullanıcıyı
+ * uygulama dışına çıkarmanın bir yolu olurdu.
+ */
+export function copyableText(message: ChatMessagePayload): string | null {
+  if (message.deleted || !message.content.trim()) return null;
+  if (message.fileUrl && isAttachmentUrlContent(message.content, message.fileUrl)) return null;
+  return message.content;
+}
 
-        {message.replyTo && !message.replyTo.deleted ? (
-          // Alıntı: tonlu kutu + vurgu çizgisi + yazarın adı. Yalnızca çizgi
-          // ve soluk metin, alıntının mesajın parçası mı ayrı bir şey mi
-          // olduğunu ayırt ettirmiyordu.
-          <View
-            style={{
-              borderRadius: radii.md,
-              borderLeftWidth: 3,
-              borderLeftColor: colors.brand,
-              backgroundColor: isMine ? colors.bubbleOther : colors.deep,
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 6,
-              gap: 1,
-              marginTop: 2,
-              marginBottom: spacing.xs,
-            }}
-          >
-            {replyAuthor(message.replyTo) ? (
-              <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }} numberOfLines={1}>
-                {replyAuthor(message.replyTo)}
-              </Text>
-            ) : null}
-            <Text style={{ ...typography.caption, color: colors.text }} numberOfLines={2}>
-              {message.replyTo.content}
-            </Text>
-          </View>
-        ) : null}
+/** Saat ve "düzenlendi" — balonun altında ya da medyanın üstünde. */
+function MessageTime({ message, onMedia = false }: { message: ChatMessagePayload; onMedia?: boolean }) {
+  const tint = onMedia ? "rgba(255,255,255,0.92)" : colors.muted;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        alignSelf: "flex-end",
+        gap: spacing.xs,
+      }}
+    >
+      {/* Telegram gibi: sabit mesajın saatinin yanında küçük raptiye. */}
+      {pinnedAtOf(message) && !message.deleted ? <Icon name="pin" size={11} color={tint} /> : null}
+      {message.createdAt !== message.updatedAt && !message.deleted ? (
+        <Text style={{ fontSize: 10, color: tint }}>düzenlendi</Text>
+      ) : null}
+      <Text style={{ fontSize: 10, lineHeight: 14, color: tint }}>
+        {formatTime(message.createdAt)}
+      </Text>
+    </View>
+  );
+}
 
-        {!inviteCode && !hideAttachmentUrl && message.deleted ? (
-          <Text
-            style={{
-              ...typography.body,
-              color: colors.muted,
-              fontStyle: "italic",
-            }}
-          >
-            Bu mesaj silindi.
-          </Text>
-        ) : null}
+/**
+ * "X bir mesajı sabitledi." — ortada soluk satır. Yazar sabitleyen kişi;
+ * içerik ham gösterilmez. Dokununca sabitlenen mesaja gidilir. Tepki,
+ * yanıt ve bağlam menüsü yok; diğer mesajlarla gruplanmaz.
+ */
+function PinnedNotice({ message, onJump }: { message: ChatMessagePayload; onJump?: (messageId: string) => void }) {
+  const isChannel = isChannelMessage(message);
+  // Silinmiş hesapta profil ve adlar boş gelebiliyor.
+  const profile = (isChannel ? message.member?.profile : message.profile) as
+    | { name?: string | null; username?: string | null }
+    | null
+    | undefined;
+  const name =
+    (isChannel ? message.member?.nickname?.trim() : null) ||
+    profile?.name?.trim() ||
+    profile?.username?.trim() ||
+    "Bir kullanıcı";
+  const target = message.metadata?.pinnedMessageId;
+  const targetId = typeof target === "string" && target ? target : null;
+  const canJump = Boolean(targetId && onJump);
 
-        {!inviteCode && !hideAttachmentUrl && !message.deleted && message.content ? (
-          <MessageMarkdown
-            value={message.content}
-            compact={compact}
-            style={largeEmoji ? { fontSize: 28, lineHeight: 34 } : undefined}
-          />
-        ) : null}
-
-        {message.fileUrl && !message.deleted ? (
-          <Attachment url={message.fileUrl} />
-        ) : null}
-
-        {inviteCode ? (
-          <ServerInviteCard inviteCode={inviteCode} />
-        ) : null}
-
-        {linkPreviews && linkUrl ? <LinkPreviewCard url={linkUrl} /> : null}
-
-        {!message.deleted ? <MessageEmbeds metadata={message.metadata} /> : null}
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            alignSelf: "flex-end",
-            gap: spacing.xs,
-          }}
-        >
-          {message.createdAt !== message.updatedAt && !message.deleted ? (
-            <Text style={{ fontSize: 10, color: colors.muted }}>düzenlendi</Text>
-          ) : null}
-          <Text style={{ fontSize: 10, lineHeight: 14, color: colors.muted }}>
-            {formatTime(message.createdAt)}
-          </Text>
-        </View>
-
-        {message.reactions?.length ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-            {groupReactions(message.reactions).map(({ emoji, count }) => (
-              <Pressable
-                key={emoji}
-                onPress={() => onReactionPress?.(message, emoji)}
-                accessibilityRole="button"
-                accessibilityLabel={`${emoji} tepkisi, ${count}`}
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 4,
-                  paddingHorizontal: spacing.sm,
-                  paddingVertical: 3,
-                  borderRadius: radii.full,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: pressed ? colors.raised : colors.panel,
-                })}
-              >
-                <Text style={{ fontSize: 14 }}>{emoji}</Text>
-                <Text style={{ fontSize: 11, color: colors.muted }}>{count}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-      </View>
+  return (
+    <Pressable
+      onPress={targetId && onJump ? () => onJump(targetId) : undefined}
+      disabled={!canJump}
+      accessibilityRole="button"
+      accessibilityLabel={`${name} bir mesajı sabitledi. Mesaja git`}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.sm,
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <Icon name="pin" size={14} color={colors.muted} />
+      {/* Web'le aynı: "{Ad} bir mesajı sabitledi. Mesaja git" — satırın
+          tamamı dokunulabilir, "Mesaja git" marka renginde ipucu. */}
+      <Text style={{ ...typography.caption, color: colors.muted, flexShrink: 1 }} numberOfLines={2}>
+        <Text style={{ ...fw(700), color: colors.text }}>{emojify(name, `pin-${message.id}`, 16)}</Text>
+        {" bir mesajı sabitledi."}
+        {canJump ? <Text style={{ ...fw(600), color: colors.brand }}>{" Mesaja git"}</Text> : null}
+      </Text>
+      <Text style={{ fontSize: 10, color: colors.muted }}>{formatTime(message.createdAt)}</Text>
     </Pressable>
   );
 }
@@ -320,13 +548,6 @@ function replyAuthor(reply: unknown): string | null {
   return value.member?.nickname?.trim() || profile?.name?.trim() || profile?.username || null;
 }
 
-function isEmojiOnly(content: string) {
-  const compact = content.replace(/\s/g, "");
-  if (!compact) return false;
-  const emojis = compact.match(/\p{Extended_Pictographic}/gu) ?? [];
-  return emojis.length >= 1 && emojis.length <= 8 && compact.replace(/\p{Extended_Pictographic}|\uFE0F/gu, "") === "";
-}
-
 /**
  * Ek içeriği yalnızca dosyanın ham adresiyse gizlenir. Dosya adı veya
  * kullanıcının yazdığı gerçek açıklama korunur; böylece medya mesajı URL
@@ -354,51 +575,6 @@ function extractFirstWebUrl(content: string): string | null {
   } catch {
     return null;
   }
-}
-
-function Attachment({ url }: { url: string }) {
-  const isImage = /\.(avif|gif|jpe?g|png|webp)(?:\?|$)/i.test(url);
-
-  if (isImage) {
-    return (
-      <Pressable onPress={() => void Linking.openURL(url)} accessibilityRole="imagebutton">
-        <Image
-          source={{ uri: url }}
-          contentFit="cover"
-          transition={150}
-          style={{
-            width: 220,
-            maxWidth: "100%",
-            aspectRatio: 4 / 3,
-            borderRadius: radii.md,
-            backgroundColor: colors.deep,
-          }}
-        />
-      </Pressable>
-    );
-  }
-
-  return (
-    <Pressable
-      onPress={() => void Linking.openURL(url)}
-      accessibilityRole="link"
-      accessibilityLabel="Dosyayı aç"
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        gap: spacing.sm,
-        padding: spacing.sm,
-        borderRadius: radii.md,
-        backgroundColor: pressed ? colors.raised : colors.deep,
-      })}
-    >
-      <Icon name="attachment" size={18} color={colors.brand} />
-      <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
-        Dosyayı aç
-      </Text>
-      <Icon name="chevron-right" size={14} color={colors.muted} />
-    </Pressable>
-  );
 }
 
 function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>) {
