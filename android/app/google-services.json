@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "501291125276",
+    "project_id": "ciklet-mobile",
+    "storage_bucket": "ciklet-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:501291125276:android:24468dcdc257f9b6572dd9",
+        "android_client_info": {
+          "package_name": "com.ciklet.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIi53acwDpHtvnb_56arUugI9p6pDzYH8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
