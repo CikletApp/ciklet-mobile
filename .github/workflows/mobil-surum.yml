@@ -1,53 +1,100 @@
-# iOS — imzasız IPA.
+# Mobil sürüm — Android APK ve iOS IPA AYNI commit'ten, AYNI sürüm numarasıyla.
 #
-# Elle tetiklenir: Actions → "iOS IPA (imzasız)" → Run workflow.
-#   makine = github-macos : GitHub'ın macOS makinesi. Özel depoda macOS
-#                           dakikaları kotadan 10 kat düşer.
-#   makine = benim-mac    : Kendi Mac'in (self-hosted runner). Bir kez kur:
+# Elle tetiklenir: Actions → "Mobil sürüm (APK + IPA)" → Run workflow.
+# Sürüm = git commit sayısı (app.config.js); iki iş de aynı commit'i tam
+# geçmişle klonladığı için APK ve IPA'nın numarası her zaman aynıdır.
+#
+#   apk_derle        : Android release APK (GitHub'ın Linux makinesi; ucuz).
+#   ipa_derle        : imzasız iOS IPA.
+#   simulator_testi  : IPA'nın kodu iPhone simülatöründe açılıp 45 sn izlenir
+#                      (scripts/ios/smoke-simulator.sh). macOS dakikası ~2 kat.
+#   makine (iOS)     : github-macos — GitHub'ın macOS makinesi; özel depoda
+#                      macOS dakikaları kotadan 10 kat düşer.
+#                      benim-mac — kendi Mac'in (self-hosted runner). Bir kez kur:
 #     1. Depo → Settings → Actions → Runners → New self-hosted runner → macOS.
 #     2. Gösterilen komutları Mac'te Terminal'de çalıştır (./config.sh …),
 #        ardından `./svc.sh install && ./svc.sh start` ile arka planda koşsun.
 #     3. Mac'te Xcode 26.4+, CocoaPods (`brew install cocoapods`) ve python3 olsun.
 #
-# Çıktı: "ciklet-<sürüm>-<commit>-unsigned" adlı artifact (içinde .ipa).
-# Derleme mantığı scripts/ios/build-unsigned.sh'ta; Mac'te elle de çalışır.
-#
-# simulator_testi = true: aynı commit simülatör için de derlenir, iPhone
-# simülatöründe açılır ve ayakta kaldığı doğrulanır (scripts/ios/smoke-simulator.sh).
-# Paralel ikinci iş olduğu için macOS dakikası yaklaşık iki katına çıkar.
+# Çıktılar: "ciklet-<sürüm>-<commit>-prod" (APK) ve
+# "ciklet-<sürüm>-<commit>-unsigned" (IPA) adlı artifact'lar.
+# Derleme mantığı scripts/android ve scripts/ios altında; yerelde de çalışır.
 #
 # Yalnızca workflow_dispatch: yazma yetkisi olmayan biri (ör. çatal PR'ı)
 # kendi Mac'inde kod çalıştıramasın.
 
-name: iOS IPA (imzasız)
+name: Mobil sürüm (APK + IPA)
 
 on:
   workflow_dispatch:
     inputs:
+      apk_derle:
+        description: Android APK derlensin
+        type: boolean
+        default: true
+      ipa_derle:
+        description: iOS IPA derlensin
+        type: boolean
+        default: true
+      simulator_testi:
+        description: IPA'nın kodu simülatörde açılıp denensin (macOS dakikası ~2 kat)
+        type: boolean
+        default: false
       makine:
-        description: Derleme makinesi
+        description: iOS derleme makinesi
         type: choice
         options:
           - github-macos
           - benim-mac
         default: github-macos
-      simulator_testi:
-        description: Simülatörde açılış testi de yapılsın (macOS dakikası ~2 kat)
-        type: boolean
-        default: false
-      ipa_derle:
-        description: IPA derlensin (kapatılırsa yalnızca simülatör testi koşar)
-        type: boolean
-        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: ios-ipa-${{ github.ref }}
+  group: mobil-surum-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  apk:
+    name: Android APK
+    if: ${{ inputs.apk_derle }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Kodu al (tam geçmiş — sürüm = commit sayısı)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: APK derle
+        id: build
+        run: bash scripts/android/build-release.sh dist
+
+      - name: APK'yı yükle
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.build.outputs.apk_name }}
+          path: ${{ steps.build.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
   ipa:
     name: İmzasız IPA
     if: ${{ inputs.ipa_derle }}
