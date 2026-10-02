@@ -7,9 +7,6 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-// Arka plan bildirim görevi MODÜL KAPSAMINDA tanımlanmalı (süreç ölüyken
-// yalnızca paket yüklenir); bu yüzden kök düzende içe aktarılır.
-import "@/lib/notification-task";
 import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { InAppNoticeHost } from "@/components/in-app-notice";

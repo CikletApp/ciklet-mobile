@@ -1,4 +1,4 @@
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import * as Notifications from "expo-notifications";
@@ -7,7 +7,8 @@ import type { MessagesPage } from "@ciklet/embedded-activities-sdk/types";
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { showToast } from "@/components/ui";
-import { MARK_READ_ACTION, REPLY_ACTION } from "@/lib/notifications";
+import { ANDROID_CHANNEL, MARK_READ_ACTION, MESSAGE_CATEGORY, REPLY_ACTION } from "@/lib/notifications";
+import { brand } from "@/theme/tokens";
 import type { ChatMessagePayload } from "./events";
 
 /**
@@ -32,8 +33,11 @@ export async function handleNotificationResponse(
 ): Promise<void> {
   if (!response) return;
   const request = response.notification.request;
-  const data = (request.content.data ?? {}) as Record<string, unknown>;
+  const data = notificationData(request.content);
   const action = response.actionIdentifier;
+  if (__DEV__) {
+    console.log("[bildirim] yanıt yükü:", JSON.stringify(response).slice(0, 700));
+  }
 
   if (action !== REPLY_ACTION && action !== MARK_READ_ACTION) {
     // Arka plan görevinde (süreç ölü) yönlendirme anlamsız; uygulama açılınca
@@ -44,12 +48,20 @@ export async function handleNotificationResponse(
     return;
   }
 
+  if (__DEV__) console.log("[bildirim] eylem:", action, request.identifier, response.userText ? "metin var" : "metin yok");
   const key = `${request.identifier}:${action}:${response.userText ?? ""}`;
   const last = await AsyncStorage.getItem(HANDLED_RESPONSE_KEY).catch(() => null);
   if (last === key) return;
   await AsyncStorage.setItem(HANDLED_RESPONSE_KEY, key).catch(() => {});
 
-  const directId = typeof data.directId === "string" ? data.directId : "";
+  // Arka plan görevine gelen yanıtta içerik verisi eksik olabiliyor; mesaj
+  // bildirimlerinin kimliği `message:<directId>` biçiminde, oradan türetilir.
+  const directId =
+    typeof data.directId === "string" && data.directId
+      ? data.directId
+      : request.identifier.startsWith("message:")
+        ? request.identifier.slice("message:".length)
+        : "";
   if (!directId) return;
 
   if (action === REPLY_ACTION) {
@@ -57,9 +69,19 @@ export async function handleNotificationResponse(
     if (!text) return;
     try {
       await api(endpoints.sendDirectMessage(directId), { method: "POST", body: { content: text } });
-      await Notifications.dismissNotificationAsync(request.identifier).catch(() => {});
+      // Android 15: doğrudan yanıt bekleyen bildirim, uygulama GÜNCELLEYENE
+      // kadar sistem tarafından tutulur (LIFETIME_EXTENDED_BY_DIRECT_REPLY);
+      // yalnızca cancel çağrısı ertelenir ve dönen simge dönmeye devam eder.
+      // WhatsApp gibi: bildirim yanıtla güncellenir, sohbet akışı sürer.
+      if (Platform.OS === "android") {
+        await repostMessageNotification(request, data, `Sen: ${text}`);
+      } else {
+        await Notifications.dismissNotificationAsync(request.identifier).catch(() => {});
+      }
       if (AppState.currentState === "active") showToast("Yanıt gönderildi");
-    } catch {
+    } catch (err) {
+      // Arka planda toast yok; logcat tek iz (uygulama kapalıyken headless).
+      console.warn("[bildirim] yanıt gönderilemedi:", err instanceof Error ? err.message : err);
       if (AppState.currentState === "active") {
         showToast("Yanıt gönderilemedi; uygulamadan tekrar dene.", "error");
       }
@@ -74,10 +96,61 @@ export async function handleNotificationResponse(
     if (newest) {
       await api(endpoints.readStateAck, { method: "POST", body: { directId, messageId: newest.id } });
     }
+    // Yanıt akışı bildirimi zaten güncellediği için (yukarı) burada düşürmek
+    // yeter; önce yeniden yayınlayıp sonra iptal etmek yarışıyor ve bildirim
+    // eylemsiz hâliyle geri geliyordu.
     await Notifications.dismissNotificationAsync(request.identifier).catch(() => {});
-  } catch {
-    /* Ağ yok; bildirim sistemde kalır, kullanıcı uygulamadan okur. */
+  } catch (err) {
+    // Ağ yok ya da oturum yok; bildirim sistemde kalır, kullanıcı uygulamadan okur.
+    console.warn("[bildirim] okundu işaretlenemedi:", err instanceof Error ? err.message : err);
   }
+}
+
+/** Aynı kimlikle sessizce yeniden yayınla (eylemler korunur). */
+async function repostMessageNotification(
+  request: Notifications.NotificationRequest,
+  data: Record<string, unknown>,
+  body: string
+): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    identifier: request.identifier,
+    content: {
+      title: request.content.title ?? "Ciklet",
+      body,
+      data,
+      categoryIdentifier: MESSAGE_CATEGORY,
+      sound: false,
+      color: brand.primary,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    },
+    trigger: { channelId: ANDROID_CHANNEL },
+  }).catch(() => {});
+}
+
+/**
+ * Bildirim verisi — çalışan uygulamada nesne; arka plan görevine (süreç ölü)
+ * gelen yanıtta JSON dizesi (`dataString`) olarak da gelebilir. İkisini de çöz.
+ */
+function notificationData(content: Notifications.NotificationContent): Record<string, unknown> {
+  const raw = content.data as unknown;
+  const parse = (text: string): Record<string, unknown> | null => {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  };
+  if (typeof raw === "string") return parse(raw) ?? {};
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    if (typeof record.dataString === "string") return { ...record, ...(parse(record.dataString) ?? {}) };
+    if (typeof record.body === "string" && record.body.trimStart().startsWith("{")) {
+      return { ...record, ...(parse(record.body) ?? {}) };
+    }
+    return record;
+  }
+  return {};
 }
 
 /**

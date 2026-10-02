@@ -1,6 +1,6 @@
 {
   "name": "ciklet-mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "0.2.2",
   "dependencies": {
     "@ciklet/embedded-activities-sdk": "github:CikletApp/ciklet-sdk",

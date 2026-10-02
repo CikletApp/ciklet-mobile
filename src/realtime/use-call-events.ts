@@ -122,6 +122,10 @@ export function ring(frame: IncomingCallFrame) {
   }
 
   if (AppState.currentState === "active" || !nativeIncomingCalls) {
+    // Tam ekran bildirimden açılışta uygulama önce öne gelir, davet sonra
+    // yüklenir; sistem bildirimi (ve onun zili) burada düşürülür ki çift
+    // zil çalmasın ve bildirim panelde kalmasın.
+    dismissIncomingCallNotification(frame.callId);
     startLocalRing();
     return;
   }

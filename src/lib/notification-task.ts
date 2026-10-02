@@ -32,8 +32,9 @@ import { brand } from "@/theme/tokens";
  * düşer (`actionIdentifier` taşıyan yük) ve notification-response işler.
  *
  * `defineTask` MODÜL KAPSAMINDA olmalı: süreç ölüyken Expo yalnızca JS
- * paketini yükleyip görevi çağırır, React ağacı kurulmaz. Bu dosya
- * app/_layout.tsx'te içe aktarılır.
+ * paketini yükleyip görevi çağırır, React ağacı kurulmaz ve expo-router rota
+ * dosyalarını (_layout dahil) hiç yüklemez. Bu dosya bu yüzden paket GİRİŞ
+ * dosyasında (index.js) içe aktarılır.
  */
 
 export const BACKGROUND_NOTIFICATION_TASK = "ciklet-background-notification";
