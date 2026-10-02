@@ -169,12 +169,20 @@ COMMIT="$(git rev-parse --short=7 HEAD)"
 
 JS_BUNDLE="$APP/main.jsbundle"
 [[ -f "$JS_BUNDLE" ]] || fail "main.jsbundle yok — JS paketi uygulamaya gömülmemiş."
-EXPECTED_API="$(grep -E '^EXPO_PUBLIC_API_URL=' .env.production | head -1 | cut -d= -f2- | tr -d '\r' || true)"
-if [[ -n "$EXPECTED_API" ]] && ! grep -a -q -F "$EXPECTED_API" "$JS_BUNDLE"; then
-  fail "JS paketinde üretim adresi ($EXPECTED_API) yok."
-fi
-if grep -a -q -E "10\.0\.2\.2|localhost:3000" "$JS_BUNDLE"; then
-  fail "JS paketinde yerel geliştirme adresi var — .env.production yüklenmemiş."
+# .env.production'daki her EXPO_PUBLIC_* değeri pakete gömülmüş olmalı;
+# Android emülatörünün yerel yığın adresi (10.0.2.2, yerel .env) olmamalı.
+# "localhost:3000" ARANMAZ: UploadThing ve expo-router kendi varsayılan
+# adreslerinde bu dizeyi taşıyor, uygulamanın yapılandırmasıyla ilgisi yok.
+while IFS='=' read -r key value; do
+  value="${value%$'\r'}"
+  value="${value%\"}"
+  value="${value#\"}"
+  [[ -n "$value" ]] || continue
+  grep -a -q -F "$value" "$JS_BUNDLE" ||
+    fail "JS paketinde $key değeri ($value) yok — .env.production yüklenmemiş."
+done < <(grep -E '^EXPO_PUBLIC_[A-Z0-9_]+=' .env.production || true)
+if grep -a -q -F "10.0.2.2" "$JS_BUNDLE"; then
+  fail "JS paketinde yerel geliştirme adresi (10.0.2.2) var — .env.production yüklenmemiş."
 fi
 
 # ── IPA: Payload/<Uygulama>.app → zip ─────────────────────────────────────
