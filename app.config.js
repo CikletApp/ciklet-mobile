@@ -47,7 +47,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { execSync } = require("node:child_process");
-const { withPodfileProperties } = require("expo/config-plugins");
+const { withGradleProperties, withPodfileProperties } = require("expo/config-plugins");
 const appJson = require("./app.json");
 const packageJson = require("./package.json");
 
@@ -55,6 +55,23 @@ const packageJson = require("./package.json");
 function withExpoModulesFromSource(config) {
   return withPodfileProperties(config, (cfg) => {
     cfg.modResults.EXPO_USE_PRECOMPILED_MODULES = "false";
+    return cfg;
+  });
+}
+
+/**
+ * Gradle JVM belleği. Şablonun 2 GB'ı release dex birleştirmesinde (D8)
+ * yetmiyor: GitHub'ın Linux makinesinde ":app:mergeDexRelease" adımı
+ * "OutOfMemoryError: Java heap space" ile düştü (yerelde şans eseri geçiyordu).
+ */
+const GRADLE_JVM_ARGS = "-Xmx4096m -XX:MaxMetaspaceSize=1024m";
+
+function withGradleMemory(config) {
+  return withGradleProperties(config, (cfg) => {
+    const key = "org.gradle.jvmargs";
+    const existing = cfg.modResults.find((item) => item.type === "property" && item.key === key);
+    if (existing) existing.value = GRADLE_JVM_ARGS;
+    else cfg.modResults.push({ type: "property", key, value: GRADLE_JVM_ARGS });
     return cfg;
   });
 }
@@ -121,6 +138,7 @@ module.exports = ({ config }) => {
       (entry) => !dropFirebase || !FIREBASE_PLUGINS.has(pluginName(entry))
     ),
     withExpoModulesFromSource,
+    withGradleMemory,
   ];
 
   return {
