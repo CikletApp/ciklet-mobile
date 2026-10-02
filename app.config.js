@@ -33,13 +33,31 @@
  * iOS'ta Firebase'i açmak için: plist'i köke koy, exclude'u kaldır ve
  * RNFB'nin istediği `use_frameworks! :linkage => :dynamic` ayarını ekle
  * (expo-build-properties `ios.useFrameworks: "dynamic"`).
+ *
+ * iOS EXPO MODÜLLERİ KAYNAKTAN: SDK 57 Podfile şablonu Expo'nun önceden
+ * derlenmiş modüllerini (xcframework) varsayılan olarak kullanıyor. Kurulu
+ * expo-modules-core 57.0.10'un hazır çerçevesi expo-modules-jsi 57.0.4'e
+ * göre derlenmiş; kilit dosyası JSI'yi 57.0.8'e çıkarınca çekirdek, JSI'de
+ * artık dışa aktarılmayan `JavaScriptActor.assumeIsolated`'ı aradı ve
+ * uygulama açılışta dyld "Symbol not found" ile düştü. Podfile özelliği
+ * `EXPO_USE_PRECOMPILED_MODULES: "false"` her Expo modülünü kurulu
+ * sürümlerden derletir; React Native çekirdeği hazır kalır.
  */
 /* global __dirname */
 const fs = require("node:fs");
 const path = require("node:path");
 const { execSync } = require("node:child_process");
+const { withPodfileProperties } = require("expo/config-plugins");
 const appJson = require("./app.json");
 const packageJson = require("./package.json");
+
+/** Podfile.properties.json → EXPO_USE_PRECOMPILED_MODULES=0 (bkz. üstteki not). */
+function withExpoModulesFromSource(config) {
+  return withPodfileProperties(config, (cfg) => {
+    cfg.modResults.EXPO_USE_PRECOMPILED_MODULES = "false";
+    return cfg;
+  });
+}
 
 const IOS_FIREBASE_PLIST = "GoogleService-Info.plist";
 const FIREBASE_PLUGINS = new Set(["@react-native-firebase/app", "@react-native-firebase/analytics"]);
@@ -98,9 +116,12 @@ module.exports = ({ config }) => {
 
   const iosFirebase = iosFirebaseEnabled();
   const dropFirebase = !iosFirebase && isIosTarget();
-  const plugins = (base.plugins ?? []).filter(
-    (entry) => !dropFirebase || !FIREBASE_PLUGINS.has(pluginName(entry))
-  );
+  const plugins = [
+    ...(base.plugins ?? []).filter(
+      (entry) => !dropFirebase || !FIREBASE_PLUGINS.has(pluginName(entry))
+    ),
+    withExpoModulesFromSource,
+  ];
 
   return {
     ...base,

@@ -158,6 +158,47 @@ plist_value() {
   /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Info.plist" 2>/dev/null || true
 }
 
+# ── Doğrulama: çerçeveler arası eksik Swift sembolü ───────────────────────
+# Uygulamadaki her ikili dosyanın, gömülü bir çerçeveye ait (Swift modül adı
+# eşleşen) tanımsız sembolleri, uygulamadaki bir ikilide tanımlı olmalı.
+# Olmazsa dyld açılışta "Symbol not found" ile düşer (hazır derlenmiş
+# ExpoModulesCore ↔ kaynaktan derlenen ExpoModulesJSI uyumsuzluğu böyleydi).
+check_linked_symbols() {
+  local work="$BUILD_DIR/symbols" images=() modules=() framework name image
+  rm -rf "$work"
+  mkdir -p "$work"
+  images+=("$APP/$(plist_value CFBundleExecutable)")
+  for framework in "$APP"/Frameworks/*.framework; do
+    [[ -d "$framework" ]] || continue
+    name="$(basename "$framework" .framework)"
+    images+=("$framework/$name")
+    modules+=("${#name}${name}")
+  done
+  : >"$work/defined"
+  for image in "${images[@]}"; do
+    xcrun nm -gU "$image" 2>/dev/null | awk '{print $NF}' >>"$work/defined"
+  done
+  sort -u "$work/defined" -o "$work/defined"
+  local pattern
+  pattern="^_\\\$s($(IFS='|'; echo "${modules[*]}"))"
+  local broken=0
+  for image in "${images[@]}"; do
+    { xcrun nm -u "$image" 2>/dev/null || true; } | awk '{print $NF}' |
+      { grep -E "$pattern" || true; } | sort -u >"$work/undefined"
+    comm -23 "$work/undefined" "$work/defined" >"$work/missing"
+    if [[ -s "$work/missing" ]]; then
+      echo "Eksik semboller — $(basename "$image"):" >&2
+      head -5 "$work/missing" >&2
+      broken=1
+    fi
+  done
+  return "$broken"
+}
+
+if ! check_linked_symbols; then
+  fail "Çerçeveler arası eksik sembol var — uygulama açılışta dyld hatasıyla düşer."
+fi
+
 VERSION="$(plist_value CFBundleShortVersionString)"
 BUILD_NUMBER="$(plist_value CFBundleVersion)"
 BUNDLE_ID="$(plist_value CFBundleIdentifier)"
