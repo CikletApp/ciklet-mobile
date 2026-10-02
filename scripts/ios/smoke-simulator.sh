@@ -10,8 +10,8 @@
 #
 #   npm ci && bash scripts/ios/smoke-simulator.sh
 #
-# Çıktılar build/ios/ altında: simulator-screen.png, simulator-console.log,
-# simulator-system.log, xcodebuild-simulator.log.
+# Çıktılar build/ios/ altında: simulator-screen.png, simulator-stdout.log,
+# simulator-stderr.log, simulator-system.log, simulator-crash/, xcodebuild-simulator.log.
 
 set -euo pipefail
 # shellcheck source=scripts/ios/common.sh
@@ -46,6 +46,9 @@ print(best[1] if best else "")
 log "Simülatör: $UDID"
 
 # ── Derle: yalnızca o simülatörün mimarisi, Release (JS paketi gömülü) ────
+# İmza KAPATILMAZ: Xcode simülatör için yerel (ad-hoc, "Sign to Run Locally")
+# imzalar ve benzetilmiş yetkileri gömer. CODE_SIGNING_ALLOWED=NO ile imzasız
+# kalan uygulama simülatörde hiç başlamıyordu (süreçten tek günlük satırı yok).
 SIM_DIR="$BUILD_DIR/simulator"
 LOG_FILE="$BUILD_DIR/xcodebuild-simulator.log"
 rm -rf "$SIM_DIR"
@@ -57,7 +60,8 @@ run_xcodebuild "$LOG_FILE" \
   -destination "id=$UDID" \
   -derivedDataPath "$SIM_DIR" \
   ONLY_ACTIVE_ARCH=YES \
-  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY=- \
+  DEVELOPMENT_TEAM= \
   build ||
   fail "Simülatör derlemesi başarısız."
 
@@ -65,38 +69,64 @@ APP="$(find "$SIM_DIR/Build/Products" -maxdepth 2 -type d -name "$SCHEME.app" | 
 [[ -d "$APP" ]] || fail "Simülatör uygulaması bulunamadı."
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
 EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
-# Apple Silicon'da arm64 kod en azından geçici (ad-hoc) imza ister.
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
+codesign --verify --deep --strict "$APP" 2>&1 | head -5 || true
 
 # ── Aç ve izle ────────────────────────────────────────────────────────────
 xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 xcrun simctl install "$UDID" "$APP"
 
-CONSOLE="$BUILD_DIR/simulator-console.log"
+STDOUT_LOG="$BUILD_DIR/simulator-stdout.log"
+STDERR_LOG="$BUILD_DIR/simulator-stderr.log"
 SYSTEM_LOG="$BUILD_DIR/simulator-system.log"
 SCREENSHOT="$BUILD_DIR/simulator-screen.png"
+CRASH_DIR="$BUILD_DIR/simulator-crash"
+REPORTS="$HOME/Library/Logs/DiagnosticReports"
+MARKER="$BUILD_DIR/.launch-marker"
+rm -rf "$CRASH_DIR"
+mkdir -p "$CRASH_DIR" "$REPORTS"
+: >"$MARKER"
 
 log "$BUNDLE_ID açılıyor, $WAIT_SECONDS sn izlenecek"
-xcrun simctl launch --terminate-running-process --console-pty "$UDID" "$BUNDLE_ID" >"$CONSOLE" 2>&1 &
-LAUNCHER=$!
-sleep "$WAIT_SECONDS"
+LAUNCH_OUTPUT="$(xcrun simctl launch --terminate-running-process \
+  --stdout="$STDOUT_LOG" --stderr="$STDERR_LOG" "$UDID" "$BUNDLE_ID" 2>&1)" ||
+  fail "simctl launch başarısız: $LAUNCH_OUTPUT"
+echo "$LAUNCH_OUTPUT"
+PID="$(printf '%s\n' "$LAUNCH_OUTPUT" | sed -nE 's/^.*: ([0-9]+)$/\1/p' | tail -1)"
+[[ -n "$PID" ]] || fail "simctl launch süreç kimliği vermedi: $LAUNCH_OUTPUT"
+
+# Simülatördeki uygulama sunucuda sıradan bir süreç: kimliğiyle izlenir.
+ALIVE_FOR=0
+while ((ALIVE_FOR < WAIT_SECONDS)); do
+  kill -0 "$PID" 2>/dev/null || break
+  sleep 3
+  ALIVE_FOR=$((ALIVE_FOR + 3))
+done
 
 xcrun simctl io "$UDID" screenshot "$SCREENSHOT" >/dev/null 2>&1 || true
-ALIVE=0
-if xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "UIKitApplication:$BUNDLE_ID"; then
-  ALIVE=1
-fi
 xcrun simctl spawn "$UDID" log show --last 5m --style compact \
-  --predicate "process == \"$EXECUTABLE\"" >"$SYSTEM_LOG" 2>/dev/null || true
-kill "$LAUNCHER" >/dev/null 2>&1 || true
+  --predicate "process == \"$EXECUTABLE\" OR eventMessage CONTAINS[c] \"$BUNDLE_ID\"" \
+  >"$SYSTEM_LOG" 2>/dev/null || true
+find "$REPORTS" -newer "$MARKER" -name "${EXECUTABLE}*" -exec cp {} "$CRASH_DIR/" \; 2>/dev/null || true
 
-FATAL='Unhandled JS Exception|Symbol not found|Library not loaded|Terminating app due to uncaught exception|RCTFatal'
-if grep -E -h "$FATAL" "$CONSOLE" "$SYSTEM_LOG" 2>/dev/null | head -20 >&2; then
-  fail "Uygulama simülatörde açılışta hata verdi (günlükler artifact'ta)."
+FATAL='Unhandled JS Exception|Symbol not found|Library not loaded|Terminating app due to uncaught exception|RCTFatal|CODESIGNING'
+FOUND=0
+if grep -E -h "$FATAL" "$STDOUT_LOG" "$STDERR_LOG" "$SYSTEM_LOG" "$CRASH_DIR"/* 2>/dev/null | head -20 >&2; then
+  FOUND=1
 fi
-[[ $ALIVE -eq 1 ]] || fail "Uygulama simülatörde $WAIT_SECONDS sn dolmadan kapandı."
+if [[ -n "$(ls -A "$CRASH_DIR" 2>/dev/null)" ]]; then
+  echo "── çökme raporu (ilk 60 satır) ──" >&2
+  head -n 60 "$(ls -t "$CRASH_DIR"/* | head -1)" >&2 || true
+  FOUND=1
+fi
 
+if ((FOUND == 1)) || ((ALIVE_FOR < WAIT_SECONDS)); then
+  echo "── simülatör günlüğü (son 40 satır) ──" >&2
+  tail -n 40 "$SYSTEM_LOG" >&2 || true
+  fail "Uygulama simülatörde $ALIVE_FOR. saniyede kapandı ya da hata verdi (günlükler artifact'ta)."
+fi
+
+kill "$PID" >/dev/null 2>&1 || true
 log "Duman testi geçti: $BUNDLE_ID simülatörde $WAIT_SECONDS sn ayakta kaldı."
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then

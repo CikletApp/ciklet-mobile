@@ -35,6 +35,10 @@ on:
         description: Simülatörde açılış testi de yapılsın (macOS dakikası ~2 kat)
         type: boolean
         default: false
+      ipa_derle:
+        description: IPA derlensin (kapatılırsa yalnızca simülatör testi koşar)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -46,6 +50,7 @@ concurrency:
 jobs:
   ipa:
     name: İmzasız IPA
+    if: ${{ inputs.ipa_derle }}
     runs-on: ${{ inputs.makine == 'benim-mac' && fromJSON('["self-hosted", "macOS"]') || 'macos-26' }}
     timeout-minutes: 120
     steps:
@@ -115,8 +120,10 @@ jobs:
           name: ios-simulator-test
           path: |
             build/ios/simulator-screen.png
-            build/ios/simulator-console.log
+            build/ios/simulator-stdout.log
+            build/ios/simulator-stderr.log
             build/ios/simulator-system.log
+            build/ios/simulator-crash/
             build/ios/xcodebuild-simulator.log
           if-no-files-found: ignore
           retention-days: 7
