@@ -12,6 +12,10 @@
 # Çıktı: "ciklet-<sürüm>-<commit>-unsigned" adlı artifact (içinde .ipa).
 # Derleme mantığı scripts/ios/build-unsigned.sh'ta; Mac'te elle de çalışır.
 #
+# simulator_testi = true: aynı commit simülatör için de derlenir, iPhone
+# simülatöründe açılır ve ayakta kaldığı doğrulanır (scripts/ios/smoke-simulator.sh).
+# Paralel ikinci iş olduğu için macOS dakikası yaklaşık iki katına çıkar.
+#
 # Yalnızca workflow_dispatch: yazma yetkisi olmayan biri (ör. çatal PR'ı)
 # kendi Mac'inde kod çalıştıramasın.
 
@@ -27,6 +31,10 @@ on:
           - github-macos
           - benim-mac
         default: github-macos
+      simulator_testi:
+        description: Simülatörde açılış testi de yapılsın (macOS dakikası ~2 kat)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -74,5 +82,41 @@ jobs:
         with:
           name: ios-xcodebuild-log
           path: build/ios/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  simulator:
+    name: Simülatörde açılış testi
+    if: ${{ inputs.simulator_testi }}
+    runs-on: ${{ inputs.makine == 'benim-mac' && fromJSON('["self-hosted", "macOS"]') || 'macos-26' }}
+    timeout-minutes: 120
+    steps:
+      - name: Kodu al (tam geçmiş — sürüm = commit sayısı)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Simülatörde derle, aç ve izle
+        run: bash scripts/ios/smoke-simulator.sh
+
+      - name: Ekran görüntüsü ve günlükler
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-simulator-test
+          path: |
+            build/ios/simulator-screen.png
+            build/ios/simulator-console.log
+            build/ios/simulator-system.log
+            build/ios/xcodebuild-simulator.log
           if-no-files-found: ignore
           retention-days: 7

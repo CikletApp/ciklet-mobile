@@ -2,8 +2,6 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { useSegments } from "expo-router";
-import { getApps } from "@react-native-firebase/app";
-import { getAnalytics, logScreenView } from "@react-native-firebase/analytics";
 
 /**
  * Firebase Analytics (Google Analytics 4).
@@ -16,25 +14,35 @@ import { getAnalytics, logScreenView } from "@react-native-firebase/analytics";
  * Gerçek adres sohbet ve profil kimliklerini taşırdı; hem raporlar binlerce
  * tekil satıra bölünür hem de kullanıcıya ait kimlikler Analytics'e giderdi.
  *
- * iOS'ta Firebase yapılandırması (GoogleService-Info.plist) yoksa yerel
- * modül hiç bağlanmıyor (package.json expo.autolinking.ios.exclude); çağrı
- * "Native module ... is not registered" fırlatır ve efekt içinde fırlayan
- * hata uygulamayı düşürürdü. O durumda analitik kapalı kalır.
+ * Firebase modülleri STATİK İÇE AKTARILMAZ. iOS'ta Firebase yapılandırması
+ * (GoogleService-Info.plist) yoksa yerel modül hiç bağlanmıyor (package.json
+ * expo.autolinking.ios.exclude) ve @react-native-firebase/app daha içe
+ * aktarılırken yerel modülü arıyor: "Native module NativeRNFBTurboApp is not
+ * registered" fırlatıp uygulamayı açılışta düşürüyordu. Modüller yalnızca
+ * Firebase bağlıysa, ilk ekran kaydında yüklenir.
  */
-let enabled: boolean | null = null;
+type AnalyticsModule = typeof import("@react-native-firebase/analytics");
+type AppModule = typeof import("@react-native-firebase/app");
 
-function analyticsEnabled(): boolean {
-  if (enabled !== null) return enabled;
+/** `undefined`: henüz denenmedi; `null`: Firebase yok, analitik kapalı. */
+let analytics: AnalyticsModule | null | undefined;
+
+function loadAnalytics(): AnalyticsModule | null {
+  if (analytics !== undefined) return analytics;
+  analytics = null;
   if (Platform.OS === "ios" && Constants.expoConfig?.extra?.iosFirebase !== true) {
-    enabled = false;
-    return enabled;
+    return analytics;
   }
   try {
-    enabled = getApps().length > 0;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const app = require("@react-native-firebase/app") as AppModule;
+    if (app.getApps().length === 0) return analytics;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    analytics = require("@react-native-firebase/analytics") as AnalyticsModule;
   } catch {
-    enabled = false;
+    analytics = null;
   }
-  return enabled;
+  return analytics;
 }
 
 export function useScreenTracking() {
@@ -43,13 +51,16 @@ export function useScreenTracking() {
   const screen = `/${segments.filter((segment) => !segment.startsWith("(")).join("/")}`;
 
   useEffect(() => {
-    if (!analyticsEnabled()) return;
+    const firebase = loadAnalytics();
+    if (!firebase) return;
     try {
-      logScreenView(getAnalytics(), { screen_name: screen, screen_class: screen }).catch(() => {
-        // Analitik hiçbir akışı bozmamalı (Play Services yok, ağ yok…).
-      });
+      firebase
+        .logScreenView(firebase.getAnalytics(), { screen_name: screen, screen_class: screen })
+        .catch(() => {
+          // Analitik hiçbir akışı bozmamalı (Play Services yok, ağ yok…).
+        });
     } catch {
-      // Eşzamanlı hata da (yerel modül yok) akışı bozmamalı.
+      // Eşzamanlı hata da akışı bozmamalı.
     }
   }, [screen]);
 }
