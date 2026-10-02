@@ -99,6 +99,18 @@ export const ServerEvent = {
   CALL_CANCELLED: "call.cancelled",
   /** `{ callId, status }` — başka cihazında yanıtladın. */
   CALL_HANDLED_ELSEWHERE: "call.handled_elsewhere",
+  /** `{ profile: { id, imageUrl, bannerUrl, displayName } }` — görsel profil alanları değişti. */
+  PROFILE_UPDATED: "profile.updated",
+  /** `{ serverId }` — kanal/kategori eklendi, silindi, taşındı. */
+  SERVER_CHANNELS_UPDATED: "server.channels_updated",
+  /** `{ messageId, content, senderName, senderImage, channelId, serverId, channelName }` */
+  MENTION: "mention",
+  /** Aktivite odası görüntüsü: `{ chatId, participants, hostId, state, activity? }`. */
+  ACTIVITY_UPDATE: "activity.update",
+  /** `{ chatId, version, patch, transient, state, senderId, seq }` */
+  ACTIVITY_SYNC: "activity.sync",
+  /** `{ chatId }` */
+  ACTIVITY_ENDED: "activity.ended",
 } as const;
 
 // ── Yük tipleri ─────────────────────────────────────────────────────

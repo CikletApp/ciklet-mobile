@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type RefObject } from "react";
 import { BackHandler, Keyboard, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,6 +33,12 @@ import {
 
 /** Panel içinde arama yazılırken klavyenin üstünde kalan dar panelin boyu. */
 const SEARCH_PANEL_HEIGHT = 180;
+
+/** Sohbet ekranının panele dışarıdan erişimi — eski mesajlara kaydırınca kapatmak için. */
+export interface ComposerHandle {
+  closePanel: () => void;
+  isPanelOpen: () => boolean;
+}
 const INPUT_BUTTON_SIZE = 36;
 
 export function Composer({
@@ -51,6 +57,7 @@ export function Composer({
   onSelectGif,
   onSelectActivity,
   commandsAvailable = false,
+  controlRef,
 }: {
   inputRef: RefObject<TextInput | null>;
   value: string;
@@ -68,6 +75,7 @@ export function Composer({
   onSelectActivity: (activityId: string) => void;
   /** Kanaldaki botların "/" komutu var — klavye açıkken "/" düğmesi görünür. */
   commandsAvailable?: boolean;
+  controlRef?: RefObject<ComposerHandle | null>;
 }) {
   const insets = useSafeAreaInsets();
   const { height: keyboardHeight, visible: keyboardVisible } = useKeyboardSpace();
@@ -127,6 +135,8 @@ export function Composer({
     setPanel(null);
     setSearching(false);
   };
+
+  useImperativeHandle(controlRef, () => ({ closePanel, isPanelOpen: () => panelOpen }), [panelOpen]);
 
   /** Klavye düğmesi: yazmaya dönülür, boş alan kalmasın diye klavye gelir. */
   const returnToKeyboard = () => {

@@ -299,6 +299,12 @@ export interface ActivitySummary {
   icon: string;
   description?: string;
   isVerified?: boolean;
+  /**
+   * FETCH_EXTERNAL izin listesi (ciklet-web c13ff2fc): "https origin + '/'
+   * ile biten yol öneki" girdileri; yalnızca sunucuda ACTIVITY_FETCH_ALLOWLIST
+   * yapılandırıldıysa gelir. Bkz. features/activities/bridge.ts.
+   */
+  fetchAllowlist?: string[] | null;
 }
 
 /** Presence deposu için normalize edilmiş kayıt. */

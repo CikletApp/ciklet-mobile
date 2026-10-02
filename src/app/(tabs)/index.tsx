@@ -20,6 +20,7 @@ import type { DirectSummary } from "@/api/types";
 import {
   Avatar,
   Button,
+  GroupAvatar,
   DropdownMenu,
   emojify,
   EmptyState,
@@ -407,21 +408,17 @@ function ConversationRow({
           backgroundColor: pressed ? colors.raised : colors.bg,
         })}
       >
-        {display.isGroup && !display.imageUrl ? (
-          // Görselsiz grup: baş harfler yerine grup simgesi — satırın bir
-          // kişi değil grup olduğu ilk bakışta okunur.
-          <View
-            style={{
-              width: ROW_AVATAR,
-              height: ROW_AVATAR,
-              borderRadius: ROW_AVATAR / 2,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.brandSoft,
-            }}
-          >
-            <Icon name="users" size={26} color={colors.brand} />
-          </View>
+        {display.isGroup ? (
+          // Grup: web'deki gibi üyelerin avatarlarından örülü ikon (grubun
+          // görseli varsa o) — satırın kimlerle olduğu ilk bakışta okunur.
+          <GroupAvatar
+            members={display.members}
+            excludeId={myId}
+            imageUrl={display.imageUrl}
+            name={display.title}
+            size={ROW_AVATAR}
+            backgroundColor={colors.bg}
+          />
         ) : (
           <Avatar
             profileId={display.peer?.id}

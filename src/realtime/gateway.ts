@@ -95,6 +95,19 @@ const SUBSCRIBE_RETRY_LIMIT = 7;
  * yenileme 401 alır ve istemci zaten çıkış akışına düşer.
  */
 const REFRESH_AFTER_FAILURES = 3;
+/**
+ * Yanıtsız kalan ardışık heartbeat sayısı bunu aşınca soket "zombi" sayılır.
+ *
+ * Android, uygulama arka plandayken JS zamanlayıcılarını donduruyor ve ağ
+ * geçidi 60 sn sessizlikte bağlantıyı kapatıyor; ama RN'in WebSocket nesnesi
+ * TCP kapanışını çoğu zaman GÖRMÜYOR ve readyState OPEN kalıyor. Böyle bir
+ * sokete abonelik yeniden gönderilmiyor, mesaj da gelmiyordu — kullanıcı
+ * uygulamayı yeniden başlatana kadar sohbet "donuyordu". Canlılığın tek
+ * kanıtı "heartbeat.ack"; o gelmiyorsa bağlantı baştan kurulur.
+ */
+const MAX_UNANSWERED_HEARTBEATS = 2;
+/** Ön plana dönüşte son ack bundan eskiyse soket sorgusuz yenilenir. */
+const ZOMBIE_AFTER_MS = HEARTBEAT_INTERVAL_MS * 2 + 5_000;
 
 /** Backoff + tam sapma: [backoff/2, backoff). */
 function jittered(attempt: number): number {
@@ -112,6 +125,10 @@ class GatewayConnection {
   private reconnectAttempt = 0;
   private failuresSinceOpen = 0;
   private state: ConnectionState = "idle";
+  /** Son "heartbeat.ack" zamanı — bağlantının gerçekten canlı olduğunun kanıtı. */
+  private lastAckAt = 0;
+  /** Yanıt alınmadan gönderilen ardışık heartbeat sayısı. */
+  private unansweredHeartbeats = 0;
 
   private readonly chatListeners = new Map<string, Set<Listener<MessageEnvelope>>>();
   private readonly eventListeners = new Map<string, Set<Listener<GatewayFrame>>>();
@@ -157,7 +174,17 @@ class GatewayConnection {
    */
   wake(): void {
     if (!this.active) return;
-    if (this.socket?.readyState === WebSocket.OPEN) return;
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      // OPEN görünen soket arka planda ölmüş olabilir (bkz. ZOMBIE_AFTER_MS):
+      // son ack eskiyse sorgusuz yenilenir, değilse bir heartbeat ile yoklanır
+      // ve cevap gelmezse zamanlayıcı yeniden kurar.
+      if (Date.now() - this.lastAckAt > ZOMBIE_AFTER_MS) {
+        this.restart();
+      } else {
+        this.probe();
+      }
+      return;
+    }
     this.clearReconnect();
     this.reconnectAttempt = 0;
     void this.open();
@@ -166,6 +193,7 @@ class GatewayConnection {
   /** Oturum kimliği değişti: eski çerezle açılmış soket kapatılıp yenisi kurulur. */
   restart(): void {
     if (!this.active) return;
+    this.stopHeartbeat();
     this.retire(this.socket);
     this.socket = null;
     this.clearReconnect();
@@ -213,6 +241,8 @@ class GatewayConnection {
       this.socket = socket;
       this.reconnectAttempt = 0;
       this.failuresSinceOpen = 0;
+      this.lastAckAt = Date.now();
+      this.unansweredHeartbeats = 0;
       this.resubscribeAll(socket);
       this.startHeartbeat();
       this.setState("connected");
@@ -265,8 +295,17 @@ class GatewayConnection {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      this.send({ event_type: "heartbeat" });
+      if (this.unansweredHeartbeats >= MAX_UNANSWERED_HEARTBEATS) {
+        this.restart();
+        return;
+      }
+      this.probe();
     }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  /** Bir heartbeat gönderir; cevabı handleFrame sayar. */
+  private probe(): void {
+    if (this.send({ event_type: "heartbeat" })) this.unansweredHeartbeats += 1;
   }
 
   private stopHeartbeat(): void {
@@ -316,6 +355,11 @@ class GatewayConnection {
 
     const eventType = frame.eventType;
     if (typeof eventType !== "string") return;
+
+    if (eventType === "heartbeat.ack") {
+      this.lastAckAt = Date.now();
+      this.unansweredHeartbeats = 0;
+    }
 
     if (eventType.startsWith("chat.")) {
       if (eventType === "chat.subscribed" && typeof frame.chatId === "string") {

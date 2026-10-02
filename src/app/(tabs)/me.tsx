@@ -1,5 +1,6 @@
 import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
+import { Image } from "expo-image";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import { useCurrentProfile, useFriends, useMentolPlan } from "@/api/hooks";
@@ -56,6 +57,8 @@ export default function MeScreen() {
   const plan = useMentolPlan();
 
   const me = profile ?? sessionProfile;
+  // Oturum profili (giriş yanıtı) afişi taşımıyor; yalnızca /current-profile taşır.
+  const bannerUrl = (me as { bannerUrl?: string | null } | null)?.bannerUrl ?? null;
   const activity = formatActivity(usePresence(me?.id).activity);
 
   return (
@@ -68,7 +71,14 @@ export default function MeScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET + spacing.lg }}>
         {/* Profil kartı — web'deki profil kartıyla aynı dil: bant rengi + avatar. */}
         <View style={{ marginHorizontal: spacing.lg, marginTop: spacing.sm, borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.bentoBorder }}>
-          <View style={{ height: 84, backgroundColor: me?.bannerColor ?? colors.brandSoft }} />
+          {/* Afiş: görsel varsa görsel (web ile aynı öncelik), yoksa bant rengi.
+              Görsel hiç çizilmediği için yüklenen afiş yerine hep düz renk
+              görünüyordu. */}
+          <View style={{ height: 84, backgroundColor: me?.bannerColor ?? colors.brandSoft }}>
+            {bannerUrl ? (
+              <Image source={{ uri: bannerUrl }} contentFit="cover" transition={150} style={{ width: "100%", height: "100%" }} />
+            ) : null}
+          </View>
           <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>
             <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -38 }}>
               <View style={{ borderRadius: 44, borderWidth: 5, borderColor: colors.panel }}>

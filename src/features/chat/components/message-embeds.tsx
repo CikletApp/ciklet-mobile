@@ -1,10 +1,9 @@
-import { useState } from "react";
 import { Linking, Text, View } from "react-native";
 import { Image } from "expo-image";
 
 import { Pressable } from "@/components/ui";
+import { openImageViewer } from "@/components/ui/image-viewer";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
-import { ImageViewer } from "./message-attachment";
 import { MessageMarkdown } from "./message-markdown";
 import { fw } from "@/theme/fonts";
 
@@ -32,18 +31,14 @@ interface RichEmbed {
  * tarayıcıda açılıyor ve kullanıcıyı Ciklet dışına çıkarıyordu.
  */
 function EmbedImage({ url }: { url: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <>
-      <Pressable onPress={() => setOpen(true)} noHitSlop accessibilityRole="imagebutton" accessibilityLabel="Görseli büyüt">
-        <Image
-          source={{ uri: url }}
-          contentFit="contain"
-          style={{ width: "100%", aspectRatio: 16 / 9, maxHeight: 300, borderRadius: radii.sm, backgroundColor: colors.deep }}
-        />
-      </Pressable>
-      <ImageViewer url={url} visible={open} onClose={() => setOpen(false)} />
-    </>
+    <Pressable onPress={() => openImageViewer(url)} noHitSlop accessibilityRole="imagebutton" accessibilityLabel="Görseli büyüt">
+      <Image
+        source={{ uri: url }}
+        contentFit="contain"
+        style={{ width: "100%", aspectRatio: 16 / 9, maxHeight: 300, borderRadius: radii.sm, backgroundColor: colors.deep }}
+      />
+    </Pressable>
   );
 }
 

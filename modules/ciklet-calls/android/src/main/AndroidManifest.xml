@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Kilit ekranında tam ekran gelen arama (Android 14+'ta kullanıcı onayı da gerekebilir). -->
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <uses-permission android:name="android.permission.VIBRATE" />
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <application>
+    <!-- "Reddet" eylemi: uygulama kapalıyken bile bildirimi düşürür ve sunucuya bildirir. -->
+    <receiver
+      android:name="expo.modules.cikletcalls.CallActionReceiver"
+      android:exported="false" />
+  </application>
+</manifest>

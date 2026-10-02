@@ -1,7 +1,7 @@
 {
   "name": "ciklet-mobile",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "0.2.2",
   "dependencies": {
     "@ciklet/embedded-activities-sdk": "github:CikletApp/ciklet-sdk",
     "@emoji-mart/data": "1.2.1",
@@ -23,6 +23,7 @@
     "@twemoji/parser": "^17.0.2",
     "expo": "~57.0.11",
     "expo-application": "~57.0.2",
+    "expo-audio": "~57.0.5",
     "expo-blur": "~57.0.2",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.6",
@@ -35,6 +36,7 @@
     "expo-glass-effect": "~57.0.1",
     "expo-haptics": "~57.0.1",
     "expo-image": "~57.0.2",
+    "expo-image-picker": "~57.0.20",
     "expo-keep-awake": "~57.0.1",
     "expo-linking": "~57.0.5",
     "expo-notifications": "~57.0.9",
@@ -44,6 +46,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.2",
+    "expo-task-manager": "~57.0.21",
     "expo-video": "~57.0.5",
     "expo-web-browser": "~57.0.2",
     "react": "19.2.3",

@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { AppState } from "react-native";
-import { router } from "expo-router";
 import * as Notifications from "expo-notifications";
 
 import {
@@ -8,13 +7,23 @@ import {
   registerPushToken,
   setupNotifications,
 } from "@/lib/notifications";
+import {
+  handleDataPush,
+  parsePushData,
+  pushSeenKey,
+  registerBackgroundNotificationTask,
+  rememberSeen,
+} from "@/lib/notification-task";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
+import { handleNotificationResponse } from "./notification-response";
 
 /**
  * Push token kaydı, bildirime dokunma ve rozet yaşam döngüsü.
- * Mesajın kendisini sunucu yollar; soketten ayrı bir yerel bildirim
- * üretmek arka planda iki aynı bildirim oluştururdu.
+ *
+ * Android'de sunucu veri-only push atar; bildirimi lib/notification-task
+ * çizer (uygulama kapalıyken de). iOS'ta sunucu başlık/gövdeli push atar,
+ * sistem gösterir. Ön planda ikisi de buradaki dinleyiciye düşer.
  */
 export function useMessageNotifications() {
   const status = useAuth((s) => s.status);
@@ -27,19 +36,22 @@ export function useMessageNotifications() {
     void setupNotifications().then((ok) => {
       if (cancelled) return;
       // İzin varsa push token'ını sunucuya bildir — uygulama tamamen
-      // kapalıyken bildirim almanın tek yolu bu.
-      if (ok) void registerPushToken();
+      // kapalıyken bildirim almanın tek yolu bu — ve arka plan görevini kur.
+      if (ok) {
+        void registerPushToken();
+        void registerBackgroundNotificationTask();
+      }
     });
     return () => {
       cancelled = true;
     };
   }, [notificationsEnabled, status]);
 
-  // Bildirime dokunulunca ilgili sohbete git.
+  // Bildirime dokunulunca ilgili sohbete git; "Yanıtla"/"Okundu" eylemleri
+  // uygulamayı açmadan işlenir.
   useEffect(() => {
     const openResponse = (response: Notifications.NotificationResponse | null) => {
-      const target = routeForNotification(response?.notification.request.content.data);
-      if (target) router.push(target as never);
+      void handleNotificationResponse(response);
     };
 
     // Soğuk başlatmada dinleyici kurulmadan önce dokunulmuş olabilir.
@@ -58,30 +70,24 @@ export function useMessageNotifications() {
     return () => subscription.remove();
   }, []);
 
-}
-
-/**
- * Bildirim verisinden açılacak mobil ekran.
- *
- * Sunucunun push'ları WEB adresi taşıyor (`/direct/<profil>`,
- * `/direct/group/<id>`); mobilde bu yollar yok ve dokunmak "sayfa
- * bulunamadı"ya düşüyordu. Her mesaj ve arama push'u `directId` de
- * taşıdığından önce o kullanılır. Arkadaşlık bildirimleri arkadaşlar
- * ekranına gider. Yerel bildirimler (`notifyMessage`) zaten mobil yol taşır.
- */
-function routeForNotification(data: Record<string, unknown> | undefined): string | null {
-  if (!data) return null;
-  const directId = typeof data.directId === "string" ? data.directId : "";
-  if (directId) return `/chat/direct/${encodeURIComponent(directId)}`;
-  const type = typeof data.type === "string" ? data.type.toUpperCase() : "";
-  // Arkadaşlık push'ları (ciklet-web-a5, ac34827): istek satırda kabul/ret
-  // edilebildiği için Bildirimler sekmesine, kabul Arkadaşlar'a gider.
-  if (type === "FRIEND_REQUEST") return "/notifications";
-  if (type === "FRIEND_ACCEPTED") return "/friends";
-  const url = typeof data.url === "string" ? data.url : "";
-  const group = /^\/direct\/group\/([^/?#]+)/.exec(url);
-  if (group) return `/chat/direct/${group[1]}`;
-  // Bilinen mobil yollar olduğu gibi; web'e özgü diğerleri açılmaz.
-  if (/^\/(chat|friends|notifications|servers|profile|settings)(\/|$)/.test(url)) return url;
-  return null;
+  /**
+   * Uygulama ÖN PLANDAYKEN gelen push: sistem bildirimi bastırılıyor
+   * (handler), olay ağ geçidinden zaten geliyor. Ama soket kopuksa ya da
+   * zombiyse push tek haberci — karar handleDataPush'ta (arama → bekleyen
+   * davetler ve zil; mesaj → bağlantı yoksa uygulama içi kart). Aynı push
+   * arka plan görevine de düşmüş olabilir; rememberSeen ikinciyi eler.
+   */
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      if (AppState.currentState !== "active") return;
+      const content = notification.request.content;
+      const data = parsePushData(content.data) ?? parsePushData({ ...(content.data ?? {}), type: "message" });
+      if (!data) return;
+      if (!data.title && content.title) data.title = content.title;
+      if (!data.body && content.body) data.body = content.body;
+      if (!rememberSeen(pushSeenKey(data))) return;
+      void handleDataPush(data);
+    });
+    return () => subscription.remove();
+  }, []);
 }

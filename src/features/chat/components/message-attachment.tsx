@@ -1,11 +1,11 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { ActivityIndicator, Modal, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { useEventListener } from "expo";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Icon, IconButton, Pressable, ToastHost, showToast, type IconName } from "@/components/ui";
+import { Icon, IconButton, Pressable, showToast, type IconName } from "@/components/ui";
+import { openImageViewer } from "@/components/ui/image-viewer";
 import {
   attachmentDisplayName,
   classifyAttachment,
@@ -21,7 +21,8 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 /**
  * Mesaj eki — ciklet-web `components/chat/v2/message-attachment.tsx`.
  *
- * Görsel gerçek oranıyla çizilir ve dokununca tam ekran açılır; video
+ * Görsel gerçek oranıyla çizilir ve dokununca kökteki tek görüntüleyicide
+ * (components/ui/image-viewer: yaklaştırma, çekerek kapatma) açılır; video
  * uygulamanın içinde oynar; ses, PDF, metin ve diğerleri ad + boyut taşıyan
  * dosya kartıdır. Tür kararı `lib/attachments.ts`'te (web'le aynı sıra).
  *
@@ -176,13 +177,12 @@ function ImageAttachment({
   onError?: () => void;
 }) {
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
-  const [viewerOpen, setViewerOpen] = useState(false);
 
   return (
     <>
       <Pressable
         noHitSlop
-        onPress={() => setViewerOpen(true)}
+        onPress={() => openImageViewer(url, info)}
         onLongPress={onLongPress}
         delayLongPress={LONG_PRESS_DELAY}
         accessibilityRole="imagebutton"
@@ -214,54 +214,7 @@ function ImageAttachment({
         />
         {overlay ? <MediaOverlay>{overlay}</MediaOverlay> : null}
       </Pressable>
-      <ImageViewer url={url} info={info} visible={viewerOpen} onClose={() => setViewerOpen(false)} />
     </>
-  );
-}
-
-/** Tam ekran görsel — web'deki `imageModal`. Tarayıcıya çıkış yok; İndir var. */
-export function ImageViewer({
-  url,
-  info = null,
-  visible,
-  onClose,
-}: {
-  url: string;
-  info?: AttachmentInfo | null;
-  visible: boolean;
-  onClose: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const download = useDownload(url, info);
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <Pressable noHitSlop onPress={onClose} accessibilityLabel="Kapat" style={{ flex: 1 }}>
-          <Image source={{ uri: url }} contentFit="contain" style={{ flex: 1 }} />
-        </Pressable>
-        <View
-          style={{
-            position: "absolute",
-            top: insets.top + spacing.sm,
-            right: spacing.md,
-            flexDirection: "row",
-            gap: spacing.sm,
-          }}
-        >
-          {download.busy ? (
-            <View style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
-              <ActivityIndicator color="#ffffff" />
-            </View>
-          ) : (
-            <IconButton icon="download" label="İndir" onPress={download.start} background="rgba(0,0,0,0.5)" tint="#ffffff" />
-          )}
-          <IconButton icon="close" label="Kapat" onPress={onClose} background="rgba(0,0,0,0.5)" tint="#ffffff" />
-        </View>
-        {/* Modal ayrı bir pencere; kökteki bildirim şeridi arkasında kalırdı. */}
-        <ToastHost />
-      </View>
-    </Modal>
   );
 }
 

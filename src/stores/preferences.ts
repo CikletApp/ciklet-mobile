@@ -20,6 +20,13 @@ interface PreferenceValues {
   notificationSounds: boolean;
   /** Yalnız bu cihazdaki DM sırası; sunucu tarafı kişisel pin alanı sunmuyor. */
   pinnedDirectIds: string[];
+  /**
+   * Sohbet arka planı — Mentol özelliği. Görsel uygulamanın belge dizinine
+   * kopyalanır (galeri adresi kalıcı değil); yalnızca bu cihazda geçerli.
+   */
+  chatBackgroundUri: string | null;
+  /** Arka planın üstüne binen zemin rengi katmanının saydamlığı (0–0.8). */
+  chatBackgroundDim: number;
 }
 
 interface PreferenceState extends PreferenceValues {
@@ -41,6 +48,8 @@ const defaults: PreferenceValues = {
   friendNotifications: true,
   notificationSounds: true,
   pinnedDirectIds: [],
+  chatBackgroundUri: null,
+  chatBackgroundDim: 0.35,
 };
 
 function persistedValues(state: PreferenceState): PreferenceValues {
@@ -57,6 +66,8 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     friendNotifications: state.friendNotifications,
     notificationSounds: state.notificationSounds,
     pinnedDirectIds: state.pinnedDirectIds,
+    chatBackgroundUri: state.chatBackgroundUri,
+    chatBackgroundDim: state.chatBackgroundDim,
   };
 }
 

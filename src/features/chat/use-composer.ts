@@ -1,9 +1,13 @@
 import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import type { ChatKind } from "@/api/hooks";
+import { qk } from "@/api/query-keys";
+import type { ChatMessagePayload } from "@/realtime/events";
 import { useOutbox, type OutboxMessage, type OutboxPayload } from "@/stores/outbox";
+import type { MessageCache } from "./reaction-cache";
 
 /**
  * Mesaj gönderimi — iyimser.
@@ -12,12 +16,13 @@ import { useOutbox, type OutboxMessage, type OutboxPayload } from "@/stores/outb
  *  1. Mesaj outbox'a "sending" olarak yazılır ve LİSTEDE HEMEN görünür.
  *  2. HTTP isteği gider (uç, Socket.IO sunucusunun HTTP tarafıdır: kaydeder
  *     ve odaya yayınlar).
- *  3. Yayın geri geldiğinde `use-chat-stream` outbox'taki eşleşen kaydı
- *     düşürür — geçici satır yerini gerçek mesaja bırakır.
+ *  3. Yanıt gelir gelmez sunucunun döndürdüğü mesaj cache'e yazılır ve
+ *     geçici satır düşürülür — aynı anda olduğu için kare kaybı yok. Yayın
+ *     daha sonra gelirse kimliğe göre elenir (`use-chat-stream`).
+ *     Eskiden yalnızca yayın bekleniyordu: soket kopuk ya da zombiyken
+ *     gönderilen mesaj "gönderiliyor"da takılı kalıyor, karşı taraf görse
+ *     de gönderen görmüyordu.
  *  4. İstek başarısızsa kayıt "failed" olur; kullanıcı yeniden dener.
- *
- * Not: başarı yanıtında kaydı SİLMİYORUZ. Yayın her zaman yanıttan sonra
- * gelmez; silseydik mesaj bir kare kaybolur, sonra yeniden belirirdi.
  */
 /** Gönderilen ek — yükleme sonucundan ya da GIF seçiciden. */
 export interface ComposerAttachment {
@@ -36,17 +41,30 @@ export function useComposer(
   const markFailed = useOutbox((s) => s.markFailed);
   const markSending = useOutbox((s) => s.markSending);
   const remove = useOutbox((s) => s.remove);
+  const queryClient = useQueryClient();
 
   const deliver = useCallback(
     async (outboxId: string, content: string, payload: OutboxPayload) => {
       if (!chatId) return;
       try {
-        await api(
+        const created = await api<Partial<ChatMessagePayload> | undefined>(
           kind === "channel"
             ? endpoints.sendChannelMessage(chatId, serverId ?? "")
             : endpoints.sendDirectMessage(chatId),
           { method: "POST", body: { content, ...payload } }
         );
+        // Yanıt sunum katmanından geçmiş tam mesaj (geçmiş satırlarıyla aynı
+        // şekil). Kimliği varsa listeye hemen yazılır; yoksa yayın bekler.
+        if (created && typeof created.id === "string" && typeof created.createdAt === "string") {
+          const message = created as ChatMessagePayload;
+          queryClient.setQueryData<MessageCache>(qk.messages.chat(chatId), (old) => {
+            if (!old?.pages?.length) return old;
+            if (old.pages.some((page) => page.items.some((item) => item.id === message.id))) return old;
+            const [newest, ...rest] = old.pages;
+            return { ...old, pages: [{ ...newest, items: [message, ...newest.items] }, ...rest] };
+          });
+          remove(outboxId);
+        }
       } catch (err) {
         markFailed(
           outboxId,
@@ -54,7 +72,7 @@ export function useComposer(
         );
       }
     },
-    [chatId, kind, serverId, markFailed]
+    [chatId, kind, serverId, markFailed, remove, queryClient]
   );
 
   const send = useCallback(

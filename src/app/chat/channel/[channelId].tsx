@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { useChannel, useServerSummary } from "@/api/hooks";
+import { useChannel, useServerSummary, useUnreadCounts } from "@/api/hooks";
 import { Icon, IconButton } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
@@ -19,6 +19,8 @@ export default function ChannelChatScreen() {
 
   const channel = useChannel(serverId, channelId);
   const { data: server } = useServerSummary(serverId);
+  // "Yeni mesajlar" ayracı: kanalda imleç yerine okunmamış SAYISI var.
+  const unreadCounts = useUnreadCounts();
 
   // Kanal ayarlarındaki açıklama (2026-09 web güncellemesi). SDK'nın Channel
   // tipi henüz taşımıyor; uç Prisma satırını olduğu gibi döndürdüğü için
@@ -82,6 +84,7 @@ export default function ChannelChatScreen() {
         kind="channel"
         chatId={channelId}
         serverId={serverId}
+        unreadSeed={unreadCounts.data ? { count: unreadCounts.data.channelUnreads?.[channelId]?.count ?? 0 } : undefined}
         placeholder={`#${channel?.name ?? "kanal"} kanalına yaz`}
       />
     </>

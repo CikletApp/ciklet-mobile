@@ -1,4 +1,5 @@
 import * as Application from "expo-application";
+import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
@@ -25,6 +26,16 @@ export const CLIENT_TYPE = Platform.select({
 
 export const CLIENT_VERSION =
   Application.nativeApplicationVersion ?? "0.0.0-dev";
+
+/**
+ * Derlendiği git commit'i — TÜM istemcilerde 7 karakter, git yoksa
+ * "unknown" (masaüstü/web sözleşmesi). Kırpma burada, tüketildiği yerde:
+ * değer ileride başka bir kaynaktan (CI tam hash) gelse de biçim bozulmaz.
+ */
+export const CLIENT_COMMIT = (() => {
+  const raw = Constants.expoConfig?.extra?.gitCommit;
+  return typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 7) : "unknown";
+})();
 
 let cachedDeviceId: string | null = null;
 

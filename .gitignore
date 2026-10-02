@@ -50,3 +50,6 @@ error.html
 # Firebase servis hesabı anahtarları (FCM V1) — GİZLİ, expo.dev Credentials'a yüklenir, depoya girmez.
 *-firebase-adminsdk-*.json
 service-account*.json
+
+# Yerel Expo modüllerinin derleme çıktıları
+modules/*/android/build/

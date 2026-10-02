@@ -5,6 +5,7 @@
  * olduğu uygulama detayıdır; dosya bölmeleri çağrı yerlerini kırmamalı.
  */
 export { Avatar } from "./avatar";
+export { GroupAvatar } from "./group-avatar";
 
 export { CikletLogo } from "./ciklet-logo";
 export { ModernRefreshIndicator } from "./refresh-indicator";

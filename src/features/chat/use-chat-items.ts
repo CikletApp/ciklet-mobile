@@ -24,7 +24,9 @@ export type ChatItem =
       /** Üstündeki mesajla aynı gruba ait — avatar ve ad tekrarlanmaz. */
       grouped: boolean;
     }
-  | { kind: "day"; key: string; iso: string };
+  | { kind: "day"; key: string; iso: string }
+  /** "Yeni mesajlar" ayracı — ilk okunmamış mesajın üstünde (web ile aynı). */
+  | { kind: "unread"; key: string };
 
 export function authorIdOf(message: ChatMessagePayload): string {
   return isChannelMessage(message)
@@ -48,7 +50,9 @@ function isSystemMessage(message: ChatMessagePayload): boolean {
 export function useChatItems(
   messages: ChatMessagePayload[],
   /** Geçmişin sonuna ulaşıldıysa en eski mesajın da tarih ayracı olur. */
-  reachedStart: boolean
+  reachedStart: boolean,
+  /** Ayracın üstünde duracağı (en eski okunmamış) mesajın kimliği; yoksa ayraç yok. */
+  unreadMarkerId: string | null = null
 ): ChatItem[] {
   return useMemo(() => {
     const items: ChatItem[] = [];
@@ -78,6 +82,12 @@ export function useChatItems(
           ),
       });
 
+      // Dizide mesajdan SONRA = ekranda mesajın ÜSTÜNDE; gün ayracı ondan da
+      // üstte kalsın diye önce okunmamış ayracı, sonra gün ayracı eklenir.
+      if (unreadMarkerId && message.id === unreadMarkerId) {
+        items.push({ kind: "unread", key: "unread-marker" });
+      }
+
       if (dayChanged) {
         items.push({
           kind: "day",
@@ -88,5 +98,5 @@ export function useChatItems(
     }
 
     return items;
-  }, [messages, reachedStart]);
+  }, [messages, reachedStart, unreadMarkerId]);
 }

@@ -14,6 +14,7 @@ import {
 } from "@/api/hooks";
 import {
   Avatar,
+  GroupAvatar,
   Button,
   Icon,
   IconButton,
@@ -161,9 +162,11 @@ export default function GroupInfoScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
         <View style={{ alignItems: "center", paddingVertical: spacing.xl, gap: spacing.md }}>
-          <Avatar
+          <GroupAvatar
+            members={display.members}
+            excludeId={myId}
             imageUrl={display.imageUrl}
-            fallbackText={display.fallbackText}
+            name={display.title}
             size={92}
             radius={radii.bento}
             backgroundColor={colors.bento}

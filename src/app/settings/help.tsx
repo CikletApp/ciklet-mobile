@@ -7,6 +7,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Divider, ListGroup, ListRow, showToast } from "@/components/ui";
 import { BrandMark } from "@/features/auth/auth-shell";
 import { API_BASE_URL } from "@/lib/config";
+import { CLIENT_COMMIT } from "@/lib/device";
 import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -25,7 +26,11 @@ const SUPPORT_ADDRESS = "destek@ciklet.app";
 
 const version = Application.nativeApplicationVersion ?? "0.0.0-dev";
 const build = Application.nativeBuildVersion;
-const versionLabel = build ? `Sürüm ${version} (${build})` : `Sürüm ${version}`;
+// Sürüm = git commit sayısı (app.config.js); derleme numarası da aynı sayı
+// olduğundan ayrıca yazılmaz, yalnızca farklıysa parantezde gösterilir.
+// Commit hash'i 7 karakter; web ve masaüstüyle aynı biçim.
+const buildSuffix = build && build !== version ? ` (${build})` : "";
+const versionLabel = `Sürüm ${version}${buildSuffix} · ${CLIENT_COMMIT}`;
 
 function openPage(url: string) {
   void WebBrowser.openBrowserAsync(url, {
@@ -45,7 +50,7 @@ function sendFeedback() {
     "",
     "",
     "— Aşağıdaki bilgiler sorunu çözmemize yardımcı olur, lütfen silme —",
-    `Ciklet ${version}${build ? ` (${build})` : ""}`,
+    `Ciklet ${version}${buildSuffix} · ${CLIENT_COMMIT}`,
     `${Platform.OS === "ios" ? "iOS" : "Android"} ${Device.osVersion ?? Platform.Version}`,
     `${Device.manufacturer ?? ""} ${Device.modelName ?? ""}`.trim(),
   ];

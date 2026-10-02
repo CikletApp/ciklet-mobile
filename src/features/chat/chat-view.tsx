@@ -11,24 +11,35 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { BlurTargetView } from "expo-blur";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
-import { useChatMessages, useMyMembership, type ChatKind } from "@/api/hooks";
+import { useChatMessages, useMentolPlan, useMyMembership, type ChatKind } from "@/api/hooks";
 import { EmptyState, ErrorState, ListSkeleton, showDialog, showToast } from "@/components/ui";
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
+import { useActiveChat } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
 import { useChatOutbox } from "@/stores/outbox";
-import { pickAndUploadMessageFile, type MessageAttachment } from "@/lib/uploads";
+import { usePreferences } from "@/stores/preferences";
+import {
+  captureFromCamera,
+  pickDocument,
+  pickFromGallery,
+  uploadMessageAttachment,
+  type MessageAttachment,
+} from "@/lib/uploads";
 import { OFFICIAL_FOOTER_TITLE } from "@/lib/official";
+import { isAfterSnowflake } from "@/lib/snowflake";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { AttachmentSheet, type AttachmentSource } from "./components/attachment-sheet";
 import { DaySeparator } from "./components/day-separator";
 import { CommandSuggestions, matchCommands, useBotCommands } from "./components/command-suggestions";
-import { Composer } from "./components/composer";
+import { Composer, type ComposerHandle } from "./components/composer";
 import { ForwardSheet } from "./components/forward-sheet";
 import { MessageContextMenu } from "./components/message-context-menu";
 import { flashMessage } from "./components/message-flash";
@@ -38,12 +49,21 @@ import { PinnedBar, PinnedListSheet } from "./components/pinned-bar";
 import { canForwardMessage } from "./forward";
 import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
 import { useComposer } from "./use-composer";
-import { useChatItems, type ChatItem } from "./use-chat-items";
+import { authorIdOf, useChatItems, type ChatItem } from "./use-chat-items";
 import { useMessageActions } from "./use-message-actions";
 import { fw } from "@/theme/fonts";
 
 /** Atlanacak mesaj bulunana kadar en çok bu kadar eski sayfa çekilir. */
 const MAX_JUMP_PAGES = 15;
+
+/**
+ * Okunmamış ayracının tohumu — DM'de okundu imleci (snowflake), kanalda
+ * okunmamış sayısı. `undefined` = kaynak henüz yüklenmedi, bekle.
+ */
+export interface UnreadSeed {
+  cursor?: string | null;
+  count?: number;
+}
 
 /**
  * Kanal ve DM sohbetlerinin ortak gövdesi.
@@ -59,6 +79,7 @@ export function ChatView({
   placeholder,
   readOnlyOfficial = false,
   oneToOne = false,
+  unreadSeed,
 }: {
   kind: ChatKind;
   chatId: string;
@@ -72,6 +93,8 @@ export function ChatView({
    * baloncukta tekrarlanmaz — kim olduğu başlıkta zaten yazıyor.
    */
   oneToOne?: boolean;
+  /** "Yeni mesajlar" ayracı için okunmamış bilgisi; yoksa ayraç çizilmez. */
+  unreadSeed?: UnreadSeed;
 }) {
   const {
     data,
@@ -107,11 +130,32 @@ export function ChatView({
       membership.data?.role === MemberRole.MODERATOR);
   const [pinListOpen, setPinListOpen] = useState(false);
 
-  // Canlı akış: gelen mesajlar doğrudan cache'e yazılır.
-  useChatStream(chatId);
+  // Canlı akış: gelen mesajlar doğrudan cache'e yazılır; kopuklukta telafi edilir.
+  useChatStream(kind, chatId);
+
+  // Açık sohbet: bildirim katmanı bu sohbetin mesajı için kart/ses üretmez.
+  useEffect(() => {
+    useActiveChat.getState().setActive(chatId);
+    return () => {
+      if (useActiveChat.getState().chatId === chatId) useActiveChat.getState().setActive(null);
+    };
+  }, [chatId]);
+
+  /**
+   * Sohbet arka planı — Mentol özelliği (yalnızca bu cihazda, bkz.
+   * settings/chat). Plan bilgisi gelmeden görsel gizlenmez: açılışta bir
+   * an boş zemin görünüp sonra görsel gelmesi göz yoruyordu; plan FREE'ye
+   * düştüğü an zaten kaldırılıyor.
+   */
+  const chatBackgroundUri = usePreferences((state) => state.chatBackgroundUri);
+  const chatBackgroundDim = usePreferences((state) => state.chatBackgroundDim);
+  const plan = useMentolPlan();
+  const showBackground = Boolean(chatBackgroundUri) && (plan.data?.features.customThemes ?? true);
+  const surface = showBackground ? "transparent" : colors.chat;
 
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState<MessageAttachment | null>(null);
+  const [attachmentSheet, setAttachmentSheet] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   /** Basılı tutulan mesaj ve balonunun ekrandaki yeri (bağlam menüsü). */
@@ -119,6 +163,8 @@ export function ChatView({
   const [replyingTo, setReplyingTo] = useState<ChatMessagePayload | null>(null);
   const [forwarding, setForwarding] = useState<ChatMessagePayload | null>(null);
   const composerRef = useRef<TextInput>(null);
+  /** Yazma çubuğunun paneline (emoji/GIF/aktivite) dışarıdan erişim. */
+  const composerControl = useRef<ComposerHandle>(null);
   /** Bağlam menüsünün Android'de bulandırdığı yüzey — sohbet gövdesi. */
   const blurTargetRef = useRef<View>(null);
   /** Kaydırma yönünü anlamak için son dikey konum. */
@@ -152,16 +198,20 @@ export function ChatView({
   }, [chatId, isLoading, readOnlyOfficial]);
 
   /**
-   * Kullanıcı ESKİ mesajlara doğru kaydırdığında klavye kapanır ve yazma
-   * çubuğu aşağı iner — okurken ekranın yarısı klavyeyle kaplı olmamalı.
-   * Liste ters (`inverted`) olduğu için ARTAN offset geçmişe gitmek demek.
+   * Kullanıcı ESKİ mesajlara doğru kaydırdığında klavye VE emoji/GIF/aktivite
+   * paneli kapanır, yazma çubuğu aşağı iner — okurken ekranın yarısı
+   * klavyeyle ya da panelle kaplı olmamalı. Liste ters (`inverted`) olduğu
+   * için ARTAN offset geçmişe gitmek demek.
    */
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = event.nativeEvent.contentOffset.y;
       const goingBack = y > lastOffset.current + 12;
       lastOffset.current = y;
-      if (goingBack) Keyboard.dismiss();
+      if (goingBack) {
+        Keyboard.dismiss();
+        composerControl.current?.closePanel();
+      }
     },
     []
   );
@@ -170,7 +220,21 @@ export function ChatView({
     () => data?.pages.flatMap((page) => page.items) ?? [],
     [data]
   );
-  const items = useChatItems(messages, !hasNextPage && !isLoading);
+
+  /**
+   * "Yeni mesajlar" ayracı sohbet başına BİR KEZ tohumlanır (web
+   * chat-message-list ile aynı): okundu imleci açılışta hemen ilerlediği
+   * için canlı değerden türetilseydi ayraç bir kare sonra kaybolurdu.
+   */
+  const [unreadMarker, setUnreadMarker] = useState<string | null | undefined>(undefined);
+  // Türetilmiş durum: koşullu, render sırasında ve yalnızca bir kez
+  // (React'in "prop değişince durumu ayarla" deseni; efekt + setState
+  // ardışık render üretirdi).
+  if (unreadMarker === undefined && unreadSeed !== undefined && messages.length > 0) {
+    setUnreadMarker(seedUnreadMarker(messages, myId, unreadSeed));
+  }
+
+  const items = useChatItems(messages, !hasNextPage && !isLoading, unreadMarker ?? null);
 
   // Okundu bilgisi — listedeki en yeni GERÇEK mesaj (outbox hariç).
   useReadState(chatId, kind, messages[0]?.id);
@@ -254,16 +318,33 @@ export function ChatView({
   const onSelectActivity = useCallback((activityId: string) => {
     router.push({
       pathname: "/activities/[clientId]",
-      params: { clientId: activityId, chatId },
+      params: { clientId: activityId, chatId, ...(serverId ? { serverId } : {}) },
     });
-  }, [chatId]);
+  }, [chatId, serverId]);
 
-  const onPickAttachment = useCallback(async () => {
+  /**
+   * "+" düğmesi: önce kaynak sorulur (Galeri / Kamera / Dosya), sonra seçilen
+   * dosya yüklenir ve çubuğa ek olarak takılır. Eskiden doğrudan dosya
+   * seçicisi açılıyordu; galeriden fotoğraf göndermek dolambaçlıydı.
+   */
+  const onPickAttachment = useCallback(() => {
+    Keyboard.dismiss();
+    setAttachmentSheet(true);
+  }, []);
+
+  const onAttachmentSource = useCallback(async (source: AttachmentSource) => {
     setUploadError(null);
-    setUploadProgress(0);
     try {
-      const file = await pickAndUploadMessageFile(setUploadProgress);
-      if (file) setAttachment(file);
+      const picked =
+        source === "gallery"
+          ? await pickFromGallery({ videos: true })
+          : source === "camera"
+            ? await captureFromCamera()
+            : await pickDocument();
+      if (!picked) return;
+      setUploadProgress(0);
+      const file = await uploadMessageAttachment(picked, setUploadProgress);
+      setAttachment(file);
     } catch (reason) {
       setUploadError(
         reason instanceof Error ? reason.message : "Dosya yüklenemedi."
@@ -275,6 +356,12 @@ export function ChatView({
 
   const onLongPressMessage = useCallback((message: ChatMessagePayload, anchor: MessageAnchor) => {
     setSelected({ message, anchor });
+  }, []);
+
+  /** Satır sola çekildi: alıntı takılır ve klavye gelir. */
+  const onSwipeReply = useCallback((message: ChatMessagePayload) => {
+    setReplyingTo(message);
+    requestAnimationFrame(() => composerRef.current?.focus());
   }, []);
 
   /** Komut önerisi seçildi: "/komut " yazılır, imleç sona geçer. */
@@ -291,19 +378,22 @@ export function ChatView({
     ({ item }: { item: ChatItem }) =>
       item.kind === "day" ? (
         <DaySeparator iso={item.iso} />
+      ) : item.kind === "unread" ? (
+        <UnreadDivider />
       ) : (
         <MessageItem
           oneToOne={oneToOne}
           message={item.message}
           grouped={item.grouped}
           onLongPress={readOnlyOfficial ? undefined : onLongPressMessage}
+          onReply={readOnlyOfficial || item.message.deleted ? undefined : onSwipeReply}
           onReactionPress={(message, emoji) => {
             void actions.toggleReaction(message.id, emoji);
           }}
           onJumpToMessage={jumpToMessage}
         />
       ),
-    [actions, readOnlyOfficial, oneToOne, onLongPressMessage, jumpToMessage]
+    [actions, readOnlyOfficial, oneToOne, onLongPressMessage, onSwipeReply, jumpToMessage]
   );
 
   if (isLoading) {
@@ -333,6 +423,15 @@ export function ChatView({
       {/* Bağlam menüsü açılınca Android'de bulanıklaşan yüzey. Başlık bu
           ekranın dışında (yerel yığın başlığı); o yalnızca kararır. */}
       <BlurTargetView ref={blurTargetRef} style={{ flex: 1, backgroundColor: colors.chat }}>
+        {/* Sohbet arka planı: görsel + üstünde zemin renginde kararma katmanı
+            (okunabilirlik). Liste bunun üstünde saydam çizilir. */}
+        {showBackground && chatBackgroundUri ? (
+          <View pointerEvents="none" style={{ position: "absolute", inset: 0 }}>
+            <Image source={{ uri: chatBackgroundUri }} contentFit="cover" style={{ flex: 1 }} />
+            <View style={{ position: "absolute", inset: 0, backgroundColor: colors.chat, opacity: chatBackgroundDim }} />
+          </View>
+        ) : null}
+
         {/* Telegram gibi başlığın hemen altında; sabit yoksa hiçbir şey çizmez. */}
         <PinnedBar pins={pins.data ?? []} onJump={jumpToMessage} onOpenList={() => setPinListOpen(true)} />
 
@@ -349,9 +448,10 @@ export function ChatView({
              * altındaki native ekran yüzeyini gösteriyordu (#313235 — hiçbir
              * token'a karşılık gelmeyen, üzerine beyaz katman binmiş bir ton).
              * Rengi burada sabitlemek, react-native-screens'in ne yaptığından
-             * bağımsız olarak doğru sonucu garanti eder.
+             * bağımsız olarak doğru sonucu garanti eder. Arka plan görseli
+             * varsa liste saydamdır; görsel BlurTargetView'ın altında durur.
              */
-            style={{ backgroundColor: colors.chat }}
+            style={{ backgroundColor: surface }}
             onEndReached={() => {
               if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
             }}
@@ -442,7 +542,7 @@ export function ChatView({
               color: colors.muted,
               paddingHorizontal: spacing.lg,
               paddingBottom: spacing.xs,
-              backgroundColor: colors.chat,
+              backgroundColor: surface,
             }}
             accessibilityLiveRegion="polite"
             numberOfLines={1}
@@ -459,6 +559,7 @@ export function ChatView({
         ) : (
           <Composer
             inputRef={composerRef}
+            controlRef={composerControl}
             commandsAvailable={Boolean(commandBots.data?.length)}
             value={draft}
             onChangeText={onChangeDraft}
@@ -476,6 +577,12 @@ export function ChatView({
           />
         )}
       </BlurTargetView>
+
+      <AttachmentSheet
+        visible={attachmentSheet}
+        onClose={() => setAttachmentSheet(false)}
+        onPick={(source) => void onAttachmentSource(source)}
+      />
 
       {selected ? (
         <MessageContextMenu
@@ -600,4 +707,53 @@ function OfficialFooter() {
 
 function messageAuthorId(message: ChatMessagePayload) {
   return isChannelMessage(message) ? message.member.profile.id : message.profile.id;
+}
+
+/**
+ * En eski okunmamış mesaj — liste yeniden eskiye sıralı, kendi mesajımız
+ * görülünce ondan eskisi okunmuş sayılır (sunucudaki `unreadCounts` kuralı).
+ */
+function seedUnreadMarker(
+  messages: ChatMessagePayload[],
+  myId: string | undefined,
+  seed: UnreadSeed
+): string | null {
+  let oldest: string | null = null;
+  if (seed.cursor !== undefined) {
+    for (const message of messages) {
+      if (authorIdOf(message) === myId) break;
+      if (seed.cursor && !isAfterSnowflake(message.id, seed.cursor)) break;
+      if (!message.deleted) oldest = message.id;
+    }
+    return oldest;
+  }
+  let remaining = seed.count ?? 0;
+  for (const message of messages) {
+    if (remaining <= 0 || authorIdOf(message) === myId) break;
+    if (message.deleted) continue;
+    oldest = message.id;
+    remaining -= 1;
+  }
+  return oldest;
+}
+
+/** Web'deki "yeni mesajlar" çizgisi — ilk okunmamış mesajın üstünde, marka tonunda. */
+function UnreadDivider() {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+      }}
+      accessibilityRole="header"
+      accessibilityLabel="Yeni mesajlar"
+    >
+      <View style={{ flex: 1, height: 1, backgroundColor: colors.brand, opacity: 0.6 }} />
+      <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>Yeni mesajlar</Text>
+      <View style={{ width: 24, height: 1, backgroundColor: colors.brand, opacity: 0.6 }} />
+    </View>
+  );
 }

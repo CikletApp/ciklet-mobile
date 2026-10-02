@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ciklet",
     "slug": "ciklet",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ciklet",
@@ -31,7 +31,8 @@
         "backgroundColor": "#6D28D9",
         "foregroundImage": "./assets/images/android-icon-symbol.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 4
     },
     "plugins": [
       "expo-router",
@@ -48,7 +49,11 @@
         "expo-notifications",
         {
           "color": "#98cb00",
-          "defaultChannel": "ciklet-messages"
+          "defaultChannel": "ciklet-messages",
+          "sounds": [
+            "./assets/sounds/ringtone.wav",
+            "./assets/sounds/message.wav"
+          ]
         }
       ],
       [
@@ -71,7 +76,15 @@
           "iosAppId": "ca-app-pub-3940256099942544~1458002511",
           "delayAppMeasurementInit": true
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fotoğraf göndermek ve sohbet arka planı seçmek için galeri erişimi gerekir.",
+          "cameraPermission": "Fotoğraf çekip göndermek için kamera erişimi gerekir."
+        }
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

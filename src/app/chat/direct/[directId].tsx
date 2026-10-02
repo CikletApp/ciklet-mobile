@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { useDirect, useDirectDisplay } from "@/api/hooks";
-import { Avatar, DropdownMenu, Icon, IconButton, type MenuItem } from "@/components/ui";
+import { Avatar, DropdownMenu, GroupAvatar, Icon, IconButton, type MenuItem } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
 import { DirectExpirySheet } from "@/features/chat/components/direct-expiry-button";
@@ -13,7 +13,7 @@ import { useCallActions } from "@/realtime/use-call-events";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
 import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
-import { colors, radii, spacing } from "@/theme/tokens";
+import { colors, spacing } from "@/theme/tokens";
 
 /**
  * Doğrudan mesaj sohbeti — birebir, grup ve "Notlarım".
@@ -95,27 +95,23 @@ export default function DirectChatScreen() {
     >
       <Icon name="bookmark" size={18} color={colors.brand} />
     </View>
-  ) : isGroup && !display?.imageUrl ? (
-    <View
-      style={{
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: colors.brandSoft,
-      }}
-    >
-      <Icon name="users" size={19} color={colors.brand} />
-    </View>
+  ) : isGroup ? (
+    // Grup: web'deki gibi üye avatarlarından ikon (grubun görseli varsa o).
+    <GroupAvatar
+      members={display?.members ?? []}
+      excludeId={myId}
+      imageUrl={display?.imageUrl}
+      name={display?.title ?? ""}
+      size={38}
+      backgroundColor={colors.panel}
+    />
   ) : (
     <Avatar
-      profileId={isGroup ? undefined : peer?.id}
+      profileId={peer?.id}
       imageUrl={display?.imageUrl}
       fallbackText={display?.fallbackText}
       size={38}
-      radius={isGroup ? radii.md : undefined}
-      showPresence={!isGroup && !isOfficial}
+      showPresence={!isOfficial}
       backgroundColor={colors.panel}
     />
   );
@@ -179,6 +175,8 @@ export default function DirectChatScreen() {
         chatId={directId}
         readOnlyOfficial={isOfficial}
         oneToOne={!isGroup}
+        // Okundu imleci listeden; sohbet satırı gelmeden ayraç tohumlanmaz.
+        unreadSeed={direct ? { cursor: direct.readCursor ?? null } : undefined}
         placeholder={
           isNotes ? "Kendine bir not yaz" : "Mesaj yaz"
         }

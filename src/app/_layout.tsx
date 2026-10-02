@@ -7,9 +7,14 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+// Arka plan bildirim görevi MODÜL KAPSAMINDA tanımlanmalı (süreç ölüyken
+// yalnızca paket yüklenir); bu yüzden kök düzende içe aktarılır.
+import "@/lib/notification-task";
 import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
+import { InAppNoticeHost } from "@/components/in-app-notice";
 import { DialogHost, ToastHost } from "@/components/ui";
+import { ImageViewerHost } from "@/components/ui/image-viewer";
 import { CallOverlay } from "@/features/call/call-overlay";
 import { BrandSplash } from "@/features/auth/auth-shell";
 import { useScreenTracking } from "@/lib/analytics";
@@ -185,8 +190,12 @@ export default function RootLayout() {
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
             <CallOverlay key={`call-${themeRevision}`} />
+            {/* Tek görsel görüntüleyici: mesajlardaki görseller buraya açılır. */}
+            <ImageViewerHost key={`viewer-${themeRevision}`} />
             <DialogHost key={`dialog-${themeRevision}`} />
             <ToastHost key={`toast-${themeRevision}`} />
+            {/* Ön planda gelen DM / etiketlenme kartı. */}
+            <InAppNoticeHost key={`notice-${themeRevision}`} />
           </RealtimeProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

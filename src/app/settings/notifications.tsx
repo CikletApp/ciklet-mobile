@@ -1,8 +1,13 @@
-import { useState } from "react";
-import { ActivityIndicator, ScrollView, Switch, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, AppState, Platform, ScrollView, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
-import { Divider, ListGroup, Screen, SectionHeader } from "@/components/ui";
+import { Button, Divider, ListGroup, Screen, SectionHeader } from "@/components/ui";
+import {
+  canShowFullScreenCall,
+  nativeIncomingCalls,
+  openFullScreenCallSettings,
+} from "@/features/call/incoming-call";
 import { registerPushToken, setupNotifications, unregisterPushToken } from "@/lib/notifications";
 import { usePreferences } from "@/stores/preferences";
 import { colors, spacing, typography } from "@/theme/tokens";
@@ -11,6 +16,7 @@ export default function NotificationSettingsScreen() {
   const preferences = usePreferences();
   const [pending, setPending] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const fullScreenCalls = useFullScreenCallPermission();
 
   const toggleMaster = async (value: boolean) => {
     setPending(true);
@@ -62,10 +68,47 @@ export default function NotificationSettingsScreen() {
           </ListGroup>
         </View>
 
+        {fullScreenCalls === "denied" ? (
+          <>
+            <SectionHeader title="KİLİT EKRANINDA ARAMA" />
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <ListGroup>
+                <View style={{ padding: spacing.lg, gap: spacing.md }}>
+                  <Text style={{ ...typography.body, color: colors.text }}>Tam ekran arama izni kapalı</Text>
+                  <Text style={{ ...typography.caption, color: colors.muted }}>
+                    Android, uygulama kapalıyken gelen aramanın kilit ekranında tam ekran çalması için ayrı bir
+                    izin istiyor. Kapalıyken arama yalnızca üstte bildirim olarak görünür.
+                  </Text>
+                  <Button label="Ayarları aç" variant="secondary" onPress={openFullScreenCallSettings} />
+                </View>
+              </ListGroup>
+            </View>
+          </>
+        ) : null}
+
         {permissionError ? <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>{permissionError}</Text> : null}
       </ScrollView>
     </Screen>
   );
+}
+
+/**
+ * Android 14+ tam ekran bildirim izni (USE_FULL_SCREEN_INTENT). Kullanıcı
+ * ayarlardan dönünce yeniden okunur; eski sürümlerde ve iOS'ta sorulmaz.
+ */
+function useFullScreenCallPermission(): "granted" | "denied" | "unavailable" {
+  const read = useCallback((): "granted" | "denied" | "unavailable" => {
+    if (Platform.OS !== "android" || !nativeIncomingCalls) return "unavailable";
+    return canShowFullScreenCall() ? "granted" : "denied";
+  }, []);
+  const [state, setState] = useState(read);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") setState(read());
+    });
+    return () => subscription.remove();
+  }, [read]);
+  return state;
 }
 
 function ToggleRow({ title, description, value, onChange, disabled, pending }: { title: string; description?: string; value: boolean; onChange: (value: boolean) => void; disabled?: boolean; pending?: boolean }) {

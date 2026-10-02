@@ -1,6 +1,8 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
-import Animated, { Easing, Keyframe } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { Easing, Keyframe, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
@@ -45,6 +47,10 @@ import { readable, senderColor } from "@/theme/palette";
 
 const AVATAR_SIZE = 32;
 const MAX_BUBBLE_WIDTH = "78%";
+/** Sola çekerek yanıtlama: satırın en çok kayacağı mesafe ve tetikleme eşiği. */
+const SWIPE_MAX = 76;
+const SWIPE_TRIGGER = 56;
+const SWIPE_SPRING = { damping: 18, stiffness: 240 } as const;
 const inviteMonthFormat = new Intl.DateTimeFormat("tr-TR", {
   month: "short",
   year: "numeric",
@@ -82,6 +88,7 @@ export function MessageItem({
   onLongPress,
   onReactionPress,
   onJumpToMessage,
+  onReply,
 }: {
   message: ChatMessagePayload;
   grouped?: boolean;
@@ -96,6 +103,8 @@ export function MessageItem({
   onReactionPress?: (message: ChatMessagePayload, emoji: string) => void;
   /** Alıntıya ya da "bir mesajı sabitledi" satırına dokununca o mesaja git. */
   onJumpToMessage?: (messageId: string) => void;
+  /** Satırı sola çekince yanıtla (WhatsApp/Telegram). Verilmezse çekiş kapalı. */
+  onReply?: (message: ChatMessagePayload) => void;
 }) {
   const myId = useAuth((s) => s.profile?.id);
   const density = usePreferences((state) => state.chatDensity);
@@ -104,6 +113,47 @@ export function MessageItem({
   const flash = useMessageFlash(message.id);
   const bubbleRef = useRef<View>(null);
   const compact = density === "compact";
+
+  // ── Sola çekerek yanıtla ──────────────────────────────────────────
+  // Yatay çekiş satırı parmakla taşır; eşiği geçince dokunsal geri bildirim
+  // ve bırakınca yanıt. Dikey hareket hareketi düşürür ki liste kaydırması
+  // bozulmasın. Geri çağrılar JS'te (drag-dismiss ile aynı desen).
+  const swipeX = useSharedValue(0);
+  const swipeArmed = useSharedValue(false);
+  const canSwipe = Boolean(onReply) && !preview;
+  const swipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(canSwipe)
+        .runOnJS(true)
+        .activeOffsetX(-18)
+        .failOffsetX(12)
+        .failOffsetY([-14, 14])
+        .onUpdate((event) => {
+          const pulled = Math.min(SWIPE_MAX, Math.max(0, -event.translationX) * 0.75);
+          swipeX.set(-pulled);
+          const armed = pulled >= SWIPE_TRIGGER;
+          if (armed !== swipeArmed.get()) {
+            swipeArmed.set(armed);
+            if (armed) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          }
+        })
+        .onEnd(() => {
+          const armed = swipeArmed.get();
+          swipeArmed.set(false);
+          swipeX.set(withSpring(0, SWIPE_SPRING));
+          if (armed) onReply?.(message);
+        })
+        .onFinalize((_event, success) => {
+          if (!success) swipeX.set(withSpring(0, SWIPE_SPRING));
+        }),
+    [canSwipe, message, onReply, swipeArmed, swipeX]
+  );
+  const swipeRowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: swipeX.get() }] }));
+  const swipeHintStyle = useAnimatedStyle(() => {
+    const progress = Math.min(1, -swipeX.get() / SWIPE_TRIGGER);
+    return { opacity: progress, transform: [{ scale: 0.6 + 0.4 * progress }] };
+  });
   const largeEmoji = bigEmoji && !compact && isEmojiOnly(message.content);
 
   // "X bir mesajı sabitledi." — içerik ham gösterilmez, satır kurulur.
@@ -382,7 +432,7 @@ export function MessageItem({
 
   if (preview) return bubble;
 
-  return (
+  const row = (
     <Pressable
       onLongPress={handleLongPress}
       delayLongPress={280}
@@ -396,7 +446,7 @@ export function MessageItem({
         paddingBottom: compact ? 1 : 2,
       }}
       accessibilityRole="button"
-      accessibilityHint="Mesaj eylemlerini açmak için basılı tut"
+      accessibilityHint={canSwipe ? "Mesaj eylemleri için basılı tut, yanıtlamak için sola çek" : "Mesaj eylemlerini açmak için basılı tut"}
       accessibilityLabel={`${isMine ? "Sen" : name}: ${
         message.deleted ? "silinmiş mesaj" : message.content
       }`}
@@ -434,6 +484,39 @@ export function MessageItem({
 
       {bubble}
     </Pressable>
+  );
+
+  if (!canSwipe) return row;
+
+  return (
+    <GestureDetector gesture={swipe}>
+      <Animated.View>
+        {/* Çekerken sağda beliren yanıt işareti. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            { position: "absolute", right: spacing.md, top: 0, bottom: 0, justifyContent: "center" },
+            swipeHintStyle,
+          ]}
+        >
+          <View
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.panel,
+            }}
+          >
+            <Icon name="reply" size={16} color={colors.brand} />
+          </View>
+        </Animated.View>
+        <Animated.View style={swipeRowStyle}>{row}</Animated.View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 

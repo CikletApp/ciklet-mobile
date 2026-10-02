@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { MessagesPage } from "@ciklet/embedded-activities-sdk/types";
 
+import { api } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
+import type { ChatKind } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { useOutbox } from "@/stores/outbox";
 import { applyReactionDelta, type MessageCache } from "@/features/chat/reaction-cache";
@@ -11,7 +15,10 @@ import {
   type ChatMessagePayload,
   type ReactionDelta,
 } from "./events";
-import { onGatewayEvent, subscribeToChat } from "./gateway";
+import { getConnectionState, onGatewayEvent, onGatewayOpen, subscribeToChat } from "./gateway";
+
+/** Ağ geçidi kopukken en yeni sayfa bu aralıkla yoklanır (web: 1 sn; mobil veri için seyrek). */
+const CATCH_UP_POLL_MS = 5_000;
 
 /**
  * Bir sohbetin canlı akışına abone olur ve gelen mesajları react-query
@@ -28,35 +35,77 @@ import { onGatewayEvent, subscribeToChat } from "./gateway";
  *   - tepki       → `message.reaction` oda olayı, delta olarak
  * Son ikisi de aynı odadan geliyor ama olay türüyle dağıtılıyor; bu yüzden
  * `chatId` süzgeci şart.
+ *
+ * ── Telafi (catch-up) ──────────────────────────────────────────────────
+ * Abonelik yalnızca bağlantı AÇIKKEN mesaj taşır. Bağlantı koptuğunda ya da
+ * arka planda öldüğünde (bkz. gateway.ts "zombi" notu) arada gelen mesajlar
+ * hiçbir yoldan ulaşmıyordu ve kullanıcı uygulamayı yeniden başlatana kadar
+ * sohbet eski kalıyordu. Web bu boşluğu soket yokken yoklamayla kapatıyor
+ * (`use-chat-query`); burada da aynı: bağlantı her (yeniden) kurulduğunda ve
+ * kopukken belirli aralıkla en yeni sayfa çekilir, cache'te olmayanlar
+ * listeye eklenir.
  */
-export function useChatStream(chatId: string | undefined) {
+export function useChatStream(kind: ChatKind, chatId: string | undefined) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!chatId) return;
     const key = qk.messages.chat(chatId);
 
+    const prepend = (incoming: ChatMessagePayload[]) => {
+      queryClient.setQueryData<MessageCache>(key, (old) => {
+        if (!old?.pages?.length) {
+          return { pages: [{ items: incoming, nextCursor: null }], pageParams: [undefined] };
+        }
+        // HTTP yanıtı ile yayın aynı mesajı iki kez getirebilir.
+        const known = new Set(old.pages.flatMap((page) => page.items.map((item) => item.id)));
+        const fresh = incoming.filter((item) => !known.has(item.id));
+        if (fresh.length === 0) return old;
+        const [newest, ...rest] = old.pages;
+        return { ...old, pages: [{ ...newest, items: [...fresh, ...newest.items] }, ...rest] };
+      });
+    };
+
     const writeNew = (message: ChatMessagePayload) => {
       // Kendi gönderdiğimiz mesajın yayını geldi: bekleyen geçici satırı
       // düşür ki liste bir an aynı mesajı iki kez göstermesin.
       useOutbox.getState().resolveByContent(chatId, message.content);
-
-      queryClient.setQueryData<MessageCache>(key, (old) => {
-        if (!old?.pages?.length) {
-          return { pages: [{ items: [message], nextCursor: null }], pageParams: [undefined] };
-        }
-        // HTTP yanıtı ile yayın aynı mesajı iki kez getirebilir.
-        const exists = old.pages.some((page) => page.items.some((item) => item.id === message.id));
-        if (exists) return old;
-        const [newest, ...rest] = old.pages;
-        return { ...old, pages: [{ ...newest, items: [message, ...newest.items] }, ...rest] };
-      });
+      prepend([message]);
 
       // Açık DM'de gönderilen/alınan mesaj, ana listedeki önizleme ve
       // sıralamayı da güncellesin.
       if (!("member" in message)) {
         void queryClient.invalidateQueries({ queryKey: qk.directs });
         void queryClient.invalidateQueries({ queryKey: qk.inbox });
+      }
+    };
+
+    let catchingUp = false;
+    const catchUp = async () => {
+      if (catchingUp) return;
+      catchingUp = true;
+      try {
+        const page = await api<MessagesPage<ChatMessagePayload>>(
+          kind === "channel" ? endpoints.channelMessages(chatId) : endpoints.directMessages(chatId)
+        );
+        const old = queryClient.getQueryData<MessageCache>(key);
+        // İlk yükleme `useChatMessages`'ın işi; boş cache'e sayfa yazılmaz.
+        if (!old?.pages?.length) return;
+        const known = new Set(old.pages.flatMap((p) => p.items.map((item) => item.id)));
+        const fresh = page.items.filter((item) => !known.has(item.id));
+        if (fresh.length === 0) return;
+        // Sayfanın TAMAMI yabancıysa boşluk bir sayfadan büyük olabilir:
+        // parça parça eklemek ortada delik bırakır; geçmiş baştan çekilir.
+        if (fresh.length === page.items.length) {
+          await queryClient.invalidateQueries({ queryKey: key });
+          return;
+        }
+        for (const item of fresh) useOutbox.getState().resolveByContent(chatId, item.content);
+        prepend(fresh);
+      } catch {
+        // Ağ yok; bir sonraki yoklama ya da bağlantı açılışı yeniden dener.
+      } finally {
+        catchingUp = false;
       }
     };
 
@@ -99,12 +148,21 @@ export function useChatStream(chatId: string | undefined) {
       queryClient.setQueryData<MessageCache>(key, (old) => applyReactionDelta(old, delta));
     });
 
+    // Bağlantı (yeniden) kurulduğunda kaçırılanlar; kopukken düzenli yoklama.
+    const releaseOpen = onGatewayOpen(() => void catchUp());
+    const poll = setInterval(() => {
+      if (getConnectionState() !== "connected") void catchUp();
+    }, CATCH_UP_POLL_MS);
+    if (getConnectionState() !== "connected") void catchUp();
+
     return () => {
       releaseChat();
       releaseUpdate();
       releaseReaction();
+      releaseOpen();
+      clearInterval(poll);
     };
-  }, [chatId, queryClient]);
+  }, [chatId, kind, queryClient]);
 }
 
 /**
