@@ -1,0 +1,78 @@
+# iOS — imzasız IPA.
+#
+# Elle tetiklenir: Actions → "iOS IPA (imzasız)" → Run workflow.
+#   makine = github-macos : GitHub'ın macOS makinesi. Özel depoda macOS
+#                           dakikaları kotadan 10 kat düşer.
+#   makine = benim-mac    : Kendi Mac'in (self-hosted runner). Bir kez kur:
+#     1. Depo → Settings → Actions → Runners → New self-hosted runner → macOS.
+#     2. Gösterilen komutları Mac'te Terminal'de çalıştır (./config.sh …),
+#        ardından `./svc.sh install && ./svc.sh start` ile arka planda koşsun.
+#     3. Mac'te Xcode 26.4+, CocoaPods (`brew install cocoapods`) ve python3 olsun.
+#
+# Çıktı: "ciklet-<sürüm>-<commit>-unsigned" adlı artifact (içinde .ipa).
+# Derleme mantığı scripts/ios/build-unsigned.sh'ta; Mac'te elle de çalışır.
+#
+# Yalnızca workflow_dispatch: yazma yetkisi olmayan biri (ör. çatal PR'ı)
+# kendi Mac'inde kod çalıştıramasın.
+
+name: iOS IPA (imzasız)
+
+on:
+  workflow_dispatch:
+    inputs:
+      makine:
+        description: Derleme makinesi
+        type: choice
+        options:
+          - github-macos
+          - benim-mac
+        default: github-macos
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ipa:
+    name: İmzasız IPA
+    runs-on: ${{ inputs.makine == 'benim-mac' && fromJSON('["self-hosted", "macOS"]') || 'macos-26' }}
+    timeout-minutes: 120
+    steps:
+      - name: Kodu al (tam geçmiş — sürüm = commit sayısı)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: IPA derle
+        id: build
+        run: bash scripts/ios/build-unsigned.sh dist
+
+      - name: IPA'yı yükle
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.build.outputs.ipa_name }}
+          path: ${{ steps.build.outputs.ipa_path }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Derleme günlüğü (hata durumunda)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-xcodebuild-log
+          path: build/ios/*.log
+          if-no-files-found: ignore
+          retention-days: 7

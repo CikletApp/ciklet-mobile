@@ -10,14 +10,39 @@
  *     tek sayı ("84") geçerli. CFBundleVersion = buildNumber artan.
  * Dikkat: geçmişi yeniden yazan (rebase/squash) bir ana dal sayıyı
  * KÜÇÜLTEBİLİR; mağazaya giden derlemeler düz ilerleyen bir daldan alınmalı.
+ * CI'da klon TAM geçmişle alınmalı (actions/checkout `fetch-depth: 0`);
+ * sığ klonda sayı 1 çıkar.
  *
  * Git yoksa (EAS derleme makinesi .git'i almaz) sıra:
  * `EXPO_PUBLIC_GIT_COMMIT_COUNT` ortam değişkeni → app.json'daki sabitler.
  * Commit hash'i (7 karakter) yalnızca `extra.gitCommit` olarak taşınır ve
  * Yardım ekranında sürümün yanında gösterilir (web/masaüstüyle aynı biçim).
+ *
+ * iOS FIREBASE: Firebase'de iOS uygulaması kaydı (GoogleService-Info.plist)
+ * henüz yok. iOS'ta Firebase iki koşulla açılır: dosya proje kökünde VE
+ * package.json `expo.autolinking.ios.exclude` Firebase'i dışlamıyor.
+ * Şu an dışlanıyor: pod'lar iOS'a bağlanmaz, iOS hedefinde Firebase
+ * eklentileri çıkarılır (`@react-native-firebase/app` eklentisi dosyasız
+ * prebuild'i durduruyor), analitik iOS'ta sessizce kapalı kalır
+ * (src/lib/analytics.ts). Android hiç etkilenmez.
+ *
+ * Dışlama react-native.config.js ile yapılamıyor: Expo autolinking'in
+ * birleştirmesi `platforms.ios: null`'u boş nesne sayıp yutuyor ve kendi
+ * iOS ayarı olan @react-native-firebase/app yine bağlanıyordu.
+ *
+ * iOS'ta Firebase'i açmak için: plist'i köke koy, exclude'u kaldır ve
+ * RNFB'nin istediği `use_frameworks! :linkage => :dynamic` ayarını ekle
+ * (expo-build-properties `ios.useFrameworks: "dynamic"`).
  */
+/* global __dirname */
+const fs = require("node:fs");
+const path = require("node:path");
 const { execSync } = require("node:child_process");
 const appJson = require("./app.json");
+const packageJson = require("./package.json");
+
+const IOS_FIREBASE_PLIST = "GoogleService-Info.plist";
+const FIREBASE_PLUGINS = new Set(["@react-native-firebase/app", "@react-native-firebase/analytics"]);
 
 function git(args) {
   try {
@@ -40,14 +65,46 @@ function gitCommitCount() {
   return Number.isInteger(counted) && counted > 0 ? counted : null;
 }
 
+/** iOS'ta Firebase bağlı mı: plist var VE autolinking dışlamıyor. */
+function iosFirebaseEnabled() {
+  const excluded = new Set(packageJson.expo?.autolinking?.ios?.exclude ?? []);
+  if (excluded.has("@react-native-firebase/app")) return false;
+  return fs.existsSync(path.join(__dirname, IOS_FIREBASE_PLIST));
+}
+
+/**
+ * Yapılandırma iOS için mi okunuyor? Derleme betiği (scripts/ios) bunu
+ * ortam değişkeniyle açıkça söyler; elle `expo prebuild -p ios` ve
+ * `expo run:ios` komut satırından anlaşılır.
+ */
+function isIosTarget() {
+  if (process.env.CIKLET_PREBUILD_PLATFORM === "ios") return true;
+  const args = process.argv.slice(2);
+  if (args.includes("run:ios")) return true;
+  const at = args.findIndex((arg) => arg === "--platform" || arg === "-p");
+  return at !== -1 && args[at + 1] === "ios";
+}
+
+function pluginName(entry) {
+  return Array.isArray(entry) ? entry[0] : entry;
+}
+
 module.exports = ({ config }) => {
   const base = { ...appJson.expo, ...config };
   const count = gitCommitCount();
   if (count === null) {
     console.warn("[app.config] git commit sayısı bulunamadı; app.json sürümü kullanılıyor");
   }
+
+  const iosFirebase = iosFirebaseEnabled();
+  const dropFirebase = !iosFirebase && isIosTarget();
+  const plugins = (base.plugins ?? []).filter(
+    (entry) => !dropFirebase || !FIREBASE_PLUGINS.has(pluginName(entry))
+  );
+
   return {
     ...base,
+    plugins,
     version: count === null ? base.version : String(count),
     android: {
       ...base.android,
@@ -56,12 +113,15 @@ module.exports = ({ config }) => {
     ios: {
       ...base.ios,
       buildNumber: count === null ? base.ios?.buildNumber : String(count),
+      ...(iosFirebase ? { googleServicesFile: `./${IOS_FIREBASE_PLIST}` } : {}),
     },
     extra: {
       ...appJson.expo.extra,
       ...(config?.extra ?? {}),
       gitCommit: process.env.EXPO_PUBLIC_GIT_COMMIT?.trim().slice(0, 7) || gitCommit(),
       gitCommitCount: count,
+      // Çalışma zamanı (lib/analytics.ts): iOS'ta Firebase bağlı mı?
+      iosFirebase,
     },
   };
 };

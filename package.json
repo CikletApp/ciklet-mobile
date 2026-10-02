@@ -81,5 +81,15 @@
     "apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk.ps1",
     "doctor": "npx expo-doctor"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": [
+          "@react-native-firebase/app",
+          "@react-native-firebase/analytics"
+        ]
+      }
+    }
+  }
 }
