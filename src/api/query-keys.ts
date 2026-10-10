@@ -26,6 +26,11 @@ export const qk = {
   members: (serverId: string) => ["members", serverId] as const,
 
   directs: ["directs"] as const,
+  /**
+   * Tek sohbet — `/api/directs/init` yanıtından tohumlanır. Liste mesajsız
+   * birebir sohbeti (ve listeden kaldırılanı) döndürmüyor; başlık bundan okur.
+   */
+  direct: (directId: string) => ["direct", directId] as const,
 
   friends: ["friends"] as const,
   blockedUsers: ["blocked-users"] as const,

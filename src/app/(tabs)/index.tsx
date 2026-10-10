@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -8,6 +9,8 @@ import ReanimatedSwipeable, {
 import {
   directDisplay,
   hasUnread,
+  isDirectUnread,
+  useAnnotations,
   useConversationList,
   useDirectUnreadCounts,
   useNicknames,
@@ -37,12 +40,13 @@ import {
   showDialog,
 } from "@/components/ui";
 import { ActiveNow } from "@/features/home/active-now";
+import { ChatActionsSheet, type ChatActionsTarget } from "@/features/home/chat-actions-sheet";
 import { formatChatListTime, formatDirectPreview } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
-import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
+import { useFloatingTabInset } from "@/components/ui/tab-bar";
 import { fw } from "@/theme/fonts";
 
 /**
@@ -64,6 +68,7 @@ const FILTERS: TabItem<Filter>[] = [
 ];
 
 export default function ChatsScreen() {
+  const tabInset = useFloatingTabInset();
   const { conversations, isLoading, refetch, isRefetching } = useConversationList();
   const { data: selfDirect } = useSelfDirect();
   const openDirect = useOpenDirect();
@@ -73,9 +78,24 @@ export default function ChatsScreen() {
   const setPreference = usePreferences((s) => s.setPreference);
   const [filter, setFilter] = useState<Filter>("all");
   const [menuOpen, setMenuOpen] = useState(false);
-  const { counts: unreadCounts } = useDirectUnreadCounts();
+  // Basılı tutulan satır — eylem sayfası bunun için açık.
+  const [actionsFor, setActionsFor] = useState<ChatActionsTarget | null>(null);
+  // Satır rozeti, "Okunmamış" filtresi ve sayısı AYNI kaynaktan okur.
+  const directUnread = useDirectUnreadCounts();
+  const unreadCounts = directUnread.counts;
   // Arkadaş takma adları liste başlıklarında gerçek adın önüne geçer.
   const nicknames = useNicknames();
+  const { data: annotations } = useAnnotations();
+  // Yok sayılan kişilerin satırında sessiz ikonu çıkar.
+  const ignoredIds = useMemo(
+    () =>
+      new Set(
+        Object.entries(annotations ?? {})
+          .filter(([, annotation]) => annotation.ignored)
+          .map(([profileId]) => profileId)
+      ),
+    [annotations]
+  );
 
   /**
    * Sıralama sunucudan gelir (son mesaj zamanına göre); istemci yalnızca
@@ -84,7 +104,7 @@ export default function ChatsScreen() {
   const visible = useMemo(() => {
     const pinned = new Set(pinnedDirectIds);
     const filtered = conversations.filter((direct) => {
-      if (filter === "unread") return hasUnread(direct, myId);
+      if (filter === "unread") return isDirectUnread(direct, myId, directUnread);
       if (filter === "pinned") return pinned.has(direct.id);
       if (filter === "groups") return direct.isGroup === true;
       return true;
@@ -92,11 +112,11 @@ export default function ChatsScreen() {
     return [...filtered].sort(
       (a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id))
     );
-  }, [conversations, pinnedDirectIds, filter, myId]);
+  }, [conversations, pinnedDirectIds, filter, myId, directUnread]);
 
   const unreadTotal = useMemo(
-    () => conversations.filter((direct) => hasUnread(direct, myId)).length,
-    [conversations, myId]
+    () => conversations.filter((direct) => isDirectUnread(direct, myId, directUnread)).length,
+    [conversations, myId, directUnread]
   );
 
   const filterItems = useMemo<TabItem<Filter>[]>(
@@ -132,6 +152,10 @@ export default function ChatsScreen() {
    * Aynı uç birebir sohbette "listemden kaldır", grupta "gruptan ayrıl"
    * anlamına geliyor (`useRemoveDirect`). Onay metni bu yüzden ayrışır —
    * "Sohbeti sil" diyip kullanıcıyı gruptan çıkarmak dürüst olmaz.
+   *
+   * Birebirde de "sil" değil "kaldır": sunucu yalnızca senin tarafını
+   * gizliyor, yeni mesajla sohbet geri geliyor (web'deki "DM'yi Kapat").
+   * Resmî hesapla sohbet ise uçta hemen kalıcı siliniyor.
    */
   const confirmRemove = (direct: DirectSummary, display: DirectDisplay) => {
     const [title, message, action] = display.isGroup
@@ -141,9 +165,11 @@ export default function ChatsScreen() {
           "Ayrıl",
         ]
       : [
-          "Sohbeti sil",
-          `${display.title} ile sohbet yalnızca senin listenden kaldırılacak.`,
-          "Sil",
+          "Sohbet kaldırılsın mı?",
+          isOfficialProfile(display.peer)
+            ? "Bu resmî sohbet kalıcı olarak silinecek."
+            : `${display.title} ile olan sohbet listenden kaldırılacak. Yeni bir mesaj geldiğinde geri gelir.`,
+          "Kaldır",
         ];
 
     showDialog(title, message, [
@@ -215,6 +241,15 @@ export default function ChatsScreen() {
         ]}
       />
 
+      <ChatActionsSheet
+        target={actionsFor}
+        onClose={() => setActionsFor(null)}
+        myId={myId}
+        unread={directUnread}
+        onTogglePinned={togglePinned}
+        onRemove={confirmRemove}
+      />
+
       {isLoading ? (
         <ListSkeleton />
       ) : (
@@ -227,9 +262,12 @@ export default function ChatsScreen() {
               myId={myId}
               nicknames={nicknames}
               unreadCount={unreadCounts[item.id] ?? 0}
+              unreadReady={directUnread.ready}
               pinned={pinnedDirectIds.includes(item.id)}
               onTogglePinned={() => togglePinned(item.id)}
               onRemove={(display) => confirmRemove(item, display)}
+              onLongPress={(display) => setActionsFor({ item, display })}
+              ignoredIds={ignoredIds}
             />
           )}
           refreshControl={
@@ -247,7 +285,7 @@ export default function ChatsScreen() {
           ListHeaderComponent={filter === "all" ? <ActiveNow /> : null}
           contentContainerStyle={{
             paddingTop: spacing.xs,
-            paddingBottom: FLOATING_TAB_INSET + spacing.lg,
+            paddingBottom: tabInset + spacing.lg,
           }}
           ListEmptyComponent={<EmptyChats filter={filter} />}
         />
@@ -279,7 +317,7 @@ function EmptyChats({ filter }: { filter: Filter }) {
         <EmptyState
           icon="bookmark"
           title="Sabitlenmiş sohbet yok"
-          description="Bir sohbeti sağa kaydırarak listenin en üstüne sabitleyebilirsin."
+          description="Bir sohbeti sağa kaydır ya da basılı tutup Sabitle'yi seç."
         />
       </View>
     );
@@ -331,25 +369,35 @@ function ConversationRow({
   myId,
   nicknames,
   unreadCount,
+  unreadReady,
   pinned,
   onTogglePinned,
   onRemove,
+  onLongPress,
+  ignoredIds,
 }: {
   item: DirectSummary;
   myId: string | undefined;
   /** Arkadaş takma adları (profil kimliği → ad). */
   nicknames: Record<string, string>;
-  /** `/api/inbox` sayısı; yoksa okunmamış bilgisi imleçten türetilir. */
+  /** `/api/unread-counts` sayısı. */
   unreadCount: number;
+  /** Sayılar geldi mi; gelmediyse okunmamış bilgisi imleçten türetilir. */
+  unreadReady: boolean;
   pinned: boolean;
   onTogglePinned: () => void;
   onRemove: (display: DirectDisplay) => void;
+  /** Basılı tutma — eylem sayfasını açar. */
+  onLongPress: (display: DirectDisplay) => void;
+  /** Yok sayılan profil kimlikleri. */
+  ignoredIds: Set<string>;
 }) {
   const swipeable = useRef<SwipeableMethods>(null);
   // Grup/birebir ayrımının TEK kaynağı; satır profil alanlarını okumaz.
   const display = directDisplay(item, myId, nicknames);
-  const unreadHere = unreadCount > 0 || hasUnread(item, myId);
+  const unreadHere = unreadCount > 0 || (!unreadReady && hasUnread(item, myId));
   const isOfficial = !display.isGroup && isOfficialProfile(display.peer);
+  const ignored = !display.isGroup && !!display.peer && ignoredIds.has(display.peer.id);
 
   /**
    * Grupta önizlemeye yazar adı eklenir: "dosyayı attım" satırının kimden
@@ -384,7 +432,7 @@ function ConversationRow({
       leftThreshold={52}
       rightThreshold={52}
       renderLeftActions={() => action(pinned ? "Çöz" : "Sabitle", colors.brand, "bookmark")}
-      renderRightActions={() => action(display.isGroup ? "Ayrıl" : "Sil", colors.danger, "close")}
+      renderRightActions={() => action(display.isGroup ? "Ayrıl" : "Kaldır", colors.danger, "close")}
       onSwipeableOpen={(direction) => {
         if (direction === "right") onTogglePinned();
         else onRemove(display);
@@ -393,12 +441,22 @@ function ConversationRow({
     >
       <Pressable
         onPress={() => router.push(`/chat/direct/${item.id}`)}
-        onLongPress={() => onTogglePinned()}
+        onLongPress={() => {
+          // `haptic` yalnızca dokunmada titrer; basılı tutmada elle.
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          swipeable.current?.close();
+          onLongPress(display);
+        }}
+        delayLongPress={350}
         haptic="light"
         noHitSlop
         accessibilityRole="button"
         accessibilityLabel={`${display.title}${display.isGroup ? " grubu" : " ile sohbet"}${unreadHere ? ", okunmamış mesaj var" : ""}`}
-        accessibilityHint="Sabitlemek için basılı tut"
+        accessibilityHint="Seçenekler için basılı tut"
+        accessibilityActions={[{ name: "longpress", label: "Seçenekler" }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === "longpress") onLongPress(display);
+        }}
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
@@ -472,12 +530,20 @@ function ConversationRow({
 
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm }}>
             <Text
-              style={{ ...typography.body, fontSize: 14.5, lineHeight: 20, color: colors.muted, flex: 1 }}
+              style={{
+                ...typography.body,
+                fontSize: 14.5,
+                lineHeight: 20,
+                // Okunmamış sohbetin önizlemesi bir ton parlak.
+                color: unreadHere ? colors.text : colors.muted,
+                flex: 1,
+              }}
               numberOfLines={2}
             >
               {emojify(formatDirectPreview(item.latestMessage, myId, authorName), `p-${item.id}`, 17)}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 1 }}>
+              {ignored ? <Icon name="bell-off" size={15} color={colors.muted} /> : null}
               {pinned ? <Icon name="bookmark" size={15} color={colors.muted} filled /> : null}
               {unreadCount > 0 ? (
                 <UnreadBadge count={unreadCount} tone="brand" />

@@ -43,7 +43,8 @@ import {
 import { qk } from "@/api/query-keys";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
-import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
+import { fw } from "@/theme/fonts";
+import { useFloatingTabInset } from "@/components/ui/tab-bar";
 
 /**
  * Sunucular — sunucuların kendi evi.
@@ -72,6 +73,7 @@ const REORDER_LAYOUT = LinearTransition.duration(REORDER_DURATION).easing(
 const ROW_STEP = 72;
 
 export default function ServersScreen() {
+  const tabInset = useFloatingTabInset();
   const { items, isLoading } = useRailItems();
   const { data: unread } = useUnreadCounts();
   const reorder = useReorderRail();
@@ -240,7 +242,7 @@ export default function ServersScreen() {
           }
           contentContainerStyle={{
             paddingTop: spacing.xs,
-            paddingBottom: FLOATING_TAB_INSET + spacing.lg,
+            paddingBottom: tabInset + spacing.lg,
           }}
         >
           {needle ? (
@@ -432,7 +434,7 @@ function FolderSection({
           </Text>
         </View>
 
-        {!open && folderUnread > 0 ? <UnreadBadge count={folderUnread} /> : null}
+        {!open && folderUnread > 0 ? <UnreadBadge count={folderUnread} tone="brand" /> : null}
         <Icon
           name={open ? "chevron-down" : "chevron-right"}
           size={18}
@@ -534,8 +536,15 @@ function ServerRow({
           <Text style={{ ...typography.title, fontSize: 16.5, color: colors.bright }} numberOfLines={1}>
             {membership.server.name}
           </Text>
-          <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
-            {owner ? "Sahibi sensin" : unread > 0 ? "Yeni mesajlar var" : "Üyesin"}
+          <Text
+            style={{
+              ...typography.caption,
+              ...(unread > 0 ? fw(600) : null),
+              color: unread > 0 ? colors.brand : colors.muted,
+            }}
+            numberOfLines={1}
+          >
+            {unread > 0 ? "Yeni mesajlar var" : owner ? "Sahibi sensin" : "Üyesin"}
           </Text>
         </View>
         {unread > 0 ? <UnreadBadge count={unread} tone="brand" /> : null}

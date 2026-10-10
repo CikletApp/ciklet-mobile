@@ -1,21 +1,16 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import {
-  FlatList,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-} from "react-native";
+import { FlatList, Pressable, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { GestureDetector, type GestureType } from "react-native-gesture-handler";
+import Animated, { useAnimatedScrollHandler, useComposedEventHandler, useSharedValue } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { EmojiImage, Icon, type IconName } from "@/components/ui";
 import { emojiUrl, getDokimorji } from "@/lib/emoji";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { CollapsibleHeader, type CollapsingChrome } from "./collapsing-chrome";
 
 /**
  * Emoji seçici — ciklet-web `components/emoji-picker.tsx` ile aynı veri:
@@ -205,6 +200,7 @@ export function EmojiPickerPanel({
   bottomInset = spacing.sm,
   onSearchFocusChange,
   headerGesture,
+  chrome,
 }: {
   onEmoji: (emoji: string) => void;
   /**
@@ -217,6 +213,8 @@ export function EmojiPickerPanel({
   onSearchFocusChange?: (focused: boolean) => void;
   /** Kategori çubuğuna bağlanan aşağı çekerek kapatma hareketi (drag-dismiss.ts). */
   headerGesture?: GestureType;
+  /** Kaydırınca gizlenen üst satır (composer paneli); tepki seçicide yok. */
+  chrome?: CollapsingChrome;
 }) {
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
@@ -300,18 +298,43 @@ export function EmojiPickerPanel({
   const jumpTo = (section: SectionStart) => {
     setQuery("");
     setActive(section.id);
+    // Atalet sürerken dokunulursa sürükleme işareti açık kalabilir; atlama gizlemesin.
+    chrome?.reset();
     listRef.current?.scrollToOffset({ offset: section.offset, animated: false });
   };
 
-  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = event.nativeEvent.contentOffset.y + 1;
-    let found = starts[0]?.id ?? null;
-    for (const start of starts) {
-      if (start.offset > y) break;
-      found = start.id;
-    }
-    if (found !== current) setActive(found);
-  };
+  // Etkin kategori UI iş parçacığında bulunur: liste tek `onScroll` alıyor,
+  // kaydırınca gizlenen çerçevenin işleyicisiyle birleştirilir.
+  const { offsets, ids } = useMemo(
+    () => ({ offsets: starts.map((start) => start.offset), ids: starts.map((start) => start.id) }),
+    [starts]
+  );
+  const shownIndex = useSharedValue(-1);
+  const activeHandler = useAnimatedScrollHandler(
+    {
+      onScroll: (event) => {
+        const y = event.contentOffset.y + 1;
+        let index = 0;
+        for (let k = 0; k < offsets.length; k++) {
+          if (offsets[k] > y) break;
+          index = k;
+        }
+        if (index !== shownIndex.get() && ids[index] !== undefined) {
+          shownIndex.set(index);
+          scheduleOnRN(setActive, ids[index]);
+        }
+      },
+    },
+    [offsets, ids]
+  );
+  const onSectionsScroll = useComposedEventHandler([chrome?.scrollHandler ?? null, activeHandler]);
+
+  // Arama listesiyle bölüm listesi arasında geçiş: yeni liste tepeden başlar.
+  const searching = needle !== "";
+  const resetChrome = chrome?.reset;
+  useEffect(() => {
+    resetChrome?.();
+  }, [searching, resetChrome]);
 
   const cell = (emoji: PickerEmoji) => (
     <Pressable
@@ -408,27 +431,31 @@ export function EmojiPickerPanel({
 
   return (
     <View style={{ flex: 1 }}>
-      {compact ? null : headerGesture ? (
-        <GestureDetector gesture={headerGesture}>{categoryBar}</GestureDetector>
-      ) : (
-        categoryBar
-      )}
+      <CollapsibleHeader progress={chrome?.progress}>
+        {compact ? null : headerGesture ? (
+          <GestureDetector gesture={headerGesture}>{categoryBar}</GestureDetector>
+        ) : (
+          categoryBar
+        )}
 
-      <SearchPill
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Ara"
-        onFocusChange={onSearchFocusChange}
-      />
+        <SearchPill
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Ara"
+          onFocusChange={onSearchFocusChange}
+        />
+      </CollapsibleHeader>
 
       {needle ? (
-        <FlatList
+        <Animated.FlatList
           key="emoji-search"
           data={results}
           numColumns={COLUMNS}
           keyExtractor={(emoji) => emoji.native}
           initialNumToRender={48}
           windowSize={7}
+          onScroll={chrome?.scrollHandler}
+          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: spacing.sm, paddingBottom: bottomInset }}
           ListEmptyComponent={
@@ -439,7 +466,7 @@ export function EmojiPickerPanel({
           renderItem={({ item }) => cell(item)}
         />
       ) : (
-        <FlatList
+        <Animated.FlatList
           ref={listRef}
           key="emoji-sections"
           data={rows}
@@ -448,8 +475,8 @@ export function EmojiPickerPanel({
           initialNumToRender={12}
           maxToRenderPerBatch={10}
           windowSize={9}
-          onScroll={onScroll}
-          scrollEventThrottle={32}
+          onScroll={onSectionsScroll}
+          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: spacing.sm, paddingBottom: bottomInset }}
           renderItem={({ item }) =>
@@ -482,11 +509,14 @@ export function SearchPill({
   onChangeText,
   placeholder,
   onFocusChange,
+  onClear,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   placeholder: string;
   onFocusChange?: (focused: boolean) => void;
+  /** X'e basınca (verilmezse metin boşaltılır). GIF'te kategorilere döner. */
+  onClear?: () => void;
 }) {
   return (
     <View
@@ -517,7 +547,7 @@ export function SearchPill({
       />
       {value ? (
         <Pressable
-          onPress={() => onChangeText("")}
+          onPress={() => (onClear ? onClear() : onChangeText(""))}
           accessibilityRole="button"
           accessibilityLabel="Aramayı temizle"
           hitSlop={8}

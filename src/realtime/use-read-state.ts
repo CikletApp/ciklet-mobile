@@ -1,18 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
+import { useIsFocused } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
-import { qk } from "@/api/query-keys";
-import { ServerEvent } from "./events";
-import { onGatewayEvent } from "./gateway";
+import { applyReadState } from "@/features/unread/unread-cache";
 
 /**
  * Okundu bilgisi.
  *
  * Sohbet açıkken görülen en yeni mesaj `/api/read-state/ack` ile bildirilir
  * (ADR-0012 öncesi Socket.IO `MESSAGE_ACK` olayıydı). Sunucu imleci
- * ilerletip `read_state.updated` yayınlar; rozetler oradan tazelenir.
+ * ilerletip `read_state.updated` yayınlar; o olayı kök düzeyde
+ * `use-unread-sync` dinler (sohbetten çıkınca gelen yayın da kaçmasın).
  *
  * Aynı mesaj için tekrar ack gönderilmez — kullanıcı listede kaydırdıkça
  * istek yağmuru olmaz.
@@ -25,36 +26,41 @@ export function useReadState(
 ) {
   const queryClient = useQueryClient();
   const lastAcked = useRef<string | null>(null);
+  // Arka plandayken gelen mesaj okunmuş sayılmaz (web: `document.hidden`);
+  // öne dönünce bekleyen ack gönderilir.
+  const [appActive, setAppActive] = useState(AppState.currentState === "active");
+  // Üstüne başka ekran itilmişse de görülmüyor (bkz. chat-view `useActiveChat`).
+  const focused = useIsFocused();
 
-  // Okundu bildir.
   useEffect(() => {
-    if (!chatId || !latestMessageId) return;
-    if (lastAcked.current === latestMessageId) return;
-    lastAcked.current = latestMessageId;
+    const subscription = AppState.addEventListener("change", (next) => setAppActive(next === "active"));
+    return () => subscription.remove();
+  }, []);
 
-    void api(endpoints.readStateAck, {
-      method: "POST",
-      body: {
-        [kind === "channel" ? "channelId" : "directId"]: chatId,
-        messageId: latestMessageId,
-      },
-    }).catch(() => {
-      // Başarısız ack bir sonraki mesajda tekrar denenir.
-      if (lastAcked.current === latestMessageId) lastAcked.current = null;
-    });
-  }, [chatId, kind, latestMessageId]);
-
-  // Sohbet değişince imleci sıfırla.
+  // Sohbet değişince imleci sıfırla — ack efektinden ÖNCE çalışmalı.
   useEffect(() => {
     lastAcked.current = null;
   }, [chatId]);
 
-  // Sunucu okuma durumunu güncelleyince rozetleri tazele.
+  // Okundu bildir.
   useEffect(() => {
-    return onGatewayEvent(ServerEvent.READ_STATE_UPDATED, () => {
-      void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
-      void queryClient.invalidateQueries({ queryKey: qk.directs });
-      void queryClient.invalidateQueries({ queryKey: qk.inbox });
-    });
-  }, [queryClient]);
+    if (!chatId || !latestMessageId || !appActive || !focused) return;
+    if (lastAcked.current === latestMessageId) return;
+    lastAcked.current = latestMessageId;
+
+    const target = kind === "channel" ? { channelId: chatId } : { directId: chatId };
+    void api(endpoints.readStateAck, {
+      method: "POST",
+      body: { ...target, messageId: latestMessageId },
+    })
+      .then(() => {
+        // Rozet geri dönüldüğünde zaten silinmiş olsun; yayını bekleme
+        // (`read_state.updated` de aynı işi yapar, iki kez uygulamak zararsız).
+        applyReadState(queryClient, { ...target, messageId: latestMessageId });
+      })
+      .catch(() => {
+        // Başarısız ack bir sonraki mesajda tekrar denenir.
+        if (lastAcked.current === latestMessageId) lastAcked.current = null;
+      });
+  }, [chatId, kind, latestMessageId, appActive, focused, queryClient]);
 }

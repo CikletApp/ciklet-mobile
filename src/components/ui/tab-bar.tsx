@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import type { BottomTabBarProps } from "expo-router/build/layouts/Tabs";
 import Animated, {
   useAnimatedStyle,
@@ -8,7 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useDirectUnreadCounts, useFriends } from "@/api/hooks";
+import { useDirectUnreadCounts, useFriends, useUnreadServerCount } from "@/api/hooks";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing } from "@/theme/tokens";
 import { Avatar } from "./avatar";
@@ -32,19 +32,46 @@ const ICONS: Record<string, IconName> = {
   me: "user",
 };
 
+/** Çubuğun yüksekliği: dolgu 5×2 + sekme 58 + kenarlık 1×2. */
+const BAR_HEIGHT = 70;
+
+/**
+ * Çubuğun alt kenara uzaklığı. Güvenli alanın tamamı yerine biraz daha
+ * aşağıda durur ama ev çizgisinin / hareket çubuğunun üstünde kalır.
+ * Android 3 düğmeli gezinmede (geniş alt boşluk) düğmelerin üstüne
+ * hiç inmez.
+ */
+export function tabBarBottomOffset(inset: number) {
+  if (inset <= 0) return spacing.xs;
+  if (Platform.OS === "android") {
+    if (inset >= 40) return inset;
+    return Math.max(inset - spacing.sm, spacing.sm);
+  }
+  return Math.max(inset - 10, spacing.sm);
+}
+
 /**
  * Yüzen çubuk mutlak konumlu olduğu için ekranlar için yer AYIRMAZ.
  * Kaydırılabilir içeriğin son öğesi çubuğun altında kalmasın diye
- * listelere bu kadar alt boşluk verilir (çubuk yüksekliği + payı).
+ * listelere bu kadar alt boşluk verilir (çubuk + konumu + payı).
  */
-export const FLOATING_TAB_INSET = 92;
+export function useFloatingTabInset() {
+  const insets = useSafeAreaInsets();
+  return BAR_HEIGHT + tabBarBottomOffset(insets.bottom) + spacing.sm;
+}
 
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   // Rozet mesaj değil SOHBET sayar: "42" bir sayı yığını, "3 sohbet" bir yapılacak.
   const { chats: unreadChats } = useDirectUnreadCounts();
+  // Sunucular da aynı mantıkla: okunmamış mesajı olan SUNUCU sayısı.
+  const unreadServers = useUnreadServerCount();
   const { incoming } = useFriends();
-  const badges: Record<string, number> = { index: unreadChats, notifications: incoming.length };
+  const badges: Record<string, number> = {
+    index: unreadChats,
+    servers: unreadServers,
+    notifications: incoming.length,
+  };
 
   return (
     <View
@@ -53,7 +80,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
         left: spacing.md,
         right: spacing.md,
         // Gezinme çubuğunun üstünde dursun; cihazda çubuk yoksa taban boşluk.
-        bottom: Math.max(insets.bottom, spacing.sm),
+        bottom: tabBarBottomOffset(insets.bottom),
       }}
       pointerEvents="box-none"
     >
@@ -138,7 +165,7 @@ function TabItem({
       noHitSlop
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
-      accessibilityLabel={badge > 0 ? `${label}, ${badge} okunmamış sohbet` : label}
+      accessibilityLabel={badge > 0 ? `${label}, ${badge} okunmamış` : label}
       onPressIn={() => {
         press.value = 1;
       }}

@@ -7,7 +7,7 @@ import {
 } from "@ciklet/embedded-activities-sdk/types";
 
 import { useAuth } from "@/stores/auth";
-import { api } from "../client";
+import { api, ApiError } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
 import { showToast } from "@/components/ui/toast";
@@ -131,6 +131,30 @@ export function useBlockedUsers() {
         `${endpoints.friendBlock}${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ""}`
       ),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
+/**
+ * Kişiyi engeller — arkadaşlık da sona erer. Resmî hesapta uç 403 ve
+ * Türkçe bir mesaj döner, o olduğu gibi gösterilir; diğer hata metinleri
+ * İngilizce. Sohbet listeden düşmez (web'de de kalıyor).
+ */
+export function useBlockUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (profileId: string) =>
+      api(endpoints.friendBlock, { method: "POST", body: { profileId } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.friends });
+      void queryClient.invalidateQueries({ queryKey: qk.blockedUsers });
+    },
+    onError: (error) =>
+      showToast(
+        error instanceof ApiError && error.status === 403 && error.message
+          ? error.message
+          : "Engellenemedi. Tekrar dene.",
+        "error"
+      ),
   });
 }
 

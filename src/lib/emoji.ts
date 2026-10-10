@@ -135,6 +135,39 @@ export function splitEmoji(text: string): EmojiSegment[] {
   return segments;
 }
 
+/**
+ * Dokimorji renkli yazı tipinin ailesi (COLRv0; web'in `dokimorji.woff2`'sinden
+ * TTF'e çevrildi — `assets/fonts/dokimorji.ttf`). `theme/use-app-fonts.ts`
+ * bu adla yükler; iki yerde aynı kalmalı.
+ */
+export const DOKIMORJI_FONT = "Dokimorji";
+
+export type DokimorjiSegment = { kind: "text" | "dokimorji"; text: string };
+
+/** Metinde Dokimorji (özel kullanım alanı) karakteri var mı. */
+export function hasDokimorji(text: string): boolean {
+  // `PRIVATE_USE` global; `.test()` onun `lastIndex`'ini kaydırırdı.
+  return /[\u{F0000}-\u{FFFFD}]/u.test(text);
+}
+
+/**
+ * Yazı kutusu için: yalnızca Dokimorji karakterlerini ayırır. Standart
+ * emojiler kutuda telefonun emoji yazı tipiyle zaten çiziliyor; Dokimorji
+ * ise renkli Dokimorji yazı tipiyle çizilir (web'deki `dokimorji.woff2`).
+ */
+export function splitDokimorji(text: string): DokimorjiSegment[] {
+  const segments: DokimorjiSegment[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(PRIVATE_USE)) {
+    if (match.index === undefined) continue;
+    if (match.index > cursor) segments.push({ kind: "text", text: text.slice(cursor, match.index) });
+    segments.push({ kind: "dokimorji", text: match[0] });
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length) segments.push({ kind: "text", text: text.slice(cursor) });
+  return segments;
+}
+
 /** Tek bir emojinin görseli (seçici, tepkiler); tanınmıyorsa null. */
 export function emojiUrl(native: string): string | null {
   const segment = splitEmoji(native).find((part) => part.kind === "emoji");

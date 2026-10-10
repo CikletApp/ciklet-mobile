@@ -7,6 +7,7 @@ import { endpoints } from "@/api/endpoints";
 import type { ChatKind } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { useOutbox } from "@/stores/outbox";
+import { clearTyper } from "@/stores/typing";
 import { applyReactionDelta, type MessageCache } from "@/features/chat/reaction-cache";
 import { applyPinUpdate } from "@/features/chat/pins";
 import {
@@ -73,10 +74,10 @@ export function useChatStream(kind: ChatKind, chatId: string | undefined) {
       prepend([message]);
 
       // Açık DM'de gönderilen/alınan mesaj, ana listedeki önizleme ve
-      // sıralamayı da güncellesin.
+      // sıralamayı da güncellesin. (Gelen kutusu `message.notification` ile
+      // zaten tazeleniyor.)
       if (!("member" in message)) {
         void queryClient.invalidateQueries({ queryKey: qk.directs });
-        void queryClient.invalidateQueries({ queryKey: qk.inbox });
       }
     };
 
@@ -113,6 +114,7 @@ export function useChatStream(kind: ChatKind, chatId: string | undefined) {
       // Oda yalnızca `message.create` taşıyor; ileride başka tür eklenirse
       // sessizce mesaj sanılmasın.
       if (event.eventType !== "message.create") return;
+      clearTyper(chatId, event.authorId);
       writeNew(messageFromEnvelope(event));
     });
 

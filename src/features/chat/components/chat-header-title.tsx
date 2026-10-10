@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-import { Pressable } from "@/components/ui";
+import { Pressable, TypingDots } from "@/components/ui";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -14,6 +14,7 @@ export function ChatHeaderTitle({
   title,
   subtitle,
   subtitleTone = "muted",
+  typing = false,
   onPress,
   accessibilityLabel,
 }: {
@@ -22,6 +23,8 @@ export function ChatHeaderTitle({
   subtitle?: string | null;
   /** `live`: yazıyor / etkinlik — vurgu renginde. */
   subtitleTone?: "muted" | "live";
+  /** Alt satır "yazıyor": önünde hareketli noktalar. */
+  typing?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
 }) {
@@ -47,7 +50,17 @@ export function ChatHeaderTitle({
         <Text style={{ ...typography.bodyStrong, fontSize: 16.5, color: colors.bright }} numberOfLines={1}>
           {title}
         </Text>
-        {subtitle ? (
+        {subtitle && typing ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <TypingDots size={4} gap={2.5} distance={2} color={colors.brand} />
+            <Text
+              style={{ ...typography.caption, fontSize: 12.5, lineHeight: 16, color: colors.brand, flexShrink: 1 }}
+              numberOfLines={1}
+            >
+              {subtitle}
+            </Text>
+          </View>
+        ) : subtitle ? (
           <Text
             style={{
               ...typography.caption,

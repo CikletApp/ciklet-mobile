@@ -45,7 +45,8 @@ import { readable, senderColor } from "@/theme/palette";
  * kez yapılır, ekranlar bilmek zorunda kalmaz.
  */
 
-const AVATAR_SIZE = 32;
+/** Gelen mesaj avatarı — "yazıyor" balonu da aynı sütunu kullanır. */
+export const AVATAR_SIZE = 32;
 const MAX_BUBBLE_WIDTH = "78%";
 /** Sola çekerek yanıtlama: satırın en çok kayacağı mesafe ve tetikleme eşiği. */
 const SWIPE_MAX = 76;

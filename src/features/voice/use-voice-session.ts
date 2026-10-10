@@ -22,12 +22,28 @@ export function useVoiceSession(session: ActiveVoice | null) {
   const leaveStore = useVoice((s) => s.leave);
   const setParticipants = useVoice((s) => s.setParticipants);
 
-  const { token, error } = useVoiceToken(session?.roomId, session?.kind === "video");
+  // Sesli kanal Discord gibi hoparlörden başlar; düğmeyle ahizeye alınabilir.
+  const { token, error } = useVoiceToken(session?.roomId, {
+    needsCamera: session?.kind === "video",
+    defaultRoute: "speaker",
+  });
 
   // Token alınınca oturumu depoya yaz (alt çubuk bunu gösterir).
   useEffect(() => {
     if (session && token) joinStore(session);
   }, [session, token, joinStore]);
+
+  // Ekran geri tuşu/kaydırmayla kapanınca da oturum biter (LiveKit odası
+  // ekranla birlikte kapanıyor); depo yalnızca "Ayrıl" düğmesiyle
+  // temizlenirse mesaj tonu oturum boyunca susuyordu.
+  const roomId = session?.roomId;
+  useEffect(() => {
+    if (!roomId) return;
+    return () => {
+      const voice = useVoice.getState();
+      if (voice.active?.roomId === roomId) voice.leave();
+    };
+  }, [roomId]);
 
   // ── Ağ geçidi: kanala katıl / ayrıl + katılımcı listesi ─────────
   useEffect(() => {

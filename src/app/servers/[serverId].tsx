@@ -111,6 +111,12 @@ export default function ServerChannelsScreen() {
               ? section.data.length ||
                 (channels ?? []).filter((c) => c.type === section.type).length
               : 0;
+            // Kapalı kategorideki kanalların okunmamış toplamı.
+            const hiddenUnread = isCollapsed
+              ? (channels ?? [])
+                  .filter((c) => c.type === section.type)
+                  .reduce((sum, c) => sum + (unread?.channelUnreads?.[c.id]?.count ?? 0), 0)
+              : 0;
 
             return (
               <Pressable
@@ -138,7 +144,9 @@ export default function ServerChannelsScreen() {
                 <Text style={{ ...typography.overline, color: colors.muted, flex: 1 }}>
                   {section.title}
                 </Text>
-                {hidden > 0 ? (
+                {hiddenUnread > 0 ? (
+                  <UnreadBadge count={hiddenUnread} tone="brand" />
+                ) : hidden > 0 ? (
                   <Text style={{ ...typography.caption, color: colors.muted }}>
                     {hidden}
                   </Text>

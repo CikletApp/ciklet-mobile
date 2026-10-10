@@ -3,7 +3,7 @@ import { BackHandler, Keyboard, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Icon, IconButton, Pressable, emojify } from "@/components/ui";
+import { Icon, IconButton, Pressable, dokimorjiInputProps, emojify } from "@/components/ui";
 import { splitEmoji } from "@/lib/emoji";
 import type { MessageAttachment } from "@/lib/uploads";
 import type { ChatMessagePayload } from "@/realtime/events";
@@ -220,24 +220,6 @@ export function Composer({
           </View>
         ) : null}
 
-        {/* Yazı kutusu emojiyi telefonun yazı tipiyle çiziyor ve Dokimorji
-            (özel kullanım alanı karakterleri) orada boş kutu görünüyor; taslakta
-            Dokimorji varsa gönderilecek hâli Twemoji'yle burada önizlenir. */}
-        {/[\u{F0000}-\u{FFFFD}]/u.test(value) ? (
-          <View
-            style={{
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.xs,
-              borderRadius: radii.sm,
-              backgroundColor: colors.panel,
-            }}
-          >
-            <Text style={{ ...typography.caption, color: colors.text }} numberOfLines={2}>
-              {emojify(value, "draft", 18)}
-            </Text>
-          </View>
-        ) : null}
-
         {replyingTo ? (
           <View
             style={{
@@ -254,7 +236,7 @@ export function Composer({
           >
             <IconButton icon="reply" label="Yanıt" background="transparent" tint={colors.brand} disabled size={28} />
             <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
-              {replyingTo.content}
+              {emojify(replyingTo.content, "reply", 16)}
             </Text>
             <IconButton
               icon="close"
@@ -298,10 +280,12 @@ export function Composer({
               backgroundColor: colors.panel,
             }}
           >
+            {/* Odak sohbet ekranında, geçiş animasyonu bittikten sonra
+                (bkz. chat-view): `autoFocus` iOS'ta klavyeyi ekranla birlikte
+                yandan kaydırıyordu. Dokimorji renkli yazı tipiyle çizilir. */}
             <TextInput
               ref={inputRef}
-              autoFocus
-              value={value}
+              {...dokimorjiInputProps(value, typography.body.lineHeight)}
               onChangeText={onChangeText}
               onSelectionChange={(event) => {
                 selection.current = event.nativeEvent.selection;

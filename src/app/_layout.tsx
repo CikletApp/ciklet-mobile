@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { Appearance } from "react-native";
-import { Stack } from "expo-router";
+import { useCallback, useEffect } from "react";
+import { Stack, ThemeProvider } from "expo-router";
+import { getFocusedRouteNameFromRoute } from "expo-router/react-navigation";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -12,8 +12,8 @@ import { ConnectionBanner } from "@/components/connection-banner";
 import { InAppNoticeHost } from "@/components/in-app-notice";
 import { DialogHost, ToastHost } from "@/components/ui";
 import { ImageViewerHost } from "@/components/ui/image-viewer";
-import { CallOverlay } from "@/features/call/call-overlay";
 import { BrandSplash } from "@/features/auth/auth-shell";
+import { CallOverlay } from "@/features/call/call-overlay";
 import { useScreenTracking } from "@/lib/analytics";
 import { loadDokimorjiManifest } from "@/lib/emoji";
 import { setupLiveKit } from "@/lib/livekit";
@@ -24,6 +24,7 @@ import { useTheme } from "@/stores/theme";
 import { useAppFonts } from "@/theme/use-app-fonts";
 import {
   createModalScreenOptions,
+  createNavigationTheme,
   createStackScreenOptions,
 } from "@/theme/navigation";
 
@@ -44,7 +45,17 @@ export const unstable_settings = {
   initialRouteName: "(tabs)",
 };
 
+// iOS geri menüsü önceki ekranın başlığını gösterir; başlıksız sekme grubu
+// "(tabs)" diye görünüyordu.
+const TAB_TITLES: Record<string, string> = {
+  index: "Sohbetler",
+  servers: "Sunucular",
+  notifications: "Bildirimler",
+  me: "Sen",
+};
+
 void SplashScreen.preventAutoHideAsync();
+SplashScreen.setOptions({ fade: true, duration: 250 });
 
 // WebRTC global'leri modül yüklenirken bir kez kaydedilir; React ağacına
 // bağlı değildir ve render sırasında çağrılmamalıdır.
@@ -60,19 +71,20 @@ useAuth.subscribe((state, previous) => {
 });
 
 export default function RootLayout() {
-  const [splashElapsed, setSplashElapsed] = useState(false);
   const status = useAuth((s) => s.status);
   const bootstrap = useAuth((s) => s.bootstrap);
   const themeRevision = useTheme((s) => s.revision);
   const scheme = useTheme((s) => s.scheme);
   const palette = useTheme((s) => s.palette);
+  const themeHydrated = useTheme((s) => s.hydrated);
   const hydrateTheme = useTheme((s) => s.hydrate);
-  const syncSystemTheme = useTheme((s) => s.syncSystem);
   const hydratePreferences = usePreferences((s) => s.hydrate);
   const appFonts = useAppFonts();
   const stackScreenOptions = createStackScreenOptions(palette);
   useScreenTracking();
   const modalScreenOptions = createModalScreenOptions(palette);
+  const navigationTheme = createNavigationTheme(palette);
+  const ready = status !== "loading" && appFonts.ready && themeHydrated;
 
   useEffect(() => {
     void hydrateTheme();
@@ -81,27 +93,26 @@ export default function RootLayout() {
     void loadDokimorjiManifest();
   }, [bootstrap, hydratePreferences, hydrateTheme]);
 
-  // "Sistem" tercihi cihazın açık/koyu değişimini canlı izler.
+  // Yerel splash ile JS açılış ekranı aynı görüntü (BrandSplash); yerel olan,
+  // JS'teki ikon ekrana çizildiği an kalkar ve geçiş görünmez. Uygulama ilk
+  // karede hazırsa ana ağacın ilk karesinde, görsel olayı hiç gelmezse kısa
+  // süre sonra yine kalkar. Ekran hazır olunca beklemeden açılır (WhatsApp).
+  const onSplashReady = useCallback(() => SplashScreen.hide(), []);
   useEffect(() => {
-    const subscription = Appearance.addChangeListener(syncSystemTheme);
-    return () => subscription.remove();
-  }, [syncSystemTheme]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setSplashElapsed(true), 1100);
+    const timer = setTimeout(() => SplashScreen.hide(), 800);
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    // Splash yalnızca oturum durumu netleştiğinde kalkar — aksi halde
-    // kullanıcı bir an giriş ekranını görüp sonra uygulamaya atlar.
-    if (status !== "loading") void SplashScreen.hideAsync();
-  }, [status]);
-
-  if (status === "loading" || !splashElapsed || !appFonts.ready) return <BrandSplash />;
+  if (!ready) {
+    return (
+      <SafeAreaProvider>
+        <BrandSplash onReady={onSplashReady} />
+      </SafeAreaProvider>
+    );
+  }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
+    <GestureHandlerRootView onLayout={onSplashReady} style={{ flex: 1, backgroundColor: palette.bg }}>
       <SafeAreaProvider>
         <PersistQueryClientProvider
           client={queryClient}
@@ -117,73 +128,86 @@ export default function RootLayout() {
               Tema anahtarı navigator ağacını yeniden kurar; tüm ekranlar ve
               yüzen kabuklar yeni paleti aynı karede yeniden okur.
             */}
-            <Stack key={`${themeRevision}-${appFonts.revision}`} screenOptions={stackScreenOptions}>
-              <Stack.Protected guard={status === "signedIn"}>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />
-                <Stack.Screen
-                  name="servers/new"
-                  options={{ ...modalScreenOptions, title: "Sunucu" }}
-                />
-                <Stack.Screen name="chat/channel/[channelId]" options={{ title: "" }} />
-                <Stack.Screen name="chat/direct/[directId]" options={{ title: "" }} />
-                <Stack.Screen
-                  name="directs/new-group"
-                  options={{ ...modalScreenOptions, title: "Yeni Grup" }}
-                />
-                <Stack.Screen name="directs/[directId]/info" options={{ title: "Grup Bilgisi" }} />
-                <Stack.Screen name="voice/[channelId]" options={{ title: "" }} />
-                <Stack.Screen
-                  name="activities/index"
-                  options={{ ...modalScreenOptions, title: "Aktiviteler" }}
-                />
-                <Stack.Screen
-                  name="activities/[clientId]"
-                  options={{ ...modalScreenOptions, title: "" }}
-                />
-                <Stack.Screen name="friends/index" options={{ title: "Arkadaşlar" }} />
-                <Stack.Screen
-                  name="friends/quick-message"
-                  options={{ ...modalScreenOptions, title: "Yeni mesaj" }}
-                />
-                <Stack.Screen
-                  name="friends/add"
-                  options={{ ...modalScreenOptions, title: "Arkadaş Ekle" }}
-                />
-                <Stack.Screen name="search" options={{ title: "Ara" }} />
-                <Stack.Screen
-                  name="profile/edit"
-                  options={{ ...modalScreenOptions, title: "Profil" }}
-                />
-                <Stack.Screen name="profile/[profileId]" options={{ title: "" }} />
-                <Stack.Screen name="settings/index" options={{ title: "Ayarlar" }} />
-                <Stack.Screen name="settings/help" options={{ title: "Yardım" }} />
-                <Stack.Screen
-                  name="settings/appearance"
-                  options={{ title: "Görünüm" }}
-                />
-              </Stack.Protected>
+            {/* Tema sağlayıcısı iOS başlığının açık/koyu stilini paletten alır. */}
+            <ThemeProvider value={navigationTheme}>
+              <Stack key={`${themeRevision}-${appFonts.revision}`} screenOptions={stackScreenOptions}>
+                <Stack.Protected guard={status === "signedIn"}>
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={({ route }) => ({
+                      headerShown: false,
+                      title: TAB_TITLES[getFocusedRouteNameFromRoute(route) ?? "index"] ?? "Ciklet",
+                    })}
+                  />
+                  <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />
+                  <Stack.Screen
+                    name="servers/new"
+                    options={{ ...modalScreenOptions, title: "Sunucu" }}
+                  />
+                  <Stack.Screen name="chat/channel/[channelId]" options={{ title: "" }} />
+                  <Stack.Screen name="chat/direct/[directId]" options={{ title: "" }} />
+                  <Stack.Screen
+                    name="directs/new-group"
+                    options={{ ...modalScreenOptions, title: "Yeni Grup" }}
+                  />
+                  <Stack.Screen name="directs/[directId]/info" options={{ title: "Grup Bilgisi" }} />
+                  <Stack.Screen name="voice/[channelId]" options={{ title: "" }} />
+                  <Stack.Screen
+                    name="activities/index"
+                    options={{ ...modalScreenOptions, title: "Aktiviteler" }}
+                  />
+                  <Stack.Screen
+                    name="activities/[clientId]"
+                    options={{ ...modalScreenOptions, title: "" }}
+                  />
+                  <Stack.Screen name="friends/index" options={{ title: "Arkadaşlar" }} />
+                  <Stack.Screen
+                    name="friends/quick-message"
+                    options={{ ...modalScreenOptions, title: "Yeni mesaj" }}
+                  />
+                  <Stack.Screen
+                    name="friends/add"
+                    options={{ ...modalScreenOptions, title: "Arkadaş Ekle" }}
+                  />
+                  <Stack.Screen name="search" options={{ title: "Ara" }} />
+                  <Stack.Screen
+                    name="profile/edit"
+                    options={{ ...modalScreenOptions, title: "Profil" }}
+                  />
+                  <Stack.Screen name="profile/[profileId]" options={{ title: "" }} />
+                  <Stack.Screen name="settings/index" options={{ title: "Ayarlar" }} />
+                  <Stack.Screen name="settings/help" options={{ title: "Yardım" }} />
+                  <Stack.Screen
+                    name="settings/appearance"
+                    options={{ title: "Görünüm" }}
+                  />
+                </Stack.Protected>
 
-              <Stack.Protected guard={status === "signedOut"}>
-                <Stack.Screen name="(auth)/index" options={{ headerShown: false }} />
-                <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-                <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
-                <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
-                <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
-              </Stack.Protected>
+                <Stack.Protected guard={status === "signedOut"}>
+                  <Stack.Screen name="(auth)/index" options={{ headerShown: false }} />
+                  <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+                  <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
+                  <Stack.Screen name="(auth)/verify-email" options={{ headerShown: false }} />
+                  <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
+                </Stack.Protected>
 
-              {/* Girişten sonraki kapılar — web /redirect sırasıyla: sözleşme,
-                  telefon. Her biri bekleyen oturumun gidebileceği TEK yer. */}
-              <Stack.Protected guard={status === "eulaPending"}>
-                <Stack.Screen name="(auth)/eula" options={{ headerShown: false }} />
-              </Stack.Protected>
-              <Stack.Protected guard={status === "phonePending"}>
-                <Stack.Screen name="(auth)/verify-phone" options={{ headerShown: false }} />
-              </Stack.Protected>
-              <Stack.Protected guard={status === "banned"}>
-                <Stack.Screen name="(auth)/banned" options={{ headerShown: false }} />
-              </Stack.Protected>
-            </Stack>
+                {/* Girişten sonraki kapılar — web /redirect sırasıyla: sözleşme,
+                    telefon. Her biri bekleyen oturumun gidebileceği TEK yer. */}
+                <Stack.Protected guard={status === "eulaPending"}>
+                  <Stack.Screen name="(auth)/eula" options={{ headerShown: false }} />
+                </Stack.Protected>
+                <Stack.Protected guard={status === "phonePending"}>
+                  <Stack.Screen name="(auth)/verify-phone" options={{ headerShown: false }} />
+                </Stack.Protected>
+                <Stack.Protected guard={status === "banned"}>
+                  <Stack.Screen name="(auth)/banned" options={{ headerShown: false }} />
+                </Stack.Protected>
+
+                {/* Yalnızca bildirimden açılan boş geçiş rotası; başlığı olmaz.
+                    Korumasız ve en sonda: ilk rota seçimini etkilemez. */}
+                <Stack.Screen name="call/incoming" options={{ headerShown: false, animation: "none" }} />
+              </Stack>
+            </ThemeProvider>
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
             <CallOverlay key={`call-${themeRevision}`} />

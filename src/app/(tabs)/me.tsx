@@ -17,7 +17,7 @@ import {
   TabHeader,
   type IconName,
 } from "@/components/ui";
-import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
+import { useFloatingTabInset } from "@/components/ui/tab-bar";
 import { formatActivity } from "@/lib/format";
 import { setSelfPresence } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -46,6 +46,7 @@ function statusColor(status: PresenceStatus): string {
 }
 
 export default function MeScreen() {
+  const tabInset = useFloatingTabInset();
   const sessionProfile = useAuth((s) => s.profile);
   const { data: profile } = useCurrentProfile();
   const { accepted, incoming } = useFriends();
@@ -68,7 +69,7 @@ export default function MeScreen() {
         right={<HeaderButton icon="settings" label="Tüm ayarlar" onPress={() => router.push("/settings")} />}
       />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET + spacing.lg }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: tabInset + spacing.lg }}>
         {/* Profil kartı — web'deki profil kartıyla aynı dil: bant rengi + avatar. */}
         <View style={{ marginHorizontal: spacing.lg, marginTop: spacing.sm, borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.bentoBorder }}>
           {/* Afiş: görsel varsa görsel (web ile aynı öncelik), yoksa bant rengi.

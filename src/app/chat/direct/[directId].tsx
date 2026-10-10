@@ -6,6 +6,7 @@ import { useDirect, useDirectDisplay } from "@/api/hooks";
 import { Avatar, DropdownMenu, GroupAvatar, Icon, IconButton, type MenuItem } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
+import { ChatWelcome } from "@/features/chat/components/chat-welcome";
 import { DirectExpirySheet } from "@/features/chat/components/direct-expiry-button";
 import { formatActivity, formatPresenceStatus } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
@@ -27,7 +28,7 @@ import { colors, spacing } from "@/theme/tokens";
  */
 export default function DirectChatScreen() {
   const { directId } = useLocalSearchParams<{ directId: string }>();
-  const { data: direct } = useDirect(directId);
+  const { data: direct, isListed } = useDirect(directId);
   const display = useDirectDisplay(direct);
   const { placeCall } = useCallActions();
   const myId = useAuth((s) => s.profile?.id);
@@ -50,7 +51,8 @@ export default function DirectChatScreen() {
   const canCall = Boolean(peer) && !isGroup && !isNotes && !isOfficial;
   const canExpire = !isGroup && !isNotes && !isOfficial;
 
-  const typing = typers.length > 0 ? (isGroup ? typingLabel(typers) : "yazıyor…") : null;
+  // Önünde hareketli noktalar var; metinde üç nokta tekrarlanmaz.
+  const typing = typers.length > 0 ? (isGroup ? typingLabel(typers, { ellipsis: false }) : "yazıyor") : null;
   const activity = formatActivity(presence.activity);
   const subtitle = isNotes
     ? "Kendine notlar"
@@ -105,15 +107,19 @@ export default function DirectChatScreen() {
       size={38}
       backgroundColor={colors.panel}
     />
-  ) : (
+  ) : display ? (
     <Avatar
       profileId={peer?.id}
-      imageUrl={display?.imageUrl}
-      fallbackText={display?.fallbackText}
+      imageUrl={display.imageUrl}
+      fallbackText={display.fallbackText}
       size={38}
       showPresence={!isOfficial}
       backgroundColor={colors.panel}
     />
+  ) : (
+    // Sohbet bilgisi henüz yok (ör. soğuk açılışta mesajsız sohbet): "?"
+    // yerine boş daire.
+    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.raised }} />
   );
 
   return (
@@ -129,6 +135,7 @@ export default function DirectChatScreen() {
               title={display?.title ?? ""}
               subtitle={subtitle}
               subtitleTone={typing || activity ? "live" : "muted"}
+              typing={Boolean(typing) && !isNotes}
               onPress={isNotes ? undefined : openDetails}
               accessibilityLabel={isGroup ? "Grup bilgisi" : "Profili görüntüle"}
             />
@@ -176,7 +183,10 @@ export default function DirectChatScreen() {
         readOnlyOfficial={isOfficial}
         oneToOne={!isGroup}
         // Okundu imleci listeden; sohbet satırı gelmeden ayraç tohumlanmaz.
-        unreadSeed={direct ? { cursor: direct.readCursor ?? null } : undefined}
+        // Tohumlanmış satırda imleç bilinmiyor — bütün geçmiş okunmamış
+        // görünmesin diye ayraç çizilmez.
+        unreadSeed={direct && isListed ? { cursor: direct.readCursor ?? null } : undefined}
+        intro={<ChatWelcome display={display} myId={myId} isOfficial={isOfficial} />}
         placeholder={
           isNotes ? "Kendine bir not yaz" : "Mesaj yaz"
         }

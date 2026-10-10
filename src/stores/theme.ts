@@ -22,10 +22,35 @@ export const THEME_LABELS = Object.fromEntries(
   THEMES.map((theme) => [theme.id, theme.label])
 ) as Record<ThemeId, string>;
 
+/**
+ * Açılıştaki SİSTEM görünümü (açık/koyu). app.json `userInterfaceStyle:
+ * automatic` olduğu için yerel açılış ekranı sistemi izler; JS açılış ekranı
+ * (BrandSplash) ve "Sistem" tema tercihi bunu kullanır. Değer modül
+ * yüklenirken, aşağıdaki `Appearance.setColorScheme` çağrısından ÖNCE
+ * okunur: o çağrıdan sonra Appearance uygulamanın temasını döndürür.
+ */
+export const launchSystemScheme: "light" | "dark" =
+  Appearance.getColorScheme() === "light" ? "light" : "dark";
+
+/**
+ * Yerel arayüzü (iOS klavyesi, kaydırma çubukları, Android gezinme çubuğu,
+ * WebView'un prefers-color-scheme'i, sistem seçicileri) uygulamanın teması
+ * izler, sistem değil. Arayüz stili eskiden sabit "dark"tı; açılış ekranı
+ * için "automatic"e geçince bu ayar o davranışı (açık temada açık sürümüyle)
+ * geri getiriyor.
+ */
+function applyNativeScheme(scheme: "light" | "dark") {
+  try {
+    Appearance.setColorScheme(scheme);
+  } catch {
+    /* Desteklenmeyen ortam (web/test) — yok sayılır. */
+  }
+}
+
 /** Web'deki `resolveTheme` ile aynı: sistem açıksa Porselen, değilse varsayılan. */
 export function resolveTheme(preference: ThemePreference): ThemeId {
   if (preference === "system") {
-    return Appearance.getColorScheme() === "light" ? "light" : DEFAULT_THEME;
+    return launchSystemScheme === "light" ? "light" : DEFAULT_THEME;
   }
   return isThemeId(preference) ? preference : DEFAULT_THEME;
 }
@@ -64,8 +89,6 @@ interface ThemeState {
   hydrate: () => Promise<void>;
   setTheme: (preference: ThemePreference) => Promise<void>;
   setCustomColors: (colors: CustomColors) => Promise<void>;
-  /** Sistem açık/koyu değiştiğinde "system" tercihini yeniden çözer. */
-  syncSystem: () => void;
 }
 
 function parsePreference(value: string | null): ThemePreference {
@@ -79,6 +102,7 @@ export const useTheme = create<ThemeState>((set, get) => {
     const themeId = resolveTheme(preference);
     if (island) setActiveTheme(DEFAULT_THEME);
     else setActiveTheme(themeId, customColors);
+    applyNativeScheme(getActivePalette().scheme);
     return {
       preference,
       themeId,
@@ -134,13 +158,6 @@ export const useTheme = create<ThemeState>((set, get) => {
       const clean = normalizeCustomColors(colors);
       set(apply(get().preference, clean));
       await AsyncStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(clean));
-    },
-
-    syncSystem: () => {
-      const { preference, customColors, themeId } = get();
-      if (preference !== "system") return;
-      if (resolveTheme(preference) === themeId) return;
-      set(apply(preference, customColors));
     },
   };
 });

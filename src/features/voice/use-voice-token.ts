@@ -5,6 +5,12 @@ import { AudioSession } from "@livekit/react-native";
 import { ApiError } from "@/api/client";
 import { fetchRoomToken } from "@/lib/livekit";
 import { useAuth } from "@/stores/auth";
+import {
+  hasActiveAudioSessions,
+  prepareAudioRoute,
+  releaseAudioRoute,
+  type BuiltInRoute,
+} from "./audio-route";
 
 /**
  * LiveKit oda token'ı + ses oturumu kurulumu.
@@ -16,11 +22,18 @@ import { useAuth } from "@/stores/auth";
  *  1. Android'de RECORD_AUDIO izni — LiveKit bunu KENDİSİ İSTEMEZ. İzin
  *     verilmeden oda kurulursa bağlantı açılır ama karşı taraf bizi duymaz;
  *     sessiz ve teşhisi zor bir arıza.
- *  2. `AudioSession.startAudioSession()` — iOS ses yönlendirmesi ve arka
+ *  2. Çıkış tercihi (`prepareAudioRoute`: ahize/hoparlör), ardından
+ *     `AudioSession.startAudioSession()` — iOS ses yönlendirmesi ve arka
  *     plan sesi için, odaya bağlanmadan ÖNCE.
  *  3. Token.
  */
-export function useVoiceToken(roomId: string | null | undefined, needsCamera = false) {
+export function useVoiceToken(
+  roomId: string | null | undefined,
+  {
+    needsCamera = false,
+    defaultRoute = "speaker",
+  }: { needsCamera?: boolean; defaultRoute?: BuiltInRoute } = {}
+) {
   const profile = useAuth((s) => s.profile);
   const [result, setResult] = useState<{
     roomId: string;
@@ -32,6 +45,12 @@ export function useVoiceToken(roomId: string | null | undefined, needsCamera = f
     if (!roomId || !profile) return;
 
     let cancelled = false;
+    let routeId: number | null = null;
+    // Sesli kanaldayken DM araması gibi iç içe oturumlarda yerel ses
+    // oturumu yalnızca SON oturum kapanınca durur.
+    const stopIfLast = () => {
+      if (!hasActiveAudioSessions()) void AudioSession.stopAudioSession().catch(() => {});
+    };
 
     (async () => {
       try {
@@ -41,21 +60,34 @@ export function useVoiceToken(roomId: string | null | undefined, needsCamera = f
         if (needsCamera && !(await ensureCameraPermission())) {
           throw new CameraDeniedError();
         }
+        if (cancelled) return;
+        // Çıkış tercihi oturum açılmadan verilmeli; Android sonradan yok sayar.
+        const id = await prepareAudioRoute(defaultRoute);
+        // Hazırlık sürerken ekran kapandıysa temizlik bu kaydı göremedi.
+        if (cancelled) {
+          releaseAudioRoute(id);
+          return;
+        }
+        routeId = id;
         await AudioSession.startAudioSession();
         const issued = await fetchRoomToken(roomId, profile.username);
         if (!cancelled) setResult({ roomId, token: issued, error: null });
       } catch (err) {
         if (cancelled) return;
         setResult({ roomId, token: null, error: describeError(err) });
-        await AudioSession.stopAudioSession().catch(() => {});
+        if (routeId !== null) releaseAudioRoute(routeId);
+        routeId = null;
+        stopIfLast();
       }
     })();
 
     return () => {
       cancelled = true;
-      void AudioSession.stopAudioSession().catch(() => {});
+      if (routeId !== null) releaseAudioRoute(routeId);
+      routeId = null;
+      stopIfLast();
     };
-  }, [roomId, profile, needsCamera]);
+  }, [roomId, profile, needsCamera, defaultRoute]);
 
   if (result && result.roomId === roomId) {
     return { token: result.token, error: result.error };

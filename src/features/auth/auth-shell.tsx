@@ -1,16 +1,19 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Keyboard,
+  Platform,
   ScrollView,
   Text,
   TextInput,
   View,
   type TextInputProps,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
+import { StatusBar } from "expo-status-bar";
 
 import { CikletLogo, Icon, IconButton, KeyboardAvoider, Pressable } from "@/components/ui";
+import { launchSystemScheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export function AuthBackdrop() {
@@ -60,35 +63,57 @@ export function AuthBackdrop() {
   );
 }
 
-export function BrandSplash() {
+/**
+ * Açılış ekranı ölçüleri — yerel splash ile BİREBİR aynı olmalı:
+ *  - ikon: app.json expo-splash-screen `imageWidth` (balık, 88 × 65)
+ *  - kelime logo: plugins/with-splash-branding.js (88 × 20). iOS'ta güvenli
+ *    alanın 16 pt üstünde; Android 12+'da sistem marka görselini kendi
+ *    yerine koyuyor, değer emülatörde ölçüldü.
+ */
+const SPLASH_ICON = { width: 88, height: 65 };
+const SPLASH_WORDMARK = { width: 88, height: 20 };
+const WORDMARK_BOTTOM = Platform.select({ android: 60, default: 16 });
+
+/**
+ * Açılış ekranı (WhatsApp düzeni): koyu modda koyu zemin + beyaz balık,
+ * açık modda beyaz zemin + mor balık; altta "ciklet" kelime logosu. Yerel
+ * splash aynı görselleri aynı yerde gösterir (app.json + with-splash-branding
+ * eklentisi); JS gelince ekran hiç kıpırdamaz. Renk kaynağı uygulama teması
+ * değil açılıştaki SİSTEM görünümü: yerel splash yalnızca onu bilebilir.
+ */
+export function BrandSplash({ onReady }: { onReady?: () => void }) {
+  const light = launchSystemScheme === "light";
+  const insets = useSafeAreaInsets();
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: colors.bentoShell,
-      }}
-    >
-      <AuthBackdrop />
-      <View
-        style={{
-          width: 104,
-          height: 104,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 34,
-          borderCurve: "continuous",
-          borderWidth: 1,
-          borderColor: colors.bentoBorder,
-          backgroundColor: colors.bento,
-        }}
-      >
-        <BrandMark size={78} />
+    <View style={{ flex: 1, backgroundColor: light ? "#ffffff" : "#120d1d" }}>
+      <StatusBar style={light ? "dark" : "light"} />
+      <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}>
+        <Image
+          source={
+            light
+              ? require("../../../assets/images/splash/icon-light.png")
+              : require("../../../assets/images/splash/icon-dark.png")
+          }
+          style={SPLASH_ICON}
+          contentFit="contain"
+          onDisplay={onReady}
+          accessibilityLabel="Ciklet"
+        />
       </View>
-      <Text style={{ ...typography.caption, color: colors.muted, marginTop: spacing.xl }}>
-        Birlikte daha yakın.
-      </Text>
+      <Image
+        source={
+          light
+            ? require("../../../assets/images/splash/wordmark-light.png")
+            : require("../../../assets/images/splash/wordmark-dark.png")
+        }
+        style={{
+          ...SPLASH_WORDMARK,
+          position: "absolute",
+          alignSelf: "center",
+          bottom: (Platform.OS === "ios" ? insets.bottom : 0) + WORDMARK_BOTTOM,
+        }}
+        contentFit="contain"
+      />
     </View>
   );
 }

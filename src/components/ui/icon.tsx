@@ -75,6 +75,11 @@ export type IconName =
   | "mic"
   | "mic-off"
   | "phone-off"
+  | "video-off"
+  // Ses çıkışı (ahize / kulaklık)
+  | "ear"
+  | "bluetooth"
+  | "headphones"
   // Mesaj eylemleri
   | "copy"
   | "trash"
@@ -89,7 +94,10 @@ export type IconName =
   | "help"
   // Ek kaynağı (galeri / kamera)
   | "image"
-  | "camera";
+  | "camera"
+  // GIF seçici
+  | "arrow-left"
+  | "trending-up";
 
 interface IconProps {
   name: IconName;
@@ -274,11 +282,28 @@ const PATHS: Record<IconName, string[]> = {
     "M12 10a3 3 0 1 0 0 6 3 3 0 0 0 0-6",
   ],
   help: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18", "M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3", "M12 17h.01"],
+  "video-off": [
+    "M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2",
+    "M9.7 5H14a2 2 0 0 1 2 2v3.3l1 1L23 7v10",
+    "M2 2l20 20",
+  ],
+  ear: [
+    "M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 0 1-7 0",
+    "M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 0 1 0 4",
+  ],
+  bluetooth: ["m7 7 10 10-5 5V2l5 5L7 17"],
+  headphones: [
+    "M3 18v-6a9 9 0 0 1 18 0v6",
+    "M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z",
+    "M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z",
+  ],
   "phone-off": [
     "M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7 2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-3.3-2.6",
     "M5.1 13.3A19.8 19.8 0 0 1 2 4.7 2 2 0 0 1 4.1 2.7h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.4 2.1L8.1 10.6",
     "M22 2 2 22",
   ],
+  "arrow-left": ["m12 19-7-7 7-7", "M19 12H5"],
+  "trending-up": ["M22 7 13.5 15.5 8.5 10.5 2 17", "M16 7h6v6"],
 };
 
 /** Nokta/daire tabanlı ikonlar yol yerine ilkel şekil kullanır. */

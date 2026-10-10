@@ -81,3 +81,57 @@ export function useSaveAnnotation(profileId: string | undefined) {
     },
   });
 }
+
+/** Kaydı cache'te yamalar; boşalan kayıt listeden düşer. */
+function patchEntries(
+  entries: ProfileAnnotationEntry[] | undefined,
+  profileId: string,
+  patch: ProfileAnnotationPatch
+): ProfileAnnotationEntry[] {
+  const current = entries?.find((entry) => entry.targetId === profileId);
+  const next: ProfileAnnotationEntry = {
+    targetId: profileId,
+    nickname: current?.nickname ?? null,
+    note: current?.note ?? null,
+    ignored: current?.ignored ?? false,
+    ...patch,
+  };
+  const rest = (entries ?? []).filter((entry) => entry.targetId !== profileId);
+  const empty = !next.nickname && !next.note && !next.ignored;
+  return empty ? rest : [...rest, next];
+}
+
+/**
+ * Yok say / yok saymayı bırak — liste menüsü gibi profil kimliğinin
+ * eylem anında belli olduğu yerler için (değişkenle alır). İyimser: satırın
+ * sessiz ikonu yanıt beklemeden değişir.
+ */
+export function useSetIgnored() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ profileId, ignored }: { profileId: string; ignored: boolean }) =>
+      api<ProfileAnnotation>(endpoints.profileAnnotation(profileId), {
+        method: "PUT",
+        body: { ignored },
+      }),
+    onMutate: async ({ profileId, ignored }) => {
+      await queryClient.cancelQueries({ queryKey: qk.annotations });
+      const previous = queryClient.getQueryData<ProfileAnnotationEntry[]>(qk.annotations);
+      queryClient.setQueryData<ProfileAnnotationEntry[]>(qk.annotations, (current) =>
+        patchEntries(current, profileId, { ignored })
+      );
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      // Cache hiç dolmamışsa `undefined` geri yazılamaz; sunucudan tazelenir.
+      if (context?.previous) queryClient.setQueryData(qk.annotations, context.previous);
+      else void queryClient.invalidateQueries({ queryKey: qk.annotations });
+    },
+    onSuccess: (merged, { profileId }) => {
+      queryClient.setQueryData<ProfileAnnotationEntry[]>(qk.annotations, (current) =>
+        patchEntries(current, profileId, merged)
+      );
+    },
+  });
+}

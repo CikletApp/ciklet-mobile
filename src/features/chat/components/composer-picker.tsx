@@ -1,21 +1,19 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
-import { Image } from "expo-image";
+import { useEffect, useRef, type RefObject } from "react";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { BlurTargetView, BlurView } from "expo-blur";
-import { useQuery } from "@tanstack/react-query";
 import { GestureDetector } from "react-native-gesture-handler";
-import Animated from "react-native-reanimated";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api } from "@/api/client";
-import { endpoints } from "@/api/endpoints";
 import { useActivities } from "@/api/hooks";
 import { Avatar, Icon } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { useCollapsingChrome, type CollapsingChrome } from "./collapsing-chrome";
 import { BackspaceGlyph } from "./composer-glyphs";
 import { useDragToDismiss } from "./drag-dismiss";
-import { EmojiPickerPanel, SearchPill } from "./emoji-picker";
+import { EmojiPickerPanel } from "./emoji-picker";
+import { GifPicker } from "./gif-picker";
 import type { PanelTab } from "./keyboard-space";
 
 /**
@@ -24,21 +22,9 @@ import type { PanelTab } from "./keyboard-space";
  * sayfaydı; yazarken sohbet tamamen kayboluyordu.
  *
  * Sekmeler panelin altında ortada yüzen bir haptır; zemini arkadaki içeriği
- * bulandırır (Android'de `BlurTargetView` hedefi panel içeriği).
+ * bulandırır (Android'de `BlurTargetView` hedefi panel içeriği). Aşağı
+ * kaydırınca hap ve üstteki arama/kategori satırı çekilir (collapsing-chrome).
  */
-
-interface KlipyGif {
-  id: number;
-  title: string;
-  file?: {
-    hd?: { gif?: { url?: string } };
-    xs?: { gif?: { url?: string } };
-  };
-}
-
-interface KlipyResponse {
-  data?: { data?: KlipyGif[] };
-}
 
 const TABS: { id: PanelTab; label: string }[] = [
   { id: "gif", label: "GIF'ler" },
@@ -47,7 +33,6 @@ const TABS: { id: PanelTab; label: string }[] = [
 ];
 
 const PILL_HEIGHT = 40;
-const GIF_COLUMNS = 3;
 
 export function ComposerPanel({
   tab,
@@ -80,6 +65,23 @@ export function ComposerPanel({
   // Liste sonu hapın altında kalmasın.
   const bottomInset = compact ? spacing.sm : PILL_HEIGHT + spacing.lg + insets.bottom;
 
+  // Arama klavyesi açıkken (dar hâl) gizleme yok; sekme değişince çerçeve geri gelir.
+  const chrome = useCollapsingChrome(!compact);
+  const resetChrome = chrome.reset;
+  useEffect(() => {
+    resetChrome();
+  }, [tab, compact, resetChrome]);
+
+  // Hap yalnızca kaydırılır: BlurView'ın saydamlığıyla oynamak bulanıklığı bozar.
+  // Panel kabı taşanı kırptığı için aşağı itilen hap görünmez ve dokunulmaz.
+  const pillTravel = PILL_HEIGHT + spacing.sm + insets.bottom + 8;
+  // Worklet `chrome`un tamamını değil yalnızca paylaşılan değeri yakalamalı:
+  // nesnedeki kaydırma işleyicisi UI iş parçacığına kopyalanamıyor.
+  const chromeProgress = chrome.progress;
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: chromeProgress.get() * pillTravel }],
+  }));
+
   return (
     <Animated.View style={[{ height, backgroundColor: colors.deep }, drag.style]}>
       {compact ? null : (
@@ -102,25 +104,29 @@ export function ComposerPanel({
             bottomInset={bottomInset}
             onSearchFocusChange={onSearchFocusChange}
             headerGesture={drag.header}
+            chrome={chrome}
           />
         ) : tab === "gif" ? (
-          <GifGrid onGif={onGif} bottomInset={bottomInset} onSearchFocusChange={onSearchFocusChange} />
+          <GifPicker onGif={onGif} bottomInset={bottomInset} onSearchFocusChange={onSearchFocusChange} chrome={chrome} />
         ) : (
-          <ActivityList onActivity={onActivity} bottomInset={bottomInset} />
+          <ActivityList onActivity={onActivity} bottomInset={bottomInset} chrome={chrome} />
         )}
       </BlurTargetView>
 
       {compact ? null : (
-        <View
+        <Animated.View
           pointerEvents="box-none"
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: insets.bottom + spacing.sm,
-            height: PILL_HEIGHT,
-            alignItems: "center",
-          }}
+          style={[
+            {
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: insets.bottom + spacing.sm,
+              height: PILL_HEIGHT,
+              alignItems: "center",
+            },
+            pillStyle,
+          ]}
         >
           <View
             style={{
@@ -182,7 +188,7 @@ export function ComposerPanel({
               <BackspaceGlyph color={colors.bright} />
             </Pressable>
           ) : null}
-        </View>
+        </Animated.View>
       )}
     </Animated.View>
   );
@@ -204,85 +210,26 @@ function Frosted({ blurTarget }: { blurTarget: RefObject<View | null> }) {
   );
 }
 
-function GifGrid({
-  onGif,
+function ActivityList({
+  onActivity,
   bottomInset,
-  onSearchFocusChange,
+  chrome,
 }: {
-  onGif: (url: string) => void;
+  onActivity: (activityId: string) => void;
   bottomInset: number;
-  onSearchFocusChange: (focused: boolean) => void;
+  chrome: CollapsingChrome;
 }) {
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query.trim()), 250);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const gifs = useQuery({
-    queryKey: ["klipy", debounced],
-    queryFn: () => api<KlipyResponse>(endpoints.klipy(debounced)),
-    staleTime: 60_000,
-  });
-
-  return (
-    <View style={{ flex: 1 }}>
-      <SearchPill value={query} onChangeText={setQuery} placeholder="GIF ara" onFocusChange={onSearchFocusChange} />
-      {gifs.isLoading ? (
-        <ActivityIndicator color={colors.brand} style={{ flex: 1 }} />
-      ) : (
-        <FlatList
-          data={gifs.data?.data?.data ?? []}
-          key="gif-grid"
-          numColumns={GIF_COLUMNS}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingHorizontal: spacing.sm, paddingBottom: bottomInset, gap: 4 }}
-          columnWrapperStyle={{ gap: 4 }}
-          ListEmptyComponent={
-            <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center", padding: spacing.xl }}>
-              GIF bulunamadı.
-            </Text>
-          }
-          renderItem={({ item }) => {
-            const preview = item.file?.xs?.gif?.url ?? item.file?.hd?.gif?.url;
-            const full = item.file?.hd?.gif?.url ?? preview;
-            if (!preview || !full) return <View style={{ flex: 1 / GIF_COLUMNS }} />;
-            return (
-              <Pressable
-                onPress={() => onGif(full)}
-                accessibilityRole="button"
-                accessibilityLabel={item.title || "GIF gönder"}
-                style={{
-                  flex: 1 / GIF_COLUMNS,
-                  aspectRatio: 1,
-                  borderRadius: radii.md,
-                  overflow: "hidden",
-                  backgroundColor: colors.panel,
-                }}
-              >
-                <Image source={{ uri: preview }} contentFit="cover" recyclingKey={preview} style={{ flex: 1 }} />
-              </Pressable>
-            );
-          }}
-        />
-      )}
-    </View>
-  );
-}
-
-function ActivityList({ onActivity, bottomInset }: { onActivity: (activityId: string) => void; bottomInset: number }) {
   const activities = useActivities();
 
   if (activities.isLoading) return <ActivityIndicator color={colors.brand} style={{ flex: 1 }} />;
 
   return (
-    <FlatList
+    <Animated.FlatList
       data={activities.data ?? []}
       key="activity-list"
       keyExtractor={(item) => item.id}
+      onScroll={chrome.scrollHandler}
+      scrollEventThrottle={16}
       contentContainerStyle={{ padding: spacing.md, paddingBottom: bottomInset, gap: spacing.sm }}
       ListEmptyComponent={
         <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center", padding: spacing.xl }}>

@@ -1,82 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
-import { useAuth } from "@/stores/auth";
-import { ClientEvent, ServerEvent, type TypingPayload } from "./events";
-import { onGatewayEvent, sendGatewayEvent } from "./gateway";
+import { useTypers } from "@/stores/typing";
+import { ClientEvent } from "./events";
+import { sendGatewayEvent } from "./gateway";
 
 /**
  * "Yazıyor…" göstergesi.
  *
  * İki yönlü:
- *  - `typers`  : bu sohbette şu an yazanlar (ağ geçidinden gelen)
- *  - `notifyTyping()` : kendi yazma durumunu bildirir
+ *  - `typers`  : bu sohbette şu an yazanlar (ortak depo, bkz. stores/typing)
+ *  - `notifyTyping()` / `stopTyping()` : kendi yazma durumunu bildirir
  *
  * Ağ geçidi göstergeyi yalnızca SOHBETE ABONE bağlantılara yayıyor; abonelik
- * `useChatStream` tarafından tutulur, bu hook ayrıca abone olmaz.
+ * `useChatStream` tarafından tutulur, bu hook ayrıca abone olmaz. Gelen
+ * kareleri `realtime/provider.tsx` tek dinleyiciyle depoya yazar.
  *
  * Giden bildirim kısılır: her tuş vuruşunda olay yollamak hareketli bir
  * kanalda bağlantıyı boğar. Bir kez "yazıyor" gönderilir, 3 sn sessizlikten
- * sonra "durdu". Gelen kayıtlar da kendiliğinden söner: karşı taraf
- * uygulamayı kapatırsa "durdu" hiç gelmez ve gösterge asılı kalırdı.
+ * sonra "durdu". Mesaj gönderilince "durdu" hemen gider (web'le aynı).
  */
 
 const THROTTLE_MS = 3_000;
-const STALE_MS = 7_000;
-
-interface Typer {
-  id: string;
-  name: string;
-  at: number;
-}
 
 export function useTyping(chatId: string | undefined) {
-  const [typers, setTypers] = useState<Typer[]>([]);
+  const typers = useTypers(chatId);
   const lastSent = useRef(0);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Gelen ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!chatId) return;
-
-    const release = onGatewayEvent(ServerEvent.TYPING, (frame) => {
-      const payload = frame as unknown as TypingPayload;
-      if (payload.chatId !== chatId || !payload.profile?.id) return;
-      // Ağ geçidi sinyali odadaki HERKESE, gönderene de yayıyor; kendi
-      // yazman başlıkta "Sen yazıyor…" olarak görünüyordu.
-      if (payload.profile.id === useAuth.getState().profile?.id) return;
-
-      setTypers((current) => {
-        const others = current.filter((t) => t.id !== payload.profile.id);
-        if (!payload.isTyping) return others;
-        return [
-          ...others,
-          {
-            id: payload.profile.id,
-            name: payload.profile.name?.trim() || payload.profile.username,
-            at: Date.now(),
-          },
-        ];
-      });
-    });
-
-    return () => {
-      release();
-      setTypers([]);
-    };
-  }, [chatId]);
-
-  // Bayat kayıtları temizle — yalnızca gösterge görünürken çalışır.
-  useEffect(() => {
-    if (typers.length === 0) return;
-    const timer = setInterval(() => {
-      const cutoff = Date.now() - STALE_MS;
-      setTypers((current) => {
-        const fresh = current.filter((t) => t.at > cutoff);
-        return fresh.length === current.length ? current : fresh;
-      });
-    }, 2_000);
-    return () => clearInterval(timer);
-  }, [typers.length]);
 
   // ── Giden ──────────────────────────────────────────────────────────
   const notifyTyping = useCallback(() => {
@@ -96,6 +45,15 @@ export function useTyping(chatId: string | undefined) {
     }, THROTTLE_MS);
   }, [chatId]);
 
+  /** Gönderildi ya da taslak boşaldı: karşı tarafta göstergeyi hemen söndür. */
+  const stopTyping = useCallback(() => {
+    if (stopTimer.current) clearTimeout(stopTimer.current);
+    stopTimer.current = null;
+    if (!chatId || lastSent.current === 0) return;
+    lastSent.current = 0;
+    sendGatewayEvent({ event_type: ClientEvent.TYPING, chat_id: chatId, is_typing: false });
+  }, [chatId]);
+
   // Ekrandan çıkarken "yazmayı bıraktım" bildir.
   useEffect(() => {
     return () => {
@@ -106,16 +64,23 @@ export function useTyping(chatId: string | undefined) {
     };
   }, [chatId]);
 
-  return { typers, notifyTyping };
+  return { typers, notifyTyping, stopTyping };
 }
 
-/** Gösterge metni — üçten fazla kişide isim saymak yerine sayı verilir. */
-export function typingLabel(typers: { name: string }[]): string | null {
+/**
+ * Gösterge metni — üçten fazla kişide isim saymak yerine sayı verilir.
+ * Yanında hareketli noktalar varsa `ellipsis: false` (üç nokta iki kez olmasın).
+ */
+export function typingLabel(
+  typers: { name: string }[],
+  { ellipsis = true }: { ellipsis?: boolean } = {}
+): string | null {
   if (typers.length === 0) return null;
-  if (typers.length === 1) return `${typers[0].name} yazıyor…`;
-  if (typers.length === 2) return `${typers[0].name} ve ${typers[1].name} yazıyor…`;
+  const tail = ellipsis ? "…" : "";
+  if (typers.length === 1) return `${typers[0].name} yazıyor${tail}`;
+  if (typers.length === 2) return `${typers[0].name} ve ${typers[1].name} yazıyor${tail}`;
   if (typers.length === 3) {
-    return `${typers[0].name}, ${typers[1].name} ve ${typers[2].name} yazıyor…`;
+    return `${typers[0].name}, ${typers[1].name} ve ${typers[2].name} yazıyor${tail}`;
   }
-  return "Birkaç kişi yazıyor…";
+  return `Birkaç kişi yazıyor${tail}`;
 }

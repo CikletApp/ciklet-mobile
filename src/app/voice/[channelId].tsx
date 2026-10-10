@@ -299,6 +299,7 @@ function VoiceRoomBody({
             onHangUp={onLeave}
             hangUpLabel="Kanaldan ayrıl"
             showCamera={isVideo}
+            allowEarpiece={!isVideo}
           />
         </View>
       </View>

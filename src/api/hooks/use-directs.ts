@@ -1,14 +1,16 @@
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Direct } from "@ciklet/embedded-activities-sdk/types";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { isAfterSnowflake } from "@/lib/snowflake";
 import { useAuth } from "@/stores/auth";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
-import type { DirectPeer, DirectSummary } from "../types";
+import type { DirectPeer, DirectSummary, UnreadCounts } from "../types";
 import { useNicknames } from "./use-annotations";
+import { useUnreadCounts } from "./use-servers";
+import { showToast } from "@/components/ui/toast";
+import { clearDirect, patchUnread } from "@/features/unread/unread-cache";
 
 /**
  * Doğrudan mesaj sohbetleri — birebir VE grup.
@@ -175,11 +177,24 @@ export function useDirectPeer(direct: DirectSummary | undefined) {
   return useDirectDisplay(direct)?.peer;
 }
 
+/**
+ * Tek sohbet. Önce liste (taze, okundu imleci var); listede yoksa
+ * `useOpenDirect`'in tohumladığı satır — mesajsız birebir sohbeti ve
+ * listeden kaldırılıp yeniden açılanı uç listede döndürmüyor.
+ * `isListed`: satır listeden mi (tohumda `readCursor` bilinmiyor).
+ */
 export function useDirect(directId: string | undefined) {
   const query = useDirects();
+  const seeded = useQuery<DirectSummary>({
+    queryKey: qk.direct(directId ?? ""),
+    queryFn: skipToken,
+    staleTime: Infinity,
+  });
+  const listed = directId ? query.data?.find((d) => d.id === directId) : undefined;
   return {
     ...query,
-    data: directId ? query.data?.find((d) => d.id === directId) : undefined,
+    data: listed ?? (directId ? seeded.data : undefined),
+    isListed: Boolean(listed),
   };
 }
 
@@ -226,11 +241,21 @@ export function useOpenDirect() {
 
   return useMutation({
     mutationFn: (friendId: string) =>
-      api<Direct>(endpoints.directInit, {
+      api<DirectSummary>(endpoints.directInit, {
         method: "POST",
         body: { friendId },
       }),
-    onSuccess: () => {
+    onSuccess: (direct) => {
+      // Yanıt iki profili de taşıyor; mesajsız sohbet listede olmadığı için
+      // başlık ve karşılama bunu okur. Listeye EKLENMEZ (web de göstermiyor).
+      // Okundu imleci burada bilinmiyor; bilerek boş bırakılır.
+      if (direct?.id) {
+        queryClient.setQueryData<DirectSummary>(qk.direct(direct.id), {
+          ...direct,
+          latestMessageAt: direct.latestMessageAt ?? null,
+          latestMessage: direct.latestMessage ?? null,
+        });
+      }
       void queryClient.invalidateQueries({ queryKey: qk.directs });
     },
   });
@@ -305,6 +330,8 @@ export function useUpdateGroup(directId: string | undefined) {
  *     sahibiysen sahiplik kalan ilk üyeye geçer.
  *
  * Onay metni bu yüzden çağrı yerinde gruba göre değişir.
+ *
+ * İyimser: satır onaydan hemen sonra düşer, hata olursa geri gelir.
  */
 export function useRemoveDirect() {
   const queryClient = useQueryClient();
@@ -312,10 +339,87 @@ export function useRemoveDirect() {
   return useMutation({
     mutationFn: (directId: string) =>
       api(endpoints.direct(directId), { method: "DELETE" }),
+    onMutate: async (directId) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: qk.directs }),
+        queryClient.cancelQueries({ queryKey: qk.inbox }),
+      ]);
+      const directs = queryClient.getQueryData<DirectSummary[]>(qk.directs);
+      const inbox = queryClient.getQueryData<InboxItem[]>(qk.inbox);
+      queryClient.setQueryData<DirectSummary[]>(qk.directs, (current) =>
+        current?.filter((item) => item.id !== directId)
+      );
+      queryClient.setQueryData<InboxItem[]>(qk.inbox, (current) =>
+        current?.filter((item) => item.id !== directId)
+      );
+      // Kaldırılan sohbetin okunmamışı sekme rozetinde kalmasın.
+      const unread = queryClient.getQueryData<UnreadCounts>(qk.unreadCounts);
+      patchUnread(queryClient, (data) => clearDirect(data, directId));
+      return { directs, inbox, unread };
+    },
+    onError: (_error, _directId, context) => {
+      if (context?.directs) queryClient.setQueryData(qk.directs, context.directs);
+      if (context?.inbox) queryClient.setQueryData(qk.inbox, context.inbox);
+      if (context?.unread) queryClient.setQueryData(qk.unreadCounts, context.unread);
+      showToast("Sohbet kaldırılamadı.", "error");
+    },
     onSuccess: (_data, directId) => {
       queryClient.setQueryData<DirectSummary[]>(qk.directs, (current) =>
         current?.filter((item) => item.id !== directId)
       );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.inbox });
+      void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
+    },
+  });
+}
+
+/**
+ * Sohbeti okundu işaretler — web'deki "Okunmuş Olarak İşaretle"
+ * (`direct-context-menu.tsx`). İmleç son mesaja taşınır; rozet ve sekme
+ * sayısı yanıtı beklemeden düşer.
+ *
+ * `messageId` sohbete ait OLMALI (yoksa 403) — süresi dolmuş/silinmiş son
+ * mesajda geri alınır ve liste tazelenir.
+ */
+export function useMarkDirectRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { directId: string; messageId: string }) =>
+      api(endpoints.readStateAck, { method: "POST", body: input }),
+    onMutate: async ({ directId, messageId }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: qk.directs }),
+        queryClient.cancelQueries({ queryKey: qk.inbox }),
+        queryClient.cancelQueries({ queryKey: qk.unreadCounts }),
+      ]);
+      const directs = queryClient.getQueryData<DirectSummary[]>(qk.directs);
+      const inbox = queryClient.getQueryData<InboxItem[]>(qk.inbox);
+      const unread = queryClient.getQueryData<UnreadCounts>(qk.unreadCounts);
+      queryClient.setQueryData<DirectSummary[]>(qk.directs, (current) =>
+        current?.map((item) =>
+          item.id === directId ? { ...item, readCursor: messageId } : item
+        )
+      );
+      queryClient.setQueryData<InboxItem[]>(qk.inbox, (current) =>
+        current?.filter((item) => item.id !== directId)
+      );
+      // Rozetlerin kaynağı `/api/unread-counts`; sayaç da hemen düşsün.
+      patchUnread(queryClient, (data) => clearDirect(data, directId));
+      return { directs, inbox, unread };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.directs) queryClient.setQueryData(qk.directs, context.directs);
+      if (context?.inbox) queryClient.setQueryData(qk.inbox, context.inbox);
+      if (context?.unread) queryClient.setQueryData(qk.unreadCounts, context.unread);
+      showToast("Okundu olarak işaretlenemedi.", "error");
+      void queryClient.invalidateQueries({ queryKey: qk.directs });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.inbox });
+      void queryClient.invalidateQueries({ queryKey: qk.unreadCounts });
     },
   });
 }
@@ -341,22 +445,38 @@ export function useInbox() {
 /**
  * Sohbet başına okunmamış mesaj SAYISI — liste rozetleri ve sekme çubuğu.
  *
- * `/api/inbox` hem birebir hem grup sohbetlerini sayıyla döndürüyor (web'deki
- * gelen kutusu da buradan okuyor). Kayıt yoksa sohbet okunmuş sayılır.
+ * Kaynak `/api/unread-counts` → `directUnreads` (web DM kenar çubuğu da
+ * buradan okuyor; birebir + grup). `/api/inbox` KULLANILMAZ: spam süzgecinden
+ * geçiyor (arkadaş olmayanların DM'leri düşüyor) ve 8 sohbetle kesik.
+ * Kayıt yoksa sohbet okunmuş sayılır; not sohbeti sayılmaz.
  */
 export function useDirectUnreadCounts() {
-  const { data } = useInbox();
+  const { data } = useUnreadCounts();
+  const { data: directs } = useDirects();
   return useMemo(() => {
+    const selfId = directs?.find(isSelfDirect)?.id;
     const counts: Record<string, number> = {};
     let total = 0;
     let chats = 0;
-    for (const item of data ?? []) {
-      if (item.type !== "direct" || item.count <= 0) continue;
-      counts[item.id] = item.count;
-      total += item.count;
+    for (const [directId, count] of Object.entries(data?.directUnreads ?? {})) {
+      if (directId === selfId || !(count > 0)) continue;
+      counts[directId] = count;
+      total += count;
       chats += 1;
     }
-    /** `chats`: okunmamış mesajı olan sohbet sayısı — sekme rozeti bunu gösterir. */
-    return { counts, total, chats };
-  }, [data]);
+    /**
+     * `chats`: okunmamış mesajı olan sohbet sayısı — sekme rozeti bunu gösterir.
+     * `ready`: sayılar geldi mi; gelmeden satırlar imleçten tahmin edilir.
+     */
+    return { counts, total, chats, ready: data !== undefined };
+  }, [data, directs]);
+}
+
+/** Satır okunmamış mı: sayılar geldiyse onlar, gelmediyse okundu imleci. */
+export function isDirectUnread(
+  direct: DirectSummary,
+  myId: string | undefined,
+  unread: { counts: Record<string, number>; ready: boolean }
+): boolean {
+  return unread.ready ? (unread.counts[direct.id] ?? 0) > 0 : hasUnread(direct, myId);
 }

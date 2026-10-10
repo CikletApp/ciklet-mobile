@@ -1,3 +1,5 @@
+import { DefaultTheme, type Theme } from "expo-router";
+
 import { fw } from "./fonts";
 import { typography, type ThemePalette } from "./tokens";
 
@@ -18,8 +20,29 @@ export const createStackScreenOptions = (colors: ThemePalette) => ({
   },
   headerTintColor: colors.bright,
   headerShadowVisible: false,
+  // iOS geri düğmesi yalnızca ok: önceki ekranın adı ("(tabs)") yazılmaz.
+  headerBackButtonDisplayMode: "minimal",
   contentStyle: { backgroundColor: colors.bg },
 } as const);
+
+/**
+ * react-navigation teması. Sağlanmazsa varsayılan AÇIK tema kullanılıyor ve
+ * iOS başlığı açık arayüz stiline zorlanıyordu: geri ve sağdaki düğmelerin
+ * cam kapsülleri koyu temada beyaz kalıyordu. Yazı yüzleri bilerek
+ * varsayılan: özel geri-başlık fontu iOS'un yerel gösterim modunu kapatır.
+ */
+export const createNavigationTheme = (colors: ThemePalette): Theme => ({
+  dark: colors.scheme === "dark",
+  colors: {
+    primary: colors.bright,
+    background: colors.bg,
+    card: colors.bg,
+    text: colors.bright,
+    border: colors.border,
+    notification: colors.danger,
+  },
+  fonts: DefaultTheme.fonts,
+});
 
 export const createTabScreenOptions = (colors: ThemePalette) => ({
   ...createStackScreenOptions(colors),

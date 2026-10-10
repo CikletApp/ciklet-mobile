@@ -36,9 +36,17 @@ import {
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
-import { setAppFont } from "./fonts";
+import { parseAppFontId, setAppFont, type AppFontId } from "./fonts";
+
+// Son bilinen web font seçimi: açılışta ilk kare doğru yüzle çizilir,
+// sunucu yanıtı geldiğinde navigator yeniden kurulmaz.
+const FONT_CACHE_KEY = "ciklet.appFont";
+// Önbellek yokken (ilk açılış) sunucuyu en fazla bu kadar bekle.
+const FIRST_FONT_TIMEOUT_MS = 2500;
 
 const FONT_ASSETS = {
   "CikletInter-400": Inter_400Regular,
@@ -66,6 +74,8 @@ const FONT_ASSETS = {
   "CikletDMSans-500": DMSans_500Medium,
   "CikletDMSans-600": DMSans_600SemiBold,
   "CikletDMSans-700": DMSans_700Bold,
+  // Dokimorji bayrakları yazı kutusunda (bkz. lib/emoji.ts `DOKIMORJI_FONT`).
+  Dokimorji: require("../../assets/fonts/dokimorji.ttf"),
 } as const;
 
 /** APK'ya gömülü yüzleri yükler ve webdeki global seçimi uygular. */
@@ -76,21 +86,37 @@ export function useAppFonts() {
   useEffect(() => {
     if (!loaded) return;
     let cancelled = false;
-    void api<{ fontId: string }>(endpoints.appearance, { skipRefresh: true })
-      .then(({ fontId }) => {
-        if (cancelled) return;
-        setAppFont(fontId);
-        setRevision((value) => value + 1);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAppFont("inter");
-        setRevision((value) => value + 1);
-      });
+    let applied: AppFontId | null = null;
+    const apply = (id: AppFontId) => {
+      if (cancelled || id === applied) return;
+      applied = id;
+      setAppFont(id);
+      setRevision((value) => value + 1);
+    };
+
+    void (async () => {
+      const cached = await AsyncStorage.getItem(FONT_CACHE_KEY).catch(() => null);
+      if (cancelled) return;
+      if (cached) apply(parseAppFontId(cached));
+      try {
+        const { fontId } = await api<{ fontId: string }>(endpoints.appearance, {
+          skipRefresh: true,
+          ...(cached ? {} : { timeoutMs: FIRST_FONT_TIMEOUT_MS }),
+        });
+        const id = parseAppFontId(fontId);
+        // Yalnızca seçim değiştiyse yeniden çizilir (revision artar).
+        apply(id);
+        if (id !== cached) void AsyncStorage.setItem(FONT_CACHE_KEY, id).catch(() => {});
+      } catch {
+        if (!applied) apply("inter");
+      }
+    })();
     return () => {
       cancelled = true;
     };
   }, [loaded]);
 
-  return { ready: loaded || Boolean(loadError), revision };
+  // Yüzler yüklendiyse seçim uygulanana kadar beklenir; yüklenemediyse
+  // sistem fontuyla açılır.
+  return { ready: loaded ? revision > 0 : Boolean(loadError), revision };
 }

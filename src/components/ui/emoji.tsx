@@ -2,8 +2,9 @@ import { useEffect, type ReactNode } from "react";
 import { Text, type TextProps, type TextStyle } from "react-native";
 import { Image } from "expo-image";
 
-import { splitEmoji } from "@/lib/emoji";
+import { DOKIMORJI_FONT, hasDokimorji, splitDokimorji, splitEmoji } from "@/lib/emoji";
 import { localEmojiUri, persistEmoji } from "@/lib/emoji-cache";
+import { fontFamily } from "@/theme/fonts";
 
 /**
  * Twemoji çizimi — bkz. lib/emoji.ts. Metin içinde satıra gömülü görsel olarak
@@ -44,6 +45,38 @@ export function emojify(text: string, keyPrefix: string, size: number): ReactNod
       <EmojiImage key={`${keyPrefix}-e${index}`} url={segment.url} size={size} label={segment.text} />
     )
   );
+}
+
+/**
+ * Yazı kutusu (`TextInput`) için içerik prop'ları.
+ *
+ * Kutu satır içi görsel taşıyamıyor; Dokimorji karakterleri bu yüzden renkli
+ * Dokimorji yazı tipiyle iç içe `<Text>` olarak çizilir (web de girdilerde
+ * aynı yazı tipini kullanıyor). Metin karakter karakter aynı kalır: imleç,
+ * seçim, geri silme ve gönderim değişmez. Dokimorji yoksa düz `value` —
+ * olağan yol hiç değişmez. RN `value` ile `children`'ı birlikte kabul etmez.
+ */
+export function dokimorjiInputProps(
+  value: string,
+  lineHeight?: number
+): { value: string } | { children: ReactNode[] } {
+  if (!hasDokimorji(value)) return { value };
+  const family = fontFamily(400);
+  return {
+    children: splitDokimorji(value).map((segment, index) =>
+      segment.kind === "dokimorji" ? (
+        <Text key={`d${index}`} style={{ fontFamily: DOKIMORJI_FONT, fontWeight: "normal", lineHeight }}>
+          {segment.text}
+        </Text>
+      ) : (
+        // Yazı parçası da açık aileyle: iOS'ta Dokimorji'nin hemen ardından
+        // yazılan harf onun yazı tipini miras almasın.
+        <Text key={`t${index}`} style={family ? { fontFamily: family } : undefined}>
+          {segment.text}
+        </Text>
+      )
+    ),
+  };
 }
 
 /** Yazı boyutuna göre emoji boyutu — satır yüksekliğini bozmayacak kadar. */

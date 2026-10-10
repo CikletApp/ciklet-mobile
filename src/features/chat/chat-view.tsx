@@ -9,7 +9,8 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
+import type { NativeStackNavigationProp } from "expo-router/build/react-navigation/native-stack";
 import { BlurTargetView } from "expo-blur";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,7 +21,7 @@ import { useChatMessages, useMentolPlan, useMyMembership, type ChatKind } from "
 import { EmptyState, ErrorState, ListSkeleton, showDialog, showToast } from "@/components/ui";
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
-import { typingLabel, useTyping } from "@/realtime/use-typing";
+import { useTyping } from "@/realtime/use-typing";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useActiveChat } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
@@ -46,6 +47,7 @@ import { flashMessage } from "./components/message-flash";
 import { MessageItem, type MessageAnchor } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
 import { PinnedBar, PinnedListSheet } from "./components/pinned-bar";
+import { TypingBubble } from "./components/typing-bubble";
 import { canForwardMessage } from "./forward";
 import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
 import { useComposer } from "./use-composer";
@@ -55,6 +57,9 @@ import { fw } from "@/theme/fonts";
 
 /** Atlanacak mesaj bulunana kadar en çok bu kadar eski sayfa çekilir. */
 const MAX_JUMP_PAGES = 15;
+
+/** Ters listede en alttan bu kadar yukarıya kadar "en yenilerde" sayılır. */
+const NEAR_BOTTOM_PX = 160;
 
 /**
  * Okunmamış ayracının tohumu — DM'de okundu imleci (snowflake), kanalda
@@ -80,6 +85,7 @@ export function ChatView({
   readOnlyOfficial = false,
   oneToOne = false,
   unreadSeed,
+  intro,
 }: {
   kind: ChatKind;
   chatId: string;
@@ -95,6 +101,8 @@ export function ChatView({
   oneToOne?: boolean;
   /** "Yeni mesajlar" ayracı için okunmamış bilgisi; yoksa ayraç çizilmez. */
   unreadSeed?: UnreadSeed;
+  /** Boş sohbetin karşılaması (DM: avatar + ad); yoksa genel boş durum. */
+  intro?: React.ReactNode;
 }) {
   const {
     data,
@@ -106,7 +114,7 @@ export function ChatView({
     isFetchingNextPage,
   } = useChatMessages(kind, chatId);
 
-  const { typers, notifyTyping } = useTyping(chatId);
+  const { typers, notifyTyping, stopTyping } = useTyping(chatId);
   const { send, retry, discard } = useComposer(kind, chatId, serverId);
   const outbox = useChatOutbox(chatId);
   const myId = useAuth((state) => state.profile?.id);
@@ -134,12 +142,16 @@ export function ChatView({
   useChatStream(kind, chatId);
 
   // Açık sohbet: bildirim katmanı bu sohbetin mesajı için kart/ses üretmez.
-  useEffect(() => {
-    useActiveChat.getState().setActive(chatId);
-    return () => {
-      if (useActiveChat.getState().chatId === chatId) useActiveChat.getState().setActive(null);
-    };
-  }, [chatId]);
+  // Odak bazlı — üstüne profil/ayar itilince sohbet "açık" sayılmaz (web:
+  // sayfa görünür ve odaktayken).
+  useFocusEffect(
+    useCallback(() => {
+      useActiveChat.getState().setActive(chatId);
+      return () => {
+        if (useActiveChat.getState().chatId === chatId) useActiveChat.getState().setActive(null);
+      };
+    }, [chatId])
+  );
 
   /**
    * Sohbet arka planı — Mentol özelliği (yalnızca bu cihazda, bkz.
@@ -169,6 +181,12 @@ export function ChatView({
   const blurTargetRef = useRef<View>(null);
   /** Kaydırma yönünü anlamak için son dikey konum. */
   const lastOffset = useRef(0);
+  /**
+   * Liste en yeni mesajlarda mı. "Yazıyor" balonu yalnızca o zaman çizilir
+   * (web'le aynı): yukarıdayken eklenip çıkması okunan yeri kaydırırdı.
+   */
+  const nearBottomRef = useRef(true);
+  const [nearBottom, setNearBottom] = useState(true);
   const listRef = useRef<FlatList<ChatItem>>(null);
   /** Yüklü sayfalarda henüz bulunamayan atlama hedefi; eski sayfalar geldikçe yeniden denenir. */
   const pendingJump = useRef<{ id: string; pages: number } | null>(null);
@@ -185,17 +203,40 @@ export function ChatView({
   });
 
   /**
+   * Ekran geçişi bitti mi. Yerel yığın `transitionEnd`'i itme animasyonu
+   * bitince yayar; olay kaçarsa (animasyonsuz açılış) yedek süre devreye
+   * girer — iOS itmesinden uzun, hata geri gelmez.
+   */
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("transitionEnd", (event) => {
+      if (!event.data.closing) setEntered(true);
+    });
+    const fallback = setTimeout(() => setEntered(true), 700);
+    return () => {
+      unsubscribe();
+      clearTimeout(fallback);
+    };
+  }, [navigation]);
+
+  /**
    * Sohbete girer girmez klavye açılır — mesaj yazmak birincil eylem.
-   * Kısa gecikme ekran geçiş animasyonunun bitmesini bekler; animasyon
-   * sırasında odaklanınca klavye yarı yolda takılıyor.
+   * Odak geçiş BİTTİKTEN sonra verilir: itme sırasında odaklanınca iOS
+   * klavyeyi ekranla birlikte sağdan kaydırıyordu (aşağıdan gelmeliydi).
    */
   useEffect(() => {
-    // İlk yükleme 350 ms'den uzun sürerse composer henüz bağlı değildir.
-    // Yükleme bittiğinde efekt yeniden çalışır ve klavye güvenilir açılır.
-    if (isLoading || readOnlyOfficial) return;
-    const timer = setTimeout(() => composerRef.current?.focus(), 220);
-    return () => clearTimeout(timer);
-  }, [chatId, isLoading, readOnlyOfficial]);
+    // Yükleme bitince composer bağlanır ve efekt yeniden çalışır.
+    if (!entered || isLoading || readOnlyOfficial) return;
+    const frame = requestAnimationFrame(() => {
+      // Kullanıcı bu arada paneli açtıysa, kutu zaten odaktaysa ya da üstüne
+      // başka ekran itildiyse (yükleme geç bitti) dokunma.
+      if (!navigation.isFocused()) return;
+      if (composerControl.current?.isPanelOpen() || composerRef.current?.isFocused()) return;
+      composerRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [chatId, entered, isLoading, navigation, readOnlyOfficial]);
 
   /**
    * Kullanıcı ESKİ mesajlara doğru kaydırdığında klavye VE emoji/GIF/aktivite
@@ -208,6 +249,12 @@ export function ChatView({
       const y = event.nativeEvent.contentOffset.y;
       const goingBack = y > lastOffset.current + 12;
       lastOffset.current = y;
+      // Yalnızca eşik geçilince çizim — kaydırma ekranı yeniden çizdirmesin.
+      const near = y < NEAR_BOTTOM_PX;
+      if (near !== nearBottomRef.current) {
+        nearBottomRef.current = near;
+        setNearBottom(near);
+      }
       if (goingBack) {
         Keyboard.dismiss();
         composerControl.current?.closePanel();
@@ -299,21 +346,24 @@ export function ChatView({
     (text: string) => {
       setDraft(text);
       if (text.length > 0) notifyTyping();
+      else stopTyping();
     },
-    [notifyTyping]
+    [notifyTyping, stopTyping]
   );
 
   const onSend = useCallback(() => {
     if (!draft.trim() && !attachment) return;
+    stopTyping();
     send(draft, attachment ?? undefined, replyingTo?.id);
     setDraft("");
     setAttachment(null);
     setReplyingTo(null);
-  }, [attachment, draft, replyingTo?.id, send]);
+  }, [attachment, draft, replyingTo?.id, send, stopTyping]);
 
   const onSelectGif = useCallback((url: string) => {
+    stopTyping();
     send("", { url, name: "GIF", mimeType: "image/gif" });
-  }, [send]);
+  }, [send, stopTyping]);
 
   const onSelectActivity = useCallback((activityId: string) => {
     router.push({
@@ -413,9 +463,6 @@ export function ChatView({
     );
   }
 
-  // DM başlığı "yazıyor…"u zaten gösteriyor; alt satır yalnızca kanallarda.
-  const typing = kind === "channel" ? typingLabel(typers) : null;
-
   return (
     // Klavye ve emoji paneli boşluğunu yazma çubuğu kendisi ayırıyor
     // (bkz. components/composer.tsx); burada `KeyboardAvoider` YOK.
@@ -486,22 +533,27 @@ export function ChatView({
             updateCellsBatchingPeriod={50}
             /**
              * Ters listede "header" görsel olarak EN ALTTA durur — bekleyen
-             * mesajların doğru yeri burası (en yeni içerik altta).
+             * mesajların ve "yazıyor" balonunun doğru yeri burası (en yeni
+             * içerik altta). Kap hep bağlı kalır ki balonun çıkış animasyonu
+             * oynayabilsin.
              */
             ListHeaderComponent={
-              outbox.length > 0 ? (
-                <View>
-                  {/* Ters çizimde sıra da tersine döner; en yenisi altta kalsın. */}
-                  {[...outbox].reverse().map((message) => (
-                    <OutboxItem
-                      key={message.id}
-                      message={message}
-                      onRetry={() => retry(message)}
-                      onDiscard={() => discard(message.id)}
-                    />
-                  ))}
-                </View>
-              ) : null
+              <View>
+                {/* Ters çizimde sıra da tersine döner; en yenisi altta kalsın. */}
+                {[...outbox].reverse().map((message) => (
+                  <OutboxItem
+                    key={message.id}
+                    message={message}
+                    onRetry={() => retry(message)}
+                    onDiscard={() => discard(message.id)}
+                  />
+                ))}
+                {/* Başlık hücresi ters listede yeniden düz çevriliyor; son
+                    çocuk görsel olarak en altta — bekleyen mesajların altında. */}
+                {nearBottom && typers.length > 0 && !readOnlyOfficial ? (
+                  <TypingBubble typers={typers} group={!oneToOne} />
+                ) : null}
+              </View>
             }
             ListFooterComponent={
               isFetchingNextPage ? (
@@ -517,13 +569,17 @@ export function ChatView({
                 : { paddingVertical: spacing.sm }
             }
             ListEmptyComponent={
-              <View style={{ flex: 1 }}>
-                <EmptyState
-                  icon="message"
-                  title="Sohbet burada başlıyor"
-                  description="İlk mesajı sen gönder."
-                />
-              </View>
+              intro ? (
+                <View style={{ flex: 1, justifyContent: "center" }}>{intro}</View>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  <EmptyState
+                    icon="message"
+                    title="Sohbet burada başlıyor"
+                    description="İlk mesajı sen gönder."
+                  />
+                </View>
+              )
             }
           />
 
@@ -534,22 +590,6 @@ export function ChatView({
             <CommandSuggestions matches={commandMatches} onPick={onPickCommand} />
           ) : null}
         </View>
-
-        {typing && !readOnlyOfficial ? (
-          <Text
-            style={{
-              ...typography.caption,
-              color: colors.muted,
-              paddingHorizontal: spacing.lg,
-              paddingBottom: spacing.xs,
-              backgroundColor: surface,
-            }}
-            accessibilityLiveRegion="polite"
-            numberOfLines={1}
-          >
-            {typing}
-          </Text>
-        ) : null}
 
         {readOnlyOfficial ? (
           <>

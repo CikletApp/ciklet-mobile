@@ -16,7 +16,15 @@ import {
   type EdgeInsets,
 } from "react-native-safe-area-context";
 
-import { EmojiImage, Icon, KeyboardAvoider, emojify, showToast, type IconName } from "@/components/ui";
+import {
+  EmojiImage,
+  Icon,
+  KeyboardAvoider,
+  dokimorjiInputProps,
+  emojify,
+  showToast,
+  type IconName,
+} from "@/components/ui";
 import { classifyAttachment, readAttachmentInfo, type AttachmentInfo } from "@/lib/attachments";
 import { emojiUrl } from "@/lib/emoji";
 import type { ChatMessagePayload } from "@/realtime/events";
@@ -249,7 +257,7 @@ export function MessageContextMenu({
           <Sheet onDismiss={onClose}>
             <Text style={{ ...typography.display, color: colors.bright }}>Mesajı düzenle</Text>
             <TextInput
-              value={content}
+              {...dokimorjiInputProps(content, typography.body.lineHeight)}
               onChangeText={setContent}
               multiline
               autoFocus

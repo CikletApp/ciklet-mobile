@@ -201,8 +201,10 @@ export const endpoints = {
   readStateAck: "/api/read-state/ack",
   inbox: "/api/inbox",
   linkPreview: (url: string) => `/api/link-preview${qs({ url })}`,
-  klipy: (query?: string) =>
-    `/api/klipy${qs({ endpoint: query ? "search" : "trending", q: query, per_page: 30, page: 1 })}`,
+  // Klipy vekili (web `api/klipy`): sayfa 1..20, sayfa başı 24 — web seçicisiyle aynı.
+  klipyCategories: "/api/klipy?endpoint=categories",
+  klipyTrending: (page: number) => `/api/klipy${qs({ endpoint: "trending", per_page: 24, page })}`,
+  klipySearch: (q: string, page: number) => `/api/klipy${qs({ endpoint: "search", q, per_page: 24, page })}`,
 
   // ── Gerçek zamanlı ses & aktiviteler ──────────────────────────────
   livekitToken: (room: string, username: string) =>

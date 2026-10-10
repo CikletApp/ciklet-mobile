@@ -6,8 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ciklet",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#131417",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#120d1d",
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.ciklet.mobile",
@@ -36,12 +36,17 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-splash-branding",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#131417",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 84
+          "backgroundColor": "#ffffff",
+          "image": "./assets/images/splash/icon-light.png",
+          "imageWidth": 88,
+          "dark": {
+            "backgroundColor": "#120d1d",
+            "image": "./assets/images/splash/icon-dark.png"
+          }
         }
       ],
       "expo-secure-store",

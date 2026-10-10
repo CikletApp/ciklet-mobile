@@ -23,7 +23,7 @@ import {
   TabHeader,
   UnreadBadge,
 } from "@/components/ui";
-import { FLOATING_TAB_INSET } from "@/components/ui/tab-bar";
+import { useFloatingTabInset } from "@/components/ui/tab-bar";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -37,6 +37,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * channel.message) tazeleniyor; sekme açıkken de canlı.
  */
 export default function NotificationsScreen() {
+  const tabInset = useFloatingTabInset();
   const { incoming, isLoading: friendsLoading, refetch: refetchFriends, isRefetching } = useFriends();
   const inbox = useInbox();
   const unread = useUnreadCounts();
@@ -71,7 +72,7 @@ export default function NotificationsScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: FLOATING_TAB_INSET + spacing.lg, flexGrow: 1 }}
+        contentContainerStyle={{ paddingBottom: tabInset + spacing.lg, flexGrow: 1 }}
         // Uygulamanın tek yenileme dili: sistem çemberi gizli, yerine Ciklet
         // logolu rozet (Sohbetler ve Sunucular'la aynı).
         refreshControl={

@@ -5,6 +5,7 @@ import { useChannel, useServerSummary, useUnreadCounts } from "@/api/hooks";
 import { Icon, IconButton } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
+import { typingLabel, useTyping } from "@/realtime/use-typing";
 import { colors, radii, spacing } from "@/theme/tokens";
 
 /**
@@ -26,6 +27,9 @@ export default function ChannelChatScreen() {
   // tipi henüz taşımıyor; uç Prisma satırını olduğu gibi döndürdüğü için
   // alan yanıtta var.
   const topic = (channel as { topic?: string | null } | undefined)?.topic?.trim();
+  // Yalnızca dinler; yazma bildirimi ChatView'daki örnekten gider.
+  const { typers } = useTyping(channelId);
+  const typing = typingLabel(typers, { ellipsis: false });
 
   return (
     <>
@@ -51,7 +55,9 @@ export default function ChannelChatScreen() {
                 </View>
               }
               title={channel?.name ?? ""}
-              subtitle={topic || server?.name}
+              subtitle={typing ?? (topic || server?.name)}
+              subtitleTone={typing ? "live" : "muted"}
+              typing={Boolean(typing)}
               onPress={serverId ? () => router.back() : undefined}
               accessibilityLabel={server ? `${server.name} kanal listesine dön` : undefined}
             />

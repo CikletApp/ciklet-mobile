@@ -5,7 +5,8 @@ import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 import type { RichPresence } from "@/api/types";
 import { usePresenceStore } from "@/stores/presence";
 import { useAuth } from "@/stores/auth";
-import { ClientEvent, ServerEvent } from "./events";
+import { useTypingStore } from "@/stores/typing";
+import { ClientEvent, ServerEvent, type TypingPayload } from "./events";
 import {
   onGatewayEvent,
   sendGatewayEvent,
@@ -16,6 +17,7 @@ import {
 import { useCallEvents } from "./use-call-events";
 import { useMessageNotifications } from "./use-message-notifications";
 import { useSocialEvents } from "./use-social-events";
+import { useUnreadSync } from "./use-unread-sync";
 
 /**
  * Presence dinleyicileri MODÜL YÜKLENİRKEN bağlanır.
@@ -54,6 +56,25 @@ onGatewayEvent(ServerEvent.RICH_PRESENCE_UPDATE, (frame) => {
   presence().setActivity(frame.userId, (frame.activity ?? null) as RichPresence | null);
 });
 
+// "Yazıyor" — sohbet gövdesi ve başlık aynı depodan okur (bkz. stores/typing).
+onGatewayEvent(ServerEvent.TYPING, (frame) => {
+  const payload = frame as unknown as TypingPayload;
+  const profile = payload.profile;
+  if (typeof payload.chatId !== "string" || !profile?.id) return;
+  // Ağ geçidi sinyali odadaki HERKESE, gönderene de yayıyor.
+  if (profile.id === useAuth.getState().profile?.id) return;
+  useTypingStore.getState().setTyping(
+    payload.chatId,
+    {
+      id: profile.id,
+      name: profile.name?.trim() || profile.username,
+      username: profile.username,
+      imageUrl: profile.imageUrl ?? null,
+    },
+    payload.isTyping === true
+  );
+});
+
 /**
  * Gerçek zamanlı katmanı uygulama yaşam döngüsüne bağlar: oturum açıkken
  * bağlan, kapanınca kes, ön plan/arka plan geçişlerinde presence bildir.
@@ -65,6 +86,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   // Sohbet ekranından bağımsız sosyal olaylar (arkadaşlık, yeni DM, üyelik).
   useSocialEvents();
+  // Okunmamış rozetleri: canlı sayaç + mutabakat.
+  useUnreadSync();
   // Push token, bildirime dokunma, rozet.
   useMessageNotifications();
   // Gelen/giden çağrılar — ekrandan bağımsız, kök düzeyde dinlenir.
@@ -75,6 +98,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (status !== "signedIn") {
       stopGateway();
       resetPresence();
+      useTypingStore.getState().clear();
       return;
     }
     startGateway();

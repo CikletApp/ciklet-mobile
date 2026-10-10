@@ -1,24 +1,19 @@
-import { useEffect, useState } from "react";
 import { Modal, Text, View } from "react-native";
-import {
-  isTrackReference,
-  LiveKitRoom,
-  useParticipants,
-  useTracks,
-  VideoTrack,
-} from "@livekit/react-native";
+import { LiveKitRoom, useParticipants } from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
-import { Track } from "livekit-client";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useDirects } from "@/api/hooks";
 import { Avatar, IconButton } from "@/components/ui";
 import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LIVEKIT_URL } from "@/lib/livekit";
-import { displayNameOf, formatElapsed } from "@/lib/format";
+import { displayNameOf } from "@/lib/format";
 import { useCallActions } from "@/realtime/use-call-events";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { useCallTimer } from "./use-call-timer";
+import { VideoCallStage } from "./video-call-stage";
 
 /**
  * Çağrı katmanı — uygulamanın her yerinden görünür.
@@ -42,6 +37,7 @@ export function CallOverlay() {
    * eklemesi (bu değeri zaten hesaplıyor) — bkz. docs/ROADMAP.md.
    */
   const { data: directs } = useDirects();
+  const insets = useSafeAreaInsets();
   const resolvedDirectId =
     session?.directId ??
     directs?.find(
@@ -54,10 +50,18 @@ export function CallOverlay() {
 
   const isRinging = session.status === "ringing";
   const isConnected = session.status === "connected";
+  // Bağlı görüntülü aramada sahne tam ekran video — tema zemini yerine siyah.
+  const isVideoStage = isConnected && session.kind === "video";
 
   return (
-    <Modal visible animationType="slide" statusBarTranslucent onRequestClose={hangUp}>
-      <View style={{ flex: 1, backgroundColor: colors.deep }}>
+    <Modal
+      visible
+      animationType="slide"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={hangUp}
+    >
+      <View style={{ flex: 1, backgroundColor: isVideoStage ? "#000000" : colors.deep }}>
         {isConnected && resolvedDirectId ? (
           <ConnectedCall
             directId={resolvedDirectId}
@@ -102,7 +106,7 @@ export function CallOverlay() {
               flexDirection: "row",
               justifyContent: "center",
               gap: spacing["3xl"],
-              paddingBottom: spacing["4xl"],
+              paddingBottom: insets.bottom + spacing["4xl"],
               paddingTop: spacing.lg,
             }}
           >
@@ -146,16 +150,25 @@ function ConnectedCall({
   onHangUp: () => void;
   kind: "audio" | "video";
 }) {
-  const { token, error } = useVoiceToken(directId, kind === "video");
+  // Sesli arama telefon gibi ahizeden, görüntülü arama hoparlörden başlar;
+  // kulaklık bağlıysa ikisinde de o kazanır.
+  const { token, error } = useVoiceToken(directId, {
+    needsCamera: kind === "video",
+    defaultRoute: kind === "video" ? "speaker" : "earpiece",
+  });
 
   useKeepAwake();
 
   if (error) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl }}>
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xl }}
+      >
         <Text style={{ ...typography.body, color: colors.danger, textAlign: "center" }}>
           {error}
         </Text>
+        {/* iOS'ta geri tuşu yok — hata ekranında takılı kalınmasın. */}
+        <CallAction icon="close" label="Kapat" background={colors.danger} onPress={onHangUp} />
       </View>
     );
   }
@@ -163,7 +176,15 @@ function ConnectedCall({
   if (!token) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ ...typography.body, color: colors.muted }}>Bağlanılıyor…</Text>
+        <Text
+          style={{
+            ...typography.body,
+            // Görüntülü aramada zemin siyah; tema rengi açık temada okunmaz.
+            color: kind === "video" ? "rgba(255,255,255,0.7)" : colors.muted,
+          }}
+        >
+          Bağlanılıyor…
+        </Text>
       </View>
     );
   }
@@ -177,59 +198,23 @@ function ConnectedCall({
       video={kind === "video"}
       options={{ adaptiveStream: true, dynacast: true }}
     >
-      <CallStage onHangUp={onHangUp} />
+      {kind === "video" ? <VideoCallStage onHangUp={onHangUp} /> : <CallStage onHangUp={onHangUp} />}
     </LiveKitRoom>
   );
 }
 
+/** Sesli arama sahnesi. Görüntülü arama `VideoCallStage`'de. */
 function CallStage({ onHangUp }: { onHangUp: () => void }) {
   const session = useCall((s) => s.session);
   const participants = useParticipants();
-  const cameraTracks = useTracks([Track.Source.Camera]).filter(isTrackReference);
   const elapsed = useCallTimer(session?.startedAt);
+  const insets = useSafeAreaInsets();
 
   const speaking = participants.some((p) => p.isSpeaking && !p.isLocal);
 
   return (
     <View style={{ flex: 1 }}>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg, padding: spacing.lg }}>
-        {session?.kind === "video" && cameraTracks.length > 0 ? (
-          <View
-            style={{
-              flex: 1,
-              alignSelf: "stretch",
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: spacing.sm,
-              justifyContent: "center",
-              alignContent: "center",
-            }}
-          >
-            {cameraTracks.map((trackRef) => (
-              <View
-                key={`${trackRef.participant.identity}-${trackRef.source}`}
-                style={{
-                  width: cameraTracks.length === 1 ? "100%" : "48%",
-                  aspectRatio: cameraTracks.length === 1 ? 3 / 4 : 1,
-                  maxHeight: "100%",
-                  borderRadius: radii.xl,
-                  overflow: "hidden",
-                  backgroundColor: colors.panel,
-                  borderWidth: trackRef.participant.isSpeaking ? 2 : 0,
-                  borderColor: colors.success,
-                }}
-              >
-                <VideoTrack
-                  trackRef={trackRef}
-                  style={{ flex: 1 }}
-                  objectFit="cover"
-                  mirror={trackRef.participant.isLocal}
-                />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <>
         <View
           style={{
             padding: 4,
@@ -250,14 +235,12 @@ function CallStage({ onHangUp }: { onHangUp: () => void }) {
           {session ? displayNameOf(session.peer) : ""}
         </Text>
         <Text style={{ ...typography.body, color: colors.muted }}>{elapsed}</Text>
-          </>
-        )}
       </View>
 
-      {/* Sessize alma ve hoparlör LiveKit odasının İÇİNDE olmak zorunda —
+      {/* Sessize alma ve ses çıkışı LiveKit odasının İÇİNDE olmak zorunda —
           kontroller odanın kendi durumunu okuyor. */}
-      <View style={{ paddingBottom: spacing["4xl"] }}>
-        <CallControls onHangUp={onHangUp} showCamera={session?.kind === "video"} />
+      <View style={{ paddingBottom: insets.bottom + spacing["2xl"] }}>
+        <CallControls onHangUp={onHangUp} />
       </View>
     </View>
   );
@@ -288,17 +271,4 @@ function CallAction({
       <Text style={{ ...typography.caption, color: colors.muted }}>{label}</Text>
     </View>
   );
-}
-
-/** Görüşme süresi — saniyede bir tazelenir. */
-function useCallTimer(startedAt: number | undefined): string {
-  const [label, setLabel] = useState("00:00");
-
-  useEffect(() => {
-    if (!startedAt) return;
-    const timer = setInterval(() => setLabel(formatElapsed(startedAt)), 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
-
-  return label;
 }

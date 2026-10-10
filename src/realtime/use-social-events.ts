@@ -6,7 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/api/query-keys";
 import type { ProfileAnnotationEntry } from "@/api/types";
 import { showInAppNotice } from "@/components/in-app-notice";
-import { playMessageTone } from "@/lib/sounds";
+import { isHiddenChannel } from "@/features/unread/unread-cache";
+import { playMessageTone, primeSounds } from "@/lib/sounds";
 import { activeChatId } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
@@ -23,7 +24,7 @@ import { onGatewayEvent } from "./gateway";
  *  - DM bildirimi, okuma imleci, üyelik değişimi → sohbet listesi ve rozetler
  *    (+ uygulama ön plandayken ve sohbet açık değilken üstte bildirim kartı)
  *  - kanalda etiketlenme → bildirim kartı
- *  - kanal mesajı → sunucu okunmamış rozetleri
+ *  - kanal mesajı → mesaj tonu (sayaçlar `use-unread-sync`'te)
  *  - profilin görsel alanları değişti → avatar/afiş çizen cache'ler
  *  - sunucudan çıkarıldın / sunucu silindi / kanal yerleşimi değişti → listeler
  */
@@ -38,12 +39,16 @@ export function useSocialEvents() {
       for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
     };
 
-    /** Uygulama içi kart gösterilsin mi — web `message.notification` kuralları. */
-    const noticeAllowed = (chatId: string | null) => {
+    // İlk mesajın tonu oynatıcı hazırlanırken kaybolmasın.
+    primeSounds();
+
+    /** Uygulama içi kart/ses olsun mu — web `message.notification` kuralları. */
+    const noticeAllowed = (chatId: string | null, kind: "message" | "friend" = "message") => {
       if (AppState.currentState !== "active") return false; // arka planda sistem bildirimi var
       if (usePresenceStore.getState().selfStatus === "DND") return false;
       const prefs = usePreferences.getState();
-      if (!prefs.notificationsEnabled || !prefs.messageNotifications) return false;
+      if (!prefs.notificationsEnabled) return false;
+      if (!(kind === "friend" ? prefs.friendNotifications : prefs.messageNotifications)) return false;
       // Sohbet zaten açıksa kullanıcı mesajı görüyor.
       if (chatId && activeChatId() === chatId) return false;
       return true;
@@ -58,7 +63,7 @@ export function useSocialEvents() {
       onGatewayEvent(ServerEvent.FRIEND_REQUEST, (frame) => {
         invalidate(qk.friends);
         const sender = frame.sender as { id?: string; username?: string; name?: string | null; imageUrl?: string | null } | undefined;
-        if (!sender?.username || !noticeAllowed(null)) return;
+        if (!sender?.username || !noticeAllowed(null, "friend")) return;
         void playMessageTone();
         showInAppNotice({
           title: sender.name?.trim() || sender.username,
@@ -70,10 +75,10 @@ export function useSocialEvents() {
       }),
       onGatewayEvent(ServerEvent.FRIEND_REQUEST_UPDATED, () => invalidate(qk.friends)),
 
-      // Sohbet açık değilken gelen DM: liste sırası ve rozet sunucudan gelir,
-      // istemcide yeniden hesaplamak yerine tazelemek doğrusu.
+      // Gelen DM: liste sırası ve önizleme sunucudan tazelenir; okunmamış
+      // sayacını `use-unread-sync` artırır.
       onGatewayEvent(ServerEvent.MESSAGE_NOTIFICATION, (frame) => {
-        invalidate(qk.directs, qk.unreadCounts, qk.inbox);
+        invalidate(qk.directs, qk.inbox);
 
         const sender = frame.sender as { id?: string; username?: string; name?: string | null; imageUrl?: string | null } | undefined;
         const directId = typeof frame.directId === "string" ? frame.directId : null;
@@ -114,7 +119,15 @@ export function useSocialEvents() {
       // Grup kuruldu, eklendin, çıkarıldın — yeni mesaj olmadığı için
       // bildirim olayı bunu yakalamaz.
       onGatewayEvent(ServerEvent.DIRECTS_UPDATED, () => invalidate(qk.directs, qk.inbox)),
-      onGatewayEvent(ServerEvent.CHANNEL_MESSAGE, () => invalidate(qk.unreadCounts)),
+      // Kanal mesajı: sayaç `use-unread-sync`'te; burada yalnızca ses (web:
+      // navigation-server-list — kendi mesajın ve açık kanal hariç). Kart yok.
+      onGatewayEvent(ServerEvent.CHANNEL_MESSAGE, (frame) => {
+        const { serverId, channelId, senderId } = frame;
+        if (typeof serverId !== "string" || typeof channelId !== "string" || typeof senderId !== "string") return;
+        if (senderId === useAuth.getState().profile?.id || ignoring(senderId)) return;
+        if (isHiddenChannel(queryClient, serverId, channelId) || !noticeAllowed(channelId)) return;
+        void playMessageTone();
+      }),
       onGatewayEvent(ServerEvent.SERVERS_REMOVED, () => invalidate(qk.memberships, qk.unreadCounts)),
       onGatewayEvent(ServerEvent.SERVER_DELETED, () => invalidate(qk.memberships, qk.unreadCounts)),
 

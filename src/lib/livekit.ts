@@ -1,8 +1,9 @@
-import { registerGlobals } from "@livekit/react-native";
+import { registerGlobals, setupIOSAudioManagement } from "@livekit/react-native";
 import type { LiveKitTokenResponse } from "@ciklet/embedded-activities-sdk/types";
 
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
+import { appleConfigFor } from "@/features/voice/audio-route";
 
 /**
  * LiveKit köprüsü.
@@ -19,7 +20,11 @@ let globalsRegistered = false;
 
 export function setupLiveKit() {
   if (globalsRegistered) return;
-  registerGlobals();
+  // iOS ses kategorisini SDK'nın sabit "hoparlör tercihli" ayarı yerine
+  // bizim geri çağrımız belirler — ahize/hoparlör seçimi motor her yeniden
+  // açıldığında korunur (bkz. features/voice/audio-route.ts).
+  registerGlobals({ autoConfigureAudioSession: false });
+  setupIOSAudioManagement(true, appleConfigFor);
   globalsRegistered = true;
 }
 

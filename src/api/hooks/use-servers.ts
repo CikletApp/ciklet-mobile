@@ -6,6 +6,8 @@ import type {
   MemberWithProfile,
 } from "@ciklet/embedded-activities-sdk/types";
 
+import { normalizeUnread } from "@/features/unread/unread-cache";
+import { useAuth } from "@/stores/auth";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
@@ -159,11 +161,29 @@ export function useServerMembers(serverId: string | undefined) {
   });
 }
 
-/** Okunmamış rozetleri — sunucu rayı ve kanal listesi kullanır. */
+/**
+ * Okunmamış rozetlerinin TEK kaynağı — sunucular, kanallar ve DM'ler
+ * (web de DM sayısını buradan okuyor; `/api/inbox` 8 satırla kesik ve
+ * spam süzgecinden geçmiş). Canlı güncelleme `realtime/use-unread-sync`.
+ */
 export function useUnreadCounts() {
+  // Sekme çubuğu oturum yokken de bağlı olabilir; boşuna 401 alınmasın.
+  const signedIn = useAuth((s) => s.status === "signedIn");
   return useQuery({
     queryKey: qk.unreadCounts,
     queryFn: () => api<UnreadCounts>(endpoints.unreadCounts),
+    enabled: signedIn,
+    // Diskteki eski ya da bozuk yanıt da düzgün kayda iner.
+    select: normalizeUnread,
     staleTime: 30_000,
   });
+}
+
+/** Okunmamış mesajı olan sunucu sayısı — Sunucular sekmesinin rozeti. */
+export function useUnreadServerCount() {
+  const { data } = useUnreadCounts();
+  return useMemo(
+    () => Object.values(data?.serverUnreads ?? {}).filter((count) => count > 0).length,
+    [data]
+  );
 }
