@@ -77,6 +77,9 @@ export interface UnreadSeed {
  * akış aynı `chatId` üzerinden çalışır. Bu yüzden ayrı iki ekran yerine
  * tek görünüm iki rota tarafından kullanılır.
  */
+/** Yazılmakta olan mesajlar, sohbet kimliğine göre (bkz. ChatView taslağı). */
+const draftMemory = new Map<string, string>();
+
 export function ChatView({
   kind,
   chatId,
@@ -165,7 +168,18 @@ export function ChatView({
   const showBackground = Boolean(chatBackgroundUri) && (plan.data?.features.customThemes ?? true);
   const surface = showBackground ? "transparent" : colors.chat;
 
-  const [draft, setDraft] = useState("");
+  // Taslak sohbet başına bellekte de tutulur: tema değişimi (telefonun açık/
+  // koyu moduna geçmesi dahil) gezinme ağacını yeniden kurar ve yarım
+  // kalmış mesaj silinirdi.
+  const [draft, setDraftState] = useState(() => draftMemory.get(chatId) ?? "");
+  const setDraft = useCallback(
+    (text: string) => {
+      if (text) draftMemory.set(chatId, text);
+      else draftMemory.delete(chatId);
+      setDraftState(text);
+    },
+    [chatId]
+  );
   const [attachment, setAttachment] = useState<MessageAttachment | null>(null);
   const [attachmentSheet, setAttachmentSheet] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -348,7 +362,7 @@ export function ChatView({
       if (text.length > 0) notifyTyping();
       else stopTyping();
     },
-    [notifyTyping, stopTyping]
+    [notifyTyping, setDraft, stopTyping]
   );
 
   const onSend = useCallback(() => {
@@ -358,7 +372,7 @@ export function ChatView({
     setDraft("");
     setAttachment(null);
     setReplyingTo(null);
-  }, [attachment, draft, replyingTo?.id, send, stopTyping]);
+  }, [attachment, draft, replyingTo?.id, send, setDraft, stopTyping]);
 
   const onSelectGif = useCallback((url: string) => {
     stopTyping();

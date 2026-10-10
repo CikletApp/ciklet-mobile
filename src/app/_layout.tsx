@@ -20,7 +20,7 @@ import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
-import { useTheme } from "@/stores/theme";
+import { useSystemSchemeSync, useTheme } from "@/stores/theme";
 import { useAppFonts } from "@/theme/use-app-fonts";
 import {
   createModalScreenOptions,
@@ -82,6 +82,8 @@ export default function RootLayout() {
   const appFonts = useAppFonts();
   const stackScreenOptions = createStackScreenOptions(palette);
   useScreenTracking();
+  // Tema telefonun açık/koyu modunu canlı izler (açıkta Porselen).
+  useSystemSchemeSync();
   const modalScreenOptions = createModalScreenOptions(palette);
   const navigationTheme = createNavigationTheme(palette);
   const ready = status !== "loading" && appFonts.ready && themeHydrated;

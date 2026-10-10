@@ -54,7 +54,7 @@ export default function MeScreen() {
   const selfManual = usePresenceStore((s) => s.selfManual);
   // Sunucudan gerçek durum gelmeden varsayılan ONLINE'a ✓ konmaz.
   const selfKnown = usePresenceStore((s) => s.selfKnown);
-  const preference = useTheme((s) => s.preference);
+  const themeId = useTheme((s) => s.themeId);
   const plan = useMentolPlan();
 
   const me = profile ?? sessionProfile;
@@ -156,7 +156,7 @@ export default function MeScreen() {
           <ListGroup>
             <Shortcut icon="users" title="Arkadaşların" detail={incoming.length > 0 ? `${incoming.length} istek` : String(accepted.length)} onPress={() => router.push("/friends")} />
             <Divider inset={52} />
-            <Shortcut icon="palette" title="Görünüm" detail={preference === "system" ? "Sistem" : THEME_LABELS[preference]} onPress={() => router.push("/settings/appearance")} />
+            <Shortcut icon="palette" title="Görünüm" detail={THEME_LABELS[themeId]} onPress={() => router.push("/settings/appearance")} />
             <Divider inset={52} />
             <Shortcut icon="sparkles" title="Mentol" detail={plan.data?.features.label} onPress={() => router.push("/settings/mentol")} />
             <Divider inset={52} />

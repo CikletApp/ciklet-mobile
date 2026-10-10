@@ -2,9 +2,9 @@ import { useRef, useState } from "react";
 import { ScrollView, Switch, Text, TextInput, View } from "react-native";
 
 import { useMentolPlan } from "@/api/hooks";
-import { Icon, Pressable, Screen } from "@/components/ui";
+import { Icon, Pressable, Screen, showToast } from "@/components/ui";
 import { ColorPickerSheet } from "@/features/appearance/color-picker-sheet";
-import { THEME_LABELS, useTheme } from "@/stores/theme";
+import { THEME_LABELS, darkThemeOf, useTheme } from "@/stores/theme";
 import {
   THEMES,
   buildRegion,
@@ -66,6 +66,7 @@ function restorableScrollY(): number {
 export default function AppearanceScreen() {
   const preference = useTheme((s) => s.preference);
   const themeId = useTheme((s) => s.themeId);
+  const systemScheme = useTheme((s) => s.systemScheme);
   const customColors = useTheme((s) => s.customColors);
   const applyTheme = useTheme((s) => s.setTheme);
   const applyCustomColors = useTheme((s) => s.setCustomColors);
@@ -80,8 +81,26 @@ export default function AppearanceScreen() {
   const plan = useMentolPlan();
   const canCustomize = plan.data?.features.customThemes === true;
 
-  const source: ThemeSource = { ...getTheme(themeId).source, ...customColors };
-  const customEnabled = Object.keys(customColors).length > 0;
+  // Tema telefonun moduna uyar: açık modda Porselen, koyu modda seçilen
+  // atmosfer. Kartlar koyu mod temasını seçer; Porselen kendiliğinden gelir.
+  const lightMode = systemScheme === "light";
+  const darkTheme = darkThemeOf(preference);
+  const pickTheme = (id: ThemeMeta["id"]) => {
+    if (id === "light") {
+      showToast(lightMode ? "Telefonun açık modda; Porselen zaten kullanılıyor." : "Porselen, telefonun açık moddayken kendiliğinden kullanılır.");
+      return;
+    }
+    if (id === darkTheme) {
+      if (lightMode) showToast(`${THEME_LABELS[id]} zaten koyu modda kullanılıyor.`);
+      return;
+    }
+    void setTheme(id);
+    if (lightMode) showToast(`${THEME_LABELS[id]}, telefonun koyu moda geçince kullanılacak.`);
+  };
+  // Özel renkler koyu mod temasının üstüne kurulu; açık modda Porselen saf kalır.
+  const activeCustom = lightMode ? {} : customColors;
+  const source: ThemeSource = { ...getTheme(themeId).source, ...activeCustom };
+  const customEnabled = Object.keys(activeCustom).length > 0;
 
   const scrollRef = useRef<ScrollView>(null);
   // İlk içerik ölçümünde bir kez; sonraki boyut değişimleri kaydırmayı ezmesin.
@@ -111,7 +130,7 @@ export default function AppearanceScreen() {
             Renkler de <Text style={{ color: colors.brand }}>senden yana.</Text>
           </Text>
           <Text style={{ ...typography.body, color: colors.muted }}>
-            Bir atmosfer seç. Ciklet Web ile aynı paletler; seçimin bu cihazda saklanır.
+            Ciklet telefonunun moduna uyar: açık modda Porselen, koyu modda seçtiğin atmosfer. Ciklet Web ile aynı paletler; seçimin bu cihazda saklanır.
           </Text>
         </View>
 
@@ -120,7 +139,7 @@ export default function AppearanceScreen() {
         <View style={{ flexDirection: "row", alignItems: "baseline" }}>
           <Text style={{ ...typography.bodyStrong, color: colors.bright, flex: 1 }}>Hazır atmosferler</Text>
           <Text style={{ ...typography.caption, color: colors.muted }}>
-            {preference === "system" ? "Sistemle eşleşiyor" : THEME_LABELS[themeId]}
+            Şu an: {THEME_LABELS[themeId]}
           </Text>
         </View>
 
@@ -129,21 +148,33 @@ export default function AppearanceScreen() {
             <ThemeCard
               key={theme.id}
               theme={theme}
-              selected={preference === theme.id}
-              onPress={() => void setTheme(theme.id)}
+              selected={theme.id === "light" ? lightMode : !lightMode && theme.id === darkTheme}
+              detail={
+                theme.id === "light"
+                  ? "Açık modda otomatik"
+                  : lightMode && theme.id === darkTheme
+                    ? "Koyu modda kullanılır"
+                    : undefined
+              }
+              onPress={() => pickTheme(theme.id)}
             />
           ))}
-          <SystemCard selected={preference === "system"} onPress={() => void setTheme("system")} />
         </View>
 
-        <CustomPalette
-          source={source}
-          customColors={customColors}
-          enabled={customEnabled}
-          canCustomize={canCustomize}
-          loading={plan.isLoading}
-          onChange={(next) => void setCustomColors(next)}
-        />
+        {lightMode ? (
+          <Text style={{ ...typography.caption, color: colors.muted }}>
+            Özel palet koyu modda, seçtiğin atmosferin üstüne uygulanır. Düzenlemek için telefonunu koyu moda al.
+          </Text>
+        ) : (
+          <CustomPalette
+            source={source}
+            customColors={activeCustom}
+            enabled={customEnabled}
+            canCustomize={canCustomize}
+            loading={plan.isLoading}
+            onChange={(next) => void setCustomColors(next)}
+          />
+        )}
       </ScrollView>
     </Screen>
   );
@@ -241,7 +272,17 @@ function PreviewMessage(props: { initial: string; name: string; time?: string; t
 }
 
 /** Web'deki tema kartıyla aynı swatch dili: zemin, menü şeridi, sohbet + panel + vurgu. */
-function ThemeCard({ theme, selected, onPress }: { theme: ThemeMeta; selected: boolean; onPress: () => void }) {
+function ThemeCard({
+  theme,
+  selected,
+  detail,
+  onPress,
+}: {
+  theme: ThemeMeta;
+  selected: boolean;
+  detail?: string;
+  onPress: () => void;
+}) {
   const { canvas, menu, chat, panel, accent } = theme.source;
   return (
     <CardShell selected={selected} onPress={onPress} label={`${theme.label} teması`}>
@@ -255,30 +296,7 @@ function ThemeCard({ theme, selected, onPress }: { theme: ThemeMeta; selected: b
       </View>
       <View style={{ gap: 1 }}>
         <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{theme.label}</Text>
-        <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{theme.kind}</Text>
-      </View>
-    </CardShell>
-  );
-}
-
-function SystemCard({ selected, onPress }: { selected: boolean; onPress: () => void }) {
-  const dark = getTheme("amethyst").source;
-  const light = getTheme("light").source;
-  return (
-    <CardShell selected={selected} onPress={onPress} label="Sistem teması">
-      <View style={{ height: 64, borderRadius: radii.md, borderCurve: "continuous", overflow: "hidden", flexDirection: "row" }}>
-        <View style={{ flex: 1, backgroundColor: light.chat }} />
-        <View style={{ flex: 1, backgroundColor: dark.chat }} />
-        <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}>
-          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.panel, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}>
-            <Icon name="monitor" size={18} color={colors.bright} />
-          </View>
-        </View>
-        {selected ? <SelectedBadge /> : null}
-      </View>
-      <View style={{ gap: 1 }}>
-        <Text style={{ ...typography.bodyStrong, color: colors.bright }}>Sistem</Text>
-        <Text style={{ ...typography.caption, color: colors.muted }}>Otomatik</Text>
+        <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{detail ?? theme.kind}</Text>
       </View>
     </CardShell>
   );
