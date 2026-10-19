@@ -89,6 +89,8 @@ export const ServerEvent = {
   VOICE_UPDATE: "voice.update",
   /** `{ channels: [...] }` */
   VOICE_ACTIVE_CHANNELS: "voice.active_channels",
+  /** `{ action: mute|unmute|disconnect|move, serverId, channelId, targetChannelId }` — sana ses moderasyonu. */
+  VOICE_MODERATED: "voice.moderated",
   /** `{ caller, type, callId, expiresAt, directChannelId }` */
   CALL_INCOMING: "call.incoming",
   /** `{ profile, callId }` — karşı taraf kabul etti. */

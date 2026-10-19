@@ -17,3 +17,4 @@ export * from "./use-notification-settings";
 export * from "./use-moderation";
 export * from "./use-server-events";
 export * from "./use-threads";
+export * from "./use-voice-features";

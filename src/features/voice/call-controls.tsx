@@ -29,6 +29,7 @@ export function CallControls({
   showCamera = false,
   variant = "default",
   allowEarpiece = true,
+  showMic = true,
 }: {
   onHangUp: () => void;
   hangUpLabel?: string;
@@ -40,6 +41,11 @@ export function CallControls({
    * gösterilmez — seçilecek başka çıkış yok.
    */
   allowEarpiece?: boolean;
+  /**
+   * Mikrofon düğmesi. Bas-konuş kipinde ve sahne dinleyicisinde gizlenir:
+   * mikrofonu orada basılı tutma düğmesi / sahne izni yönetir.
+   */
+  showMic?: boolean;
 }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const audio = useAudioRoute();
@@ -118,15 +124,17 @@ export function CallControls({
           gap: spacing.xl,
         }}
       >
-        <ControlButton
-          icon={isMicrophoneEnabled ? "mic" : "mic-off"}
-          label={isMicrophoneEnabled ? "Mikrofonu kapat" : "Mikrofonu aç"}
-          caption={isMicrophoneEnabled ? "Mikrofon" : "Sessiz"}
-          captionColor={captionColor}
-          onPress={toggleMic}
-          background={isMicrophoneEnabled ? idleBackground : colors.dangerSolid}
-          tint={isMicrophoneEnabled ? idleTint : "#ffffff"}
-        />
+        {showMic ? (
+          <ControlButton
+            icon={isMicrophoneEnabled ? "mic" : "mic-off"}
+            label={isMicrophoneEnabled ? "Mikrofonu kapat" : "Mikrofonu aç"}
+            caption={isMicrophoneEnabled ? "Mikrofon" : "Sessiz"}
+            captionColor={captionColor}
+            onPress={toggleMic}
+            background={isMicrophoneEnabled ? idleBackground : colors.dangerSolid}
+            tint={isMicrophoneEnabled ? idleTint : "#ffffff"}
+          />
+        ) : null}
 
         {showCamera ? (
           <ControlButton
