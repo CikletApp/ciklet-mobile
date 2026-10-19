@@ -15,8 +15,9 @@ import {
   type AttachmentKind,
 } from "@/lib/attachments";
 import { downloadAttachment } from "@/lib/downloads";
-import { isSensitive, isSpoilerName } from "@/lib/message-extras";
+import { isSensitive, isSpoilerName, readVoice } from "@/lib/message-extras";
 import { MediaGate } from "./media-gate";
+import { VoiceMessagePlayer } from "./voice-message-player";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -79,6 +80,13 @@ export function MessageAttachment({
 
   const spoiler = isSpoilerName(info?.name);
   const sensitive = isSensitive(metadata);
+
+  // Sesli mesaj (metadata.voice): dosya kartı yerine dalga formlu oynatıcı.
+  const voice = kind !== "image" && kind !== "video" ? readVoice(metadata) : null;
+  if (voice) {
+    const player = <VoiceMessagePlayer url={url} meta={voice} onLongPress={onLongPress} />;
+    return fill ? <View style={{ padding: spacing.sm }}>{player}</View> : player;
+  }
 
   if (kind === "image") {
     return (

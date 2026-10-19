@@ -135,3 +135,12 @@ export async function playMessageTone(): Promise<void> {
     if (__DEV__) console.warn("[ses] mesaj tonu çalınamadı", error);
   }
 }
+
+/**
+ * Ses kipini kendisi kuran özellikler (sohbetteki sesli mesaj kaydı ve
+ * oynatması) bittiğinde çağırır: önbellekteki kip artık doğru değil, bir
+ * sonraki zil ya da ton kipi yeniden kursun.
+ */
+export function forgetSoundMode(): void {
+  currentMode = null;
+}

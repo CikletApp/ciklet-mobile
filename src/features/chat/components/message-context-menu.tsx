@@ -77,7 +77,15 @@ const POP_IN = new Keyframe({
   100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.cubic) },
 }).duration(180);
 
-type Mode = "menu" | "picker" | "edit" | "report";
+type Mode = "menu" | "picker" | "edit" | "report" | "thread";
+
+/** Alt başlık hareketsizlikte arşiv süreleri (web lib/threads `AUTO_ARCHIVE_CHOICES`). */
+const ARCHIVE_CHOICES: { minutes: number; label: string }[] = [
+  { minutes: 60, label: "1 saat" },
+  { minutes: 1440, label: "24 saat" },
+  { minutes: 4320, label: "3 gün" },
+  { minutes: 10080, label: "1 hafta" },
+];
 
 interface MenuAction {
   key: string;
@@ -102,6 +110,8 @@ export function MessageContextMenu({
   onDelete,
   onReport,
   pin,
+  thread,
+  serverId,
 }: {
   message: ChatMessagePayload;
   /** Basılı tutulan balonun pencere koordinatları — kopya buraya çizilir. */
@@ -128,6 +138,10 @@ export function MessageContextMenu({
    * kanal: yönetici/moderatör). `pinned` ise eylem kaldırmadır.
    */
   pin?: { pinned: boolean; onToggle: () => void };
+  /** Sunucu metin kanalında, alt başlığı olmayan mesajda: "Alt başlık oluştur". */
+  thread?: { defaultName: string; onCreate: (name: string, autoArchiveMinutes: number) => Promise<void> };
+  /** Tepki seçicisinde "Bu Sunucu" emojileri için. */
+  serverId?: string;
 }) {
   const insets = useSystemInsets();
   const myId = useAuth((state) => state.profile?.id);
@@ -138,6 +152,8 @@ export function MessageContextMenu({
   const [content, setContent] = useState(message.content);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
   const [reportDetail, setReportDetail] = useState("");
+  const [threadName, setThreadName] = useState(thread?.defaultName ?? "");
+  const [threadArchive, setThreadArchive] = useState(1440);
 
   const text = copyableText(message);
   const attachment = savableAttachment(message);
@@ -178,6 +194,7 @@ export function MessageContextMenu({
     });
   }
   if (onForward) actions.push({ key: "forward", icon: "forward", label: "İlet", onPress: onForward });
+  if (thread) actions.push({ key: "thread", icon: "message", label: "Alt başlık oluştur", onPress: () => setMode("thread") });
   // İletilen mesaj düzenlenemez (web 403 döner): içerik başkasının sözü.
   if (isMine && !isForwardedMessage(message)) {
     actions.push({ key: "edit", icon: "pencil", label: "Düzenle", onPress: () => setMode("edit") });
@@ -248,7 +265,7 @@ export function MessageContextMenu({
 
         {mode === "picker" ? (
           <Sheet onDismiss={onClose} fill drag={pickerDrag}>
-            <EmojiPickerPanel onEmoji={(emoji) => void onReact(emoji)} headerGesture={pickerDrag.header} />
+            <EmojiPickerPanel onEmoji={(emoji) => void onReact(emoji)} headerGesture={pickerDrag.header} serverId={serverId} />
             {error ? <ErrorText error={error} /> : null}
           </Sheet>
         ) : null}
@@ -282,6 +299,65 @@ export function MessageContextMenu({
                 primary
                 disabled={!content.trim() || pending}
                 onPress={() => void onEdit(content.trim())}
+              />
+            </View>
+            {error ? <ErrorText error={error} /> : null}
+          </Sheet>
+        ) : null}
+
+        {mode === "thread" && thread ? (
+          <Sheet onDismiss={onClose}>
+            <Text style={{ ...typography.display, color: colors.bright }}>Alt başlık oluştur</Text>
+            <Text style={{ ...typography.caption, color: colors.muted }}>
+              Bu mesaj üzerinden ayrı bir konuşma başlat.
+            </Text>
+            <TextInput
+              value={threadName}
+              onChangeText={setThreadName}
+              placeholder="Alt başlık adı"
+              placeholderTextColor={colors.muted}
+              autoFocus
+              maxLength={100}
+              style={{
+                minHeight: 46,
+                paddingHorizontal: spacing.md,
+                borderRadius: radii.md,
+                backgroundColor: colors.panel,
+                color: colors.bright,
+                ...typography.body,
+              }}
+            />
+            <Text style={{ ...typography.overline, color: colors.muted }}>HAREKETSİZLİKTE ARŞİVLE</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+              {ARCHIVE_CHOICES.map((choice) => {
+                const chosen = choice.minutes === threadArchive;
+                return (
+                  <Pressable
+                    key={choice.minutes}
+                    onPress={() => setThreadArchive(choice.minutes)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: chosen }}
+                    style={{
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.sm,
+                      borderRadius: radii.full,
+                      borderWidth: 1,
+                      borderColor: chosen ? colors.brand : colors.border,
+                      backgroundColor: chosen ? colors.brandSoft : colors.panel,
+                    }}
+                  >
+                    <Text style={{ ...typography.caption, color: chosen ? colors.brand : colors.text }}>{choice.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }}>
+              <SheetButton label="Vazgeç" onPress={() => setMode("menu")} />
+              <SheetButton
+                label="Oluştur"
+                primary
+                disabled={pending}
+                onPress={() => void thread.onCreate(threadName.trim(), threadArchive)}
               />
             </View>
             {error ? <ErrorText error={error} /> : null}

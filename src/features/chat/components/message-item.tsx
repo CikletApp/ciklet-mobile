@@ -31,7 +31,9 @@ import { FLASH_DURATION, useMessageFlash } from "./message-flash";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 import { PollMessage } from "./poll-message";
-import { extraAttachments, readSticker } from "@/lib/message-extras";
+import { extraAttachments, isSilent, readComponents, readInteraction, readSticker, readThread } from "@/lib/message-extras";
+import { InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
+import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
 import { isCustomEmojiOnly, parseCustomEmojiToken } from "../message-markup";
 import { useServerEmojis } from "../server-assets";
@@ -117,6 +119,7 @@ export function MessageItem({
   const bigEmoji = usePreferences((state) => state.bigEmoji);
   const linkPreviews = usePreferences((state) => state.linkPreviews);
   const flash = useMessageFlash(message.id);
+  const scope = useChatScope();
   const bubbleRef = useRef<View>(null);
   const compact = density === "compact";
 
@@ -267,6 +270,18 @@ export function MessageItem({
     </View>
   ) : null;
 
+  // Komut yanıtı ve sessiz mesaj işaretleri — web'de mesajın üstünde.
+  const interaction = readInteraction(message.metadata);
+  const silent = isSilent(message.metadata) && !message.deleted;
+  const metaLabels = interaction || silent ? (
+    <>
+      {interaction ? <InteractionLabel interaction={interaction.interaction} pending={interaction.pending} /> : null}
+      {silent ? <SilentLabel /> : null}
+    </>
+  ) : null;
+  const thread = !message.deleted && scope?.serverId ? readThread(message.metadata) : null;
+  const components = !message.deleted && scope?.kind === "channel" ? readComponents(message.metadata) : [];
+
   const replyTarget = message.replyTo && !message.replyTo.deleted ? message.replyTo : null;
   const quote = replyTarget ? (
     // Alıntı: tonlu kutu + vurgu çizgisi + yazarın adı. Yalnızca çizgi
@@ -364,7 +379,7 @@ export function MessageItem({
     >
       {captionedMedia && message.fileUrl ? (
         <>
-          {header || forwardedLabel || quote ? (
+          {header || metaLabels || forwardedLabel || quote ? (
             <View
               style={{
                 paddingHorizontal: spacing.md,
@@ -374,6 +389,7 @@ export function MessageItem({
               }}
             >
               {header}
+              {metaLabels}
               {forwardedLabel}
               {quote}
             </View>
@@ -406,6 +422,8 @@ export function MessageItem({
           >
             {caption}
             <MessageEmbeds metadata={message.metadata} />
+            {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} thread={thread} /> : null}
+            {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
             <MessageTime message={message} />
             {reactions}
           </View>
@@ -413,6 +431,7 @@ export function MessageItem({
       ) : (
         <>
           {header}
+          {metaLabels}
           {forwardedLabel}
           {quote}
 
@@ -463,6 +482,9 @@ export function MessageItem({
           {linkPreviews && linkUrl ? <LinkPreviewCard url={linkUrl} /> : null}
 
           {!message.deleted ? <MessageEmbeds metadata={message.metadata} /> : null}
+
+          {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} thread={thread} /> : null}
+          {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
 
           {bareMedia ? null : <MessageTime message={message} />}
 

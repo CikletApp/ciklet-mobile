@@ -1,7 +1,8 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Linking, Text, View, type TextStyle } from "react-native";
+import { Image } from "expo-image";
 
-import { EmojiImage, emojify, emojiSizeFor } from "@/components/ui";
+import { emojify, emojiSizeFor } from "@/components/ui";
 import { useAuth } from "@/stores/auth";
 import { colors, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
@@ -193,7 +194,15 @@ function renderInline(value: string, prefix: string, ctx: InlineContext): ReactN
       const emoji = ctx.emojis.find((item) => item.id === token.id);
       nodes.push(
         emoji ? (
-          <EmojiImage key={key} url={emoji.imageUrl} size={ctx.customEmojiSize} label={`:${emoji.name}:`} />
+          // Kalıcı Twemoji önbelleğine yazılmaz (silinen emoji cihazda kalmasın).
+          <Image
+            key={key}
+            source={{ uri: emoji.imageUrl }}
+            recyclingKey={emoji.imageUrl}
+            contentFit="contain"
+            accessibilityLabel={`:${emoji.name}:`}
+            style={{ width: ctx.customEmojiSize, height: ctx.customEmojiSize }}
+          />
         ) : (
           // Silinmiş ya da başka sunucunun emojisi: ad metin olarak kalır.
           <Text key={key} style={{ color: colors.muted }}>{`:${token.name}:`}</Text>
