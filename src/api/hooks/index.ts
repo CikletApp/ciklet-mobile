@@ -13,3 +13,4 @@ export * from "./use-annotations";
 export * from "./use-messages";
 export * from "./use-search";
 export * from "./use-settings";
+export * from "./use-notification-settings";

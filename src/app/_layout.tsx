@@ -15,6 +15,7 @@ import { DialogHost, ToastHost } from "@/components/ui";
 import { ImageViewerHost } from "@/components/ui/image-viewer";
 import { BrandSplash } from "@/features/auth/auth-shell";
 import { CallOverlay } from "@/features/call/call-overlay";
+import { NotificationSettingsHost } from "@/features/notifications/notification-sheet";
 import { reanimatedMotionMode, useReducedMotion } from "@/lib/accessibility";
 import { useScreenTracking } from "@/lib/analytics";
 import { loadDokimorjiManifest } from "@/lib/emoji";
@@ -227,6 +228,8 @@ export default function RootLayout() {
             <CallOverlay key={`call-${themeRevision}`} />
             {/* Tek görsel görüntüleyici: mesajlardaki görseller buraya açılır. */}
             <ImageViewerHost key={`viewer-${themeRevision}`} />
+            {/* Sunucu / kanal / DM bildirim ayarları sayfası. */}
+            <NotificationSettingsHost key={`notify-${themeRevision}`} />
             <DialogHost key={`dialog-${themeRevision}`} />
             <ToastHost key={`toast-${themeRevision}`} />
             {/* Ön planda gelen DM / etiketlenme kartı. */}

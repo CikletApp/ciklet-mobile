@@ -2,12 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Platform, ScrollView, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
-import { Button, Divider, ListGroup, Screen, SectionHeader } from "@/components/ui";
+import { useNotificationSettings, useResetNotificationSetting } from "@/api/hooks";
+import { Button, Divider, IconButton, ListGroup, ListRow, Screen, SectionHeader } from "@/components/ui";
 import {
   canShowFullScreenCall,
   nativeIncomingCalls,
   openFullScreenCallSettings,
 } from "@/features/call/incoming-call";
+import { openNotificationSettings } from "@/features/notifications/notification-sheet";
+import { LEVEL_LABELS, muteRemainingLabel, settingKey, type NotificationSettingRecord } from "@/lib/notification-settings";
+import { useNow } from "@/lib/use-now";
 import { registerPushToken, setupNotifications, unregisterPushToken } from "@/lib/notifications";
 import { useT } from "@/lib/i18n";
 import { usePreferences } from "@/stores/preferences";
@@ -70,6 +74,8 @@ export default function NotificationSettingsScreen() {
           </ListGroup>
         </View>
 
+        <NotificationOverrides />
+
         {fullScreenCalls === "denied" ? (
           <>
             <SectionHeader title={t("settings.notifications.lockScreen")} />
@@ -90,6 +96,71 @@ export default function NotificationSettingsScreen() {
         {permissionError ? <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>{permissionError}</Text> : null}
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * Sunucu, kanal ve sohbet bazlı ayarlar (web: Bildirimler → özel ayarlar
+ * listesi). Satıra dokununca aynı bildirim sayfası açılır; sağdaki düğme
+ * kaydı siler.
+ */
+function NotificationOverrides() {
+  const t = useT();
+  const { data: records } = useNotificationSettings();
+  const reset = useResetNotificationSetting();
+  const now = useNow();
+  const list = records ?? [];
+
+  const describe = (record: NotificationSettingRecord) => {
+    const parts: string[] = [];
+    const muted = muteRemainingLabel(record.mutedUntil, now);
+    if (muted) parts.push(muted);
+    if (record.level) parts.push(LEVEL_LABELS[record.level]);
+    if (record.suppressEveryone) parts.push("@herkes bastırıldı");
+    return parts.join(" · ");
+  };
+
+  return (
+    <>
+      <SectionHeader title={t("settings.notifications.overrides")} />
+      <View style={{ paddingHorizontal: spacing.lg }}>
+        {list.length === 0 ? (
+          <Text style={{ ...typography.caption, color: colors.muted }}>{t("settings.notifications.overridesEmpty")}</Text>
+        ) : (
+          <ListGroup>
+            {list.map((record, index) => {
+              const kind = record.directId ? "direct" : record.channelId ? "channel" : "server";
+              const target = record.directId
+                ? { directId: record.directId }
+                : record.channelId
+                  ? { channelId: record.channelId, serverId: record.serverId ?? undefined }
+                  : { serverId: record.serverId ?? undefined };
+              const title = record.label ?? (kind === "direct" ? "Sohbet" : kind === "channel" ? "Kanal" : "Sunucu");
+              return (
+                <View key={settingKey(record)}>
+                  {index > 0 ? <Divider inset={52} /> : null}
+                  <ListRow
+                    icon={kind === "direct" ? "message" : kind === "channel" ? "hash" : "compass"}
+                    title={title}
+                    subtitle={describe(record) || undefined}
+                    onPress={() => openNotificationSettings({ target, kind, title })}
+                    trailing={
+                      <IconButton
+                        icon="rotate-ccw"
+                        label={t("settings.notifications.reset")}
+                        background="transparent"
+                        tint={colors.muted}
+                        onPress={() => reset.mutate(target)}
+                      />
+                    }
+                  />
+                </View>
+              );
+            })}
+          </ListGroup>
+        )}
+      </View>
+    </>
   );
 }
 
