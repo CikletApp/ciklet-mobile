@@ -344,7 +344,8 @@ export function MessageItem({
     </View>
   ) : null;
 
-  const caption = message.content ? (
+  // Çıkartma mesajının içeriği çıkartmanın adı; görsel zaten ad taşıyor (web gibi).
+  const caption = message.content && !sticker ? (
     <MessageMarkdown
       value={message.content}
       compact={compact}

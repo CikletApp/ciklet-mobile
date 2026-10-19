@@ -144,9 +144,13 @@ export function useVoiceRecorder(onRecorded: (asset: PickedAsset, meta: VoiceMet
   // Ekrandan çıkılırsa yarım kayıt atılır.
   useEffect(
     () => () => {
-      if (recorder.isRecording) {
-        void recorder.stop().catch(() => {});
-        void endRecordingMode();
+      try {
+        if (recorder.isRecording) {
+          void recorder.stop().catch(() => {});
+          void endRecordingMode();
+        }
+      } catch {
+        // Kayıtçı kancanın kendi temizliğinde serbest bırakılmış olabilir.
       }
     },
     [recorder]
