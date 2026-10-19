@@ -4,9 +4,12 @@ import type { OwnProfile } from "@ciklet/embedded-activities-sdk/types";
 import * as apiClient from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { clearPersistedCache } from "@/api/query-client";
+import { setListenAlongProfile, stopListenAlong } from "@/features/spotify/listen-along";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
 import { clearNativeCookies } from "@/lib/cookies";
 import { unregisterPushToken } from "@/lib/notifications";
+import { clearNsfwAcknowledgements } from "@/lib/nsfw-ack";
+import { clearDecorations } from "@/stores/decorations";
 
 /**
  * Oturum durumu — uygulamanın tek kimlik kaynağı.
@@ -134,6 +137,8 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    // Birlikte dinleme "stop"u kimlikli gitmeli: token düşmeden önce.
+    await stopListenAlong();
     // Token'ı ÖNCE düşür: çıkıştan sonra kimlik başlığı kalmaz.
     await unregisterPushToken().catch(() => {});
     await apiClient.logout();
@@ -196,6 +201,23 @@ function isExpiringSoon(expiresAt: string | undefined): boolean {
  * bilgilendirir. Modül yüklenirken bir kez kaydedilir; kaydı kaldırmak
  * gerekmez çünkü store uygulama ömrü boyunca yaşar.
  */
+/**
+ * Oturumdaki profil değişimlerini profil bağlı modüllere iletir; oturum
+ * kapanınca (çıkış, süre dolması, ban) cihazda kalan kişisel izleri siler.
+ */
+useAuth.subscribe((state, prev) => {
+  const profileId = state.status === "signedIn" ? (state.profile?.id ?? null) : null;
+  const prevProfileId = prev.status === "signedIn" ? (prev.profile?.id ?? null) : null;
+  if (profileId !== prevProfileId) setListenAlongProfile(profileId);
+
+  const signedOut = state.status === "signedOut" || state.status === "banned";
+  const wasSignedOut = prev.status === "signedOut" || prev.status === "banned";
+  if (signedOut && !wasSignedOut) {
+    clearDecorations();
+    void clearNsfwAcknowledgements().catch(() => {});
+  }
+});
+
 apiClient.onAccountBanned((notice) => {
   void clearPersistedCache().catch(() => {});
   useAuth.getState().showBan(notice);

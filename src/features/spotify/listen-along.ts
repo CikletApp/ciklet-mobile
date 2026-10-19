@@ -1,7 +1,7 @@
 import { AppState } from "react-native";
 import { create } from "zustand";
 
-import { api } from "@/api/client";
+import { api, ApiError, peekSession } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import type { ListenAlongResponse, SpotifyNowPlaying } from "@/api/types";
 import { showToast } from "@/components/ui/toast";
@@ -41,15 +41,49 @@ export const useListenAlong = create<ListenAlongState>(() => ({ host: null, trac
 let timer: ReturnType<typeof setTimeout> | null = null;
 /** Her başlatma yeni bir nesil; eski döngünün geç gelen yanıtı yok sayılır. */
 let generation = 0;
+/** Oturumdaki profil — `stores/auth.ts` her değişimde bildirir. */
+let sessionProfileId: string | null = null;
+/** Döngüyü başlatan profil; başka profilin oturumunda döngü sürmez. */
+let ownerProfileId: string | null = null;
 
 function clearTimer() {
   if (timer) clearTimeout(timer);
   timer = null;
 }
 
+/**
+ * Durumu yalnızca yerelde sıfırlar; sunucuya "stop" GİTMEZ. Oturum düştüğünde
+ * ya da başka profile geçildiğinde kullanılır — istek ya 401 döner ya da
+ * yanlış hesabın adına gider.
+ */
+function resetLocal() {
+  generation += 1;
+  clearTimer();
+  ownerProfileId = null;
+  useListenAlong.setState({ host: null, track: null, paused: false });
+}
+
+/** Döngü bu oturumda sürebilir mi: oturum var ve başlatan profil hâlâ girişli. */
+function sessionMatches(): boolean {
+  return !!peekSession() && !!ownerProfileId && ownerProfileId === sessionProfileId;
+}
+
+/**
+ * `stores/auth.ts` oturumdaki profili bildirir. Profil değiştiyse ya da
+ * oturum kapandıysa (null) birlikte dinleme yerelde durur.
+ */
+export function setListenAlongProfile(profileId: string | null) {
+  sessionProfileId = profileId;
+  if (useListenAlong.getState().host && ownerProfileId !== profileId) resetLocal();
+}
+
 async function tick(gen: number) {
   const host = useListenAlong.getState().host;
   if (!host || gen !== generation) return;
+  if (!sessionMatches()) {
+    resetLocal();
+    return;
+  }
   try {
     const res = await api<ListenAlongResponse>(endpoints.spotifyListenAlong, {
       method: "POST",
@@ -65,7 +99,12 @@ async function tick(gen: number) {
       stopListenAlong();
       return;
     }
-  } catch {
+  } catch (err) {
+    // Oturum düştü: döngü sürerse her 10 sn'de bir 401 üretir.
+    if (err instanceof ApiError && err.isUnauthorized) {
+      if (gen === generation) resetLocal();
+      return;
+    }
     // Geçici hata (ağ, 429): bir sonraki adımda yeniden denenir.
   }
   if (gen !== generation) return;
@@ -75,26 +114,33 @@ async function tick(gen: number) {
 
 export function startListenAlong(host: { id: string; name: string }) {
   const previous = useListenAlong.getState().host;
-  if (previous && previous.id !== host.id) sendStop(previous.id);
+  if (previous && previous.id !== host.id && sessionMatches()) void sendStop(previous.id);
   generation += 1;
   clearTimer();
+  ownerProfileId = sessionProfileId;
   useListenAlong.setState({ host, track: null, paused: false });
   void tick(generation);
 }
 
-export function stopListenAlong() {
+/**
+ * Birlikte dinlemeyi bitirir. Dönen söz "stop" isteği bitince çözülür —
+ * çıkış akışı token'ı düşürmeden önce bunu bekler.
+ */
+export function stopListenAlong(): Promise<void> {
   const host = useListenAlong.getState().host;
-  generation += 1;
-  clearTimer();
-  useListenAlong.setState({ host: null, track: null, paused: false });
-  if (host) sendStop(host.id);
+  const canNotify = sessionMatches();
+  resetLocal();
+  return host && canNotify ? sendStop(host.id) : Promise.resolve();
 }
 
-function sendStop(hostId: string) {
-  void api(endpoints.spotifyListenAlong, {
+function sendStop(hostId: string): Promise<void> {
+  return api(endpoints.spotifyListenAlong, {
     method: "POST",
     body: { hostProfileId: hostId, action: "stop" },
-  }).catch(() => undefined);
+  }).then(
+    () => undefined,
+    () => undefined
+  );
 }
 
 // Ön plana dönüşte bekleyen zamanlayıcıyı beklemeden eşitle.

@@ -5,7 +5,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiError } from "@/api/client";
 import { isTimedOut, timeoutRemainingLabel, useAcceptRules, useServerRules } from "@/api/hooks";
 import { Button, Icon, showToast, type IconName } from "@/components/ui";
+import { nsfwAckKey } from "@/lib/nsfw-ack";
 import { useNow } from "@/lib/use-now";
+import { useAuth } from "@/stores/auth";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -17,30 +19,33 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * yalnızca kullanıcıya nedenini söyler.
  */
 
-const NSFW_KEY_PREFIX = "ciklet.nsfw-ack:";
-
-/** Yaş sınırlı kanal onayı bu cihazda kanal başına hatırlanır (web: tarayıcı başına). */
+/**
+ * Yaş sınırlı kanal onayı bu cihazda profil + kanal başına hatırlanır (web:
+ * tarayıcı başına); çıkışta silinir (bkz. lib/nsfw-ack.ts).
+ */
 export function useNsfwAcknowledged(channelId: string | undefined, nsfw: boolean) {
-  const [state, setState] = useState<{ channelId: string; acknowledged: boolean } | null>(null);
+  const profileId = useAuth((s) => s.profile?.id);
+  const key = profileId && channelId ? nsfwAckKey(profileId, channelId) : null;
+  const [state, setState] = useState<{ key: string; acknowledged: boolean } | null>(null);
   useEffect(() => {
-    if (!channelId || !nsfw) return;
+    if (!key || !nsfw) return;
     let alive = true;
-    AsyncStorage.getItem(NSFW_KEY_PREFIX + channelId)
-      .then((value) => alive && setState({ channelId, acknowledged: value === "1" }))
-      .catch(() => alive && setState({ channelId, acknowledged: false }));
+    AsyncStorage.getItem(key)
+      .then((value) => alive && setState({ key, acknowledged: value === "1" }))
+      .catch(() => alive && setState({ key, acknowledged: false }));
     return () => {
       alive = false;
     };
-  }, [channelId, nsfw]);
+  }, [key, nsfw]);
 
   const acknowledge = () => {
-    if (!channelId) return;
-    setState({ channelId, acknowledged: true });
-    void AsyncStorage.setItem(NSFW_KEY_PREFIX + channelId, "1").catch(() => undefined);
+    if (!key) return;
+    setState({ key, acknowledged: true });
+    void AsyncStorage.setItem(key, "1").catch(() => undefined);
   };
 
   // Okuma bitene kadar perde açık sayılır: içerik bir an görünüp kapanmasın.
-  const acknowledged = !nsfw || (state !== null && state.channelId === channelId && state.acknowledged);
+  const acknowledged = !nsfw || (state !== null && state.key === key && state.acknowledged);
   return { acknowledged, acknowledge };
 }
 

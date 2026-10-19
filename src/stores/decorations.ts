@@ -36,3 +36,8 @@ export function rememberDecorations(profiles: readonly MaybeProfile[]) {
 export function useDecorationOf(profileId: string | undefined): string | null {
   return useDecorationStore((state) => (profileId ? (state.byId[profileId] ?? null) : null));
 }
+
+/** Çıkışta: bir sonraki hesap öncekinin gördüğü profillerin süslerini taşımasın. */
+export function clearDecorations() {
+  useDecorationStore.setState({ byId: {} });
+}
