@@ -1,6 +1,8 @@
 import { Text, View } from "react-native";
 import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { isKnownThreadOf, useChannelThreads, useServerThreads } from "@/api/hooks";
 import { Icon, Pressable, emojify } from "@/components/ui";
 import type { InteractionMeta, ThreadMeta } from "@/lib/message-extras";
 import { fw } from "@/theme/fonts";
@@ -49,8 +51,21 @@ export function SilentLabel() {
   );
 }
 
-/** Alt başlık açılmış mesajın altındaki bağlantı; dokununca alt başlığın sohbeti açılır. */
+/**
+ * Alt başlık açılmış mesajın altındaki bağlantı; dokununca alt başlığın
+ * sohbeti açılır. `metadata.thread` mesajla gelen veri: yalnızca hedef
+ * gerçekten bu kanalın alt başlığı olarak bilinen bir listede geçiyorsa
+ * çizilir — sahte bir kimlik başka (ör. yaş sınırlı) kanala götürmesin.
+ */
 export function ThreadLink({ serverId, parentId, thread }: { serverId: string; parentId: string; thread: ThreadMeta }) {
+  const queryClient = useQueryClient();
+  // Listeler değişince yeniden çizilsin diye abone olunur; karar önbellekten.
+  // Kenar listesi yalnızca açık alt başlıkları taşır: orada yoksa kanalın
+  // arşiv listesi (kanal başına tek, paylaşılan sorgu) çekilir.
+  const sidebar = useServerThreads(serverId);
+  const inSidebar = Boolean(sidebar.data?.some((row) => row.id === thread.id && row.parentChannelId === parentId));
+  useChannelThreads(serverId, parentId, true, Boolean(sidebar.data) && !inSidebar);
+  if (!isKnownThreadOf(queryClient, serverId, parentId, thread.id)) return null;
   return (
     <Pressable
       onPress={() =>

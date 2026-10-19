@@ -271,7 +271,10 @@ export function MessageItem({
   ) : null;
 
   // Komut yanıtı ve sessiz mesaj işaretleri — web'de mesajın üstünde.
-  const interaction = readInteraction(message.metadata);
+  // Etiket ve bileşenler yalnızca bot yazarlı mesajda: kullanıcının mesajına
+  // eklenmiş sahte metadata "X /komut kullandı" ya da buton çizdirmesin.
+  const fromBot = profile.isBot === true;
+  const interaction = fromBot ? readInteraction(message.metadata) : null;
   const silent = isSilent(message.metadata) && !message.deleted;
   const metaLabels = interaction || silent ? (
     <>
@@ -279,8 +282,10 @@ export function MessageItem({
       {silent ? <SilentLabel /> : null}
     </>
   ) : null;
+  // Alt başlık bağlantısı ThreadLink içinde ayrıca doğrulanır (bu kanalın alt başlığı mı).
   const thread = !message.deleted && scope?.serverId ? readThread(message.metadata) : null;
-  const components = !message.deleted && scope?.kind === "channel" ? readComponents(message.metadata) : [];
+  const components =
+    fromBot && !message.deleted && scope?.kind === "channel" ? readComponents(message.metadata) : [];
 
   const replyTarget = message.replyTo && !message.replyTo.deleted ? message.replyTo : null;
   const quote = replyTarget ? (
