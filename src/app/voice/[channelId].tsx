@@ -193,7 +193,7 @@ function VoiceRoomBody({
   const livekitParticipants = useParticipants();
   const { data: actor } = useMyPermissions(serverId);
   const moderation = useVoiceModerationMenu({ serverId, channelId, stage: isStage });
-  const soundboard = useSoundboard();
+  const soundboard = useSoundboard(serverId);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
   // Sahne dinleyicisinin yayın izni yok; mikrofon düğmesi konuşmacıya çıkar.
   const canPublish = useLocalParticipantPermissions()?.canPublish === true;

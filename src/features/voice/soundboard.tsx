@@ -19,14 +19,17 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * kapsamı dışında. Bu yüzden mobil:
  *  - web'den çalınan sesleri zaten duyar (uzak ses parçası, LiveKit çalar);
  *  - kendi çaldığı sesi yerelde çalar ve odaya `soundboard` konulu veri
- *    mesajı yayınlar; açık mobil istemciler bu mesajı alıp aynı sesi çalar.
- * Web'in bu veri mesajını dinlemesi ayrı bir iş (bkz. bitiş raporu).
+ *    mesajı yayınlar; açık mobil ve web istemcileri bu mesajı alıp aynı
+ *    sesi çalar.
+ * Mesaj yalnızca ses KİMLİĞİNİ taşır; alıcı sesi sunucunun kendi listesinde
+ * çözer ve oradaki adres ile seviyeyi kullanır. Gönderenin adresine
+ * güvenilseydi herhangi bir katılımcı herkese rastgele bir adresi
+ * indirtebilirdi (web call/soundboard-popover aynı kuralı uygular).
  */
 export const SOUNDBOARD_TOPIC = "soundboard";
 
 interface SoundboardMessage {
-  audioUrl: string;
-  volume: number;
+  soundId: string;
   name?: string;
 }
 
@@ -51,12 +54,10 @@ function playOnce(audioUrl: string, volume: number) {
   }
 }
 
-function parseMessage(payload: Uint8Array): SoundboardMessage | null {
+function parseSoundId(payload: Uint8Array): string | null {
   try {
     const data = JSON.parse(decode(payload)) as Partial<SoundboardMessage>;
-    if (typeof data.audioUrl !== "string" || !/^https:\/\//.test(data.audioUrl)) return null;
-    const volume = typeof data.volume === "number" && Number.isFinite(data.volume) ? data.volume : 100;
-    return { audioUrl: data.audioUrl, volume, name: typeof data.name === "string" ? data.name : undefined };
+    return typeof data.soundId === "string" ? data.soundId : null;
   } catch {
     return null;
   }
@@ -66,10 +67,12 @@ function parseMessage(payload: Uint8Array): SoundboardMessage | null {
  * Odaya bağlı soundboard: gelen veri mesajlarını çalar, `play` hem yerelde
  * çalar hem yayınlar. `LiveKitRoom` içinde kullanılmalı.
  */
-export function useSoundboard() {
+export function useSoundboard(serverId: string | undefined) {
   const lastPlayed = useRef(0);
+  const { data: sounds } = useServerSounds(serverId);
   const { send } = useDataChannel(SOUNDBOARD_TOPIC, (message) => {
-    const parsed = parseMessage(message.payload);
+    const soundId = parseSoundId(message.payload);
+    const parsed = soundId ? sounds?.find((sound) => sound.id === soundId) : undefined;
     if (!parsed) return;
     // Arka arkaya gelen spam'e karşı kısa bir eşik.
     const now = Date.now();
@@ -82,7 +85,7 @@ export function useSoundboard() {
     async (sound: ServerSoundItem) => {
       playOnce(sound.audioUrl, sound.volume);
       try {
-        const body: SoundboardMessage = { audioUrl: sound.audioUrl, volume: sound.volume, name: sound.name };
+        const body: SoundboardMessage = { soundId: sound.id, name: sound.name };
         await send(encode(JSON.stringify(body)), { reliable: true, topic: SOUNDBOARD_TOPIC });
       } catch {
         showToast("Ses odaya gönderilemedi.", "error");
