@@ -92,6 +92,11 @@ export default function ChannelChatScreen() {
         serverId={serverId}
         unreadSeed={unreadCounts.data ? { count: unreadCounts.data.channelUnreads?.[channelId]?.count ?? 0 } : undefined}
         placeholder={`#${channel?.name ?? "kanal"} kanalına yaz`}
+        lockedNotice={
+          (channel as { forum?: boolean } | undefined)?.forum
+            ? "Forum kanalı: gönderiler şimdilik web ve masaüstünde açılır."
+            : undefined
+        }
       />
     </>
   );

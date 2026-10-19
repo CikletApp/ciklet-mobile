@@ -86,6 +86,7 @@ export function ChatView({
   serverId,
   placeholder,
   readOnlyOfficial = false,
+  lockedNotice,
   oneToOne = false,
   unreadSeed,
   intro,
@@ -97,6 +98,11 @@ export function ChatView({
   placeholder: string;
   /** Ciklet resmî bildirim sohbeti tek yönlüdür. */
   readOnlyOfficial?: boolean;
+  /**
+   * Yazma çubuğu yerine gösterilecek not (ör. forum kanalı: gönderi açmak
+   * şimdilik web'de). Mesajlar okunur, yazılamaz.
+   */
+  lockedNotice?: string;
   /**
    * Birebir sohbet (ve Notlarım): karşı tarafın adı ve avatarı her
    * baloncukta tekrarlanmaz — kim olduğu başlıkta zaten yazıyor.
@@ -605,9 +611,9 @@ export function ChatView({
           ) : null}
         </View>
 
-        {readOnlyOfficial ? (
+        {readOnlyOfficial || lockedNotice ? (
           <>
-            <OfficialFooter />
+            <OfficialFooter text={lockedNotice} />
             <View style={{ height: insets.bottom }} />
           </>
         ) : (
@@ -734,7 +740,7 @@ export function ChatView({
 }
 
 /** Webde input'un yerine geçen tek yönlü resmî bildirim bandı. */
-function OfficialFooter() {
+function OfficialFooter({ text }: { text?: string }) {
   return (
     <View style={{ paddingHorizontal: spacing.sm, paddingBottom: spacing.xs }}>
       <View
@@ -752,7 +758,7 @@ function OfficialFooter() {
         }}
       >
         <Text style={{ ...typography.caption, ...fw(500), color: colors.muted }}>
-          {OFFICIAL_FOOTER_TITLE}
+          {text ?? OFFICIAL_FOOTER_TITLE}
         </Text>
       </View>
     </View>

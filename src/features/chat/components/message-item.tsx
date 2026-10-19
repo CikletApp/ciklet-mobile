@@ -30,6 +30,8 @@ import { MEDIA_BUBBLE_WIDTH, MessageAttachment } from "./message-attachment";
 import { FLASH_DURATION, useMessageFlash } from "./message-flash";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
+import { PollMessage } from "./poll-message";
+import { extraAttachments, readSticker } from "@/lib/message-extras";
 import { fw } from "@/theme/fonts";
 import { readable, senderColor } from "@/theme/palette";
 
@@ -163,6 +165,11 @@ export function MessageItem({
     return <PinnedNotice message={message} onJump={onJumpToMessage} />;
   }
 
+  // Anket (ciklet-web POLL): oy verilebilir kart.
+  if ((message.type as string) === "POLL") {
+    return <PollMessage message={message} />;
+  }
+
   // Sistem mesajları (çağrı, aktivite daveti) tarafsızdır — ortada çizilir.
   if (message.type !== MessageType.DEFAULT) {
     return message.type === MessageType.ACTIVITY_INVITE
@@ -195,6 +202,7 @@ export function MessageItem({
   const visualMedia =
     attachmentKind === "image" || attachmentKind === "probe" || attachmentKind === "video";
   const hasQuote = Boolean(message.replyTo && !message.replyTo.deleted);
+  const sticker = readSticker(message.metadata);
   const forwarded = isForwardedMessage(message) && !message.deleted;
   // WhatsApp gibi: altyazısız görsel/video balonsuz çizilir, saat medyanın
   // üstüne biner. Gönderen adı, alıntı ya da "İletildi" varsa balon kalır —
@@ -371,6 +379,16 @@ export function MessageItem({
             variant="bubble"
             onLongPress={handleLongPress}
           />
+          {extraAttachments(message.metadata, message.fileUrl).map((a) => (
+            <View key={a.url} style={{ marginTop: 2 }}>
+              <MessageAttachment
+                url={a.url}
+                metadata={{ attachment: { name: a.name, type: a.type, size: a.size }, sensitive: (message.metadata as { sensitive?: unknown } | null)?.sensitive }}
+                variant="bubble"
+                onLongPress={handleLongPress}
+              />
+            </View>
+          ))}
 
           <View
             style={{
@@ -413,6 +431,23 @@ export function MessageItem({
               overlay={bareMedia ? <MessageTime message={message} onMedia /> : undefined}
               onLongPress={handleLongPress}
             />
+          ) : null}
+
+          {/* Çoklu ek (ciklet-web metadata.attachments): ilki yukarıda. */}
+          {!message.deleted
+            ? extraAttachments(message.metadata, message.fileUrl).map((a) => (
+                <MessageAttachment
+                  key={a.url}
+                  url={a.url}
+                  metadata={{ attachment: { name: a.name, type: a.type, size: a.size }, sensitive: (message.metadata as { sensitive?: unknown } | null)?.sensitive }}
+                  onLongPress={handleLongPress}
+                />
+              ))
+            : null}
+
+          {/* Çıkartma (ciklet-web metadata.sticker). */}
+          {sticker && !message.deleted ? (
+            <Image source={{ uri: sticker.imageUrl }} style={{ width: 160, height: 160 }} contentFit="contain" accessibilityLabel={sticker.name} />
           ) : null}
 
           {inviteCode ? (

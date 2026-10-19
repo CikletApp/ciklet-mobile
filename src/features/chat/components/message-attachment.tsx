@@ -15,6 +15,8 @@ import {
   type AttachmentKind,
 } from "@/lib/attachments";
 import { downloadAttachment } from "@/lib/downloads";
+import { isSensitive, isSpoilerName } from "@/lib/message-extras";
+import { MediaGate } from "./media-gate";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -75,20 +77,29 @@ export function MessageAttachment({
   const kind: AttachmentKind = detected === "probe" ? (probeFailed ? "file" : "image") : detected;
   const fill = variant === "bubble";
 
+  const spoiler = isSpoilerName(info?.name);
+  const sensitive = isSensitive(metadata);
+
   if (kind === "image") {
     return (
-      <ImageAttachment
-        url={url}
-        info={info}
-        overlay={overlay}
-        fill={fill}
-        onLongPress={onLongPress}
-        onError={detected === "probe" ? () => setProbeFailed(true) : undefined}
-      />
+      <MediaGate spoiler={spoiler} sensitive={sensitive}>
+        <ImageAttachment
+          url={url}
+          info={info}
+          overlay={overlay}
+          fill={fill}
+          onLongPress={onLongPress}
+          onError={detected === "probe" ? () => setProbeFailed(true) : undefined}
+        />
+      </MediaGate>
     );
   }
   if (kind === "video") {
-    return <VideoAttachment url={url} info={info} overlay={overlay} fill={fill} onLongPress={onLongPress} />;
+    return (
+      <MediaGate spoiler={spoiler} sensitive={sensitive}>
+        <VideoAttachment url={url} info={info} overlay={overlay} fill={fill} onLongPress={onLongPress} />
+      </MediaGate>
+    );
   }
   const card = <FileCard url={url} info={info} kind={kind} footer={overlay} onLongPress={onLongPress} />;
   // Balon kenarına yaslanmış düzende kart kenara yapışmasın.

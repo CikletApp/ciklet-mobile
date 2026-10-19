@@ -43,6 +43,9 @@ export default function VoiceChannelScreen() {
 
   const { data: server } = useServerSummary(serverId);
   const channel = useChannel(serverId, channelId);
+  // Sahne kanalı (ciklet-web lib/stage): herkes dinleyici katılır, yayın izni yok;
+  // mikrofon otomatik açılmaz, konuşmacı yapılınca elle açılır.
+  const isStage = Boolean((channel as { stage?: boolean } | undefined)?.stage);
 
   // Ekran açıkken cihaz uyumasın — uyku, mikrofon yayınını kesebilir.
   useKeepAwake();
@@ -107,7 +110,7 @@ export default function VoiceChannelScreen() {
       serverUrl={LIVEKIT_URL}
       token={token}
       connect
-      audio
+      audio={!isStage}
       video={isVideo}
       options={{ adaptiveStream: true, dynacast: true }}
       onConnected={() => setMediaError(false)}
@@ -119,7 +122,7 @@ export default function VoiceChannelScreen() {
       <Stack.Screen options={{ title: channel?.name ?? "" }} />
       <VoiceRoomBody
         title={channel?.name ?? "Ses kanalı"}
-        subtitle={server?.name}
+        subtitle={isStage ? `${server?.name ?? "Sunucu"} · Sahne (dinleyici)` : server?.name}
         onLeave={onLeave}
         isVideo={isVideo}
         mediaError={mediaError}
