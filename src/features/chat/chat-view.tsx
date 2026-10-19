@@ -48,6 +48,7 @@ import {
   findSuggestionTrigger,
   useComposerSuggestions,
   type ComposerSuggestion,
+  type SuggestionTrigger,
 } from "./components/composer-suggestions";
 import { PollComposer } from "./components/poll-composer";
 import { ForwardSheet } from "./components/forward-sheet";
@@ -219,8 +220,15 @@ export function ChatView({
   const [pollOpen, setPollOpen] = useState(false);
   /** Yükleme sürerken yazma çubuğundaki ilerleme metni. */
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
-  /** İmleç — `@` ve `:` önerileri için. */
-  const [caret, setCaret] = useState(0);
+  /**
+   * İmleç ref'te: her imleç hareketi sohbeti yeniden çizmesin. Yalnızca
+   * `@`/`:` öneri tetikleyicisi DEĞİŞİNCE state güncellenir.
+   */
+  const caretRef = useRef(0);
+  const [suggestionTrigger, setSuggestionTrigger] = useState<SuggestionTrigger | null>(null);
+  /** Yükleme ya da eğik çizgi komutu sürerken ikinci gönderim/ek seçimi engellenir. */
+  const uploadingRef = useRef(false);
+  const commandRunningRef = useRef(false);
   /** Öneriden seçilen roller: yazı kutusunda `@Ad`, gönderimde `<@&id>`. */
   const pickedRoles = useRef(new Map<string, string>());
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -396,13 +404,39 @@ export function ChatView({
     return () => cancelAnimationFrame(frame);
   }, [items, isFetchingNextPage, scrollToMessage, continueJump]);
 
+  /** Tetikleyici yalnızca değiştiyse state'e yazılır (aynı sorguda yeniden çizim yok). */
+  const syncTrigger = useCallback((text: string, caret: number) => {
+    const next = findSuggestionTrigger(text, caret);
+    setSuggestionTrigger((current) =>
+      current === next ||
+      (current &&
+        next &&
+        current.char === next.char &&
+        current.query === next.query &&
+        current.start === next.start &&
+        current.end === next.end)
+        ? current
+        : next
+    );
+  }, []);
+
+  const onCaretChange = useCallback(
+    (caret: number) => {
+      caretRef.current = caret;
+      syncTrigger(draft, caret);
+    },
+    [draft, syncTrigger]
+  );
+
   const onChangeDraft = useCallback(
     (text: string) => {
       setDraft(text);
+      // İmleç olayı metinden önce ya da sonra gelebilir; ikisi de eşitler.
+      syncTrigger(text, Math.min(caretRef.current, text.length));
       if (text.length > 0) notifyTyping();
       else stopTyping();
     },
-    [notifyTyping, setDraft, stopTyping]
+    [notifyTyping, setDraft, stopTyping, syncTrigger]
   );
 
   const serverEmojis = useServerEmojis(serverId);
@@ -413,7 +447,7 @@ export function ChatView({
    * gibi gider. Bot 3 sn içinde yanıtlamazsa kullanıcıya söylenir.
    */
   const runCommand = useCallback(
-    async (text: string): Promise<boolean> => {
+    async (text: string): Promise<false | "sent" | "failed"> => {
       if (kind !== "channel" || !text.startsWith("/")) return false;
       const match = matchSlashCommand(text, commandBots.data ?? []);
       if (!match) return false;
@@ -423,18 +457,19 @@ export function ChatView({
       if (!result.ok) {
         setDraft(text);
         showToast(result.error, "error");
-        return true;
+        return "failed";
       }
       void waitForAck(chatId, result.id).then((silent) => {
         if (silent) showToast(`${match.bot.name} komuta yanıt vermedi.`);
       });
-      return true;
+      return "sent";
     },
     [chatId, commandBots.data, kind, setDraft, stopTyping]
   );
 
   const onSend = useCallback(
     (options?: { silent?: boolean }) => {
+      if (uploadingRef.current || commandRunningRef.current) return;
       if (!draft.trim() && attachments.length === 0) return;
       if (requireAttachment && attachments.length === 0) {
         showToast("Bu medya kanalına yalnızca görsel, video ya da dosya ekli mesaj gönderilebilir.", "error");
@@ -442,14 +477,22 @@ export function ChatView({
       }
       if (attachments.length === 0 && draft.trim().startsWith("/") && (commandBots.data?.length ?? 0) > 0) {
         const text = draft.trim();
-        void runCommand(text).then((handled) => {
-          if (!handled) {
-            stopTyping();
-            send(encodeComposerTokens(draft, pickedRoles.current, serverEmojis), undefined, replyingTo?.id);
-            setDraft("");
-            setReplyingTo(null);
-          }
-        });
+        commandRunningRef.current = true;
+        void runCommand(text)
+          .then((handled) => {
+            if (!handled) {
+              stopTyping();
+              send(encodeComposerTokens(draft, pickedRoles.current, serverEmojis), undefined, replyingTo?.id);
+              setDraft("");
+              setReplyingTo(null);
+            } else if (handled === "sent") {
+              // Komut yanıt taşımaz; alıntı çubuğu asılı kalmasın.
+              setReplyingTo(null);
+            }
+          })
+          .finally(() => {
+            commandRunningRef.current = false;
+          });
         return;
       }
       stopTyping();
@@ -501,6 +544,8 @@ export function ChatView({
   const onVoiceRecorded = useCallback(
     async (asset: PickedAsset, meta: VoiceMeta) => {
       // Yükleme sürerken yanıt değişebilir; kayıt bittiği andaki hedef gider.
+      if (uploadingRef.current) return;
+      uploadingRef.current = true;
       const replyId = replyingTo?.id;
       setUploadError(null);
       setUploadProgress("Sesli mesaj yükleniyor…");
@@ -516,6 +561,7 @@ export function ChatView({
       } catch (reason) {
         setUploadError(reason instanceof Error ? reason.message : "Sesli mesaj yüklenemedi.");
       } finally {
+        uploadingRef.current = false;
         setUploadProgress(null);
       }
     },
@@ -549,6 +595,7 @@ export function ChatView({
       setPollOpen(true);
       return;
     }
+    if (uploadingRef.current) return;
     setUploadError(null);
     const remaining = MAX_ATTACHMENTS - attachments.length;
     if (remaining <= 0) {
@@ -563,6 +610,7 @@ export function ChatView({
             ? [await captureFromCamera()].filter((item): item is PickedAsset => Boolean(item))
             : await pickDocuments(remaining);
       if (picked.length === 0) return;
+      uploadingRef.current = true;
       // Sırayla yüklenir: her biri bitince çubuğa çip olarak takılır, biri
       // başarısız olursa öncekiler kaybolmaz.
       for (let index = 0; index < picked.length; index += 1) {
@@ -582,6 +630,7 @@ export function ChatView({
         reason instanceof Error ? reason.message : "Dosya yüklenemedi."
       );
     } finally {
+      uploadingRef.current = false;
       setUploadProgress(null);
     }
   }, [attachments.length]);
@@ -608,7 +657,7 @@ export function ChatView({
 
   // `@` / `:` önerileri — yalnızca sunucu kanalında (üyeler, roller, sunucu
   // emojileri orada). Komut listesi açıksa o öncelikli.
-  const trigger = kind === "channel" && commandMatches.length === 0 ? findSuggestionTrigger(draft, caret) : null;
+  const trigger = kind === "channel" && commandMatches.length === 0 ? suggestionTrigger : null;
   const suggestions = useComposerSuggestions(trigger, serverId);
 
   const onPickSuggestion = (item: ComposerSuggestion) => {
@@ -618,7 +667,8 @@ export function ChatView({
     if (item.roleId) pickedRoles.current.set(item.insert.slice(1), item.roleId);
     const position = trigger.start + insert.length;
     setDraft(next);
-    setCaret(position);
+    caretRef.current = position;
+    syncTrigger(next, position);
     requestAnimationFrame(() => composerRef.current?.setSelection(position, position));
   };
 
@@ -818,7 +868,7 @@ export function ChatView({
             }
             onSelectSticker={kind === "channel" && serverId ? onSelectSticker : undefined}
             onVoiceRecorded={(asset, meta) => void onVoiceRecorded(asset, meta)}
-            onCaretChange={setCaret}
+            onCaretChange={onCaretChange}
             onCancelReply={() => setReplyingTo(null)}
             onSelectGif={onSelectGif}
             onSelectActivity={onSelectActivity}

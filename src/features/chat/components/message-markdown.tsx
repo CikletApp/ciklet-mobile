@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useMemo, useState, type ReactNode } from "react";
 import { Text, View, type TextStyle } from "react-native";
 import { Image } from "expo-image";
 
@@ -75,28 +75,30 @@ export function MessageMarkdown({ value, style, compact = false, bigCustomEmoji 
   // yalnızca emojiden oluşan mesajlarda `style.fontSize` büyük geliyor.
   const emojiSize = emojiSizeFor(style, typography.body.fontSize);
 
-  const toggleSpoiler = (key: string) => {
+  const toggleSpoiler = useCallback((key: string) => {
     setRevealed((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
-  };
+  }, []);
 
-  const ctx: InlineContext = {
-    revealed,
-    toggleSpoiler,
-    emojiSize,
-    customEmojiSize: bigCustomEmoji ? 40 : Math.round(emojiSize * 1.25),
-    roles,
-    emojis,
-    myUsername,
-  };
-
-  return (
-    <View style={{ gap: compact ? 2 : spacing.xs }}>
-      {blocks.map((block, index) =>
+  const customEmojiSize = bigCustomEmoji ? 40 : Math.round(emojiSize * 1.25);
+  // Satır içi ayrıştırma pahalı (her belirteç için düzenli ifade taraması);
+  // yalnızca girdiler değişince yeniden kurulur — sohbet ekranının başka
+  // nedenlerle (yazma, imleç) yeniden çizilmesi bunu tetiklemez.
+  const rendered = useMemo(() => {
+    const ctx: InlineContext = {
+      revealed,
+      toggleSpoiler,
+      emojiSize,
+      customEmojiSize,
+      roles,
+      emojis,
+      myUsername,
+    };
+    return blocks.map((block, index) =>
         block.kind === "code" ? (
           <CodeBlock key={`code-${index}`} code={block.value} language={block.language} />
         ) : block.kind === "subtext" ? (
@@ -112,9 +114,10 @@ export function MessageMarkdown({ value, style, compact = false, bigCustomEmoji 
             {renderInline(block.value, `b${index}`, ctx)}
           </Text>
         )
-      )}
-    </View>
-  );
+    );
+  }, [blocks, revealed, toggleSpoiler, emojiSize, customEmojiSize, roles, emojis, myUsername, style]);
+
+  return <View style={{ gap: compact ? 2 : spacing.xs }}>{rendered}</View>;
 }
 
 type Block =
@@ -284,14 +287,24 @@ type InlineToken =
   | { kind: "mention"; start: number; end: number; username: string }
   | { kind: "format"; start: number; end: number; value: string; style: InlineStyle };
 
+// Düzenli ifadeler modül düzeyinde bir kez kurulur (her belirteç aramasında
+// yeniden derlenmez). Hepsi `g` bayraklı; her kullanımda `lastIndex`
+// ayarlanır, tarama eşzamanlı olduğundan paylaşmak güvenli.
+const LINK_RE = /\[([^\]]+)]\((https?:\/\/[^)\s]+)\)/g;
+const RAW_URL_RE = /https?:\/\/[^\s<>]+/g;
+const STAMP_RE = new RegExp(TIMESTAMP_SOURCE, "g");
+const CUSTOM_EMOJI_RE = new RegExp(CUSTOM_EMOJI_SOURCE, "g");
+const ROLE_MENTION_RE = new RegExp(ROLE_MENTION_SOURCE, "g");
+const MENTION_RE = new RegExp(MENTION_SOURCE, "g");
+
 function findNextToken(value: string, from: number): InlineToken | null {
   const candidates: InlineToken[] = [];
-  const link = /\[([^\]]+)]\((https?:\/\/[^)\s]+)\)/g;
+  const link = LINK_RE;
   link.lastIndex = from;
   const linkMatch = link.exec(value);
   if (linkMatch) candidates.push({ kind: "url", start: linkMatch.index, end: link.lastIndex, label: linkMatch[1], url: linkMatch[2] });
 
-  const raw = /https?:\/\/[^\s<>]+/g;
+  const raw = RAW_URL_RE;
   raw.lastIndex = from;
   const rawMatch = raw.exec(value);
   if (rawMatch) {
@@ -299,7 +312,7 @@ function findNextToken(value: string, from: number): InlineToken | null {
     candidates.push({ kind: "url", start: rawMatch.index, end: rawMatch.index + url.length, label: url, url });
   }
 
-  const stamp = new RegExp(TIMESTAMP_SOURCE, "g");
+  const stamp = STAMP_RE;
   stamp.lastIndex = from;
   const stampMatch = stamp.exec(value);
   if (stampMatch) {
@@ -312,17 +325,17 @@ function findNextToken(value: string, from: number): InlineToken | null {
     });
   }
 
-  const emoji = new RegExp(CUSTOM_EMOJI_SOURCE, "g");
+  const emoji = CUSTOM_EMOJI_RE;
   emoji.lastIndex = from;
   const emojiMatch = emoji.exec(value);
   if (emojiMatch) candidates.push({ kind: "emoji", start: emojiMatch.index, end: emoji.lastIndex, name: emojiMatch[1], id: emojiMatch[2] });
 
-  const role = new RegExp(ROLE_MENTION_SOURCE, "g");
+  const role = ROLE_MENTION_RE;
   role.lastIndex = from;
   const roleMatch = role.exec(value);
   if (roleMatch) candidates.push({ kind: "role", start: roleMatch.index, end: role.lastIndex, id: roleMatch[1] });
 
-  const mention = new RegExp(MENTION_SOURCE, "g");
+  const mention = MENTION_RE;
   mention.lastIndex = from;
   const mentionMatch = mention.exec(value);
   if (mentionMatch) {
