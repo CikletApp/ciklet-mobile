@@ -138,9 +138,12 @@ export function isHiddenChannel(queryClient: QueryClient, serverId: string, chan
   if (queryClient.getQueryState(qk.channels(serverId))?.isInvalidated) return false;
   const channels = queryClient.getQueryData<Channel[]>(qk.channels(serverId));
   if (!Array.isArray(channels) || channels.some((channel) => channel.id === channelId)) return false;
-  // Alt başlıklar kanal listesinde yok; bilinen alt başlık / forum gönderisi
-  // listelerinde geçiyorsa görünür. Hiçbirinde yoksa yine bilinmiyor sayılmaz:
-  // web de yalnızca görülebilen alt başlıkları sayar.
+  // Alt başlıklar kanal listesinde yok: önce kenar listesine (sunucunun tüm
+  // görünür açık alt başlıkları, tek sorgu) bakılır; arşivdeki alt başlık /
+  // forum gönderisi için önbellekteki diğer listelere. Hiçbirinde yoksa yine
+  // bilinmiyor sayılmaz: web de yalnızca görülebilen alt başlıkları sayar.
+  const sidebar = queryClient.getQueryData<{ id: string }[]>(qk.sidebarThreads(serverId));
+  if (Array.isArray(sidebar) && sidebar.some((thread) => thread.id === channelId)) return false;
   const known = queryClient
     .getQueriesData<unknown>({ queryKey: [...qk.channels(serverId)] })
     .some(([, data]) => {

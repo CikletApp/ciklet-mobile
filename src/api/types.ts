@@ -783,6 +783,14 @@ export interface ThreadSummary {
   threadStarterMessageId: string | null;
 }
 
+/** ciklet-web: `GET /api/servers/[id]/threads` satırı (kenar listesi). */
+export interface ServerThread {
+  id: string;
+  name: string;
+  parentChannelId: string;
+  latestMessageId: string | null;
+}
+
 /** ciklet-web: `GET /api/channels/[id]/forum` gönderisi. */
 export interface ForumPost {
   id: string;

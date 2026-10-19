@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
-import type { ChatKind } from "@/api/hooks";
+import { addSidebarThread, type ChatKind } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import type { ReactionDelta } from "@/realtime/events";
 import { applyReactionDelta, type MessageCache } from "./reaction-cache";
@@ -99,15 +99,24 @@ export function useMessageActions(
     async (messageId: string, name: string, autoArchiveMinutes: number): Promise<string | null> => {
       let id: string | null = null;
       const ok = await run(async () => {
-        const res = await api<{ id: string }>(endpoints.channelThreads(chatId), {
+        const res = await api<{ id: string; name?: string }>(endpoints.channelThreads(chatId), {
           method: "POST",
           body: { name: name || undefined, messageId, autoArchiveMinutes },
         });
         id = res.id;
+        // Kenar listesi ve "bu kanalın alt başlığı mı" denetimi tazelemeyi beklemesin.
+        if (serverId) {
+          addSidebarThread(queryClient, serverId, {
+            id: res.id,
+            name: res.name ?? name,
+            parentChannelId: chatId,
+            latestMessageId: null,
+          });
+        }
       });
       return ok ? id : null;
     },
-    [chatId, run]
+    [chatId, queryClient, run, serverId]
   );
 
   return { edit, remove, toggleReaction, report, createThread, pending, error, clearError: () => setError(null) };

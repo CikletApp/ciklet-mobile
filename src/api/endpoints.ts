@@ -302,6 +302,11 @@ export const endpoints = {
     `/api/servers/${encodeURIComponent(serverId)}/rules/accept`,
 
   // ── Alt başlıklar ve forum ────────────────────────────────────────
+  /**
+   * GET sunucunun görünür, açık, forum dışı alt başlıkları tek istekte:
+   * `[{ id, name, parentChannelId, latestMessageId }]` (kenar listesi).
+   */
+  serverThreads: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/threads`,
   /** GET açık (ya da `archived`) alt başlıklar, en çok 50; POST `{ name?, messageId? }`. */
   channelThreads: (channelId: string, archived = false) =>
     `/api/channels/${encodeURIComponent(channelId)}/threads${qs({ archived: archived ? 1 : undefined })}`,

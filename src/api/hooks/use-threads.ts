@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { ChannelType, type Channel } from "@ciklet/embedded-activities-sdk/types";
 
-import { api } from "../client";
+import { ApiError, api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
-import type { ChannelExtras, ForumResponse, ThreadSummary } from "../types";
+import type { ChannelExtras, ForumResponse, ServerThread, ThreadSummary } from "../types";
 
 /**
  * Alt başlıklar (thread) ve forum gönderileri.
@@ -13,8 +13,9 @@ import type { ChannelExtras, ForumResponse, ThreadSummary } from "../types";
  * Web tasarımı: alt başlık üst kanala bağlı bir KANAL satırıdır
  * (`Channel.parentChannelId`); mesaj deposu, ağ geçidi, okunmamış ve
  * arama değişmeden çalışır. `GET /api/channels?serverId=` alt başlıkları
- * DÖNDÜRMEZ; kanal listesinde göstermek için her metin kanalının açık alt
- * başlıkları ayrı çekilir. Anahtarlar `["channels", serverId, ...]`
+ * DÖNDÜRMEZ; kenar listesi sunucunun açık alt başlıklarını tek istekte
+ * (`GET /api/servers/[id]/threads`) çeker. Kanal başına liste yalnızca alt
+ * başlık listesi ekranında ve arşivde kullanılır. Anahtarlar `["channels", serverId, ...]`
  * altında: kanal yerleşimi değişince (`server.channels_updated`, arşivleme
  * de bunu yayınlıyor) kanal listesiyle birlikte tazelenir.
  */
@@ -33,32 +34,142 @@ export function useChannelThreads(
   });
 }
 
-/** Kenar listesi: metin kanallarının (forum hariç) açık alt başlıkları, üst kanal kimliğine göre. */
-export function useSidebarThreads(serverId: string | undefined, channels: Channel[] | undefined) {
-  const parents = useMemo(
-    () =>
-      (channels ?? []).filter(
-        (channel) => channel.type === ChannelType.TEXT && !(channel as Channel & ChannelExtras).forum
-      ),
-    [channels]
+/**
+ * Sunucunun görünür, açık, forum dışı alt başlıkları — tek istek. Uç henüz
+ * yoksa (404, eski sunucu) metin kanallarının listeleri tek tek çekilip aynı
+ * biçime çevrilir.
+ */
+export function useServerThreads(serverId: string | undefined, enabled = true) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: qk.sidebarThreads(serverId ?? "yok"),
+    enabled: Boolean(serverId) && enabled,
+    queryFn: () => fetchServerThreads(queryClient, serverId!),
+    staleTime: 60_000,
+  });
+}
+
+async function fetchServerThreads(queryClient: QueryClient, serverId: string): Promise<ServerThread[]> {
+  try {
+    return await api<ServerThread[]>(endpoints.serverThreads(serverId));
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+  }
+  const channels = await queryClient.ensureQueryData({
+    queryKey: qk.channels(serverId),
+    queryFn: () => api<Channel[]>(endpoints.serverChannels(serverId)),
+  });
+  const parents = channels.filter(
+    (channel) => channel.type === ChannelType.TEXT && !(channel as Channel & ChannelExtras).forum
   );
-  const results = useQueries({
-    queries: parents.map((channel) => ({
-      queryKey: qk.threads(serverId ?? "yok", channel.id, false),
-      enabled: Boolean(serverId),
-      queryFn: () => api<ThreadSummary[]>(endpoints.channelThreads(channel.id, false)),
-      staleTime: 60_000,
-      // Kanal görülemiyorsa 404; satır yalnızca alt başlıksız kalır.
-      retry: false,
-    })),
+  const lists = await Promise.all(
+    parents.map((channel) =>
+      api<ThreadSummary[]>(endpoints.channelThreads(channel.id, false)).then(
+        (rows) =>
+          rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            parentChannelId: channel.id,
+            latestMessageId: row.latestMessageId,
+          })),
+        // Kanal görülemiyorsa 404; satır yalnızca alt başlıksız kalır.
+        () => [] as ServerThread[]
+      )
+    )
+  );
+  return lists.flat();
+}
+
+/** Kenar listesi: açık alt başlıklar, üst kanal kimliğine göre. */
+export function useSidebarThreads(serverId: string | undefined) {
+  const { data } = useServerThreads(serverId);
+  return useMemo(() => {
+    const map = new Map<string, ServerThread[]>();
+    for (const thread of data ?? []) {
+      const list = map.get(thread.parentChannelId);
+      if (list) list.push(thread);
+      else map.set(thread.parentChannelId, [thread]);
+    }
+    return map;
+  }, [data]);
+}
+
+/** Yeni açılan alt başlığı kenar listesine ekler (tazeleme beklenmeden görünsün). */
+export function addSidebarThread(queryClient: QueryClient, serverId: string, thread: ServerThread) {
+  queryClient.setQueryData<ServerThread[]>(qk.sidebarThreads(serverId), (list) =>
+    Array.isArray(list) && !list.some((row) => row.id === thread.id) ? [thread, ...list] : list
+  );
+}
+
+/**
+ * Bilinen alt başlık mı: `threadId` önbellekteki bir listede (kenar listesi
+ * ya da kanalın açık / arşiv listesi) gerçekten `parentId` kanalının alt
+ * başlığı olarak geçiyor mu. Ağ isteği atmaz.
+ */
+export function isKnownThreadOf(
+  queryClient: QueryClient,
+  serverId: string,
+  parentId: string,
+  threadId: string
+): boolean {
+  const sidebar = queryClient.getQueryData<ServerThread[]>(qk.sidebarThreads(serverId));
+  if (sidebar?.some((row) => row.id === threadId && row.parentChannelId === parentId)) return true;
+  return [false, true].some((archived) =>
+    queryClient
+      .getQueryData<ThreadSummary[]>(qk.threads(serverId, parentId, archived))
+      ?.some((row) => row.id === threadId)
+  );
+}
+
+export type ThreadParentStatus = "channel" | "thread" | "pending" | "unknown" | "error";
+
+/**
+ * Kanal kimliğinin alt başlık olup olmadığını ve üst kanalını çözer —
+ * `parentId`'siz gelen bağlantılar (bahsetmeler, kaydedilenler, arama,
+ * bildirimler) için. Sıra: kanal listesi → kenar listesi → (yalnızca hâlâ
+ * bulunamadıysa) metin kanallarının açık + arşiv listeleri.
+ *  - `channel`  normal kanal (ya da sunucu bilinmiyor)
+ *  - `thread`   alt başlık; `parentId` dolu
+ *  - `pending`  listeler yükleniyor
+ *  - `unknown`  hiçbir listede yok (silinmiş ya da erişim yok)
+ *  - `error`    kanal listesi yüklenemedi
+ */
+export function useThreadParent(
+  serverId: string | undefined,
+  channelId: string,
+  parentIdParam: string | undefined,
+  channels: { data: Channel[] | undefined; isError: boolean }
+): { status: ThreadParentStatus; parentId?: string } {
+  const listed = Boolean(channels.data?.some((channel) => channel.id === channelId));
+  const needLookup = Boolean(serverId) && !parentIdParam && Boolean(channels.data) && !listed;
+  const sidebar = useServerThreads(serverId, needLookup);
+  const fromSidebar = sidebar.data?.find((thread) => thread.id === channelId)?.parentChannelId;
+  const needScan = needLookup && Boolean(sidebar.data || sidebar.isError) && !fromSidebar;
+  const textChannels = useMemo(
+    () => (needScan ? (channels.data ?? []).filter((channel) => channel.type === ChannelType.TEXT) : []),
+    [needScan, channels.data]
+  );
+  const scans = useQueries({
+    queries: textChannels.flatMap((channel) =>
+      [false, true].map((archived) => ({
+        queryKey: qk.threads(serverId ?? "yok", channel.id, archived),
+        queryFn: () => api<ThreadSummary[]>(endpoints.channelThreads(channel.id, archived)),
+        staleTime: 60_000,
+        retry: false,
+      }))
+    ),
   });
-  // Ucuz bir eşleme; her çizimde yeniden kurulur.
-  const map = new Map<string, ThreadSummary[]>();
-  parents.forEach((channel, index) => {
-    const list = results[index]?.data;
-    if (list?.length) map.set(channel.id, list);
-  });
-  return map;
+
+  if (parentIdParam) return { status: "thread", parentId: parentIdParam };
+  if (!serverId || listed) return { status: "channel" };
+  if (!channels.data) return { status: channels.isError ? "error" : "pending" };
+  if (fromSidebar) return { status: "thread", parentId: fromSidebar };
+  if (!needScan) return { status: "pending" };
+  const index = scans.findIndex((scan) => scan.data?.some((thread) => thread.id === channelId));
+  const parent = index >= 0 ? textChannels[Math.floor(index / 2)] : undefined;
+  if (parent) return { status: "thread", parentId: parent.id };
+  if (scans.some((scan) => scan.isPending)) return { status: "pending" };
+  return { status: "unknown" };
 }
 
 export function useCreateThread(serverId: string, channelId: string) {
@@ -66,7 +177,15 @@ export function useCreateThread(serverId: string, channelId: string) {
   return useMutation({
     mutationFn: (input: { name: string }) =>
       api<{ id: string; name: string }>(endpoints.channelThreads(channelId), { method: "POST", body: input }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.channels(serverId) }),
+    onSuccess: (thread) => {
+      addSidebarThread(queryClient, serverId, {
+        id: thread.id,
+        name: thread.name,
+        parentChannelId: channelId,
+        latestMessageId: null,
+      });
+      void queryClient.invalidateQueries({ queryKey: qk.channels(serverId) });
+    },
   });
 }
 

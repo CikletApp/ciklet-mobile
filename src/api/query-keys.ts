@@ -98,6 +98,8 @@ export const qk = {
    */
   threads: (serverId: string, channelId: string, archived: boolean) =>
     ["channels", serverId, "threads", channelId, archived ? "archived" : "open"] as const,
+  /** Kenar listesi: sunucunun tüm açık alt başlıkları (tek istek). */
+  sidebarThreads: (serverId: string) => ["channels", serverId, "sidebar-threads"] as const,
   forum: (serverId: string, channelId: string, filter: string) =>
     ["channels", serverId, "forum", channelId, filter] as const,
   serverEvents: (serverId: string) => ["server-events", serverId] as const,

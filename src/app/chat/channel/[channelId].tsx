@@ -8,12 +8,25 @@ import {
   useArchiveThread,
   useChannel,
   useMyMembership,
+  useServerChannels,
   useServerSummary,
+  useThreadParent,
   useThreadState,
   useUnreadCounts,
 } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
-import { ActionSheet, Icon, IconButton, showToast, type ActionSheetItem, type IconName } from "@/components/ui";
+import {
+  ActionSheet,
+  Button,
+  EmptyState,
+  ErrorState,
+  Icon,
+  IconButton,
+  ListSkeleton,
+  showToast,
+  type ActionSheetItem,
+  type IconName,
+} from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
 import {
@@ -36,15 +49,29 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * başlık, menü (üst kanala dön, arşivle) ve arşivde salt okunurluk farklı.
  * Forum kanalı sohbet yerine gönderi listesi, medya kanalı galeri
  * görünümüyle açılır.
+ *
+ * `parentId`'siz gelen bağlantılarda (bahsetme, kaydedilen, arama,
+ * bildirim) kanal listede yoksa üst kanal alt başlık listelerinden çözülür.
+ * Çözülene ve kapı kaynağı (kanal ya da üst kanal) bilinene kadar sohbet
+ * gövdesi çizilmez: yaş sınırlı içerik perdesiz bir an bile görünmesin.
  */
 export default function ChannelChatScreen() {
-  const { channelId, serverId, parentId, threadName } = useLocalSearchParams<{
+  const {
+    channelId,
+    serverId,
+    parentId: parentIdParam,
+    threadName,
+  } = useLocalSearchParams<{
     channelId: string;
     serverId?: string;
     parentId?: string;
     threadName?: string;
   }>();
-  const isThread = Boolean(parentId);
+
+  const channelsQuery = useServerChannels(serverId);
+  const resolved = useThreadParent(serverId, channelId, parentIdParam, channelsQuery);
+  const parentId = resolved.parentId;
+  const isThread = resolved.status === "thread";
 
   const channel = useChannel(serverId, channelId);
   const parent = useChannel(serverId, parentId);
@@ -69,6 +96,17 @@ export default function ChannelChatScreen() {
 
   // Kapılar: yaş sınırı perdesi, kural kabulü, kendi zaman aşımın.
   const nsfw = useNsfwAcknowledged(isThread ? parentId : channelId, gateSource?.nsfw === true);
+  // Kapı kaynağı bilinmeden gövde yok. Sunucusuz açılışta bakılacak liste yok.
+  const gate: "ready" | "pending" | "unknown" | "error" =
+    resolved.status === "pending" || resolved.status === "unknown" || resolved.status === "error"
+      ? resolved.status
+      : !serverId || gateSource
+        ? "ready"
+        : channelsQuery.data
+          ? "unknown"
+          : channelsQuery.isError
+            ? "error"
+            : "pending";
   const { data: membership } = useMyMembership(serverId);
   const timeoutNotice = useTimeoutNotice(
     (membership as { timedOutUntil?: string | null } | undefined)?.timedOutUntil
@@ -211,7 +249,20 @@ export default function ChannelChatScreen() {
           ),
         }}
       />
-      {isForum && serverId ? (
+      {gate === "pending" ? (
+        <View style={{ flex: 1, backgroundColor: colors.bg }}>
+          <ListSkeleton rows={7} />
+        </View>
+      ) : gate === "error" ? (
+        <ErrorState message="Kanal bilgisi yüklenemedi." onRetry={() => void channelsQuery.refetch()} />
+      ) : gate === "unknown" ? (
+        <EmptyState
+          icon="eye-off"
+          title="Kanal bulunamadı"
+          description="Bu kanal silinmiş ya da artık göremiyor olabilirsin."
+          action={<Button label="Geri dön" variant="ghost" onPress={() => router.back()} />}
+        />
+      ) : isForum && serverId ? (
         <ForumView serverId={serverId} channelId={channelId} />
       ) : isMedia && view === "gallery" ? (
         <MediaGallery channelId={channelId} />
@@ -233,8 +284,8 @@ export default function ChannelChatScreen() {
           lockedNotice={lockedNotice}
         />
       )}
-      {serverId ? <RulesCurtain serverId={serverId} /> : null}
-      {!nsfw.acknowledged ? (
+      {serverId && gate === "ready" ? <RulesCurtain serverId={serverId} /> : null}
+      {gate === "ready" && !nsfw.acknowledged ? (
         <NsfwCurtain
           channelName={(isThread ? parent?.name : channel?.name) ?? "kanal"}
           onAccept={nsfw.acknowledge}

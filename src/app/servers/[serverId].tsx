@@ -71,7 +71,7 @@ export default function ServerChannelsScreen() {
 
   const sections = buildSections(channels ?? []);
   // Açık alt başlıklar üst kanalın altında (web kenar çubuğu; forum hariç).
-  const threadsByParent = useSidebarThreads(serverId, channels);
+  const threadsByParent = useSidebarThreads(serverId);
   const { data: notificationSettings } = useNotificationSettings();
   const now = useNow(60_000);
   /** Basılı tutulan kanal — eylem sayfası (bildirimler, düzenle). */
