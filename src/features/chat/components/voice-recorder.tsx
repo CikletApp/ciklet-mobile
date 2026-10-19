@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { AppState, Text, View } from "react-native";
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } from "expo-audio";
 import * as Haptics from "expo-haptics";
 
@@ -45,8 +45,9 @@ export type RecorderPhase = "idle" | "starting" | "recording";
 export function useVoiceRecorder(onRecorded: (asset: PickedAsset, meta: VoiceMeta) => void) {
   const recorder = useAudioRecorder(OPTIONS);
   const [phase, setPhase] = useState<RecorderPhase>("idle");
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [level, setLevel] = useState(0);
+  // Süre ve canlı seviye 100 ms'de bir birlikte değişir: tek state, tek çizim.
+  const [meter, setMeter] = useState({ elapsedMs: 0, level: 0 });
+  const { elapsedMs, level } = meter;
   const levels = useRef<number[]>([]);
   const lastDuration = useRef(0);
   const pressedAt = useRef(0);
@@ -65,8 +66,7 @@ export function useVoiceRecorder(onRecorded: (asset: PickedAsset, meta: VoiceMet
       const current = levelFromMetering(status.metering);
       levels.current.push(current);
       lastDuration.current = status.durationMillis;
-      setElapsedMs(status.durationMillis);
-      setLevel(current);
+      setMeter({ elapsedMs: status.durationMillis, level: current });
     }, 100);
     return () => clearInterval(timer);
   }, [phase, recorder]);
@@ -83,8 +83,7 @@ export function useVoiceRecorder(onRecorded: (asset: PickedAsset, meta: VoiceMet
       }
       await endRecordingMode();
       setPhase("idle");
-      setElapsedMs(0);
-      setLevel(0);
+      setMeter({ elapsedMs: 0, level: 0 });
       stopping.current = false;
       const uri = recorder.uri;
       if (!send || !uri || durationMs < MIN_MS) return;
@@ -139,6 +138,19 @@ export function useVoiceRecorder(onRecorded: (asset: PickedAsset, meta: VoiceMet
   const release = useCallback(() => {
     const held = Date.now() - pressedAt.current;
     if (held >= HOLD_MS && phase === "recording") void finish(true);
+  }, [finish, phase]);
+
+  // Uygulama arka plana düşerse kayıt durur ve atılır: kullanıcı görmeden
+  // mikrofon açık kalmasın, onaysız da gönderilmesin.
+  useEffect(() => {
+    // "starting" hariç: iOS izin sorusu uygulamayı kısa süre "inactive" yapar.
+    if (phase !== "recording") return;
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next !== "background") return;
+      void finish(false);
+      showToast("Uygulama arka plana geçtiği için kayıt iptal edildi.");
+    });
+    return () => subscription.remove();
   }, [finish, phase]);
 
   // Ekrandan çıkılırsa yarım kayıt atılır.

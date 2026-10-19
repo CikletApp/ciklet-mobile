@@ -197,6 +197,35 @@ export default function RootLayout() {
                     name="settings/appearance"
                     options={{ title: t("settings.appearance.title") }}
                   />
+                  {/* Başlığını kendisi koyan ekranlar da korunur: burada adı
+                      geçmeyen rota korumasız eklenir ve oturumsuz derin
+                      bağlantıyla açılabilirdi. */}
+                  <Stack.Screen name="directs/[directId]/search" />
+                  <Stack.Screen name="discover" />
+                  <Stack.Screen name="mentions" />
+                  <Stack.Screen name="saved" />
+                  <Stack.Screen name="requests" />
+                  <Stack.Screen name="store" />
+                  <Stack.Screen name="profile/connections" />
+                  <Stack.Screen name="profile/decoration" />
+                  <Stack.Screen name="profile/status" />
+                  <Stack.Screen name="profile/server/[memberId]" />
+                  <Stack.Screen name="servers/[serverId]/channels/[channelId]" />
+                  <Stack.Screen name="servers/[serverId]/events" />
+                  <Stack.Screen name="servers/[serverId]/events/new" />
+                  <Stack.Screen name="servers/[serverId]/forum-post" />
+                  <Stack.Screen name="servers/[serverId]/members" />
+                  <Stack.Screen name="servers/[serverId]/search" />
+                  <Stack.Screen name="servers/[serverId]/settings" />
+                  <Stack.Screen name="servers/[serverId]/subscriptions" />
+                  <Stack.Screen name="servers/[serverId]/threads/[channelId]" />
+                  <Stack.Screen name="settings/account" />
+                  <Stack.Screen name="settings/authorized-apps" />
+                  <Stack.Screen name="settings/chat" />
+                  <Stack.Screen name="settings/mentol" />
+                  <Stack.Screen name="settings/notifications" />
+                  <Stack.Screen name="settings/privacy" />
+                  <Stack.Screen name="settings/voice" />
                 </Stack.Protected>
 
                 <Stack.Protected guard={status === "signedOut"}>
