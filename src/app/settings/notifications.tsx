@@ -9,6 +9,7 @@ import {
   openFullScreenCallSettings,
 } from "@/features/call/incoming-call";
 import { registerPushToken, setupNotifications, unregisterPushToken } from "@/lib/notifications";
+import { useT } from "@/lib/i18n";
 import { usePreferences } from "@/stores/preferences";
 import { colors, spacing, typography } from "@/theme/tokens";
 
@@ -17,6 +18,7 @@ export default function NotificationSettingsScreen() {
   const [pending, setPending] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const fullScreenCalls = useFullScreenCallPermission();
+  const t = useT();
 
   const toggleMaster = async (value: boolean) => {
     setPending(true);
@@ -25,7 +27,7 @@ export default function NotificationSettingsScreen() {
       if (value) {
         const granted = await setupNotifications();
         if (!granted) {
-          setPermissionError("Bildirim izni sistem ayarlarından kapalı.");
+          setPermissionError(t("settings.notifications.permissionDenied"));
           return;
         }
         await registerPushToken();
@@ -40,14 +42,14 @@ export default function NotificationSettingsScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Bildirimler" }} />
+      <Stack.Screen options={{ title: t("settings.notifications.title") }} />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
-        <SectionHeader title="BİLDİRİM İZNİ" />
+        <SectionHeader title={t("settings.notifications.permission")} />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
             <ToggleRow
-              title="Ciklet bildirimleri"
-              description="Bu cihazda bildirim gösterilmesine izin ver."
+              title={t("settings.notifications.master")}
+              description={t("settings.notifications.masterDescription")}
               value={preferences.notificationsEnabled}
               pending={pending}
               onChange={(value) => void toggleMaster(value)}
@@ -55,31 +57,30 @@ export default function NotificationSettingsScreen() {
           </ListGroup>
         </View>
 
-        <SectionHeader title="BİLDİRİM TÜRLERİ" />
+        <SectionHeader title={t("settings.notifications.types")} />
         <View style={{ paddingHorizontal: spacing.lg, opacity: preferences.notificationsEnabled ? 1 : 0.45 }}>
           <ListGroup>
-            <ToggleRow title="Mesajlar ve bahsetmeler" value={preferences.messageNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("messageNotifications", value); void registerPushToken(); }} />
+            <ToggleRow title={t("settings.notifications.messages")} value={preferences.messageNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("messageNotifications", value); void registerPushToken(); }} />
             <Divider inset={16} />
-            <ToggleRow title="Gelen aramalar" value={preferences.callNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("callNotifications", value); void registerPushToken(); }} />
+            <ToggleRow title={t("settings.notifications.calls")} value={preferences.callNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("callNotifications", value); void registerPushToken(); }} />
             <Divider inset={16} />
-            <ToggleRow title="Arkadaşlık istekleri" value={preferences.friendNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("friendNotifications", value); void registerPushToken(); }} />
+            <ToggleRow title={t("settings.notifications.friends")} value={preferences.friendNotifications} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("friendNotifications", value); void registerPushToken(); }} />
             <Divider inset={16} />
-            <ToggleRow title="Bildirim sesleri" value={preferences.notificationSounds} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("notificationSounds", value); void registerPushToken(); }} />
+            <ToggleRow title={t("settings.notifications.sounds")} value={preferences.notificationSounds} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("notificationSounds", value); void registerPushToken(); }} />
           </ListGroup>
         </View>
 
         {fullScreenCalls === "denied" ? (
           <>
-            <SectionHeader title="KİLİT EKRANINDA ARAMA" />
+            <SectionHeader title={t("settings.notifications.lockScreen")} />
             <View style={{ paddingHorizontal: spacing.lg }}>
               <ListGroup>
                 <View style={{ padding: spacing.lg, gap: spacing.md }}>
-                  <Text style={{ ...typography.body, color: colors.text }}>Tam ekran arama izni kapalı</Text>
+                  <Text style={{ ...typography.body, color: colors.text }}>{t("settings.notifications.fullScreenOff")}</Text>
                   <Text style={{ ...typography.caption, color: colors.muted }}>
-                    Android, uygulama kapalıyken gelen aramanın kilit ekranında tam ekran çalması için ayrı bir
-                    izin istiyor. Kapalıyken arama yalnızca üstte bildirim olarak görünür.
+                    {t("settings.notifications.fullScreenBody")}
                   </Text>
-                  <Button label="Ayarları aç" variant="secondary" onPress={openFullScreenCallSettings} />
+                  <Button label={t("settings.notifications.openSettings")} variant="secondary" onPress={openFullScreenCallSettings} />
                 </View>
               </ListGroup>
             </View>

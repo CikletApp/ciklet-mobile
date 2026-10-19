@@ -2,8 +2,11 @@ import { useRef, useState } from "react";
 import { ScrollView, Switch, Text, TextInput, View } from "react-native";
 
 import { useMentolPlan } from "@/api/hooks";
-import { Icon, Pressable, Screen, showToast } from "@/components/ui";
+import { Icon, Pressable, Screen, SegmentedTabs, showToast } from "@/components/ui";
 import { ColorPickerSheet } from "@/features/appearance/color-picker-sheet";
+import { type ReducedMotionPreference } from "@/lib/accessibility";
+import { LOCALE_NAMES, deviceLocale, useT, type LocalePreference } from "@/lib/i18n";
+import { usePreferences } from "@/stores/preferences";
 import { THEME_LABELS, darkThemeOf, useTheme } from "@/stores/theme";
 import {
   THEMES,
@@ -175,8 +178,56 @@ export default function AppearanceScreen() {
             onChange={(next) => void setCustomColors(next)}
           />
         )}
+
+        <MotionAndLanguage />
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * Hareket azaltma (web: Görünüm → Hareketi Azalt) ve arayüz dili (web:
+ * Görünüm → Dil). İkisi de yalnızca bu cihazda saklanır ve anında uygulanır.
+ */
+function MotionAndLanguage() {
+  const t = useT();
+  const reduceMotion = usePreferences((s) => s.reduceMotion);
+  const locale = usePreferences((s) => s.locale);
+  const setPreference = usePreferences((s) => s.setPreference);
+
+  return (
+    <View style={{ gap: spacing.lg }}>
+      <View style={{ gap: spacing.sm }}>
+        <Text style={{ ...typography.overline, color: colors.muted }}>{t("settings.appearance.motion.title")}</Text>
+        <SegmentedTabs<ReducedMotionPreference>
+          items={[
+            { id: "system", label: t("common.system") },
+            { id: "on", label: t("common.on") },
+            { id: "off", label: t("common.off") },
+          ]}
+          value={reduceMotion}
+          onChange={(value) => setPreference("reduceMotion", value)}
+        />
+        <Text style={{ ...typography.caption, color: colors.muted }}>{t("settings.appearance.motion.description")}</Text>
+      </View>
+
+      <View style={{ gap: spacing.sm }}>
+        <Text style={{ ...typography.overline, color: colors.muted }}>{t("settings.appearance.language.title")}</Text>
+        <SegmentedTabs<LocalePreference>
+          items={[
+            { id: "system", label: t("common.system") },
+            { id: "tr", label: LOCALE_NAMES.tr },
+            { id: "en", label: LOCALE_NAMES.en },
+          ]}
+          value={locale}
+          onChange={(value) => setPreference("locale", value)}
+        />
+        <Text style={{ ...typography.caption, color: colors.muted }}>
+          {locale === "system" ? `${t("settings.appearance.language.system", { name: LOCALE_NAMES[deviceLocale()] })}. ` : ""}
+          {t("settings.appearance.language.description")}
+        </Text>
+      </View>
+    </View>
   );
 }
 

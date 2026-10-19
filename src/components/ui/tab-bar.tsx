@@ -9,6 +9,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useDirectUnreadCounts, useFriends, useUnreadServerCount } from "@/api/hooks";
+import { useT } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing } from "@/theme/tokens";
 import { Avatar } from "./avatar";
@@ -144,6 +145,7 @@ function TabItem({
   onPress: () => void;
 }) {
   const me = useAuth((s) => s.profile);
+  const t = useT();
   const press = useSharedValue(0);
 
   const content = useAnimatedStyle(() => ({
@@ -165,7 +167,7 @@ function TabItem({
       noHitSlop
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
-      accessibilityLabel={badge > 0 ? `${label}, ${badge} okunmamış` : label}
+      accessibilityLabel={badge > 0 ? t("tabs.unread", { label, count: badge }) : label}
       onPressIn={() => {
         press.value = 1;
       }}

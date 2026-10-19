@@ -1,0 +1,105 @@
+/**
+ * Türkçe sözlük — KAYNAK. Anahtar yapısı buradan türer; diğer diller
+ * (en.ts) aynı şekli `satisfies Messages` ile taşımak zorunda, eksik anahtar
+ * derleme hatasıdır. Yeni metin önce buraya eklenir (web `lib/i18n` ile
+ * aynı düzen; anahtarlar mobil ekranlara göre).
+ *
+ * Değişken: `{ad}` (translate'e verilen `vars` ile doldurulur).
+ */
+export const tr = {
+  common: {
+    cancel: "Vazgeç",
+    save: "Kaydet",
+    close: "Kapat",
+    system: "Sistem",
+    on: "Açık",
+    off: "Kapalı",
+  },
+  tabs: {
+    chats: "Sohbetler",
+    servers: "Sunucular",
+    notifications: "Bildirimler",
+    me: "Sen",
+    unread: "{label}, {count} okunmamış",
+  },
+  settings: {
+    title: "Ayarlar",
+    editProfile: "Profilini düzenle",
+    sections: {
+      account: "HESAP AYARLARI",
+      app: "UYGULAMA AYARLARI",
+      support: "DESTEK",
+      session: "OTURUM",
+    },
+    rows: {
+      account: "Hesap",
+      mentol: "Mentol",
+      privacy: "Gizlilik, Veri ve Sosyal",
+      friendRequests: "Arkadaşlık İstekleri",
+      authorizedApps: "Yetkili Uygulamalar",
+      voice: "Ses ve Video",
+      appearance: "Görünüm",
+      chat: "Sohbet",
+      notifications: "Bildirimler",
+      help: "Yardım",
+      helpSubtitle: "Destek, geri bildirim, koşullar",
+    },
+    logout: {
+      action: "Çıkış Yap",
+      title: "Çıkış yap",
+      message: "Oturumun bu cihazda kapatılacak.",
+    },
+    memberSince: "{date} tarihinden beri Ciklet’te",
+    appearance: {
+      title: "Görünüm",
+      motion: {
+        title: "HAREKETİ AZALT",
+        description:
+          "Geçişleri, kayan panelleri ve nabız animasyonlarını kısar. Sistem, telefonun erişilebilirlik ayarını izler.",
+      },
+      language: {
+        title: "DİL",
+        description: "Arayüz dili. Çeviri sürüyor; henüz çevrilmeyen metinler Türkçe görünür.",
+        system: "Cihaz dili ({name})",
+      },
+    },
+    voice: {
+      title: "Ses ve Video",
+      inputMode: "GİRİŞ MODU",
+      vad: "Ses etkinliği",
+      ptt: "Bas konuş",
+      pttHint:
+        "Bas konuş açıkken mikrofon ses kanalında kapalı başlar; konuşmak için ekrandaki düğmeyi basılı tut.",
+      inputVolume: "MİKROFON SEVİYESİ",
+      outputVolume: "HOPARLÖR SEVİYESİ",
+      deviceNote:
+        "Mobil işletim sistemi giriş ve çıkış aygıtını otomatik yönetir. Bluetooth veya kablolu cihaz seçimi sistem ses panelinden yapılır.",
+    },
+    notifications: {
+      title: "Bildirimler",
+      permission: "BİLDİRİM İZNİ",
+      master: "Ciklet bildirimleri",
+      masterDescription: "Bu cihazda bildirim gösterilmesine izin ver.",
+      permissionDenied: "Bildirim izni sistem ayarlarından kapalı.",
+      types: "BİLDİRİM TÜRLERİ",
+      messages: "Mesajlar ve bahsetmeler",
+      calls: "Gelen aramalar",
+      friends: "Arkadaşlık istekleri",
+      sounds: "Bildirim sesleri",
+      lockScreen: "KİLİT EKRANINDA ARAMA",
+      fullScreenOff: "Tam ekran arama izni kapalı",
+      fullScreenBody:
+        "Android, uygulama kapalıyken gelen aramanın kilit ekranında tam ekran çalması için ayrı bir izin istiyor. Kapalıyken arama yalnızca üstte bildirim olarak görünür.",
+      openSettings: "Ayarları aç",
+      overrides: "SUNUCU, KANAL VE SOHBET AYARLARI",
+      overridesEmpty:
+        "Henüz özel ayar yok. Bir sunucuya, kanala ya da sohbete basılı tutup Bildirimler'i seçerek ekleyebilirsin.",
+      reset: "Varsayılana dön",
+    },
+  },
+} as const;
+
+type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };
+
+/** Her dilin taşıması gereken şekil. */
+export type Messages = Widen<typeof tr>;

@@ -5,6 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ReducedMotionConfig } from "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { persistOptions, queryClient } from "@/api/query-client";
@@ -14,8 +15,10 @@ import { DialogHost, ToastHost } from "@/components/ui";
 import { ImageViewerHost } from "@/components/ui/image-viewer";
 import { BrandSplash } from "@/features/auth/auth-shell";
 import { CallOverlay } from "@/features/call/call-overlay";
+import { reanimatedMotionMode, useReducedMotion } from "@/lib/accessibility";
 import { useScreenTracking } from "@/lib/analytics";
 import { loadDokimorjiManifest } from "@/lib/emoji";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { setupLiveKit } from "@/lib/livekit";
 import { RealtimeProvider } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -47,11 +50,11 @@ export const unstable_settings = {
 
 // iOS geri menüsü önceki ekranın başlığını gösterir; başlıksız sekme grubu
 // "(tabs)" diye görünüyordu.
-const TAB_TITLES: Record<string, string> = {
-  index: "Sohbetler",
-  servers: "Sunucular",
-  notifications: "Bildirimler",
-  me: "Sen",
+const TAB_TITLES: Record<string, MessageKey> = {
+  index: "tabs.chats",
+  servers: "tabs.servers",
+  notifications: "tabs.notifications",
+  me: "tabs.me",
 };
 
 void SplashScreen.preventAutoHideAsync();
@@ -80,7 +83,14 @@ export default function RootLayout() {
   const hydrateTheme = useTheme((s) => s.hydrate);
   const hydratePreferences = usePreferences((s) => s.hydrate);
   const appFonts = useAppFonts();
-  const stackScreenOptions = createStackScreenOptions(palette);
+  const reduceMotionPreference = usePreferences((s) => s.reduceMotion);
+  const reducedMotion = useReducedMotion();
+  const t = useT();
+  // Hareket azaltmada ekranlar kaymak yerine yerinde belirir.
+  const stackScreenOptions = {
+    ...createStackScreenOptions(palette),
+    ...(reducedMotion ? { animation: "fade" as const } : {}),
+  };
   useScreenTracking();
   // Tema telefonun açık/koyu modunu canlı izler (açıkta Porselen).
   useSystemSchemeSync();
@@ -121,6 +131,8 @@ export default function RootLayout() {
           persistOptions={persistOptions}
         >
           <RealtimeProvider>
+            {/* Reanimated animasyonlarının hepsi bu tek ayara uyar (lib/accessibility). */}
+            <ReducedMotionConfig mode={reanimatedMotionMode(reduceMotionPreference)} />
             <StatusBar style={scheme === "light" ? "dark" : "light"} />
             <ConnectionBanner key={`connection-${themeRevision}`} />
             {/*
@@ -138,7 +150,7 @@ export default function RootLayout() {
                     name="(tabs)"
                     options={({ route }) => ({
                       headerShown: false,
-                      title: TAB_TITLES[getFocusedRouteNameFromRoute(route) ?? "index"] ?? "Ciklet",
+                      title: t(TAB_TITLES[getFocusedRouteNameFromRoute(route) ?? "index"] ?? "tabs.chats"),
                     })}
                   />
                   <Stack.Screen name="servers/[serverId]" options={{ title: "" }} />
@@ -177,11 +189,11 @@ export default function RootLayout() {
                     options={{ ...modalScreenOptions, title: "Profil" }}
                   />
                   <Stack.Screen name="profile/[profileId]" options={{ title: "" }} />
-                  <Stack.Screen name="settings/index" options={{ title: "Ayarlar" }} />
+                  <Stack.Screen name="settings/index" options={{ title: t("settings.title") }} />
                   <Stack.Screen name="settings/help" options={{ title: "Yardım" }} />
                   <Stack.Screen
                     name="settings/appearance"
-                    options={{ title: "Görünüm" }}
+                    options={{ title: t("settings.appearance.title") }}
                   />
                 </Stack.Protected>
 

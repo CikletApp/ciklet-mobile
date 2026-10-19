@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 
 import { FloatingTabBar } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import { useTheme } from "@/stores/theme";
 import { createTabScreenOptions } from "@/theme/navigation";
 
@@ -24,16 +25,17 @@ import { createTabScreenOptions } from "@/theme/navigation";
 export default function TabsLayout() {
   const palette = useTheme((s) => s.palette);
   const tabScreenOptions = createTabScreenOptions(palette);
+  const t = useT();
 
   return (
     <Tabs
       screenOptions={{ ...tabScreenOptions, headerShown: false }}
       tabBar={(props) => <FloatingTabBar {...props} />}
     >
-      <Tabs.Screen name="index" options={{ title: "Sohbetler" }} />
-      <Tabs.Screen name="servers" options={{ title: "Sunucular" }} />
-      <Tabs.Screen name="notifications" options={{ title: "Bildirimler" }} />
-      <Tabs.Screen name="me" options={{ title: "Sen" }} />
+      <Tabs.Screen name="index" options={{ title: t("tabs.chats") }} />
+      <Tabs.Screen name="servers" options={{ title: t("tabs.servers") }} />
+      <Tabs.Screen name="notifications" options={{ title: t("tabs.notifications") }} />
+      <Tabs.Screen name="me" options={{ title: t("tabs.me") }} />
     </Tabs>
   );
 }

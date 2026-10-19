@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 
+import { useReducedMotion } from "@/lib/accessibility";
 import { colors, radii, spacing } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -112,8 +113,14 @@ export function Skeleton({
   radius?: number;
 }) {
   const [opacity] = useState(() => new Animated.Value(0.4));
+  // Hareket azaltmada nabız yok; iskelet sabit, orta tonda durur.
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) {
+      opacity.setValue(0.6);
+      return;
+    }
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, {
@@ -132,7 +139,7 @@ export function Skeleton({
     );
     animation.start();
     return () => animation.stop();
-  }, [opacity]);
+  }, [opacity, reducedMotion]);
 
   return (
     <Animated.View

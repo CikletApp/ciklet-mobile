@@ -1,6 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 
+import type { ReducedMotionPreference } from "@/lib/accessibility";
+import type { LocalePreference } from "@/lib/i18n";
+
 const STORAGE_KEY = "ciklet.preferences";
 
 export type InputMode = "vad" | "ptt";
@@ -27,6 +30,10 @@ interface PreferenceValues {
   chatBackgroundUri: string | null;
   /** Arka planın üstüne binen zemin rengi katmanının saydamlığı (0–0.8). */
   chatBackgroundDim: number;
+  /** Hareket azaltma: sistem / açık / kapalı (bkz. lib/accessibility). */
+  reduceMotion: ReducedMotionPreference;
+  /** Arayüz dili; "system" cihaz dilini izler (bkz. lib/i18n). */
+  locale: LocalePreference;
 }
 
 interface PreferenceState extends PreferenceValues {
@@ -50,6 +57,8 @@ const defaults: PreferenceValues = {
   pinnedDirectIds: [],
   chatBackgroundUri: null,
   chatBackgroundDim: 0.35,
+  reduceMotion: "system",
+  locale: "system",
 };
 
 function persistedValues(state: PreferenceState): PreferenceValues {
@@ -68,6 +77,8 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     pinnedDirectIds: state.pinnedDirectIds,
     chatBackgroundUri: state.chatBackgroundUri,
     chatBackgroundDim: state.chatBackgroundDim,
+    reduceMotion: state.reduceMotion,
+    locale: state.locale,
   };
 }
 
