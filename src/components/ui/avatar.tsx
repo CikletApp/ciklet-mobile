@@ -70,7 +70,11 @@ export function Avatar({
   // Hook koşulsuz çağrılmalı; kimlik yoksa depo OFFLINE döner.
   const livePresence = usePresenceStatus(profileId);
   const status = presence ?? livePresence;
-  const cachedDecoration = useDecorationOf(decorationId === undefined && shape === "circle" ? profileId : undefined);
+  // Önbellekten yalnızca yuvarlak kişi avatarlarında okunur: halka bir
+  // çember, köşeli (sunucu / grup) kutuya oturmaz.
+  const cachedDecoration = useDecorationOf(
+    decorationId === undefined && shape === "circle" && radius === undefined ? profileId : undefined
+  );
   const decoration = decorationId === undefined ? cachedDecoration : decorationId;
 
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
