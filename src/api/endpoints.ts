@@ -152,12 +152,6 @@ export const endpoints = {
   /** GET: sunucu çıkartmaları `[{ id, name, description, imageUrl }]`. */
   serverStickers: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/stickers`,
   /**
-   * GET: oturum sahibinin sunucudaki izinleri — `{ isOwner, memberRole,
-   * topPosition, permissions, keys }`. Yalnızca arayüz ipucu; uçlar yeniden denetler.
-   */
-  myServerPermissions: (serverId: string) =>
-    `/api/servers/${encodeURIComponent(serverId)}/my-permissions`,
-  /**
    * POST: eğik çizgi komutu `{ botId, name, args }` ya da bileşen (type 3)
    * `{ messageId, customId, values? }` → `{ id }`. GET `…/interactions/{id}`
    * → `{ status }` (3 sn sonra hâlâ PENDING ise bot yanıt vermedi).
@@ -166,7 +160,6 @@ export const endpoints = {
     `/api/channels/${encodeURIComponent(channelId)}/interactions`,
   channelInteraction: (channelId: string, interactionId: string) =>
     `/api/channels/${encodeURIComponent(channelId)}/interactions/${encodeURIComponent(interactionId)}`,
-  /** POST `{ name?, messageId?, autoArchiveMinutes }` → `{ id }` — mesajdan alt başlık. */
   /** POST `{ chatId, scope, optionIds }` — anket oyu. */
   pollVote: (messageId: string) => `/api/messages/${encodeURIComponent(messageId)}/poll/vote`,
 
@@ -307,7 +300,10 @@ export const endpoints = {
    * `[{ id, name, parentChannelId, latestMessageId }]` (kenar listesi).
    */
   serverThreads: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/threads`,
-  /** GET açık (ya da `archived`) alt başlıklar, en çok 50; POST `{ name?, messageId? }`. */
+  /**
+   * GET açık (ya da `archived`) alt başlıklar, en çok 50. POST `{ name?,
+   * messageId?, autoArchiveMinutes? }` → `{ id, name }` (mesajdan alt başlık).
+   */
   channelThreads: (channelId: string, archived = false) =>
     `/api/channels/${encodeURIComponent(channelId)}/threads${qs({ archived: archived ? 1 : undefined })}`,
   /** POST `{ archived }` — alt başlığı arşivle / arşivden çıkar. */

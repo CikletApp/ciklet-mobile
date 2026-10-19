@@ -3,6 +3,7 @@ import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
+import { useMyPermissions } from "@/api/hooks";
 
 /**
  * Sohbetin sunucuya özgü varlıkları — ciklet-web `use-server-roles`,
@@ -98,12 +99,6 @@ export function useServerStickers(serverId: string | undefined) {
   });
 }
 
-interface MyPermissions {
-  isOwner?: boolean;
-  memberRole?: string;
-  keys?: string[];
-}
-
 /**
  * @herkes / @burada / rol önerileri gösterilsin mi — web'deki
  * `canMentionEveryone` (moderatör+ ya da MENTION_EVERYONE biti). Kanal
@@ -111,24 +106,15 @@ interface MyPermissions {
  * metin kalır, bildirim gitmez).
  */
 export function useCanMentionEveryone(serverId: string | undefined): boolean {
-  const query = useQuery({
-    queryKey: ["my-server-permissions", serverId],
-    enabled: Boolean(serverId),
-    staleTime: STALE_MS,
-    queryFn: async (): Promise<MyPermissions | null> => {
-      try {
-        return await api<MyPermissions>(endpoints.myServerPermissions(serverId ?? ""));
-      } catch {
-        return null;
-      }
-    },
-  });
-  const data = query.data;
+  // Tek izin önbelleği (`qk.myPermissions`): moderasyon ve ses ekranlarıyla
+  // aynı sorgu, aynı tazeleme.
+  const { data } = useMyPermissions(serverId);
   if (!data) return false;
   return (
     Boolean(data.isOwner) ||
     data.memberRole === MemberRole.ADMIN ||
     data.memberRole === MemberRole.MODERATOR ||
-    Boolean(data.keys?.includes("MENTION_EVERYONE") || data.keys?.includes("ADMINISTRATOR"))
+    data.keys.includes("MENTION_EVERYONE") ||
+    data.keys.includes("ADMINISTRATOR")
   );
 }
