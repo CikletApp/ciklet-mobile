@@ -272,12 +272,14 @@ export function useCreateGroup() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { memberIds: string[]; name?: string }) =>
+    mutationFn: (input: { memberIds: string[]; name?: string; imageUrl?: string | null }) =>
       api<DirectSummary>(endpoints.createGroupDirect, {
         method: "POST",
         body: {
           memberIds: input.memberIds,
           name: input.name?.trim() || undefined,
+          // Grup simgesi (https, `groupImage` yüklemesi); yoksa üye avatarları örülür.
+          imageUrl: input.imageUrl || undefined,
         },
       }),
     onSuccess: (created) => {
@@ -304,7 +306,8 @@ export function useUpdateGroup(directId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { name?: string; memberIds?: string[] }) => {
+    /** `imageUrl: null` simgeyi kaldırır; alan hiç gönderilmezse dokunulmaz. */
+    mutationFn: (input: { name?: string; memberIds?: string[]; imageUrl?: string | null }) => {
       if (!directId) throw new Error("directId yok");
       return api<DirectSummary>(endpoints.groupDirect(directId), {
         method: "PATCH",

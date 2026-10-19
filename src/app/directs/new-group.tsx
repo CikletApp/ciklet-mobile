@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FlatList, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { router } from "expo-router";
 
 import { ApiError } from "@/api/client";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
+import { pickAndUploadGroupImage } from "@/lib/uploads";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -43,6 +44,22 @@ export default function NewGroupScreen() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [name, setName] = useState("");
+  // Grup simgesi isteğe bağlı: seçilince hemen yüklenir, kurulumda adresi gider.
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
+
+  const pickImage = async () => {
+    if (imageBusy) return;
+    setImageBusy(true);
+    try {
+      const url = await pickAndUploadGroupImage();
+      if (url) setImageUrl(url);
+    } catch (reason) {
+      showDialog("Simge yüklenemedi", reason instanceof Error ? reason.message : "Tekrar dene.");
+    } finally {
+      setImageBusy(false);
+    }
+  };
 
   // Resmî hesaplar (Ciklet bildirim hesabı gibi) gruba alınamaz; listeden
   // hiç göstermemek, seçilip sonra reddedilmesinden dürüst.
@@ -68,7 +85,7 @@ export default function NewGroupScreen() {
   const submit = () => {
     if (selected.length === 0 || createGroup.isPending) return;
     createGroup.mutate(
-      { memberIds: selected, name },
+      { memberIds: selected, name, imageUrl },
       {
         onSuccess: (direct) => router.replace(`/chat/direct/${direct.id}`),
         onError: (error) =>
@@ -111,15 +128,53 @@ export default function NewGroupScreen() {
 
   return (
     <KeyboardAvoider style={{ flex: 1, backgroundColor: colors.panel }}>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
-        <TextField
-          label="Grup adı"
-          hint="İsteğe bağlı — boş bırakırsan üye adlarından oluşur."
-          placeholder="Örn. Hafta Sonu Planı"
-          value={name}
-          onChangeText={setName}
-          maxLength={MAX_GROUP_NAME_LENGTH}
-        />
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+        <Pressable
+          onPress={() =>
+            imageUrl
+              ? showDialog("Grup simgesi", undefined, [
+                  { text: "Vazgeç", style: "cancel" },
+                  { text: "Kaldır", style: "destructive", onPress: () => setImageUrl(null) },
+                  { text: "Değiştir", onPress: () => void pickImage() },
+                ])
+              : void pickImage()
+          }
+          disabled={imageBusy}
+          haptic="light"
+          accessibilityRole="button"
+          accessibilityLabel={imageUrl ? "Grup simgesini değiştir ya da kaldır" : "Grup simgesi ekle"}
+          style={{
+            width: 64,
+            height: 64,
+            marginTop: spacing.lg,
+            borderRadius: radii.bento,
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.bg,
+            borderWidth: imageUrl ? 0 : 1,
+            borderStyle: "dashed",
+            borderColor: colors.border,
+          }}
+        >
+          {imageBusy ? (
+            <ActivityIndicator color={colors.brand} />
+          ) : imageUrl ? (
+            <Avatar imageUrl={imageUrl} fallbackText={name || "Grup"} size={64} radius={0} />
+          ) : (
+            <Icon name="camera" size={22} color={colors.muted} />
+          )}
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <TextField
+            label="Grup adı"
+            hint="İsteğe bağlı — boş bırakırsan üye adlarından oluşur."
+            placeholder="Örn. Hafta Sonu Planı"
+            value={name}
+            onChangeText={setName}
+            maxLength={MAX_GROUP_NAME_LENGTH}
+          />
+        </View>
       </View>
 
       <View
