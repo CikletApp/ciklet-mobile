@@ -34,9 +34,32 @@ export { LIVEKIT_URL } from "@/lib/config";
  * Oda token'ı. Sunucu, kanal üyeliğini veya DM katılımcılığını doğruladıktan
  * sonra token üretir — istemcinin oda adına güvenilmez.
  */
-export async function fetchRoomToken(room: string, username: string) {
-  const res = await api<LiveKitTokenResponse>(
+export async function fetchRoomToken(room: string, username: string): Promise<RoomToken> {
+  const res = await api<LiveKitTokenResponse & { moderation?: Partial<VoiceModerationState> | null }>(
     endpoints.livekitToken(room, username)
   );
-  return res.token;
+  return {
+    token: res.token,
+    moderation: {
+      muted: res.moderation?.muted === true,
+      deafened: res.moderation?.deafened === true,
+    },
+  };
+}
+
+/**
+ * Kalıcı sunucu susturması / sağırlaştırması (web `lib/voice/moderation`):
+ * token yanıtı katılım anındaki durumu taşır; sonrası LiveKit izinlerinden
+ * (`canPublishSources`, `canSubscribe`) okunur.
+ */
+export interface VoiceModerationState {
+  muted: boolean;
+  deafened: boolean;
+}
+
+export const NO_VOICE_MODERATION: VoiceModerationState = { muted: false, deafened: false };
+
+export interface RoomToken {
+  token: string;
+  moderation: VoiceModerationState;
 }

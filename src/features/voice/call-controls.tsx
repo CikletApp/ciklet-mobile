@@ -1,8 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { useLocalParticipant } from "@livekit/react-native";
 
-import { Icon, Pressable, type HapticKind, type IconName } from "@/components/ui";
+import { Icon, Pressable, showToast, type HapticKind, type IconName } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { showSystemRoutePicker, useAudioRoute, type AudioRoute } from "./audio-route";
 
@@ -30,6 +30,8 @@ export function CallControls({
   variant = "default",
   allowEarpiece = true,
   showMic = true,
+  serverMuted = false,
+  serverDeafened = false,
 }: {
   onHangUp: () => void;
   hangUpLabel?: string;
@@ -46,6 +48,10 @@ export function CallControls({
    * mikrofonu orada basılı tutma düğmesi / sahne izni yönetir.
    */
   showMic?: boolean;
+  /** Sunucuda susturuldun: mikrofon kapalı ve açılamaz (web media-room). */
+  serverMuted?: boolean;
+  /** Sunucuda sağırlaştırıldın: hoparlör kapalı gösterilir, ses gelmez. */
+  serverDeafened?: boolean;
 }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const audio = useAudioRoute();
@@ -59,7 +65,19 @@ export function CallControls({
   const showRoute = allowEarpiece || hasChoices;
   if (routeMenuOpen && !hasChoices) setRouteMenuOpen(false);
 
+  // Susturma gelince açık mikrofon kapatılır; sunucu yayını zaten keser,
+  // düğme gerçeği göstersin.
+  useEffect(() => {
+    if (serverMuted && isMicrophoneEnabled) {
+      void localParticipant?.setMicrophoneEnabled(false).catch(() => undefined);
+    }
+  }, [serverMuted, isMicrophoneEnabled, localParticipant]);
+
   const toggleMic = useCallback(async () => {
+    if (serverMuted) {
+      showToast("Bir moderatör seni sunucuda susturdu.");
+      return;
+    }
     if (!localParticipant || busy) return;
     setBusy(true);
     try {
@@ -67,7 +85,7 @@ export function CallControls({
     } finally {
       setBusy(false);
     }
-  }, [localParticipant, isMicrophoneEnabled, busy]);
+  }, [localParticipant, isMicrophoneEnabled, busy, serverMuted]);
 
   const toggleCamera = useCallback(async () => {
     if (!localParticipant || busy) return;
@@ -124,7 +142,17 @@ export function CallControls({
           gap: spacing.xl,
         }}
       >
-        {showMic ? (
+        {showMic && serverMuted ? (
+          <ControlButton
+            icon="mic-off"
+            label="Sunucuda susturuldun"
+            caption="Susturuldu"
+            captionColor={captionColor}
+            onPress={toggleMic}
+            background={colors.dangerSolid}
+            tint="#ffffff"
+          />
+        ) : showMic ? (
           <ControlButton
             icon={isMicrophoneEnabled ? "mic" : "mic-off"}
             label={isMicrophoneEnabled ? "Mikrofonu kapat" : "Mikrofonu aç"}
@@ -148,7 +176,17 @@ export function CallControls({
           />
         ) : null}
 
-        {showRoute ? (
+        {serverDeafened ? (
+          <ControlButton
+            icon="ear"
+            label="Sunucuda sağırlaştırıldın; kimseyi duymuyorsun"
+            caption="Sağır"
+            captionColor={captionColor}
+            onPress={() => showToast("Bir moderatör seni sunucuda sağırlaştırdı.")}
+            background={colors.dangerSolid}
+            tint="#ffffff"
+          />
+        ) : showRoute ? (
           <ControlButton
             icon={ROUTE_ICON[route]}
             label={routeLabel}

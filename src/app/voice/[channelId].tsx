@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   isTrackReference,
   LiveKitRoom,
+  useLocalParticipant,
   useLocalParticipantPermissions,
   useParticipants,
+  useRoomContext,
   useTracks,
   VideoTrack,
 } from "@livekit/react-native";
@@ -34,7 +36,7 @@ import {
   useVoiceModerationMenu,
 } from "@/features/voice/voice-moderation";
 import { useVoiceSession } from "@/features/voice/use-voice-session";
-import { LIVEKIT_URL } from "@/lib/livekit";
+import { LIVEKIT_URL, type VoiceModerationState } from "@/lib/livekit";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -91,7 +93,7 @@ export default function VoiceChannelScreen() {
     [channelId, channel?.name, server?.name, serverId, joinedAt, isVideo]
   );
 
-  const { token, status, error, leave } = useVoiceSession(session);
+  const { token, status, error, leave, moderation: joinModeration } = useVoiceSession(session);
 
   const onLeave = useCallback(() => {
     leave();
@@ -153,7 +155,8 @@ export default function VoiceChannelScreen() {
       serverUrl={LIVEKIT_URL}
       token={token}
       connect
-      audio={!isStage && !pushToTalk}
+      // Sunucuda susturulmuş üye mikrofonla katılmaz (web media-room).
+      audio={!isStage && !pushToTalk && !joinModeration.muted}
       video={isVideo}
       options={{ adaptiveStream: true, dynacast: true }}
       onConnected={() => setMediaError(false)}
@@ -173,6 +176,7 @@ export default function VoiceChannelScreen() {
         isStage={isStage}
         stageTopic={extras?.voiceStatus}
         pushToTalk={pushToTalk}
+        joinModeration={joinModeration}
         mediaError={mediaError}
         onRetry={() => {
           setMediaError(false);
@@ -197,6 +201,7 @@ function VoiceRoomBody({
   isStage,
   stageTopic,
   pushToTalk,
+  joinModeration,
   mediaError,
   onRetry,
 }: {
@@ -209,6 +214,7 @@ function VoiceRoomBody({
   isStage: boolean;
   stageTopic: string | null | undefined;
   pushToTalk: boolean;
+  joinModeration: VoiceModerationState;
   mediaError: boolean;
   onRetry: () => void;
 }) {
@@ -219,7 +225,31 @@ function VoiceRoomBody({
   const soundboard = useSoundboard(serverId);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
   // Sahne dinleyicisinin yayın izni yok; mikrofon düğmesi konuşmacıya çıkar.
-  const canPublish = useLocalParticipantPermissions()?.canPublish === true;
+  const permissions = useLocalParticipantPermissions();
+  const canPublish = permissions?.canPublish === true;
+  // Kendi sunucu susturman / sağırlaştırman: izinler gelene kadar token
+  // yanıtındaki katılım durumu, sonra canlı LiveKit izinleri.
+  const { localParticipant } = useLocalParticipant();
+  const selfMuted = permissions ? isServerMuted(localParticipant) : joinModeration.muted;
+  const selfDeafened = permissions ? permissions.canSubscribe === false : joinModeration.deafened;
+  // Sağırlaştırma kalkınca uzak parçalara yeniden abone olunur: otomatik
+  // abonelik izin değişiminde kendiliğinden geri gelmeyebilir (web ile aynı).
+  const room = useRoomContext();
+  const wasDeafened = useRef(selfDeafened);
+  useEffect(() => {
+    if (wasDeafened.current && !selfDeafened) {
+      room.remoteParticipants.forEach((participant) => {
+        participant.trackPublications.forEach((publication) => {
+          try {
+            publication.setSubscribed(true);
+          } catch {
+            // Parça bu arada kalktıysa yok sayılır.
+          }
+        });
+      });
+    }
+    wasDeafened.current = selfDeafened;
+  }, [room, selfDeafened]);
   const livekitByIdentity = useMemo(
     () => new Map(livekitParticipants.map((participant) => [participant.identity, participant])),
     [livekitParticipants]
@@ -401,7 +431,7 @@ function VoiceRoomBody({
 
         {pushToTalk || (!isStage && serverId) ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <View style={{ flex: 1 }}>{pushToTalk ? <PushToTalkButton /> : null}</View>
+            <View style={{ flex: 1 }}>{pushToTalk ? <PushToTalkButton disabled={selfMuted} /> : null}</View>
             {!isStage && serverId ? (
               <IconButton
                 icon="sparkles"
@@ -422,6 +452,8 @@ function VoiceRoomBody({
             showCamera={isVideo}
             allowEarpiece={!isVideo}
             showMic={!pushToTalk && (!isStage || canPublish)}
+            serverMuted={selfMuted}
+            serverDeafened={selfDeafened}
           />
         </View>
       </View>

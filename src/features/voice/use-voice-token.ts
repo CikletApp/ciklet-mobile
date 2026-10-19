@@ -3,7 +3,7 @@ import { PermissionsAndroid, Platform } from "react-native";
 import { AudioSession } from "@livekit/react-native";
 
 import { ApiError } from "@/api/client";
-import { fetchRoomToken } from "@/lib/livekit";
+import { fetchRoomToken, NO_VOICE_MODERATION, type VoiceModerationState } from "@/lib/livekit";
 import { useAuth } from "@/stores/auth";
 import {
   hasActiveAudioSessions,
@@ -38,6 +38,7 @@ export function useVoiceToken(
   const [result, setResult] = useState<{
     roomId: string;
     token: string | null;
+    moderation: VoiceModerationState;
     error: string | null;
   } | null>(null);
 
@@ -71,10 +72,10 @@ export function useVoiceToken(
         routeId = id;
         await AudioSession.startAudioSession();
         const issued = await fetchRoomToken(roomId, profile.username);
-        if (!cancelled) setResult({ roomId, token: issued, error: null });
+        if (!cancelled) setResult({ roomId, token: issued.token, moderation: issued.moderation, error: null });
       } catch (err) {
         if (cancelled) return;
-        setResult({ roomId, token: null, error: describeError(err) });
+        setResult({ roomId, token: null, moderation: NO_VOICE_MODERATION, error: describeError(err) });
         if (routeId !== null) releaseAudioRoute(routeId);
         routeId = null;
         stopIfLast();
@@ -90,9 +91,9 @@ export function useVoiceToken(
   }, [roomId, profile, needsCamera, defaultRoute]);
 
   if (result && result.roomId === roomId) {
-    return { token: result.token, error: result.error };
+    return { token: result.token, moderation: result.moderation, error: result.error };
   }
-  return { token: null, error: null };
+  return { token: null, moderation: NO_VOICE_MODERATION, error: null };
 }
 
 /** Kullanıcı mikrofon iznini reddetti — sunucu hatasından ayrı ele alınır. */

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { FlatList, Modal, Pressable as RNPressable, Text, View } from "react-native";
-import { useDataChannel } from "@livekit/react-native";
+import { useDataChannel, useRoomContext } from "@livekit/react-native";
 import { createAudioPlayer } from "expo-audio";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -90,6 +90,7 @@ function parseSoundId(payload: Uint8Array): string | null {
 export function useSoundboard(serverId: string | undefined) {
   /** Gönderici kimliği → son çalma zamanı: bir kişinin spam'i başkasını susturmasın. */
   const lastPlayed = useRef(new Map<string, number>());
+  const room = useRoomContext();
   const { data: sounds } = useServerSounds(serverId);
   // Geri çağrı kararlı kalsın diye liste ref'te: `useDataChannel` her yeni
   // fonksiyonda aboneliği söküp yeniden kuruyordu.
@@ -99,6 +100,8 @@ export function useSoundboard(serverId: string | undefined) {
   }, [sounds]);
 
   const onMessage = useCallback((message: { payload: Uint8Array; from?: { identity: string } }) => {
+    // Sunucuda sağırlaştırılmışken (abonelik izni yok) gelen sesler çalınmaz.
+    if (room.localParticipant.permissions?.canSubscribe === false) return;
     const soundId = parseSoundId(message.payload);
     const parsed = soundId ? soundsRef.current?.find((sound) => sound.id === soundId) : undefined;
     if (!parsed) return;
@@ -108,7 +111,7 @@ export function useSoundboard(serverId: string | undefined) {
     if (now - (lastPlayed.current.get(sender) ?? 0) < SENDER_GAP_MS) return;
     lastPlayed.current.set(sender, now);
     playOnce(parsed.audioUrl, parsed.volume);
-  }, []);
+  }, [room]);
   const { send } = useDataChannel(SOUNDBOARD_TOPIC, onMessage);
 
   const play = useCallback(

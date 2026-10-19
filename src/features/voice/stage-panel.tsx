@@ -14,8 +14,8 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * Sahne paneli — web `components/stage/stage-panel` karşılığı.
  *
  * Durum LiveKit'te yaşar: konuşmacı = sunucunun verdiği yayın izni
- * (`permissions.canPublish`, taklit edilemez), el kaldırma = katılımcının
- * kendi `stageHand` özniteliği. Dinleyici el kaldırır; moderatör "Sahneye
+ * (`permissions.canPublish`, taklit edilemez), el kaldırma = sunucunun
+ * katılımcıya yazdığı `stageHand` özniteliği (zaman damgası). Dinleyici el kaldırır; moderatör "Sahneye
  * al" der ya da kendisi "Sahneye çık"ar; konuşmacı "Dinleyicilere geç"
  * ile iner. Konuşmacı yapılınca mikrofon kapalı başlar.
  */
@@ -79,14 +79,19 @@ export function StagePanel({
       }
     );
 
-  const toggleHand = async () => {
-    try {
-      await localParticipant.setAttributes({ [STAGE_HAND_ATTRIBUTE]: meHand ? "" : String(Date.now()) });
-      rerender();
-    } catch {
-      showToast("El kaldırılamadı.", "error");
-    }
-  };
+  // El kaldırma sunucudan: token katılımcıya öznitelik yazma izni vermiyor
+  // (kimlik taklidi), sunucu `stageHand`'i zaman damgasıyla yazar.
+  const toggleHand = () =>
+    stage.mutate(
+      { action: meHand ? "lower" : "raise" },
+      {
+        onError: (error) =>
+          showToast(
+            error instanceof ApiError ? error.message : meHand ? "El indirilemedi." : "El kaldırılamadı.",
+            "error"
+          ),
+      }
+    );
 
   const everyone: Participant[] = [...(localParticipant ? [localParticipant] : []), ...remotes];
   const speakers = everyone.filter(isSpeaker);
@@ -168,7 +173,8 @@ export function StagePanel({
                 icon={meHand ? "close" : "user-plus"}
                 variant={meHand ? "secondary" : "primary"}
                 fullWidth
-                onPress={() => void toggleHand()}
+                loading={stage.isPending}
+                onPress={toggleHand}
               />
             )}
           </View>

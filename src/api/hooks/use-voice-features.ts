@@ -20,13 +20,16 @@ export function useServerSounds(serverId: string | undefined) {
   });
 }
 
-export type StageAction = "speak" | "listen" | "promote" | "demote";
+export type StageAction = "speak" | "listen" | "raise" | "lower" | "promote" | "demote";
 
-/** speak/listen kendine; promote/demote `identity` (LiveKit kimliği = kullanıcı adı) hedefine. */
+/**
+ * speak/listen/raise/lower kendine; promote/demote `identity` (LiveKit
+ * kimliği = kullanıcı adı) hedefine. raise/lower yanıtı `{ ok, hand }`.
+ */
 export function useStageAction(channelId: string) {
   return useMutation({
     mutationFn: ({ action, identity }: { action: StageAction; identity?: string }) =>
-      api<{ ok: true; speaker: boolean }>(endpoints.stage(channelId), {
+      api<{ ok: true; speaker?: boolean; hand?: boolean }>(endpoints.stage(channelId), {
         method: "POST",
         body: { action, ...(identity ? { identity } : {}) },
       }),

@@ -23,7 +23,7 @@ export function useVoiceSession(session: ActiveVoice | null) {
   const setParticipants = useVoice((s) => s.setParticipants);
 
   // Sesli kanal Discord gibi hoparlörden başlar; düğmeyle ahizeye alınabilir.
-  const { token, error } = useVoiceToken(session?.roomId, {
+  const { token, moderation, error } = useVoiceToken(session?.roomId, {
     needsCamera: session?.kind === "video",
     defaultRoute: "speaker",
   });
@@ -85,6 +85,8 @@ export function useVoiceSession(session: ActiveVoice | null) {
 
   return {
     token,
+    /** Katılım anındaki sunucu susturması / sağırlaştırması (token yanıtı). */
+    moderation,
     error,
     status: error ? ("error" as const) : token ? ("connected" as const) : ("connecting" as const),
     leave,
