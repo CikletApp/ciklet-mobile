@@ -293,6 +293,7 @@ function ServerHero({
           label="Bildirimler"
           onPress={() => openNotificationSettings({ target: { serverId }, kind: "server", title: name })}
         />
+        <HeroAction icon="clock" label="Etkinlikler" onPress={() => router.push(`/servers/${serverId}/events`)} />
         <HeroAction icon="users" label="Üyeler" onPress={() => router.push(`/servers/${serverId}/members`)} />
         <HeroAction icon="settings" label="Ayarlar" onPress={() => router.push(`/servers/${serverId}/settings`)} />
       </ScrollView>
