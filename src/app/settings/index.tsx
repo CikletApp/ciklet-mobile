@@ -83,6 +83,12 @@ export default function SettingsScreen() {
             />
             <Divider inset={52} />
             <ListRow
+              icon="heart"
+              title="Mağaza"
+              onPress={() => router.push("/store")}
+            />
+            <Divider inset={52} />
+            <ListRow
               icon="shield"
               title="Gizlilik, Veri ve Sosyal"
               onPress={() => router.push("/settings/privacy")}

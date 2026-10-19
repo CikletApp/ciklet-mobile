@@ -13,6 +13,7 @@ import {
   useServerDetails,
   useServerMembers,
   useServerSummary,
+  useServerTiers,
   useUnreadCounts,
 } from "@/api/hooks";
 import {
@@ -186,6 +187,9 @@ function ServerHero({
   // Davet kodu özet listede yok; ayrıntı ucu önbellekte çoğu zaman hazır.
   const { data: details } = useServerDetails(serverId);
   const inviteCode = details?.inviteCode;
+  // Abonelik kademesi olan (ya da yöneticisi olduğun) sunucuda kısayol.
+  const { data: tiers } = useServerTiers(serverId);
+  const showSubscriptions = Boolean(tiers && (tiers.tiers.length > 0 || tiers.manager));
   const memberIds = (members ?? []).map((member) => member.profileId);
   const online = usePresenceStore((state) =>
     memberIds.filter((id) => {
@@ -211,7 +215,7 @@ function ServerHero({
           </View>
         </View>
       ) : null}
-      <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm, marginTop: spacing.xs }}>
         {inviteCode ? (
           <HeroAction
             icon="user-plus"
@@ -220,6 +224,9 @@ function ServerHero({
           />
         ) : null}
         <HeroAction icon="settings" label="Ayarlar" onPress={() => router.push(`/servers/${serverId}/settings`)} />
+        {showSubscriptions ? (
+          <HeroAction icon="sparkles" label="Abonelikler" onPress={() => router.push(`/servers/${serverId}/subscriptions`)} />
+        ) : null}
       </View>
     </View>
   );
