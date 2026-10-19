@@ -26,12 +26,15 @@ export interface AvatarDecoration {
   badge?: string;
   /** Hafif dönüş (hareket azaltma açıkken durur). */
   spin?: boolean;
+  /** Emoji yerine SVG amblem (ay-yıldız; components/ui/turkiye-emblem). */
+  emblem?: "ayyildiz";
 }
 
 export const AVATAR_DECORATIONS: readonly AvatarDecoration[] = [
   { id: "mint", name: "Mentol Halesi", mentol: false, colors: ["#12b98a", "#7ef0c4", "#12b98a"] },
   { id: "sunset", name: "Gün Batımı", mentol: false, colors: ["#ff7a59", "#ffb347", "#ff5e8a"] },
   { id: "ocean", name: "Okyanus", mentol: false, colors: ["#2d9cdb", "#56ccf2", "#1b4fd8"] },
+  { id: "turkiye", name: "Ay Yıldız", mentol: false, colors: ["#e30a17", "#ff3b45", "#ffffff", "#e30a17", "#b3000c"], spin: true, emblem: "ayyildiz" },
   { id: "ember", name: "Kor", mentol: true, colors: ["#ff3d00", "#ffb300", "#ff3d00"], badge: "🔥", spin: true },
   { id: "aurora", name: "Kuzey Işığı", mentol: true, colors: ["#7c4dff", "#18ffff", "#69f0ae", "#7c4dff"], spin: true },
   { id: "royal", name: "Taç", mentol: true, colors: ["#ffd700", "#fff1a8", "#c9a400"], badge: "👑" },

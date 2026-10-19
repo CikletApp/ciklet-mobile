@@ -109,6 +109,15 @@ export function findNameplate(id: string | null | undefined): Nameplate | null {
 
 /** Profil efekti: afişin üstünde süzülen emoji parçacıkları. */
 export const PROFILE_EFFECTS: Readonly<Record<string, string[]>> = {
+  // Ücretsiz ve Mentol seti (web lib/store-catalog PROFILE_EFFECTS).
+  fx_bubbles: ["🫧", "○", "◦"],
+  fx_leaves: ["🍃", "🍂", "🍁"],
+  // Al Bayrak: parçacık yerine özel çizim (features/profile/profile-effect).
+  fx_turkiye: ["✦"],
+  fx_mint: ["🌿", "💚", "✦"],
+  fx_sparkle: ["✨", "✦", "⋆"],
+  fx_sakura: ["🌸", "🌸", "·"],
+  fx_fireflies: ["•", "·", "✧"],
   fx_confetti: ["🎉", "🎊", "✨"],
   fx_snow: ["❄️", "❄", "·"],
   fx_hearts: ["💖", "💕", "💗"],

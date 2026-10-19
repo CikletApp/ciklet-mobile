@@ -13,6 +13,8 @@ import Svg, { Circle, Defs, LinearGradient, RadialGradient, Stop } from "react-n
 
 import { findDecoration } from "@/lib/avatar-decorations";
 
+import { TurkiyeEmblem } from "./turkiye-emblem";
+
 /**
  * Avatar süsü halkası — web'deki `AvatarDecorationRing` karşılığı.
  *
@@ -48,6 +50,8 @@ export function AvatarDecorationRing({ id, size }: { id: string | null | undefin
   ));
   // Rozet çok küçük avatarlarda okunmuyor ve ada biniyor; yalnızca halka kalır.
   const showBadge = Boolean(deco.badge) && size >= 32;
+  const showEmblem = deco.emblem === "ayyildiz" && size >= 32;
+  const emblemSize = Math.round(size * 0.4);
 
   return (
     <View
@@ -77,7 +81,26 @@ export function AvatarDecorationRing({ id, size }: { id: string | null | undefin
           />
         </Svg>
       </Animated.View>
-      {showBadge ? (
+      {showEmblem ? (
+        // Kırmızı rozetin içinde ay-yıldız (web ile aynı yerleşim).
+        <View
+          style={{
+            position: "absolute",
+            right: -Math.round(size * 0.06),
+            top: -Math.round(size * 0.06),
+            width: emblemSize,
+            height: emblemSize,
+            borderRadius: emblemSize / 2,
+            backgroundColor: "#e30a17",
+            borderWidth: 1.5,
+            borderColor: "#fff",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <TurkiyeEmblem width={emblemSize * 0.62} height={emblemSize * 0.46} />
+        </View>
+      ) : showBadge ? (
         <Text
           style={{
             position: "absolute",
