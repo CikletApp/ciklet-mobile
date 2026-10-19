@@ -30,8 +30,16 @@ import { MEDIA_BUBBLE_WIDTH, MessageAttachment } from "./message-attachment";
 import { FLASH_DURATION, useMessageFlash } from "./message-flash";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
-import { PollMessage } from "./poll-message";
-import { extraAttachments, isSilent, readComponents, readInteraction, readSticker, readThread } from "@/lib/message-extras";
+import { PollCard } from "./poll-message";
+import {
+  extraAttachments,
+  isSilent,
+  readComponents,
+  readInteraction,
+  readPoll,
+  readSticker,
+  readThread,
+} from "@/lib/message-extras";
 import { InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
 import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
@@ -173,13 +181,12 @@ export function MessageItem({
     return <PinnedNotice message={message} onJump={onJumpToMessage} />;
   }
 
-  // Anket (ciklet-web POLL): oy verilebilir kart.
-  if ((message.type as string) === "POLL") {
-    return <PollMessage message={message} />;
-  }
+  // Anket (ciklet-web POLL): normal balon yolundan geçer (uzun basma menüsü,
+  // tepkiler, silinmiş görünümü); gövdesi oy verilebilir kart.
+  const isPoll = (message.type as string) === "POLL";
 
   // Sistem mesajları (çağrı, aktivite daveti) tarafsızdır — ortada çizilir.
-  if (message.type !== MessageType.DEFAULT) {
+  if (message.type !== MessageType.DEFAULT && !isPoll) {
     return message.type === MessageType.ACTIVITY_INVITE
       ? <ActivityInviteMessage message={message} />
       : <SystemMessage message={message} />;
@@ -195,13 +202,13 @@ export function MessageItem({
   const showHeader = !grouped && !isMine && !oneToOne;
   const showAvatar = !isMine && !oneToOne;
   const isOfficial = isOfficialProfile(profile);
-  const inviteCode = !message.fileUrl && !message.deleted
+  const inviteCode = !message.fileUrl && !message.deleted && !isPoll
     ? extractInviteCode(message.content)
     : null;
   const hideAttachmentUrl = Boolean(
     message.fileUrl && isAttachmentUrlContent(message.content, message.fileUrl)
   );
-  const linkUrl = !message.fileUrl && !inviteCode && !message.deleted
+  const linkUrl = !message.fileUrl && !inviteCode && !message.deleted && !isPoll
     ? extractFirstWebUrl(message.content)
     : null;
   const attachmentKind = message.fileUrl && !message.deleted
@@ -349,8 +356,14 @@ export function MessageItem({
     </View>
   ) : null;
 
+  // Silinmiş anket çizilmez ("Bu mesaj silindi." kalır); içerik soru metni,
+  // kart zaten gösteriyor.
+  const poll = isPoll && !message.deleted ? readPoll(message.metadata) : null;
+
   // Çıkartma mesajının içeriği çıkartmanın adı; görsel zaten ad taşıyor (web gibi).
-  const caption = message.content && !sticker ? (
+  const caption = poll ? (
+    <PollCard message={message} poll={poll} />
+  ) : message.content && !sticker ? (
     <MessageMarkdown
       value={message.content}
       compact={compact}

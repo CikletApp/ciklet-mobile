@@ -199,7 +199,8 @@ export function MessageContextMenu({
   if (onForward) actions.push({ key: "forward", icon: "forward", label: "İlet", onPress: onForward });
   if (thread) actions.push({ key: "thread", icon: "message", label: "Alt başlık oluştur", onPress: () => setMode("thread") });
   // İletilen mesaj düzenlenemez (web 403 döner): içerik başkasının sözü.
-  if (isMine && !isForwardedMessage(message)) {
+  // Anketin metni soru; düzenleme kartı bozardı.
+  if (isMine && !isForwardedMessage(message) && (message.type as string) !== "POLL") {
     actions.push({ key: "edit", icon: "pencil", label: "Düzenle", onPress: () => setMode("edit") });
   }
 
