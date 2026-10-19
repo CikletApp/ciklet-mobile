@@ -2,8 +2,9 @@ import { useMemo } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
 
-import { useServerMembers } from "@/api/hooks";
+import { useMemberSearch } from "@/api/hooks";
 import { Avatar, Icon } from "@/components/ui";
+import { useDebouncedValue } from "@/lib/use-debounced";
 import { fw } from "@/theme/fonts";
 import { readable } from "@/theme/palette";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -69,7 +70,10 @@ export function useComposerSuggestions(
   const roles = useServerRoles(active ? serverId : undefined);
   const emojis = useServerEmojis(active ? serverId : undefined);
   const canBroadcast = useCanMentionEveryone(active ? serverId : undefined);
-  const members = useServerMembers(active && trigger?.char === "@" ? serverId : undefined);
+  // Üyeler sunucuda aranır (yalnızca ilk sayfayı süzmek büyük sunucuda
+  // çoğu üyeyi önerilemez bırakıyordu); yazarken her harfte istek atılmaz.
+  const mentionQuery = useDebouncedValue(trigger?.char === "@" ? trigger.query : "", 250);
+  const members = useMemberSearch(active && trigger?.char === "@" ? serverId : undefined, mentionQuery);
 
   return useMemo(() => {
     if (!trigger || !serverId) return [];

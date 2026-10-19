@@ -115,6 +115,21 @@ export function useServerMemberPages(serverId: string | undefined, query: string
   });
 }
 
+/**
+ * `@` önerileri için sunucu tarafı üye araması (ilk sayfa). Boş sorgu ilk
+ * sayfayı döndürür; yeni sorgu gelene kadar önceki sonuç ekranda kalır.
+ */
+export function useMemberSearch(serverId: string | undefined, query: string) {
+  return useQuery({
+    queryKey: ["members", serverId ?? "yok", "search", query] as const,
+    enabled: Boolean(serverId),
+    queryFn: () => api<ServerMembersPage>(endpoints.serverMembersPage(serverId!, null, query || undefined)),
+    select: (page) => page.items,
+    staleTime: 30_000,
+    placeholderData: (previous) => previous,
+  });
+}
+
 /** Zaman aşımı ver (`seconds`) ya da kaldır (`null`). */
 export function useTimeoutMember(serverId: string) {
   const queryClient = useQueryClient();

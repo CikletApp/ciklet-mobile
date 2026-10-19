@@ -263,6 +263,12 @@ function ServerHero({
   const { data: members } = useServerMembers(serverId);
   // Davet kodu özet listede yok; ayrıntı ucu önbellekte çoğu zaman hazır.
   const { data: details } = useServerDetails(serverId);
+  const { data: summary } = useServerSummary(serverId);
+  // Üye listesi ucu yalnızca ilk sayfayı (50) döndürüyor: sayı sunucu
+  // özetinden gelir. Özet sayı taşımıyorsa ve liste tamsa listeden sayılır;
+  // kesilmiş listede ne toplam ne çevrimiçi sayısı gösterilir (yanlış olurdu).
+  const listComplete = Boolean(members && members.length < MEMBER_PAGE_SIZE);
+  const memberCount = summary?.memberCount ?? details?.memberCount ?? (listComplete ? members?.length : undefined);
   const inviteCode = details?.inviteCode;
   // Abonelik kademesi olan (ya da yöneticisi olduğun) sunucuda kısayol.
   const { data: tiers } = useServerTiers(serverId);
@@ -283,13 +289,15 @@ function ServerHero({
       <Text style={{ ...typography.display, color: colors.bright, textAlign: "center" }} numberOfLines={2}>
         {name}
       </Text>
-      {members ? (
+      {memberCount !== undefined ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-          <Text style={{ ...typography.caption, color: colors.muted }}>{members.length} üye</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.online }} />
-            <Text style={{ ...typography.caption, color: colors.muted }}>{online} çevrimiçi</Text>
-          </View>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{memberCount} üye</Text>
+          {listComplete ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.online }} />
+              <Text style={{ ...typography.caption, color: colors.muted }}>{online} çevrimiçi</Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm, marginTop: spacing.xs }}>
@@ -340,6 +348,9 @@ function HeroAction({ icon, label, onPress }: { icon: IconName; label: string; o
     </Pressable>
   );
 }
+
+/** Üye listesi ucunun varsayılan sayfa boyu (web DEFAULT_SERVER_MEMBER_PAGE_SIZE). */
+const MEMBER_PAGE_SIZE = 50;
 
 const CHANNEL_ICON: Record<string, IconName> = {
   [ChannelType.TEXT]: "hash",

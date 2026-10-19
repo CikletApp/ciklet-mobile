@@ -89,6 +89,8 @@ export interface MembershipWithServer extends Member {
     imageUrl: string;
     /** Sunucunun SAHİBİ. Ray, sahip olunan sunucuyu çerçeveyle işaretler. */
     profileId?: string;
+    /** Toplam üye sayısı — uç gönderiyorsa. */
+    memberCount?: number;
   };
   /** Rayda sunucu sırası. */
   order: number;
@@ -152,6 +154,8 @@ export interface ServerDetails {
   isDiscoverable: boolean;
   inviteCode: string;
   createdAt: string;
+  /** Toplam üye sayısı — uç gönderiyorsa (sunucu özeti). */
+  memberCount?: number;
 }
 
 /**
