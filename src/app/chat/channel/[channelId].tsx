@@ -1,10 +1,17 @@
 import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { useChannel, useServerSummary, useUnreadCounts } from "@/api/hooks";
+import { useChannel, useMyMembership, useServerSummary, useUnreadCounts } from "@/api/hooks";
+import type { ChannelExtras } from "@/api/types";
 import { Icon, IconButton } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
+import {
+  NsfwCurtain,
+  RulesCurtain,
+  useNsfwAcknowledged,
+  useTimeoutNotice,
+} from "@/features/server/channel-gates";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
 import { colors, radii, spacing } from "@/theme/tokens";
 
@@ -26,13 +33,20 @@ export default function ChannelChatScreen() {
   // Kanal ayarlarındaki açıklama (2026-09 web güncellemesi). SDK'nın Channel
   // tipi henüz taşımıyor; uç Prisma satırını olduğu gibi döndürdüğü için
   // alan yanıtta var.
-  const topic = (channel as { topic?: string | null } | undefined)?.topic?.trim();
+  const extras = channel as ChannelExtras | undefined;
+  const topic = extras?.topic?.trim();
+  // Kapılar: yaş sınırı perdesi, kural kabulü, kendi zaman aşımın.
+  const nsfw = useNsfwAcknowledged(channelId, extras?.nsfw === true);
+  const { data: membership } = useMyMembership(serverId);
+  const timeoutNotice = useTimeoutNotice(
+    (membership as { timedOutUntil?: string | null } | undefined)?.timedOutUntil
+  );
   // Yalnızca dinler; yazma bildirimi ChatView'daki örnekten gider.
   const { typers } = useTyping(channelId);
   const typing = typingLabel(typers, { ellipsis: false });
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           title: channel ? `# ${channel.name}` : "",
@@ -93,11 +107,15 @@ export default function ChannelChatScreen() {
         unreadSeed={unreadCounts.data ? { count: unreadCounts.data.channelUnreads?.[channelId]?.count ?? 0 } : undefined}
         placeholder={`#${channel?.name ?? "kanal"} kanalına yaz`}
         lockedNotice={
-          (channel as { forum?: boolean } | undefined)?.forum
+          extras?.forum
             ? "Forum kanalı: gönderiler şimdilik web ve masaüstünde açılır."
-            : undefined
+            : timeoutNotice
         }
       />
-    </>
+      {serverId ? <RulesCurtain serverId={serverId} /> : null}
+      {!nsfw.acknowledged ? (
+        <NsfwCurtain channelName={channel?.name ?? "kanal"} onAccept={nsfw.acknowledge} onBack={() => router.back()} />
+      ) : null}
+    </View>
   );
 }

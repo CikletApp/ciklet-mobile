@@ -8,7 +8,9 @@ import {
 } from "@ciklet/embedded-activities-sdk/types";
 
 import {
+  hasServerPermission,
   useMyMembership,
+  useMyPermissions,
   useNotificationSettings,
   useServerChannels,
   useServerDetails,
@@ -47,8 +49,11 @@ export default function ServerChannelsScreen() {
   const { data: channels, isLoading } = useServerChannels(serverId);
   const { data: membership } = useMyMembership(serverId);
   const { data: unread } = useUnreadCounts();
-  const canManageChannels =
-    membership?.role === MemberRole.ADMIN || membership?.role === MemberRole.MODERATOR;
+  // Rol izin sistemi: "Kanalları Yönet" biti; izinler gelene dek eski katman kuralı.
+  const { data: permissions } = useMyPermissions(serverId);
+  const canManageChannels = permissions
+    ? hasServerPermission(permissions, "MANAGE_CHANNELS")
+    : membership?.role === MemberRole.ADMIN || membership?.role === MemberRole.MODERATOR;
 
   /** Katlanan kategoriler — uzun kanal listelerinde ses/görüntü bölümlerini
       kapatmak metin kanallarına ulaşmayı tek kaydırmaya indiriyor. */
@@ -288,6 +293,7 @@ function ServerHero({
           label="Bildirimler"
           onPress={() => openNotificationSettings({ target: { serverId }, kind: "server", title: name })}
         />
+        <HeroAction icon="users" label="Üyeler" onPress={() => router.push(`/servers/${serverId}/members`)} />
         <HeroAction icon="settings" label="Ayarlar" onPress={() => router.push(`/servers/${serverId}/settings`)} />
       </ScrollView>
     </View>
