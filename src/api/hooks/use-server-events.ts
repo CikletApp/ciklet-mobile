@@ -20,7 +20,10 @@ export function useServerEvents(serverId: string | undefined) {
   });
 }
 
-/** Etkinlik yönetimi kapısı (web `getServerModerator`): sahip, ADMIN/MODERATOR ya da Yönetici / Sunucuyu Yönet biti. */
+/**
+ * Etkinlik yönetimi kapısı (web `getServerModerator` + `EVENT_MANAGER_BITS`):
+ * sahip, ADMIN/MODERATOR ya da Yönetici / Kanalları Yönet / Sunucuyu Yönet biti.
+ */
 export function canManageEvents(actor: MyServerPermissions | undefined): boolean {
   if (!actor) return false;
   return (
@@ -28,6 +31,7 @@ export function canManageEvents(actor: MyServerPermissions | undefined): boolean
     actor.memberRole === "ADMIN" ||
     actor.memberRole === "MODERATOR" ||
     actor.keys.includes("ADMINISTRATOR") ||
+    actor.keys.includes("MANAGE_CHANNELS") ||
     actor.keys.includes("MANAGE_SERVER")
   );
 }

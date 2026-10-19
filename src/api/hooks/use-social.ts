@@ -156,6 +156,26 @@ export function useSaveConnection() {
   });
 }
 
+/**
+ * Spotify bağlantısını GERÇEKTEN kaldırır (`DELETE /api/connections/spotify`:
+ * token'lar silinir). Genel bağlantı ucu yalnızca profil satırını siliyordu;
+ * hesap bağlı kalıyor, durum yeniden "Bağlı" geliyordu.
+ */
+export function useUnlinkSpotify() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api(endpoints.spotifyConnection, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.setQueryData<ProfileConnectionView[]>(qk.profileConnections, (old) =>
+        old?.filter((c) => c.type !== "spotify")
+      );
+      void queryClient.invalidateQueries({ queryKey: qk.spotifyLink });
+      void queryClient.invalidateQueries({ queryKey: qk.profileConnections });
+      invalidateOwnCard(queryClient);
+    },
+  });
+}
+
 export function useRemoveConnection() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -192,8 +212,8 @@ export function useSpotifyLink(enabled = true) {
  * Bir kullanıcının Spotify'da çalanı. Sunucu yalnızca kendisine ya da
  * doğrulanmış + görünür bağlantıya döner; 5 sn önbellekli. Kart açıkken
  * 30 sn'de bir tazelenir (şarkı değişimi), ilerleme istemcide sayılır.
+ * `polling`: yalnızca ekran görünürken yoklanır (çağıran `useScreenActive` verir).
  */
-/** `polling`: yalnızca ekran görünürken 30 sn'de bir yoklanır (çağıran `useScreenActive` verir). */
 export function useSpotifyNowPlaying(profileId: string | undefined, enabled = true, polling = true) {
   return useQuery({
     queryKey: qk.spotifyNowPlaying(profileId ?? "yok"),

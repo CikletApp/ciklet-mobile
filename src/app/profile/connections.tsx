@@ -8,6 +8,7 @@ import {
   useRemoveConnection,
   useSaveConnection,
   useSpotifyLink,
+  useUnlinkSpotify,
 } from "@/api/hooks";
 import type { ConnectionType } from "@/api/types";
 import {
@@ -40,6 +41,7 @@ export default function ConnectionsScreen() {
   const { data: spotify } = useSpotifyLink();
   const save = useSaveConnection();
   const remove = useRemoveConnection();
+  const unlinkSpotify = useUnlinkSpotify();
   const [type, setType] = useState<ConnectionType>("steam");
   const [handle, setHandle] = useState("");
 
@@ -73,7 +75,10 @@ export default function ConnectionsScreen() {
       {
         text: "Kaldır",
         style: "destructive",
-        onPress: () => remove.mutate(target, { onError: () => showToast("Bağlantı kaldırılamadı.", "error") }),
+        onPress: () =>
+          target === "spotify"
+            ? unlinkSpotify.mutate(undefined, { onError: () => showToast("Bağlantı kaldırılamadı.", "error") })
+            : remove.mutate(target, { onError: () => showToast("Bağlantı kaldırılamadı.", "error") }),
       },
     ]);
   };

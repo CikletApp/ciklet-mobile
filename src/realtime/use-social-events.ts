@@ -7,6 +7,7 @@ import { useNotificationSettings } from "@/api/hooks/use-notification-settings";
 import { qk } from "@/api/query-keys";
 import type { ProfileAnnotationEntry } from "@/api/types";
 import { showInAppNotice } from "@/components/in-app-notice";
+import { openInteractionModal } from "@/features/chat/interaction-modal-store";
 import { isHiddenChannel } from "@/features/unread/unread-cache";
 import {
   effectiveChannelNotification,
@@ -147,6 +148,10 @@ export function useSocialEvents() {
       // Grup kuruldu, eklendin, çıkarıldın — yeni mesaj olmadığı için
       // bildirim olayı bunu yakalamaz.
       onGatewayEvent(ServerEvent.DIRECTS_UPDATED, () => invalidate(qk.directs, qk.inbox)),
+      // Ağ geçidi botu etkileşime modalla yanıt verdi (callback type 9).
+      onGatewayEvent(ServerEvent.INTERACTION_MODAL, (frame) =>
+        openInteractionModal({ interactionId: frame.interactionId, channelId: frame.channelId, modal: frame.modal })
+      ),
       // Kanal mesajı: sayaç `use-unread-sync`'te; burada yalnızca ses (web:
       // navigation-server-list — kendi mesajın ve açık kanal hariç). Kart yok.
       onGatewayEvent(ServerEvent.CHANNEL_MESSAGE, (frame) => {

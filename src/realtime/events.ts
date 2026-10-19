@@ -91,6 +91,8 @@ export const ServerEvent = {
   VOICE_ACTIVE_CHANNELS: "voice.active_channels",
   /** `{ action: mute|unmute|disconnect|move, serverId, channelId, targetChannelId }` — sana ses moderasyonu. */
   VOICE_MODERATED: "voice.moderated",
+  /** `{ interactionId, channelId, modal }` — bot etkileşimine modalla yanıt verdi (kullanıcı odası). */
+  INTERACTION_MODAL: "interaction.modal",
   /** `{ caller, type, callId, expiresAt, directChannelId }` */
   CALL_INCOMING: "call.incoming",
   /** `{ profile, callId }` — karşı taraf kabul etti. */

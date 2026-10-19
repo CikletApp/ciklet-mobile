@@ -4,6 +4,7 @@ import type { OwnProfile } from "@ciklet/embedded-activities-sdk/types";
 import * as apiClient from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { clearPersistedCache } from "@/api/query-client";
+import { resetInteractionModal } from "@/features/chat/interaction-modal-store";
 import { setListenAlongProfile, stopListenAlong } from "@/features/spotify/listen-along";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
 import { clearNativeCookies } from "@/lib/cookies";
@@ -214,6 +215,7 @@ useAuth.subscribe((state, prev) => {
   const wasSignedOut = prev.status === "signedOut" || prev.status === "banned";
   if (signedOut && !wasSignedOut) {
     clearDecorations();
+    resetInteractionModal();
     void clearNsfwAcknowledgements().catch(() => {});
   }
 });
