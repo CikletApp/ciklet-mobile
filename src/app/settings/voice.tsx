@@ -2,6 +2,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
 import { Screen, SectionHeader, SegmentedTabs } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import { usePreferences, type InputMode } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -12,34 +13,40 @@ export default function VoiceSettingsScreen() {
   const inputVolume = usePreferences((state) => state.inputVolume);
   const outputVolume = usePreferences((state) => state.outputVolume);
   const setPreference = usePreferences((state) => state.setPreference);
+  const t = useT();
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Ses ve Video" }} />
+      <Stack.Screen options={{ title: t("settings.voice.title") }} />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
-        <SectionHeader title="GİRİŞ MODU" />
+        <SectionHeader title={t("settings.voice.inputMode")} />
         <SegmentedTabs
           items={[
-            { id: "vad" as InputMode, label: "Ses etkinliği" },
-            { id: "ptt" as InputMode, label: "Bas konuş" },
+            { id: "vad" as InputMode, label: t("settings.voice.vad") },
+            { id: "ptt" as InputMode, label: t("settings.voice.ptt") },
           ]}
           value={inputMode}
           onChange={(value) => setPreference("inputMode", value)}
         />
+        {inputMode === "ptt" ? (
+          <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+            {t("settings.voice.pttHint")}
+          </Text>
+        ) : null}
 
         <LevelPicker
-          title="MİKROFON SEVİYESİ"
+          title={t("settings.voice.inputVolume")}
           value={inputVolume}
           onChange={(value) => setPreference("inputVolume", value)}
         />
         <LevelPicker
-          title="HOPARLÖR SEVİYESİ"
+          title={t("settings.voice.outputVolume")}
           value={outputVolume}
           onChange={(value) => setPreference("outputVolume", value)}
         />
 
         <Text style={{ ...typography.caption, color: colors.muted, padding: spacing.lg }}>
-          Mobil işletim sistemi giriş ve çıkış aygıtını otomatik yönetir. Bluetooth veya kablolu cihaz seçimi sistem ses panelinden yapılır.
+          {t("settings.voice.deviceNote")}
         </Text>
       </ScrollView>
     </Screen>

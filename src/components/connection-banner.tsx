@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Animated, Text, View } from "react-native";
 
+import { useReducedMotion } from "@/lib/accessibility";
 import { onConnectionState, type ConnectionState } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
 import { colors, spacing, typography } from "@/theme/tokens";
@@ -28,6 +29,7 @@ export function ConnectionBanner() {
 function DelayedConnectionBanner() {
   const [visible, setVisible] = useState(false);
   const [slide] = useState(() => new Animated.Value(0));
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     // Kısa kopmalarda şerit hiç görünmesin.
@@ -38,10 +40,10 @@ function DelayedConnectionBanner() {
   useEffect(() => {
     Animated.timing(slide, {
       toValue: visible ? 1 : 0,
-      duration: 180,
+      duration: reducedMotion ? 0 : 180,
       useNativeDriver: true,
     }).start();
-  }, [visible, slide]);
+  }, [visible, slide, reducedMotion]);
 
   if (!visible) return null;
 

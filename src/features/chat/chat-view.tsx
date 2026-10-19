@@ -105,6 +105,7 @@ export function ChatView({
   placeholder,
   readOnlyOfficial = false,
   lockedNotice,
+  requireAttachment = false,
   oneToOne = false,
   unreadSeed,
   intro,
@@ -122,6 +123,11 @@ export function ChatView({
    * şimdilik web'de). Mesajlar okunur, yazılamaz.
    */
   lockedNotice?: string;
+  /**
+   * Medya kanalı: yalnızca ekli mesaj gönderilir (sunucu eksiz mesajı
+   * reddediyor; burada gönderilmeden önce söylenir).
+   */
+  requireAttachment?: boolean;
   /**
    * Birebir sohbet (ve Notlarım): karşı tarafın adı ve avatarı her
    * baloncukta tekrarlanmaz — kim olduğu başlıkta zaten yazıyor.
@@ -430,6 +436,10 @@ export function ChatView({
   const onSend = useCallback(
     (options?: { silent?: boolean }) => {
       if (!draft.trim() && attachments.length === 0) return;
+      if (requireAttachment && attachments.length === 0) {
+        showToast("Bu medya kanalına yalnızca görsel, video ya da dosya ekli mesaj gönderilebilir.", "error");
+        return;
+      }
       if (attachments.length === 0 && draft.trim().startsWith("/") && (commandBots.data?.length ?? 0) > 0) {
         const text = draft.trim();
         void runCommand(text).then((handled) => {
@@ -460,7 +470,7 @@ export function ChatView({
       setReplyingTo(null);
       pickedRoles.current.clear();
     },
-    [attachments, commandBots.data, draft, replyingTo?.id, runCommand, send, serverEmojis, setDraft, stopTyping]
+    [attachments, commandBots.data, draft, replyingTo?.id, requireAttachment, runCommand, send, serverEmojis, setDraft, stopTyping]
   );
 
   const onSelectSticker = useCallback(
@@ -899,7 +909,12 @@ export function ChatView({
                     setSelected(null);
                     router.push({
                       pathname: "/chat/channel/[channelId]",
-                      params: { channelId: id, serverId, name: name || threadNameFromMessage(selected.message.content) },
+                      params: {
+                        channelId: id,
+                        serverId,
+                        parentId: chatId,
+                        threadName: name || threadNameFromMessage(selected.message.content),
+                      },
                     });
                   },
                 }

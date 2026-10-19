@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   isTrackReference,
   LiveKitRoom,
+  useLocalParticipantPermissions,
   useParticipants,
   useTracks,
   VideoTrack,
@@ -11,18 +12,30 @@ import {
 import { useKeepAwake } from "expo-keep-awake";
 import { Track } from "livekit-client";
 
-import { useChannel, useServerSummary } from "@/api/hooks";
+import { isStageModerator, useChannel, useMyPermissions, useServerSummary } from "@/api/hooks";
+import type { ChannelExtras } from "@/api/types";
 import {
   Avatar,
   Button,
   EmptyState,
   Icon,
+  IconButton,
+  Pressable,
   Screen,
   ScreenLoader,
 } from "@/components/ui";
 import { CallControls } from "@/features/voice/call-controls";
+import { PushToTalkButton } from "@/features/voice/push-to-talk";
+import { SoundboardSheet, useSoundboard } from "@/features/voice/soundboard";
+import { StagePanel } from "@/features/voice/stage-panel";
+import {
+  isServerMuted,
+  useVoiceModeratedEvents,
+  useVoiceModerationMenu,
+} from "@/features/voice/voice-moderation";
 import { useVoiceSession } from "@/features/voice/use-voice-session";
 import { LIVEKIT_URL } from "@/lib/livekit";
+import { usePreferences } from "@/stores/preferences";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -45,7 +58,11 @@ export default function VoiceChannelScreen() {
   const channel = useChannel(serverId, channelId);
   // Sahne kanalı (ciklet-web lib/stage): herkes dinleyici katılır, yayın izni yok;
   // mikrofon otomatik açılmaz, konuşmacı yapılınca elle açılır.
-  const isStage = Boolean((channel as { stage?: boolean } | undefined)?.stage);
+  const extras = channel as ChannelExtras | undefined;
+  const isStage = extras?.stage === true;
+  // Bas-konuş (Ayarlar → Ses ve Video): mikrofon kapalı başlar, ekrandaki
+  // düğme basılı tutulunca açılır. Sahnede konuşma izni sahne panelinde.
+  const pushToTalk = usePreferences((s) => s.inputMode) === "ptt" && !isStage;
 
   // Ekran açıkken cihaz uyumasın — uyku, mikrofon yayınını kesebilir.
   useKeepAwake();
@@ -76,10 +93,13 @@ export default function VoiceChannelScreen() {
 
   const { token, status, error, leave } = useVoiceSession(session);
 
-  const onLeave = () => {
+  const onLeave = useCallback(() => {
     leave();
     router.back();
-  };
+  }, [leave]);
+
+  // Moderatörün sana uyguladığı ses moderasyonu (kes / taşı / sustur).
+  useVoiceModeratedEvents(channelId, onLeave);
 
   if (status === "error") {
     return (
@@ -110,7 +130,7 @@ export default function VoiceChannelScreen() {
       serverUrl={LIVEKIT_URL}
       token={token}
       connect
-      audio={!isStage}
+      audio={!isStage && !pushToTalk}
       video={isVideo}
       options={{ adaptiveStream: true, dynacast: true }}
       onConnected={() => setMediaError(false)}
@@ -122,9 +142,14 @@ export default function VoiceChannelScreen() {
       <Stack.Screen options={{ title: channel?.name ?? "" }} />
       <VoiceRoomBody
         title={channel?.name ?? "Ses kanalı"}
-        subtitle={isStage ? `${server?.name ?? "Sunucu"} · Sahne (dinleyici)` : server?.name}
+        subtitle={isStage ? `${server?.name ?? "Sunucu"} · Sahne` : (extras?.voiceStatus?.trim() || server?.name)}
         onLeave={onLeave}
         isVideo={isVideo}
+        serverId={serverId}
+        channelId={channelId}
+        isStage={isStage}
+        stageTopic={extras?.voiceStatus}
+        pushToTalk={pushToTalk}
         mediaError={mediaError}
         onRetry={() => {
           setMediaError(false);
@@ -144,6 +169,11 @@ function VoiceRoomBody({
   subtitle,
   onLeave,
   isVideo,
+  serverId,
+  channelId,
+  isStage,
+  stageTopic,
+  pushToTalk,
   mediaError,
   onRetry,
 }: {
@@ -151,11 +181,26 @@ function VoiceRoomBody({
   subtitle?: string;
   onLeave: () => void;
   isVideo: boolean;
+  serverId: string | undefined;
+  channelId: string;
+  isStage: boolean;
+  stageTopic: string | null | undefined;
+  pushToTalk: boolean;
   mediaError: boolean;
   onRetry: () => void;
 }) {
   const participants = useVoice((s) => s.participants);
   const livekitParticipants = useParticipants();
+  const { data: actor } = useMyPermissions(serverId);
+  const moderation = useVoiceModerationMenu({ serverId, channelId, stage: isStage });
+  const soundboard = useSoundboard();
+  const [soundboardOpen, setSoundboardOpen] = useState(false);
+  // Sahne dinleyicisinin yayın izni yok; mikrofon düğmesi konuşmacıya çıkar.
+  const canPublish = useLocalParticipantPermissions()?.canPublish === true;
+  const livekitByIdentity = useMemo(
+    () => new Map(livekitParticipants.map((participant) => [participant.identity, participant])),
+    [livekitParticipants]
+  );
   const cameraTracks = useTracks([Track.Source.Camera]).filter(isTrackReference);
 
   // Konuşan kimlikleri LiveKit'ten gelir; kimlik olarak `identity`
@@ -177,6 +222,10 @@ function VoiceRoomBody({
             <Text style={{ ...typography.caption, color: colors.muted }}>{subtitle}</Text>
           ) : null}
         </View>
+
+        {isStage ? (
+          <StagePanel channelId={channelId} topic={stageTopic} moderator={isStageModerator(actor)} />
+        ) : null}
 
         <View style={{ flex: 1 }}>
           {isVideo && cameraTracks.length > 0 ? (
@@ -244,8 +293,20 @@ function VoiceRoomBody({
               {isVideo ? "Kameranı açarak görüntülü sohbete başla." : "Kanalda başka kimse yok."}
             </Text>
           ) : (
-            participants.map((participant) => (
-              <View key={participant.id} style={{ alignItems: "center", gap: spacing.sm, width: 96 }}>
+            participants.map((participant) => {
+              const serverMuted = isServerMuted(livekitByIdentity.get(participant.username));
+              const moderatable = serverId ? moderation.canModerate(participant) : false;
+              return (
+              <Pressable
+                key={participant.id}
+                onLongPress={moderatable ? () => moderation.open(participant, serverMuted) : undefined}
+                disabled={!moderatable}
+                noHitSlop
+                accessibilityRole={moderatable ? "button" : "text"}
+                accessibilityLabel={`${participant.name?.trim() || participant.username}${serverMuted ? ", sunucuda susturuldu" : ""}`}
+                accessibilityHint={moderatable ? "Moderasyon için basılı tut" : undefined}
+                style={{ alignItems: "center", gap: spacing.sm, width: 96 }}
+              >
                 <View
                   style={{
                     padding: 3,
@@ -262,6 +323,23 @@ function VoiceRoomBody({
                     fallbackText={participant.username}
                     size={64}
                   />
+                  {serverMuted ? (
+                    <View
+                      style={{
+                        position: "absolute",
+                        right: 0,
+                        bottom: 0,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.dangerSolid,
+                      }}
+                    >
+                      <Icon name="mic-off" size={13} color="#ffffff" />
+                    </View>
+                  ) : null}
                 </View>
                 <Text
                   style={{ ...typography.caption, color: colors.text }}
@@ -269,8 +347,9 @@ function VoiceRoomBody({
                 >
                   {participant.name?.trim() || participant.username}
                 </Text>
-              </View>
-            ))
+              </Pressable>
+              );
+            })
           )}
             </View>
           )}
@@ -297,15 +376,40 @@ function VoiceRoomBody({
           </View>
         ) : null}
 
+        {pushToTalk || (!isStage && serverId) ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <View style={{ flex: 1 }}>{pushToTalk ? <PushToTalkButton /> : null}</View>
+            {!isStage && serverId ? (
+              <IconButton
+                icon="sparkles"
+                label="Soundboard"
+                size={48}
+                background={colors.raised}
+                tint={colors.bright}
+                onPress={() => setSoundboardOpen(true)}
+              />
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={{ paddingBottom: spacing.lg }}>
           <CallControls
             onHangUp={onLeave}
             hangUpLabel="Kanaldan ayrıl"
             showCamera={isVideo}
             allowEarpiece={!isVideo}
+            showMic={!pushToTalk && (!isStage || canPublish)}
           />
         </View>
       </View>
+
+      {moderation.sheets}
+      <SoundboardSheet
+        serverId={serverId}
+        visible={soundboardOpen}
+        onClose={() => setSoundboardOpen(false)}
+        onPlay={(sound) => void soundboard.play(sound)}
+      />
     </Screen>
   );
 }

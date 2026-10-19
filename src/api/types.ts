@@ -696,3 +696,143 @@ export interface ServerTiersResponse {
 export interface CheckoutResponse {
   paymentId: string;
 }
+
+// ── Kanal ek alanları ───────────────────────────────────────────────
+
+/**
+ * ciklet-web: `GET /api/channels?serverId=` Prisma satırını olduğu gibi
+ * döndürür; SDK'nın `Channel` tipinde olmayan kanal bayrakları burada.
+ * Hepsi isteğe bağlı: eski sunucu yanıtı ya da kalıcı önbellek taşımayabilir.
+ */
+export interface ChannelExtras {
+  topic?: string | null;
+  /** Yaş sınırlı kanal — ilk açılışta perde. */
+  nsfw?: boolean;
+  /** Yalnızca ekli mesaj kabul eden kanal (galeri görünümü). */
+  mediaOnly?: boolean;
+  /** Sahne kanalı (yalnızca AUDIO). */
+  stage?: boolean;
+  /** Forum kanalı: doğrudan yazılmaz, her gönderi bir alt başlık. */
+  forum?: boolean;
+  forumTags?: string[];
+  announcement?: boolean;
+  /** Ses kanalı durumu — kanal listesinde adın altında. */
+  voiceStatus?: string | null;
+  parentChannelId?: string | null;
+  archivedAt?: string | null;
+}
+
+// ── Sunucu izinleri ve moderasyon ───────────────────────────────────
+
+/** ciklet-web: `GET /api/servers/[id]/my-permissions` */
+export interface MyServerPermissions {
+  isOwner: boolean;
+  memberRole: "ADMIN" | "MODERATOR" | "GUEST" | null;
+  topPosition: number;
+  /** BigInt'in ondalık metni. */
+  permissions: string;
+  /** Açık izin bitlerinin adları (`BotPermissions` anahtarları). */
+  keys: string[];
+}
+
+/** ciklet-web: `lib/server-members.ts` → `ServerMemberListItem` (sayfalı üye listesi). */
+export interface ServerMemberListItem {
+  id: string;
+  role: "ADMIN" | "MODERATOR" | "GUEST";
+  profileId: string;
+  serverId: string;
+  nickname: string | null;
+  /** Etkin zaman aşımı bitişi (ISO) ya da null. */
+  timedOutUntil: string | null;
+  serverImageUrl: string | null;
+  profile: {
+    id: string;
+    username: string;
+    name: string | null;
+    imageUrl: string | null;
+    isBot: boolean;
+  };
+  roles: { id: string; name: string; color: string | null; hoist: boolean; position: number }[];
+}
+
+export interface ServerMembersPage {
+  items: ServerMemberListItem[];
+  nextCursor: string | null;
+}
+
+/** ciklet-web: `GET /api/servers/[id]/rules` */
+export interface ServerRulesState {
+  required: boolean;
+  text: string | null;
+  serverName: string;
+  acceptedAt: string | null;
+  /** Bu üye kabul etmeden yazamaz mı (sahip/yönetici muaf). */
+  pending: boolean;
+}
+
+// ── Alt başlıklar ve forum ──────────────────────────────────────────
+
+/** ciklet-web: `GET /api/channels/[id]/threads` satırı. */
+export interface ThreadSummary {
+  id: string;
+  name: string;
+  createdAt: string;
+  archivedAt: string | null;
+  latestMessageId: string | null;
+  profileId: string;
+  threadStarterMessageId: string | null;
+}
+
+/** ciklet-web: `GET /api/channels/[id]/forum` gönderisi. */
+export interface ForumPost {
+  id: string;
+  name: string;
+  /** İlk mesajdan özet. */
+  topic: string | null;
+  appliedTags: string[];
+  createdAt: string;
+  latestMessageId: string | null;
+  archivedAt: string | null;
+  lastActivityMs: number;
+  profile: { id: string; username: string; name: string | null; imageUrl: string | null };
+}
+
+export interface ForumResponse {
+  tags: string[];
+  canPost: boolean;
+  posts: ForumPost[];
+}
+
+// ── Zamanlanmış etkinlikler ─────────────────────────────────────────
+
+export type ServerEventStatus = "SCHEDULED" | "ACTIVE" | "COMPLETED" | "CANCELED";
+
+/** ciklet-web: `lib/server-events/present.ts` → `presentEvent`. */
+export interface ServerEventItem {
+  id: string;
+  serverId: string;
+  channelId: string | null;
+  channelName: string | null;
+  name: string;
+  description: string | null;
+  location: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  status: ServerEventStatus;
+  creator: { username: string; name: string | null; imageUrl: string | null } | null;
+  interestedCount: number;
+  interested: boolean;
+}
+
+// ── Soundboard ──────────────────────────────────────────────────────
+
+/** ciklet-web: `ServerSound` satırı (`GET /api/servers/[id]/sounds`). */
+export interface ServerSoundItem {
+  id: string;
+  serverId: string;
+  name: string;
+  emoji: string | null;
+  audioUrl: string;
+  /** Yüzde 0–200; çalan taraf uygular. */
+  volume: number;
+}

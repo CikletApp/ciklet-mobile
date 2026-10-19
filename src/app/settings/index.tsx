@@ -12,6 +12,7 @@ import {
   showDialog,
 } from "@/components/ui";
 import { displayNameOf, formatDate } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { stopGateway } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
 import { THEME_LABELS, useTheme } from "@/stores/theme";
@@ -27,12 +28,13 @@ export default function SettingsScreen() {
   const { data: profile } = useCurrentProfile();
   const logout = useAuth((s) => s.logout);
   const themeId = useTheme((s) => s.themeId);
+  const t = useT();
 
   const onLogout = () => {
-    showDialog("Çıkış yap", "Oturumun bu cihazda kapatılacak.", [
-      { text: "Vazgeç", style: "cancel" },
+    showDialog(t("settings.logout.title"), t("settings.logout.message"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Çıkış Yap",
+        text: t("settings.logout.action"),
         style: "destructive",
         onPress: () => {
           stopGateway();
@@ -61,24 +63,24 @@ export default function SettingsScreen() {
                 />
               }
               onPress={() => router.push("/profile/edit")}
-              accessibilityHint="Profilini düzenle"
+              accessibilityHint={t("settings.editProfile")}
             />
           </ListGroup>
         </View>
 
-        <SectionHeader title="HESAP AYARLARI" />
+        <SectionHeader title={t("settings.sections.account")} />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
             <ListRow
               icon="user"
-              title="Hesap"
+              title={t("settings.rows.account")}
               detail={profile?.email ?? undefined}
               onPress={() => router.push("/settings/account")}
             />
             <Divider inset={52} />
             <ListRow
               icon="sparkles"
-              title="Mentol"
+              title={t("settings.rows.mentol")}
               onPress={() => router.push("/settings/mentol")}
             />
             <Divider inset={52} />
@@ -90,74 +92,74 @@ export default function SettingsScreen() {
             <Divider inset={52} />
             <ListRow
               icon="shield"
-              title="Gizlilik, Veri ve Sosyal"
+              title={t("settings.rows.privacy")}
               onPress={() => router.push("/settings/privacy")}
             />
             <Divider inset={52} />
             <ListRow
               icon="users"
-              title="Arkadaşlık İstekleri"
+              title={t("settings.rows.friendRequests")}
               onPress={() => router.push("/friends")}
             />
             <Divider inset={52} />
             <ListRow
               icon="link"
-              title="Yetkili Uygulamalar"
+              title={t("settings.rows.authorizedApps")}
               onPress={() => router.push("/settings/authorized-apps")}
             />
           </ListGroup>
         </View>
 
-        <SectionHeader title="UYGULAMA AYARLARI" />
+        <SectionHeader title={t("settings.sections.app")} />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
             <ListRow
               icon="volume"
-              title="Ses ve Video"
+              title={t("settings.rows.voice")}
               onPress={() => router.push("/settings/voice")}
             />
             <Divider inset={52} />
             <ListRow
               icon="palette"
-              title="Görünüm"
+              title={t("settings.rows.appearance")}
               detail={THEME_LABELS[themeId]}
               onPress={() => router.push("/settings/appearance")}
             />
             <Divider inset={52} />
             <ListRow
               icon="message"
-              title="Sohbet"
+              title={t("settings.rows.chat")}
               onPress={() => router.push("/settings/chat")}
             />
             <Divider inset={52} />
             <ListRow
               icon="bell"
-              title="Bildirimler"
+              title={t("settings.rows.notifications")}
               onPress={() => router.push("/settings/notifications")}
             />
           </ListGroup>
         </View>
 
-        <SectionHeader title="DESTEK" />
+        <SectionHeader title={t("settings.sections.support")} />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
             <ListRow
               icon="help"
-              title="Yardım"
-              subtitle="Destek, geri bildirim, koşullar"
+              title={t("settings.rows.help")}
+              subtitle={t("settings.rows.helpSubtitle")}
               onPress={() => router.push("/settings/help")}
             />
           </ListGroup>
         </View>
 
-        <SectionHeader title="OTURUM" />
+        <SectionHeader title={t("settings.sections.session")} />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
             <ListRow
               icon="logout"
               iconTint={colors.danger}
               titleColor={colors.danger}
-              title="Çıkış Yap"
+              title={t("settings.logout.action")}
               onPress={onLogout}
               chevron={false}
             />
@@ -175,7 +177,7 @@ export default function SettingsScreen() {
               paddingTop: spacing.xl,
             }}
           >
-            {formatDate(profile.createdAt)} tarihinden beri Ciklet’te
+            {t("settings.memberSince", { date: formatDate(profile.createdAt) })}
           </Text>
         ) : null}
       </ScrollView>

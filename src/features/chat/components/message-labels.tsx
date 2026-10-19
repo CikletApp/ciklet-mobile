@@ -50,13 +50,13 @@ export function SilentLabel() {
 }
 
 /** Alt başlık açılmış mesajın altındaki bağlantı; dokununca alt başlığın sohbeti açılır. */
-export function ThreadLink({ serverId, thread }: { serverId: string; thread: ThreadMeta }) {
+export function ThreadLink({ serverId, parentId, thread }: { serverId: string; parentId: string; thread: ThreadMeta }) {
   return (
     <Pressable
       onPress={() =>
         router.push({
           pathname: "/chat/channel/[channelId]",
-          params: { channelId: thread.id, serverId, name: thread.name },
+          params: { channelId: thread.id, serverId, parentId, threadName: thread.name },
         })
       }
       accessibilityRole="link"

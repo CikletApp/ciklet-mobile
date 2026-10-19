@@ -8,22 +8,33 @@ import {
 } from "@ciklet/embedded-activities-sdk/types";
 
 import {
+  hasServerPermission,
   useMyMembership,
+  useMyPermissions,
+  useNotificationSettings,
   useServerChannels,
   useServerDetails,
   useServerMembers,
   useServerSummary,
   useServerTiers,
+  useSidebarThreads,
   useUnreadCounts,
 } from "@/api/hooks";
+import type { ChannelExtras } from "@/api/types";
 import {
+  ActionSheet,
   Avatar,
   Icon,
   IconButton,
   Pressable,
   UnreadBadge,
+  type ActionSheetItem,
   type IconName,
 } from "@/components/ui";
+import { openNotificationSettings } from "@/features/notifications/notification-sheet";
+import { openThread } from "@/features/server/thread-nav";
+import { effectiveChannelNotification, findSetting } from "@/lib/notification-settings";
+import { useNow } from "@/lib/use-now";
 import { usePresenceStore } from "@/stores/presence";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -41,8 +52,11 @@ export default function ServerChannelsScreen() {
   const { data: channels, isLoading } = useServerChannels(serverId);
   const { data: membership } = useMyMembership(serverId);
   const { data: unread } = useUnreadCounts();
-  const canManageChannels =
-    membership?.role === MemberRole.ADMIN || membership?.role === MemberRole.MODERATOR;
+  // Rol izin sistemi: "Kanalları Yönet" biti; izinler gelene dek eski katman kuralı.
+  const { data: permissions } = useMyPermissions(serverId);
+  const canManageChannels = permissions
+    ? hasServerPermission(permissions, "MANAGE_CHANNELS")
+    : membership?.role === MemberRole.ADMIN || membership?.role === MemberRole.MODERATOR;
 
   /** Katlanan kategoriler — uzun kanal listelerinde ses/görüntü bölümlerini
       kapatmak metin kanallarına ulaşmayı tek kaydırmaya indiriyor. */
@@ -56,6 +70,44 @@ export default function ServerChannelsScreen() {
     });
 
   const sections = buildSections(channels ?? []);
+  // Açık alt başlıklar üst kanalın altında (web kenar çubuğu; forum hariç).
+  const threadsByParent = useSidebarThreads(serverId, channels);
+  const { data: notificationSettings } = useNotificationSettings();
+  const now = useNow(60_000);
+  /** Basılı tutulan kanal — eylem sayfası (bildirimler, düzenle). */
+  const [menuChannel, setMenuChannel] = useState<Channel | null>(null);
+  const channelMuted = (channelId: string) =>
+    effectiveChannelNotification(
+      findSetting(notificationSettings, { channelId }),
+      findSetting(notificationSettings, { serverId }),
+      now
+    ).muted;
+
+  const menuItems: ActionSheetItem[] = menuChannel
+    ? [
+        {
+          key: "notifications",
+          label: "Bildirimler",
+          icon: "bell-off",
+          onPress: () =>
+            openNotificationSettings({
+              target: { channelId: menuChannel.id, serverId },
+              kind: "channel",
+              title: `#${menuChannel.name}`,
+            }),
+        },
+        ...(canManageChannels
+          ? [
+              {
+                key: "edit",
+                label: "Kanalı düzenle",
+                icon: "pencil" as const,
+                onPress: () => router.push(`/servers/${serverId}/channels/${menuChannel.id}`),
+              },
+            ]
+          : []),
+      ]
+    : [];
 
   return (
     <Screen>
@@ -156,15 +208,40 @@ export default function ServerChannelsScreen() {
             );
           }}
           renderItem={({ item }) => (
-            <ChannelRow
-              serverId={serverId}
-              channel={item}
-              canManage={canManageChannels}
-              unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
-            />
+            <>
+              <ChannelRow
+                serverId={serverId}
+                channel={item}
+                muted={channelMuted(item.id)}
+                onLongPress={() => setMenuChannel(item)}
+                unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
+              />
+              {threadsByParent.get(item.id)?.map((thread) => (
+                <ThreadRow
+                  key={thread.id}
+                  name={thread.name}
+                  unread={unread?.channelUnreads?.[thread.id]?.count ?? 0}
+                  onPress={() => openThread(serverId, item.id, thread)}
+                />
+              ))}
+            </>
           )}
         />
       )}
+
+      <ActionSheet
+        visible={menuChannel !== null}
+        onClose={() => setMenuChannel(null)}
+        header={
+          menuChannel ? (
+            <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
+              {menuChannel.type === ChannelType.TEXT ? "#" : ""}
+              {menuChannel.name}
+            </Text>
+          ) : undefined
+        }
+        items={menuItems}
+      />
     </Screen>
   );
 }
@@ -223,6 +300,13 @@ function ServerHero({
             onPress={() => void Share.share({ message: `https://ciklet.xyz/i/${inviteCode}` })}
           />
         ) : null}
+        <HeroAction
+          icon="bell"
+          label="Bildirimler"
+          onPress={() => openNotificationSettings({ target: { serverId }, kind: "server", title: name })}
+        />
+        <HeroAction icon="clock" label="Etkinlikler" onPress={() => router.push(`/servers/${serverId}/events`)} />
+        <HeroAction icon="users" label="Üyeler" onPress={() => router.push(`/servers/${serverId}/members`)} />
         <HeroAction icon="settings" label="Ayarlar" onPress={() => router.push(`/servers/${serverId}/settings`)} />
         {showSubscriptions ? (
           <HeroAction icon="sparkles" label="Abonelikler" onPress={() => router.push(`/servers/${serverId}/subscriptions`)} />
@@ -266,18 +350,32 @@ const CHANNEL_ICON: Record<string, IconName> = {
 function ChannelRow({
   serverId,
   channel,
-  canManage,
+  muted,
+  onLongPress,
   unread,
 }: {
   serverId: string;
   channel: Channel;
-  canManage: boolean;
+  /** Kanal ya da sunucu susturulmuş: satır geri çekilir, rozet sayılmaz. */
+  muted: boolean;
+  onLongPress: () => void;
   unread: number;
 }) {
   const isText = channel.type === ChannelType.TEXT;
   const isAudio = channel.type === ChannelType.AUDIO;
   const isVideo = channel.type === ChannelType.VIDEO;
   const enabled = isText || isAudio || isVideo;
+  const extras = channel as Channel & ChannelExtras;
+  const icon: IconName = extras.forum
+    ? "list"
+    : extras.stage
+      ? "mic"
+      : extras.mediaOnly
+        ? "image"
+        : (CHANNEL_ICON[channel.type] ?? "hash");
+  // Ses kanalı durumu (web: kenar çubuğunda adın altında).
+  const voiceStatus = !isText ? extras.voiceStatus?.trim() : undefined;
+  const lit = unread > 0 && !muted;
 
   return (
     <Pressable
@@ -290,14 +388,10 @@ function ChannelRow({
           router.push(`/voice/${channel.id}?serverId=${serverId}&video=1`);
         }
       }}
-      onLongPress={
-        canManage
-          ? () => router.push(`/servers/${serverId}/channels/${channel.id}`)
-          : undefined
-      }
+      onLongPress={onLongPress}
       disabled={!enabled}
       accessibilityRole="button"
-      accessibilityLabel={`${channel.name} kanalı`}
+      accessibilityLabel={`${channel.name} kanalı${muted ? ", susturuldu" : ""}${voiceStatus ? `, ${voiceStatus}` : ""}`}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
@@ -307,25 +401,62 @@ function ChannelRow({
         paddingVertical: spacing.md,
         borderRadius: radii.md,
         backgroundColor: pressed ? colors.raised : "transparent",
-        opacity: enabled ? 1 : 0.5,
+        opacity: enabled ? (muted ? 0.6 : 1) : 0.5,
       })}
     >
-      <Icon
-        name={CHANNEL_ICON[channel.type] ?? "hash"}
-        size={20}
-        color={unread > 0 ? colors.bright : colors.muted}
-      />
+      <Icon name={icon} size={20} color={lit ? colors.bright : colors.muted} />
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text
+          style={{
+            ...typography.body,
+            ...fw(lit ? 700 : 500),
+            // Okunmuş kanal geri çekilir; okunmamış olan listeden öne çıkar.
+            color: lit ? colors.bright : colors.muted,
+          }}
+          numberOfLines={1}
+        >
+          {channel.name}
+        </Text>
+        {voiceStatus ? (
+          <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
+            {voiceStatus}
+          </Text>
+        ) : null}
+      </View>
+      {muted ? <Icon name="bell-off" size={15} color={colors.muted} /> : null}
+      {lit ? <UnreadBadge count={unread} tone="brand" /> : null}
+    </Pressable>
+  );
+}
+
+/** Üst kanalın altında girintili alt başlık satırı. */
+function ThreadRow({ name, unread, onPress }: { name: string; unread: number; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${name} alt başlığı`}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        marginLeft: spacing.sm + spacing.md + 9,
+        marginRight: spacing.sm,
+        paddingLeft: spacing.md,
+        paddingRight: spacing.md,
+        paddingVertical: spacing.sm,
+        borderLeftWidth: 2,
+        borderLeftColor: colors.border,
+        borderTopRightRadius: radii.md,
+        borderBottomRightRadius: radii.md,
+        backgroundColor: pressed ? colors.raised : "transparent",
+      })}
+    >
       <Text
-        style={{
-          ...typography.body,
-          ...fw(unread > 0 ? 700 : 500),
-          // Okunmuş kanal geri çekilir; okunmamış olan listeden öne çıkar.
-          color: unread > 0 ? colors.bright : colors.muted,
-          flex: 1,
-        }}
+        style={{ ...typography.caption, fontSize: 14, ...fw(unread > 0 ? 700 : 500), color: unread > 0 ? colors.bright : colors.muted, flex: 1 }}
         numberOfLines={1}
       >
-        {channel.name}
+        {name}
       </Text>
       {unread > 0 ? <UnreadBadge count={unread} tone="brand" /> : null}
     </Pressable>

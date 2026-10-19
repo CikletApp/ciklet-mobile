@@ -19,6 +19,7 @@ import {
   showToast,
   type ActionSheetItem,
 } from "@/components/ui";
+import { openNotificationSettings } from "@/features/notifications/notification-sheet";
 import { isOfficialProfile } from "@/lib/official";
 import { usePreferences } from "@/stores/preferences";
 import { fw } from "@/theme/fonts";
@@ -90,6 +91,15 @@ export function ChatActionsSheet({
     label: pinned ? "Sabitlemeyi kaldır" : "Sabitle",
     icon: pinned ? "pin-off" : "pin",
     onPress: () => onTogglePinned(item.id),
+  });
+
+  // Sohbet başına süreli susturma (web: sağ tık → Bildirimler).
+  items.push({
+    key: "notifications",
+    label: "Bildirimler",
+    icon: "bell-off",
+    onPress: () =>
+      openNotificationSettings({ target: { directId: item.id }, kind: "direct", title: display.title }),
   });
 
   if (display.isGroup) {

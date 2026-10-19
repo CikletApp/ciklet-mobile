@@ -423,7 +423,7 @@ export function MessageItem({
           >
             {caption}
             <MessageEmbeds metadata={message.metadata} />
-            {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} thread={thread} /> : null}
+            {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} parentId={scope.chatId} thread={thread} /> : null}
             {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
             <MessageTime message={message} />
             {reactions}
@@ -484,7 +484,7 @@ export function MessageItem({
 
           {!message.deleted ? <MessageEmbeds metadata={message.metadata} /> : null}
 
-          {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} thread={thread} /> : null}
+          {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} parentId={scope.chatId} thread={thread} /> : null}
           {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
 
           {bareMedia ? null : <MessageTime message={message} />}

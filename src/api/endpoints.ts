@@ -167,7 +167,6 @@ export const endpoints = {
   channelInteraction: (channelId: string, interactionId: string) =>
     `/api/channels/${encodeURIComponent(channelId)}/interactions/${encodeURIComponent(interactionId)}`,
   /** POST `{ name?, messageId?, autoArchiveMinutes }` → `{ id }` — mesajdan alt başlık. */
-  channelThreads: (channelId: string) => `/api/channels/${encodeURIComponent(channelId)}/threads`,
   /** POST `{ chatId, scope, optionIds }` — anket oyu. */
   pollVote: (messageId: string) => `/api/messages/${encodeURIComponent(messageId)}/poll/vote`,
 
@@ -275,4 +274,77 @@ export const endpoints = {
     `/api/servers/${encodeURIComponent(serverId)}/subscription-tiers/${encodeURIComponent(tierId)}/checkout`,
   /** Web ödeme sayfası (API değil; tarayıcıda açılır). */
   paymentPage: (paymentId: string) => `/mentol/odeme/${encodeURIComponent(paymentId)}`,
+
+  // ── Bildirim ayarları (sunucu / kanal / DM) ───────────────────────
+  /**
+   * GET: tüm kayıtlar (`label` dolu); PUT `{ serverId|channelId|directId,
+   * level?, mutedUntil?, suppressEveryone? }` tek hedefi yazar (verilmeyen
+   * alan korunur); DELETE aynı hedef gövdesiyle varsayılana döner.
+   */
+  notificationSettings: "/api/notification-settings",
+
+  // ── Sunucu yetkileri ve moderasyon ────────────────────────────────
+  /** GET `{ isOwner, memberRole, topPosition, permissions, keys }` — yalnızca arayüz ipucu. */
+  myPermissions: (serverId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/my-permissions`,
+  /** Sayfalı üye listesi (`{ items, nextCursor }`, sayfa başı en çok 50). */
+  serverMembersPage: (serverId: string, cursor?: string | null, q?: string) =>
+    `/api/members${qs({ serverId, cursor, q })}`,
+  /** DELETE — üyeyi sunucudan at (moderatör+, hiyerarşi sunucuda). */
+  memberKick: (memberId: string, serverId: string) =>
+    `/api/members/${encodeURIComponent(memberId)}${qs({ serverId })}`,
+  /** POST `{ seconds, reason? }` zaman aşımı verir; `{ seconds: null }` kaldırır. */
+  memberTimeout: (memberId: string) =>
+    `/api/members/${encodeURIComponent(memberId)}/timeout`,
+  /** GET `{ required, text, serverName, acceptedAt, pending }` — kural perdesi. */
+  serverRules: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/rules`,
+  serverRulesAccept: (serverId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/rules/accept`,
+
+  // ── Alt başlıklar ve forum ────────────────────────────────────────
+  /** GET açık (ya da `archived`) alt başlıklar, en çok 50; POST `{ name?, messageId? }`. */
+  channelThreads: (channelId: string, archived = false) =>
+    `/api/channels/${encodeURIComponent(channelId)}/threads${qs({ archived: archived ? 1 : undefined })}`,
+  /** POST `{ archived }` — alt başlığı arşivle / arşivden çıkar. */
+  threadArchive: (threadId: string) =>
+    `/api/channels/${encodeURIComponent(threadId)}/archive`,
+  /** GET `{ tags, canPost, posts }`; POST `{ title, content, tags? }` → `{ id }`. */
+  forumPosts: (
+    channelId: string,
+    params: { sort?: "activity" | "created"; tag?: string; archived?: boolean } = {}
+  ) =>
+    `/api/channels/${encodeURIComponent(channelId)}/forum${qs({
+      sort: params.sort,
+      tag: params.tag,
+      archived: params.archived ? 1 : undefined,
+    })}`,
+
+  // ── Zamanlanmış etkinlikler ───────────────────────────────────────
+  /** GET yaklaşan + süren (`all` geçmişi de ekler); POST yeni (moderatör+). */
+  serverEvents: (serverId: string, all = false) =>
+    `/api/servers/${encodeURIComponent(serverId)}/events${qs({ all: all ? 1 : undefined })}`,
+  /** PATCH `{ status }` ya da alanlar; DELETE. */
+  serverEvent: (serverId: string, eventId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/events/${encodeURIComponent(eventId)}`,
+  /** POST ilgileniyorum / DELETE geri al → `{ interested, interestedCount }`. */
+  serverEventInterest: (serverId: string, eventId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/events/${encodeURIComponent(eventId)}/interest`,
+
+  /**
+   * Sunucu içi mesaj arama — DM aramasıyla aynı süzgeç dili; yanıt
+   * `{ items (channelId ekli), total, nextCursor, channels: {id: ad} }`.
+   */
+  serverMessageSearch: (
+    serverId: string,
+    params: { q?: string; cursor?: string; order?: "newest" | "oldest"; channel?: string } = {}
+  ) => `/api/servers/${encodeURIComponent(serverId)}/messages/search${qs(params)}`,
+
+  // ── Ses: soundboard, sahne, moderasyon ────────────────────────────
+  /** GET sunucu sesleri (`ServerSound[]`). */
+  serverSounds: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/sounds`,
+  /** POST `{ action: speak|listen|promote|demote, identity? }`. */
+  stage: (channelId: string) => `/api/channels/${encodeURIComponent(channelId)}/stage`,
+  /** POST `{ profileId, action: mute|unmute|disconnect|move, targetChannelId? }`. */
+  voiceModerate: (channelId: string) =>
+    `/api/channels/${encodeURIComponent(channelId)}/voice/moderate`,
 } as const;

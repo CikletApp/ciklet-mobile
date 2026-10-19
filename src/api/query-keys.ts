@@ -84,4 +84,23 @@ export const qk = {
   messageRequests: ["message-requests"] as const,
   store: ["store"] as const,
   serverTiers: (serverId: string) => ["server-tiers", serverId] as const,
+
+  /** Bildirim ayarları (tek liste: sunucu, kanal, DM). */
+  notificationSettings: ["notification-settings"] as const,
+  /** Oturum sahibinin sunucudaki izinleri. */
+  myPermissions: (serverId: string) => ["my-permissions", serverId] as const,
+  /** Sayfalı üye listesi (moderasyon ekranı). */
+  memberPages: (serverId: string, query: string) => ["members", serverId, "pages", query] as const,
+  serverRules: (serverId: string) => ["server-rules", serverId] as const,
+  /**
+   * Alt başlıklar `channels` altında: kanal yerleşimi değişince
+   * (`server.channels_updated`) kanal listesiyle birlikte tazelenir.
+   */
+  threads: (serverId: string, channelId: string, archived: boolean) =>
+    ["channels", serverId, "threads", channelId, archived ? "archived" : "open"] as const,
+  forum: (serverId: string, channelId: string, filter: string) =>
+    ["channels", serverId, "forum", channelId, filter] as const,
+  serverEvents: (serverId: string) => ["server-events", serverId] as const,
+  serverSearch: (serverId: string, query: string) => ["server-search", serverId, query] as const,
+  serverSounds: (serverId: string) => ["server-sounds", serverId] as const,
 } as const;

@@ -3,10 +3,17 @@ import { AppState } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { useNotificationSettings } from "@/api/hooks/use-notification-settings";
 import { qk } from "@/api/query-keys";
 import type { ProfileAnnotationEntry } from "@/api/types";
 import { showInAppNotice } from "@/components/in-app-notice";
 import { isHiddenChannel } from "@/features/unread/unread-cache";
+import {
+  effectiveChannelNotification,
+  effectiveDirectNotification,
+  findSetting,
+  type NotificationSettingRecord,
+} from "@/lib/notification-settings";
 import { playMessageTone, primeSounds } from "@/lib/sounds";
 import { activeChatId } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
@@ -32,6 +39,8 @@ import { onGatewayEvent } from "./gateway";
 export function useSocialEvents() {
   const queryClient = useQueryClient();
   const status = useAuth((s) => s.status);
+  // Bildirim ayarları önbellekte hazır dursun; karar anında oradan okunur.
+  useNotificationSettings();
 
   useEffect(() => {
     if (status !== "signedIn") return;
@@ -54,6 +63,20 @@ export function useSocialEvents() {
       if (chatId && activeChatId() === chatId) return false;
       return true;
     };
+
+    /** Sunucu / kanal / DM bildirim ayarı (web `effective*Notification`). */
+    const settings = () => queryClient.getQueryData<NotificationSettingRecord[]>(qk.notificationSettings);
+    const channelAllows = (serverId: string | null, channelId: string, mention: boolean) => {
+      const list = settings();
+      const effective = effectiveChannelNotification(
+        findSetting(list, { channelId }),
+        serverId ? findSetting(list, { serverId }) : undefined,
+        Date.now()
+      );
+      return mention ? effective.notifyMentions : effective.notifyMessages;
+    };
+    const directAllows = (directId: string) =>
+      effectiveDirectNotification(findSetting(settings(), { directId }), Date.now()).notifyMessages;
 
     const ignoring = (profileId: string) => {
       const list = queryClient.getQueryData<ProfileAnnotationEntry[]>(qk.annotations);
@@ -89,6 +112,7 @@ export function useSocialEvents() {
         if (!sender?.id || !sender.username || sender.id === myId) return;
         if (frame.isSpam === true || ignoring(sender.id)) return;
         if (!noticeAllowed(directId)) return;
+        if (directId && !directAllows(directId)) return;
 
         void playMessageTone();
         showInAppNotice({
@@ -108,6 +132,7 @@ export function useSocialEvents() {
         const channelName = typeof frame.channelName === "string" ? frame.channelName : null;
         const content = typeof frame.content === "string" ? frame.content : "";
         if (!channelId || !noticeAllowed(channelId)) return;
+        if (!channelAllows(serverId || null, channelId, true)) return;
 
         void playMessageTone();
         showInAppNotice({
@@ -129,6 +154,7 @@ export function useSocialEvents() {
         if (typeof serverId !== "string" || typeof channelId !== "string" || typeof senderId !== "string") return;
         if (senderId === useAuth.getState().profile?.id || ignoring(senderId)) return;
         if (isHiddenChannel(queryClient, serverId, channelId) || !noticeAllowed(channelId)) return;
+        if (!channelAllows(serverId, channelId, false)) return;
         void playMessageTone();
       }),
       onGatewayEvent(ServerEvent.SERVERS_REMOVED, () => invalidate(qk.memberships, qk.unreadCounts)),
