@@ -80,10 +80,14 @@ export default function ChannelChatScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <IconButton
                 icon="search"
-                label="Sohbette ara"
+                label="Sunucuda ara"
                 background="transparent"
                 tint={colors.bright}
-                onPress={() => router.push("/search")}
+                onPress={() =>
+                  serverId
+                    ? router.push(`/servers/${serverId}/search?channel=${channelId}`)
+                    : router.push("/search")
+                }
               />
               <IconButton
                 icon="compass"
