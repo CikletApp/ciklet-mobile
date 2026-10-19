@@ -18,9 +18,22 @@ import {
   EmptyState,
   Screen,
   ScreenLoader,
+  SegmentedTabs,
   showDialog,
   Tag,
+  type TabItem,
 } from "@/components/ui";
+import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
+import {
+  ActivityList,
+  BadgeRow,
+  Card,
+  CollectionGrid,
+  ConnectionList,
+  PeopleList,
+} from "@/features/profile/profile-sections";
+import { ListenAlongBar, SpotifyCard } from "@/features/spotify/spotify-card";
+import { activeCustomStatus } from "@/lib/custom-status";
 import { displayNameOf, formatDate } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
@@ -31,9 +44,14 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * Kullanıcı profili — web'deki üye kartının mobil karşılığı.
  *
  * Veri `GET /api/profile/[id]/card` ucundan gelir: bio, pronouns, banner
- * rengi, Mentol rozeti, arkadaşlık durumu ve ortak arkadaşlar tek istekte.
- * Uç gelmeden önce başlık alanları cache'ten (arkadaş/DM listeleri)
- * doldurulur ki ekran boş açılmasın.
+ * rengi, rozetler, arkadaşlık durumu, ortak arkadaş/sunucular, son
+ * etkinlikler, oyun koleksiyonu ve bağlantılar tek istekte. Uç gelmeden
+ * önce başlık alanları cache'ten (arkadaş/DM listeleri) doldurulur ki ekran
+ * boş açılmasın.
+ *
+ * Sekmeler web ile aynı: Pano / Etkinlik / Ortak Arkadaşlar / Ortak
+ * Sunucular (kendi profilinde ortak sekmeleri yok). Dar ekranda dört sekme
+ * sığmadığı için çip şeridi yatay kayar — üst üste binme yok.
  *
  * Kişisel kayıtlar (takma ad, not, yok say) yalnızca oturum sahibine ait ve
  * karşı taraf hiçbir yolla göremez — `/api/profile-annotations`.
@@ -51,12 +69,21 @@ interface ProfileView {
   bannerColor?: string | null;
   /** Yüklenen afiş görseli; varsa renk yerine bu çizilir (web ile aynı). */
   bannerUrl?: string | null;
+  avatarDecorationId?: string | null;
+  customStatusText?: string | null;
+  customStatusEmoji?: string | null;
+  customStatusUntil?: string | null;
+  profileEffectId?: string | null;
 }
+
+type CardTab = "pano" | "etkinlik" | "arkadaslar" | "sunucular";
 
 const PLAN_LABELS: Record<string, string> = {
   PLUS: "MENTOL PLUS",
   PRO: "MENTOL PRO",
 };
+
+const BANNER_HEIGHT = 110;
 
 export default function ProfileScreen() {
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
@@ -67,6 +94,7 @@ export default function ProfileScreen() {
   const openDirect = useOpenDirect();
   const { placeCall } = useCallActions();
   const presence = usePresence(profileId);
+  const [tab, setTab] = useState<CardTab>("pano");
 
   const cached = useMemo<ProfileView | undefined>(() => {
     const friend = accepted.find((f) => f.profile.id === profileId)?.profile;
@@ -108,11 +136,36 @@ export default function ProfileScreen() {
     );
   }
 
-  const isOfficial = isOfficialProfile(profile) || card.data?.profile.isOfficial === true;
-  const isSelf = card.data?.isSelf ?? false;
-  const planLabel = card.data?.badge ? PLAN_LABELS[card.data.plan] : undefined;
-  const mutuals = card.data?.mutualFriends ?? [];
-  const mutualCount = card.data?.mutualFriendsCount ?? 0;
+  const data = card.data;
+  const isOfficial = isOfficialProfile(profile) || data?.profile.isOfficial === true;
+  const isSelf = data?.isSelf ?? false;
+  // Eski sunucu rozet listesi göndermiyorsa yalnızca plan etiketi kalır.
+  const badges = data?.badges;
+  const planLabel = !badges && data?.badge ? PLAN_LABELS[data.plan] : undefined;
+  const mutuals = data?.mutualFriends ?? [];
+  const mutualCount = data?.mutualFriendsCount ?? 0;
+  const mutualServers = data?.mutualServers ?? [];
+  const recentActivity = data?.recentActivity ?? [];
+  const games = data?.collection?.games ?? [];
+  const programs = data?.collection?.programs ?? [];
+  const connections = data?.connections ?? [];
+  const customStatus = activeCustomStatus(profile);
+  const title = annotation?.nickname?.trim() || displayNameOf(profile);
+  const friendship = data?.friendship;
+  const friendsSince =
+    friendship?.status === "ACCEPTED" && (friendship.acceptedAt || friendship.createdAt)
+      ? formatDate((friendship.acceptedAt || friendship.createdAt)!)
+      : null;
+  const showSpotify = connections.some((c) => c.type === "spotify" && c.verified);
+
+  const tabs: TabItem<CardTab>[] = [
+    { id: "pano", label: "Pano" },
+    { id: "etkinlik", label: "Etkinlik", count: recentActivity.length || undefined },
+  ];
+  if (!isSelf) {
+    tabs.push({ id: "arkadaslar", label: "Ortak Arkadaşlar", count: mutualCount || undefined });
+    tabs.push({ id: "sunucular", label: "Ortak Sunucular", count: mutualServers.length || undefined });
+  }
 
   const startCall = (kind: "audio" | "video") => {
     openDirect.mutate(profile.id, {
@@ -128,7 +181,7 @@ export default function ProfileScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View
-          style={{ height: 110, backgroundColor: profile.bannerColor ?? colors.brand }}
+          style={{ height: BANNER_HEIGHT, backgroundColor: profile.bannerColor ?? colors.brand }}
         >
           {profile.bannerUrl ? (
             <Image
@@ -138,6 +191,7 @@ export default function ProfileScreen() {
               style={{ width: "100%", height: "100%" }}
             />
           ) : null}
+          <ProfileEffectOverlay id={profile.profileEffectId} height={BANNER_HEIGHT} />
         </View>
 
         <View style={{ paddingHorizontal: spacing.lg, marginTop: -44, gap: spacing.lg }}>
@@ -150,18 +204,19 @@ export default function ProfileScreen() {
               size={80}
               showPresence={!isOfficial}
               backgroundColor={colors.bg}
+              decorationId={data ? (data.profile.avatarDecorationId ?? null) : undefined}
             />
           </View>
 
-          <View style={{ gap: 2 }}>
+          <View style={{ gap: spacing.xs }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
-              <Text style={{ ...typography.displayLg, color: colors.bright }}>
+              <Text style={{ ...typography.displayLg, color: colors.bright, flexShrink: 1 }}>
                 {/* Takma ad her yerde olduğu gibi burada da gerçek adın önünde. */}
-                {annotation?.nickname?.trim() || displayNameOf(profile)}
+                {title}
               </Text>
-              {isOfficial ? (
+              {!badges && isOfficial ? (
                 <Tag label="RESMÎ" tint={colors.onBrand} background={colors.brand} />
-              ) : profile.isBot ? (
+              ) : !badges && profile.isBot ? (
                 <Tag label="UYG" tint={colors.onBrand} background={colors.brand} />
               ) : null}
               {planLabel ? (
@@ -170,15 +225,35 @@ export default function ProfileScreen() {
             </View>
             <Text style={{ ...typography.body, color: colors.muted }}>
               @{profile.username}
+              {profile.pronouns ? ` · ${profile.pronouns}` : ""}
             </Text>
-            {profile.pronouns ? (
-              <Text style={{ ...typography.caption, color: colors.muted }}>
-                {profile.pronouns}
+            {customStatus ? (
+              <Text style={{ ...typography.body, color: colors.text }} numberOfLines={2}>
+                {customStatus.emoji ? `${customStatus.emoji} ` : ""}
+                {customStatus.text ?? ""}
               </Text>
             ) : null}
+            {badges && badges.length > 0 ? <BadgeRow badges={badges} /> : null}
           </View>
 
-          {!isSelf ? (
+          {isSelf ? (
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <Button
+                label="Profili Düzenle"
+                icon="pencil"
+                variant="primary"
+                style={{ flex: 1 }}
+                onPress={() => router.push("/profile/edit")}
+              />
+              <Button
+                label="Durum"
+                icon="emoji"
+                variant="secondary"
+                style={{ flex: 1 }}
+                onPress={() => router.push("/profile/status")}
+              />
+            </View>
+          ) : (
             <View style={{ flexDirection: "row", gap: spacing.sm }}>
               <Button
                 label="Mesaj"
@@ -213,70 +288,139 @@ export default function ProfileScreen() {
                 </>
               ) : null}
             </View>
+          )}
+
+          {data ? (
+            <View style={{ marginHorizontal: -spacing.lg }}>
+              <SegmentedTabs items={tabs} value={tab} onChange={setTab} variant="pill" />
+            </View>
           ) : null}
 
-          {profile.bio ? (
-            <Card title="HAKKINDA">
-              <Text style={{ ...typography.body, color: colors.text }}>{profile.bio}</Text>
-            </Card>
+          {tab === "etkinlik" ? <ActivityList items={recentActivity} /> : null}
+
+          {tab === "arkadaslar" ? (
+            <PeopleList
+              emptyText="Ortak arkadaşınız yok."
+              items={mutuals.map((f) => ({
+                id: f.id,
+                title: f.name?.trim() || f.username,
+                subtitle: `@${f.username}`,
+                imageUrl: f.imageUrl,
+                seed: f.username,
+                href: `/profile/${f.id}`,
+              }))}
+            />
           ) : null}
 
-          {mutualCount > 0 ? (
-            <Card title="ORTAK ARKADAŞLAR">
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                <View style={{ flexDirection: "row" }}>
-                  {mutuals.map((friend, index) => (
-                    <View
-                      key={friend.id}
-                      style={{
-                        marginLeft: index === 0 ? 0 : -10,
-                        borderRadius: 16,
-                        borderWidth: 2,
-                        borderColor: colors.panel,
-                      }}
-                    >
-                      <Avatar
-                        profileId={friend.id}
-                        imageUrl={friend.imageUrl}
-                        fallbackText={friend.username}
-                        size={28}
-                      />
+          {tab === "sunucular" ? (
+            <PeopleList
+              emptyText="Ortak sunucunuz yok."
+              items={mutualServers.map((s) => ({
+                id: s.id,
+                title: s.name,
+                subtitle: null,
+                imageUrl: s.imageUrl,
+                seed: s.name,
+                square: true,
+                href: `/servers/${s.id}`,
+              }))}
+            />
+          ) : null}
+
+          {tab === "pano" ? (
+            <>
+              {!isSelf && mutualCount > 0 ? (
+                <Card title="ORTAK ARKADAŞLAR">
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                    <View style={{ flexDirection: "row" }}>
+                      {mutuals.slice(0, 6).map((friend, index) => (
+                        <View
+                          key={friend.id}
+                          style={{
+                            marginLeft: index === 0 ? 0 : -10,
+                            borderRadius: 16,
+                            borderWidth: 2,
+                            borderColor: colors.panel,
+                          }}
+                        >
+                          <Avatar
+                            profileId={friend.id}
+                            imageUrl={friend.imageUrl}
+                            fallbackText={friend.username}
+                            size={28}
+                            decorationId={null}
+                          />
+                        </View>
+                      ))}
                     </View>
-                  ))}
-                </View>
-                <Text style={{ ...typography.body, color: colors.text }}>
-                  {mutualCount} ortak arkadaş
-                </Text>
-              </View>
-            </Card>
-          ) : null}
-
-          {profile.createdAt ? (
-            <Card title="CİKLET ÜYESİ">
-              <Text style={{ ...typography.body, color: colors.text }}>
-                {formatDate(profile.createdAt)}
-              </Text>
-            </Card>
-          ) : null}
-
-          {!isOfficial && presence.activity?.name ? (
-            <Card title="ŞU AN">
-              <Text style={{ ...typography.body, color: colors.text }}>
-                {presence.activity.name}
-              </Text>
-              {presence.activity.details ? (
-                <Text style={{ ...typography.caption, color: colors.muted }}>
-                  {presence.activity.details}
-                </Text>
+                    <Text style={{ ...typography.body, color: colors.text }}>
+                      {mutualCount} ortak arkadaş
+                    </Text>
+                  </View>
+                </Card>
               ) : null}
-            </Card>
-          ) : null}
 
-          {!isSelf && !isOfficial && !profile.isBot ? (
-            <AnnotationCard profileId={profile.id} />
+              {profile.bio ? (
+                <Card title="HAKKINDA">
+                  <Text style={{ ...typography.body, color: colors.text }}>{profile.bio}</Text>
+                </Card>
+              ) : null}
+
+              {profile.createdAt ? (
+                <Card title="CİKLET ÜYESİ">
+                  <Text style={{ ...typography.bodyStrong, color: colors.bright }}>
+                    {formatDate(profile.createdAt)}
+                  </Text>
+                </Card>
+              ) : null}
+
+              {friendsSince ? (
+                <Card title="ŞU TARİHTEN BERİ ARKADAŞ">
+                  <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{friendsSince}</Text>
+                </Card>
+              ) : null}
+
+              {!isOfficial && presence.activity?.name ? (
+                <Card title="ŞU AN">
+                  <Text style={{ ...typography.body, color: colors.text }}>
+                    {presence.activity.name}
+                  </Text>
+                  {presence.activity.details ? (
+                    <Text style={{ ...typography.caption, color: colors.muted }}>
+                      {presence.activity.details}
+                    </Text>
+                  ) : null}
+                </Card>
+              ) : null}
+
+              {showSpotify ? <SpotifyCard profileId={profile.id} name={title} isSelf={isSelf} /> : null}
+
+              {games.length > 0 ? (
+                <Card title={isSelf ? "OYUNLARIN" : "SEVDİĞİ OYUNLAR"}>
+                  <CollectionGrid items={games} />
+                </Card>
+              ) : null}
+
+              {programs.length > 0 ? (
+                <Card title={isSelf ? "PROGRAMLARIN" : "KULLANDIĞI PROGRAMLAR"}>
+                  <CollectionGrid items={programs} />
+                </Card>
+              ) : null}
+
+              {connections.length > 0 ? (
+                <Card title="BAĞLANTILAR">
+                  <ConnectionList connections={connections} />
+                </Card>
+              ) : null}
+
+              {!isSelf && !isOfficial && !profile.isBot ? (
+                <AnnotationCard profileId={profile.id} />
+              ) : null}
+            </>
           ) : null}
         </View>
       </ScrollView>
+      <ListenAlongBar />
     </Screen>
   );
 }
@@ -370,21 +514,5 @@ function AnnotationCard({ profileId }: { profileId: string }) {
         </View>
       </View>
     </Card>
-  );
-}
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        backgroundColor: colors.panel,
-        borderRadius: radii.lg,
-        padding: spacing.lg,
-        gap: spacing.sm,
-      }}
-    >
-      <Text style={{ ...typography.overline, color: colors.muted }}>{title}</Text>
-      {children}
-    </View>
   );
 }

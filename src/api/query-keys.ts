@@ -69,4 +69,19 @@ export const qk = {
 
   sessions: ["sessions"] as const,
   authorizedApps: ["authorized-apps"] as const,
+
+  /** Kendi profil bağlantıların (Steam, Twitch…). */
+  profileConnections: ["profile-connections"] as const,
+  /** Oturum sahibinin Spotify bağlantı durumu. */
+  spotifyLink: ["spotify-link"] as const,
+  /** Bir profilin Spotify'da çalanı. */
+  spotifyNowPlaying: (profileId: string) => ["spotify-now-playing", profileId] as const,
+  /** Kaydedilen mesaj kimlikleri (menüde "Kaydet/Kaldır" için) ve hidrasyonlu liste. */
+  bookmarkIds: ["bookmarks", "ids"] as const,
+  bookmarks: ["bookmarks", "list"] as const,
+  mentions: ["mentions"] as const,
+  /** Mesaj istekleri listesi; sayaç listeden türetilir. */
+  messageRequests: ["message-requests"] as const,
+  store: ["store"] as const,
+  serverTiers: (serverId: string) => ["server-tiers", serverId] as const,
 } as const;

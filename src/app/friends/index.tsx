@@ -20,6 +20,7 @@ import {
   Screen,
   SegmentedTabs,
 } from "@/components/ui";
+import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
 import { displayNameOf, initialOf } from "@/lib/format";
 import { colors, spacing, typography } from "@/theme/tokens";
 
@@ -133,31 +134,35 @@ export default function FriendsScreen() {
               {section.title}
             </Text>
           )}
-          renderItem={({ item }) => (
-            <ListRow
-              title={displayNameOf(item.profile)}
-              subtitle={`@${item.profile.username}`}
-              onPress={() => router.push(`/profile/${item.profile.id}`)}
-              chevron={false}
-              leading={
-                <Avatar
-                  profileId={item.profile.id}
-                  imageUrl={item.profile.imageUrl}
-                  fallbackText={item.profile.username}
-                  size={44}
-                  showPresence
-                />
-              }
-              trailing={
-                <RowActions
-                  tab={tab}
-                  onMessage={() => onOpenChat(item.profile.id)}
-                  onAccept={() => acceptRequest.mutate(item.id)}
-                  onRemove={() => removeFriend.mutate(item.id)}
-                />
-              }
-            />
-          )}
+          renderItem={({ item }) => {
+            // Özel durum varsa kullanıcı adının yerine (web arkadaş satırı gibi).
+            const status = tab === "friends" ? customStatusOf(item.profile) : null;
+            return (
+              <ListRow
+                title={displayNameOf(item.profile)}
+                subtitle={status ? formatCustomStatus(status) : `@${item.profile.username}`}
+                onPress={() => router.push(`/profile/${item.profile.id}`)}
+                chevron={false}
+                leading={
+                  <Avatar
+                    profileId={item.profile.id}
+                    imageUrl={item.profile.imageUrl}
+                    fallbackText={item.profile.username}
+                    size={44}
+                    showPresence
+                  />
+                }
+                trailing={
+                  <RowActions
+                    tab={tab}
+                    onMessage={() => onOpenChat(item.profile.id)}
+                    onAccept={() => acceptRequest.mutate(item.id)}
+                    onRemove={() => removeFriend.mutate(item.id)}
+                  />
+                }
+              />
+            );
+          }}
         />
       )}
     </Screen>

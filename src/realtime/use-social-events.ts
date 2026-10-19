@@ -10,6 +10,7 @@ import { isHiddenChannel } from "@/features/unread/unread-cache";
 import { playMessageTone, primeSounds } from "@/lib/sounds";
 import { activeChatId } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
+import { rememberDecorations } from "@/stores/decorations";
 import { usePreferences } from "@/stores/preferences";
 import { usePresenceStore } from "@/stores/presence";
 import { ServerEvent } from "./events";
@@ -143,6 +144,7 @@ export function useSocialEvents() {
       onGatewayEvent(ServerEvent.PROFILE_UPDATED, (frame) => {
         const visual = frame.profile as { id?: unknown } | undefined;
         if (typeof visual?.id !== "string") return;
+        rememberDecorations([visual]);
         invalidate(qk.directs, qk.friends, qk.profileCard(visual.id), ["members"]);
         if (visual.id === useAuth.getState().profile?.id) invalidate(qk.currentProfile);
       }),
