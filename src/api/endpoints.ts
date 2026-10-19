@@ -272,8 +272,8 @@ export const endpoints = {
     `/api/servers/${encodeURIComponent(serverId)}/subscription-tiers`,
   serverTierCheckout: (serverId: string, tierId: string) =>
     `/api/servers/${encodeURIComponent(serverId)}/subscription-tiers/${encodeURIComponent(tierId)}/checkout`,
-  /** Web ödeme sayfası (API değil; tarayıcıda açılır). */
-  paymentPage: (paymentId: string) => `/mentol/odeme/${encodeURIComponent(paymentId)}`,
+  /** POST → `{ path }`: ödeme sayfasının oturumsuz, süreli yolu (tarayıcıda açılır). */
+  paymentLink: (paymentId: string) => `/api/mentol/payments/${encodeURIComponent(paymentId)}/link`,
 
   // ── Bildirim ayarları (sunucu / kanal / DM) ───────────────────────
   /**

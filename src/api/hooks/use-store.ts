@@ -35,9 +35,16 @@ export function useServerTiers(serverId: string | undefined) {
   });
 }
 
-/** Ödeme sayfasını sistem tarayıcısında açar; dönüşte ilgili listeler tazelenir. */
+/**
+ * Ödeme sayfasını sistem tarayıcısında açar; dönüşte ilgili listeler tazelenir.
+ *
+ * Tarayıcıda Ciklet oturumu yok: önce bu ödemeye özel, süreli bir yol
+ * alınır (`/odeme/[id]?t=`, web lib/payment-link) — uygulama ağacının
+ * dışında, telefon kapısı olmayan sayfa.
+ */
 export async function openPaymentPage(paymentId: string) {
-  await WebBrowser.openBrowserAsync(`${API_BASE_URL}${endpoints.paymentPage(paymentId)}`);
+  const { path } = await api<{ path: string }>(endpoints.paymentLink(paymentId), { method: "POST" });
+  await WebBrowser.openBrowserAsync(`${API_BASE_URL}${path}`);
 }
 
 export type CheckoutRequest =
