@@ -144,6 +144,33 @@ export const endpoints = {
   reactions: "/api/socket/reactions",
   reports: "/api/reports",
 
+  // ── Sohbet zenginleştirmeleri (rol pili, sunucu emojisi, çıkartma) ──
+  /** GET: sunucunun rolleri `[{ id, name, color, position, … }]` (üyelik ister). */
+  serverRoles: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/roles`,
+  /** GET: sunucu emojileri `[{ id, name, imageUrl }]` — `<:ad:id>` belirteci. */
+  serverEmojis: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/emojis`,
+  /** GET: sunucu çıkartmaları `[{ id, name, description, imageUrl }]`. */
+  serverStickers: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/stickers`,
+  /**
+   * GET: oturum sahibinin sunucudaki izinleri — `{ isOwner, memberRole,
+   * topPosition, permissions, keys }`. Yalnızca arayüz ipucu; uçlar yeniden denetler.
+   */
+  myServerPermissions: (serverId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/my-permissions`,
+  /**
+   * POST: eğik çizgi komutu `{ botId, name, args }` ya da bileşen (type 3)
+   * `{ messageId, customId, values? }` → `{ id }`. GET `…/interactions/{id}`
+   * → `{ status }` (3 sn sonra hâlâ PENDING ise bot yanıt vermedi).
+   */
+  channelInteractions: (channelId: string) =>
+    `/api/channels/${encodeURIComponent(channelId)}/interactions`,
+  channelInteraction: (channelId: string, interactionId: string) =>
+    `/api/channels/${encodeURIComponent(channelId)}/interactions/${encodeURIComponent(interactionId)}`,
+  /** POST `{ name?, messageId?, autoArchiveMinutes }` → `{ id }` — mesajdan alt başlık. */
+  channelThreads: (channelId: string) => `/api/channels/${encodeURIComponent(channelId)}/threads`,
+  /** POST `{ chatId, scope, optionIds }` — anket oyu. */
+  pollVote: (messageId: string) => `/api/messages/${encodeURIComponent(messageId)}/poll/vote`,
+
   // ── Sabitlenen mesajlar ───────────────────────────────────────────
   /**
    * POST sabitler, DELETE kaldırır; yanıt güncel mesaj. İdempotent. Hatalar:

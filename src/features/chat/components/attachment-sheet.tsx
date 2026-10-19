@@ -7,28 +7,33 @@ import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
- * "+" düğmesinin alt sayfası — WhatsApp düzeni: Galeri, Kamera, Dosya.
+ * "+" düğmesinin alt sayfası — WhatsApp düzeni: Galeri, Kamera, Dosya
+ * (ve sohbette Anket).
  *
  * Eskiden düğme doğrudan sistem dosya seçicisini açıyordu; telefonda
  * fotoğraf göndermenin birincil yolu galeri, dosya seçici onu "Belgeler"
  * görünümünün arasına gömüyordu.
  */
-export type AttachmentSource = "gallery" | "camera" | "file";
+export type AttachmentSource = "gallery" | "camera" | "file" | "poll";
 
 const OPTIONS: { source: AttachmentSource; icon: IconName; title: string; detail: string }[] = [
   { source: "gallery", icon: "image", title: "Galeri", detail: "Fotoğraf veya video seç" },
   { source: "camera", icon: "camera", title: "Kamera", detail: "Fotoğraf çek" },
   { source: "file", icon: "file", title: "Dosya", detail: "Belge, ses ya da başka bir dosya" },
+  { source: "poll", icon: "list", title: "Anket", detail: "Soru sor, seçenekleri oylansın" },
 ];
 
 export function AttachmentSheet({
   visible,
   onClose,
   onPick,
+  allowPoll = false,
 }: {
   visible: boolean;
   onClose: () => void;
   onPick: (source: AttachmentSource) => void;
+  /** "Anket" seçeneği (web giriş çubuğundaki anket düğmesi). */
+  allowPoll?: boolean;
 }) {
   const insets = useSafeAreaInsets();
 
@@ -55,7 +60,7 @@ export function AttachmentSheet({
           }}
         >
           <View style={{ width: 38, height: 4, borderRadius: radii.full, backgroundColor: colors.border, alignSelf: "center", marginVertical: spacing.sm }} />
-          {OPTIONS.map((option) => (
+          {OPTIONS.filter((option) => option.source !== "poll" || allowPoll).map((option) => (
             <Pressable
               key={option.source}
               noHitSlop

@@ -18,6 +18,8 @@ export interface OutboxPayload {
   fileUrl?: string;
   replyToId?: string;
   metadata?: Record<string, unknown>;
+  /** Web `messageType` — anket için "POLL"; yoksa DEFAULT. */
+  messageType?: string;
 }
 
 export interface OutboxMessage {

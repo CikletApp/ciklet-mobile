@@ -6,10 +6,14 @@ import { GestureDetector, type GestureType } from "react-native-gesture-handler"
 import Animated, { useAnimatedScrollHandler, useComposedEventHandler, useSharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 
+import { Image } from "expo-image";
+
 import { EmojiImage, Icon, type IconName } from "@/components/ui";
 import { emojiUrl, getDokimorji } from "@/lib/emoji";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { formatCustomEmoji } from "../message-markup";
+import { useServerEmojis } from "../server-assets";
 import { CollapsibleHeader, type CollapsingChrome } from "./collapsing-chrome";
 
 /**
@@ -32,6 +36,8 @@ interface PickerEmoji {
   keywords: string[];
   /** Ad + anahtar kelimeler, küçük harf — arama her tuşta yeniden üretmesin. */
   haystack: string;
+  /** Sunucu emojisi: `native` yerine `<:ad:id>` belirteci, görsel sunucunun. */
+  server?: boolean;
 }
 
 interface Category {
@@ -201,6 +207,7 @@ export function EmojiPickerPanel({
   onSearchFocusChange,
   headerGesture,
   chrome,
+  serverId,
 }: {
   onEmoji: (emoji: string) => void;
   /**
@@ -215,6 +222,8 @@ export function EmojiPickerPanel({
   headerGesture?: GestureType;
   /** Kaydırınca gizlenen üst satır (composer paneli); tepki seçicide yok. */
   chrome?: CollapsingChrome;
+  /** Sunucu kanalında: listenin başında "Bu Sunucu" emojileri (web seçicisi gibi). */
+  serverId?: string;
 }) {
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
@@ -226,11 +235,26 @@ export function EmojiPickerPanel({
   }, []);
 
   const categories = useMemo(() => withDokimorji(standardCategories()), []);
+  const serverList = useServerEmojis(serverId);
+  const serverEmojis = useMemo<PickerEmoji[]>(
+    () =>
+      serverList.map((emoji) => ({
+        native: formatCustomEmoji(emoji),
+        url: emoji.imageUrl,
+        name: `:${emoji.name}:`,
+        keywords: [],
+        haystack: fold(emoji.name),
+        server: true,
+      })),
+    [serverList]
+  );
   const everything = useMemo(() => {
     const seen = new Map<string, PickerEmoji>();
+    // Sunucu emojileri aramada önce gelir.
+    for (const emoji of serverEmojis) seen.set(emoji.native, emoji);
     for (const category of categories) for (const emoji of category.emojis) seen.set(emoji.native, emoji);
     return seen;
-  }, [categories]);
+  }, [categories, serverEmojis]);
 
   const recentEmojis = useMemo(
     () => recent.flatMap((native) => {
@@ -247,7 +271,7 @@ export function EmojiPickerPanel({
     const trIndex = turkishIndex();
     const found: PickerEmoji[] = [];
     for (const emoji of everything.values()) {
-      if (emoji.haystack.includes(needle) || (trIndex.get(emoji.native) ?? "").includes(needle)) {
+      if (emoji.haystack.includes(needle) || (!emoji.server && (trIndex.get(emoji.native) ?? "").includes(needle))) {
         found.push(emoji);
         if (found.length >= 240) break;
       }
@@ -261,6 +285,9 @@ export function EmojiPickerPanel({
     const sections = [
       ...(recentEmojis.length > 0
         ? [{ id: "recent", label: "Son kullanılanlar", icon: null, emojis: recentEmojis }]
+        : []),
+      ...(serverEmojis.length > 0
+        ? [{ id: "server", label: "Bu Sunucu", icon: serverEmojis[0].url, emojis: serverEmojis }]
         : []),
       ...categories.map((category) => ({
         id: category.id,
@@ -286,13 +313,14 @@ export function EmojiPickerPanel({
       }
     }
     return { rows: list, layout: frames, starts: heads };
-  }, [recentEmojis, categories]);
+  }, [recentEmojis, serverEmojis, categories]);
 
   const current = active ?? starts[0]?.id ?? null;
 
   const pick = (emoji: PickerEmoji) => {
     onEmoji(emoji.native);
-    void rememberRecent(emoji.native);
+    // Sunucu emojisi başka sohbette çizilemez; son kullanılanlara girmez.
+    if (!emoji.server) void rememberRecent(emoji.native);
   };
 
   const jumpTo = (section: SectionStart) => {
@@ -351,7 +379,12 @@ export function EmojiPickerPanel({
         backgroundColor: pressed ? colors.raised : "transparent",
       })}
     >
-      <EmojiImage url={emoji.url} size={30} label={emoji.native} />
+      {emoji.server ? (
+        // Kalıcı Twemoji önbelleğine yazılmaz (silinen emoji cihazda kalmasın).
+        <Image source={{ uri: emoji.url }} recyclingKey={emoji.url} contentFit="contain" style={{ width: 30, height: 30 }} />
+      ) : (
+        <EmojiImage url={emoji.url} size={30} label={emoji.native} />
+      )}
     </Pressable>
   );
 
@@ -359,6 +392,7 @@ export function EmojiPickerPanel({
   // karesi ve ince ayraç, ardından eşit genişlikte 8 kategori; her biri
   // çizgi simge + altında küçük ad. Etkin olan hafif dolgulu ve parlak.
   const recentStart = starts.find((section) => section.id === "recent");
+  const serverStart = starts.find((section) => section.id === "server");
   const categoryBar = (
     <View
       style={{
@@ -393,8 +427,34 @@ export function EmojiPickerPanel({
           <View style={{ width: 1, height: 20, alignSelf: "center", marginHorizontal: 2, backgroundColor: colors.border }} />
         </>
       ) : null}
+      {serverStart ? (
+        <>
+          <Pressable
+            onPress={() => jumpTo(serverStart)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: !needle && current === "server" }}
+            accessibilityLabel={serverStart.label}
+            style={{
+              width: 32,
+              height: 32,
+              alignSelf: "center",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: radii.lg,
+              backgroundColor: !needle && current === "server" ? colors.raised : "transparent",
+            }}
+          >
+            {serverStart.icon ? (
+              <Image source={{ uri: serverStart.icon }} contentFit="contain" style={{ width: 18, height: 18 }} />
+            ) : (
+              <Icon name="sparkles" size={16} color={colors.muted} />
+            )}
+          </Pressable>
+          <View style={{ width: 1, height: 20, alignSelf: "center", marginHorizontal: 2, backgroundColor: colors.border }} />
+        </>
+      ) : null}
       {starts
-        .filter((section) => section.id !== "recent")
+        .filter((section) => section.id !== "recent" && section.id !== "server")
         .map((section) => {
           const selected = !needle && section.id === current;
           const tint = selected ? colors.bright : colors.muted;

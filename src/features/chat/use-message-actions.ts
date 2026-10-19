@@ -90,5 +90,25 @@ export function useMessageActions(
     [kind, run]
   );
 
-  return { edit, remove, toggleReaction, report, pending, error, clearError: () => setError(null) };
+  /**
+   * Mesajdan alt başlık (web create-thread-dialog). Başarılıysa yeni alt
+   * başlığın kimliği; sunucu başlangıç mesajına `metadata.thread` yazar ve
+   * güncellemeyi yayınlar, bağlantı akıştan gelir.
+   */
+  const createThread = useCallback(
+    async (messageId: string, name: string, autoArchiveMinutes: number): Promise<string | null> => {
+      let id: string | null = null;
+      const ok = await run(async () => {
+        const res = await api<{ id: string }>(endpoints.channelThreads(chatId), {
+          method: "POST",
+          body: { name: name || undefined, messageId, autoArchiveMinutes },
+        });
+        id = res.id;
+      });
+      return ok ? id : null;
+    },
+    [chatId, run]
+  );
+
+  return { edit, remove, toggleReaction, report, createThread, pending, error, clearError: () => setError(null) };
 }

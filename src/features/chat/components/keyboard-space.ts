@@ -24,7 +24,8 @@ import { create } from "zustand";
  * değer bildirmediği emülatörler için yedek).
  */
 
-export type PanelTab = "gif" | "activity" | "emoji";
+/** "sticker" yalnızca sunucu kanalında (sunucu çıkartmaları). */
+export type PanelTab = "gif" | "activity" | "emoji" | "sticker";
 
 const STORAGE_KEY = "ciklet.composer.panel";
 const SHOW_EVENT = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -58,7 +59,7 @@ function hydrate() {
 }
 
 function isPanelTab(value: unknown): value is PanelTab {
-  return value === "gif" || value === "activity" || value === "emoji";
+  return value === "gif" || value === "activity" || value === "emoji" || value === "sticker";
 }
 
 function persist() {
