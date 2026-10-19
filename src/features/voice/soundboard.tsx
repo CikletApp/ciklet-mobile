@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { FlatList, Modal, Pressable as RNPressable, Text, View } from "react-native";
 import { useDataChannel } from "@livekit/react-native";
 import { createAudioPlayer } from "expo-audio";
@@ -38,18 +38,38 @@ interface SoundboardMessage {
 const encode = (text: string) => new TextEncoder().encode(text);
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 
-/** Sesi bir kez çalar; bitince oynatıcı bırakılır. `volume` yüzde (0–200). */
+/** Bitiş olayı hiç gelmezse (yüklenemeyen adres, kesilen ses) oynatıcı yine de bırakılır. */
+const PLAYER_TIMEOUT_MS = 30_000;
+/** Aynı göndericiden arka arkaya gelen mesajlar arasındaki en kısa süre. */
+const SENDER_GAP_MS = 250;
+
+/** Sesi bir kez çalar; bitince, hata ya da zaman aşımında oynatıcı bırakılır. `volume` yüzde (0–200). */
 function playOnce(audioUrl: string, volume: number) {
+  let player: ReturnType<typeof createAudioPlayer> | null = null;
+  let subscription: { remove: () => void } | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const release = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    subscription?.remove();
+    subscription = null;
+    try {
+      player?.remove();
+    } catch {
+      // Zaten bırakılmış.
+    }
+    player = null;
+  };
   try {
-    const player = createAudioPlayer({ uri: audioUrl });
+    player = createAudioPlayer({ uri: audioUrl });
     player.volume = Math.min(1, Math.max(0, volume / 100));
-    const subscription = player.addListener("playbackStatusUpdate", (status) => {
-      if (!status.didJustFinish) return;
-      subscription.remove();
-      player.remove();
+    subscription = player.addListener("playbackStatusUpdate", (status) => {
+      if (status.didJustFinish) release();
     });
+    timer = setTimeout(release, PLAYER_TIMEOUT_MS);
     player.play();
   } catch (error) {
+    release();
     if (__DEV__) console.warn("[soundboard] çalınamadı", error);
   }
 }
@@ -68,18 +88,28 @@ function parseSoundId(payload: Uint8Array): string | null {
  * çalar hem yayınlar. `LiveKitRoom` içinde kullanılmalı.
  */
 export function useSoundboard(serverId: string | undefined) {
-  const lastPlayed = useRef(0);
+  /** Gönderici kimliği → son çalma zamanı: bir kişinin spam'i başkasını susturmasın. */
+  const lastPlayed = useRef(new Map<string, number>());
   const { data: sounds } = useServerSounds(serverId);
-  const { send } = useDataChannel(SOUNDBOARD_TOPIC, (message) => {
+  // Geri çağrı kararlı kalsın diye liste ref'te: `useDataChannel` her yeni
+  // fonksiyonda aboneliği söküp yeniden kuruyordu.
+  const soundsRef = useRef(sounds);
+  useEffect(() => {
+    soundsRef.current = sounds;
+  }, [sounds]);
+
+  const onMessage = useCallback((message: { payload: Uint8Array; from?: { identity: string } }) => {
     const soundId = parseSoundId(message.payload);
-    const parsed = soundId ? sounds?.find((sound) => sound.id === soundId) : undefined;
+    const parsed = soundId ? soundsRef.current?.find((sound) => sound.id === soundId) : undefined;
     if (!parsed) return;
-    // Arka arkaya gelen spam'e karşı kısa bir eşik.
+    // Arka arkaya gelen spam'e karşı gönderici başına kısa bir eşik.
+    const sender = message.from?.identity ?? "";
     const now = Date.now();
-    if (now - lastPlayed.current < 250) return;
-    lastPlayed.current = now;
+    if (now - (lastPlayed.current.get(sender) ?? 0) < SENDER_GAP_MS) return;
+    lastPlayed.current.set(sender, now);
     playOnce(parsed.audioUrl, parsed.volume);
-  });
+  }, []);
+  const { send } = useDataChannel(SOUNDBOARD_TOPIC, onMessage);
 
   const play = useCallback(
     async (sound: ServerSoundItem) => {
