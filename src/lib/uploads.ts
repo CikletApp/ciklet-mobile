@@ -269,3 +269,32 @@ export const pickAndUploadProfileBanner = (onProgress?: (progress: number) => vo
 
 export const pickAndUploadServerBanner = (onProgress?: (progress: number) => void) =>
   pickAndUploadImage("serverBanner", [3, 1], onProgress);
+
+/**
+ * Sohbetin çoklu ek seçimi (mesaj başına en çok 10 dosya; web
+ * `MAX_ATTACHMENTS`). Galeri sırası korunur; `limit` kalan yer kadar.
+ */
+export async function pickManyFromGallery(limit: number): Promise<PickedAsset[]> {
+  if (limit <= 0) return [];
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images", "videos"],
+    allowsMultipleSelection: limit > 1,
+    selectionLimit: limit,
+    orderedSelection: true,
+    quality: 0.9,
+  });
+  if (result.canceled || !result.assets?.length) return [];
+  return result.assets.slice(0, limit).map(fromImagePicker);
+}
+
+/** Sistem dosya seçicisinden birden çok dosya; `limit` kalan yer kadar. */
+export async function pickDocuments(limit: number): Promise<PickedAsset[]> {
+  if (limit <= 0) return [];
+  const result = await DocumentPicker.getDocumentAsync({
+    type: "*/*",
+    copyToCacheDirectory: true,
+    multiple: limit > 1,
+  });
+  if (result.canceled || !result.assets?.length) return [];
+  return result.assets.slice(0, limit).map(fromDocumentPicker);
+}

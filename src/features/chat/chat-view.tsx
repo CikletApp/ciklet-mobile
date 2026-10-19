@@ -29,18 +29,27 @@ import { useChatOutbox } from "@/stores/outbox";
 import { usePreferences } from "@/stores/preferences";
 import {
   captureFromCamera,
-  pickDocument,
-  pickFromGallery,
+  pickDocuments,
+  pickManyFromGallery,
   uploadMessageAttachment,
-  type MessageAttachment,
+  type PickedAsset,
 } from "@/lib/uploads";
+import { readThread, type Poll, type VoiceMeta } from "@/lib/message-extras";
 import { OFFICIAL_FOOTER_TITLE } from "@/lib/official";
 import { isAfterSnowflake } from "@/lib/snowflake";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { AttachmentSheet, type AttachmentSource } from "./components/attachment-sheet";
 import { DaySeparator } from "./components/day-separator";
 import { CommandSuggestions, matchCommands, useBotCommands } from "./components/command-suggestions";
-import { Composer, type ComposerHandle } from "./components/composer";
+import { Composer, type ComposerHandle, type PendingFile } from "./components/composer";
+import {
+  ComposerSuggestions,
+  encodeComposerTokens,
+  findSuggestionTrigger,
+  useComposerSuggestions,
+  type ComposerSuggestion,
+} from "./components/composer-suggestions";
+import { PollComposer } from "./components/poll-composer";
 import { ForwardSheet } from "./components/forward-sheet";
 import { MessageContextMenu } from "./components/message-context-menu";
 import { flashMessage } from "./components/message-flash";
@@ -51,7 +60,10 @@ import { TypingBubble } from "./components/typing-bubble";
 import { ChatScopeProvider, type ChatScope } from "./chat-scope";
 import { canForwardMessage } from "./forward";
 import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
-import { useComposer } from "./use-composer";
+import { matchSlashCommand, runSlashCommand, waitForAck } from "./interactions";
+import { SILENT_PREFIX } from "./message-markup";
+import { useServerEmojis, type ServerStickerLite } from "./server-assets";
+import { useComposer, type ComposerAttachment } from "./use-composer";
 import { authorIdOf, useChatItems, type ChatItem } from "./use-chat-items";
 import { useMessageActions } from "./use-message-actions";
 import { fw } from "@/theme/fonts";
@@ -81,6 +93,11 @@ export interface UnreadSeed {
 /** Yazılmakta olan mesajlar, sohbet kimliğine göre (bkz. ChatView taslağı). */
 const draftMemory = new Map<string, string>();
 
+/** Mesaj başına ek sınırı (web `MAX_ATTACHMENTS`). */
+const MAX_ATTACHMENTS = 10;
+
+let pendingCounter = 0;
+
 export function ChatView({
   kind,
   chatId,
@@ -91,6 +108,7 @@ export function ChatView({
   oneToOne = false,
   unreadSeed,
   intro,
+  canStartThread = false,
 }: {
   kind: ChatKind;
   chatId: string;
@@ -113,6 +131,8 @@ export function ChatView({
   unreadSeed?: UnreadSeed;
   /** Boş sohbetin karşılaması (DM: avatar + ad); yoksa genel boş durum. */
   intro?: React.ReactNode;
+  /** Sunucu metin kanalı (alt başlık ya da forum değil): mesajdan alt başlık açılabilir. */
+  canStartThread?: boolean;
 }) {
   const {
     data,
@@ -188,9 +208,15 @@ export function ChatView({
     },
     [chatId]
   );
-  const [attachment, setAttachment] = useState<MessageAttachment | null>(null);
+  const [attachments, setAttachments] = useState<PendingFile[]>([]);
   const [attachmentSheet, setAttachmentSheet] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [pollOpen, setPollOpen] = useState(false);
+  /** Yükleme sürerken yazma çubuğundaki ilerleme metni. */
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  /** İmleç — `@` ve `:` önerileri için. */
+  const [caret, setCaret] = useState(0);
+  /** Öneriden seçilen roller: yazı kutusunda `@Ad`, gönderimde `<@&id>`. */
+  const pickedRoles = useRef(new Map<string, string>());
   const [uploadError, setUploadError] = useState<string | null>(null);
   /** Basılı tutulan mesaj ve balonunun ekrandaki yeri (bağlam menüsü). */
   const [selected, setSelected] = useState<{ message: ChatMessagePayload; anchor: MessageAnchor } | null>(null);
@@ -373,14 +399,118 @@ export function ChatView({
     [notifyTyping, setDraft, stopTyping]
   );
 
-  const onSend = useCallback(() => {
-    if (!draft.trim() && !attachment) return;
-    stopTyping();
-    send(draft, attachment ?? undefined, replyingTo?.id);
-    setDraft("");
-    setAttachment(null);
-    setReplyingTo(null);
-  }, [attachment, draft, replyingTo?.id, send, setDraft, stopTyping]);
+  const serverEmojis = useServerEmojis(serverId);
+
+  /**
+   * Eğik çizgi komutu: metin kurulu bir botun komutuna uyuyorsa düz mesaj
+   * yerine etkileşim açılır (web chat-input-area). Uymuyorsa metin eskisi
+   * gibi gider. Bot 3 sn içinde yanıtlamazsa kullanıcıya söylenir.
+   */
+  const runCommand = useCallback(
+    async (text: string): Promise<boolean> => {
+      if (kind !== "channel" || !text.startsWith("/")) return false;
+      const match = matchSlashCommand(text, commandBots.data ?? []);
+      if (!match) return false;
+      stopTyping();
+      setDraft("");
+      const result = await runSlashCommand(chatId, match);
+      if (!result.ok) {
+        setDraft(text);
+        showToast(result.error, "error");
+        return true;
+      }
+      void waitForAck(chatId, result.id).then((silent) => {
+        if (silent) showToast(`${match.bot.name} komuta yanıt vermedi.`);
+      });
+      return true;
+    },
+    [chatId, commandBots.data, kind, setDraft, stopTyping]
+  );
+
+  const onSend = useCallback(
+    (options?: { silent?: boolean }) => {
+      if (!draft.trim() && attachments.length === 0) return;
+      if (attachments.length === 0 && draft.trim().startsWith("/") && (commandBots.data?.length ?? 0) > 0) {
+        const text = draft.trim();
+        void runCommand(text).then((handled) => {
+          if (!handled) {
+            stopTyping();
+            send(encodeComposerTokens(draft, pickedRoles.current, serverEmojis), undefined, replyingTo?.id);
+            setDraft("");
+            setReplyingTo(null);
+          }
+        });
+        return;
+      }
+      stopTyping();
+      let text = encodeComposerTokens(draft, pickedRoles.current, serverEmojis);
+      if (options?.silent && text.trim()) text = `${SILENT_PREFIX} ${text.trimStart()}`;
+      const files: ComposerAttachment[] = attachments.map(({ file, spoiler }) => ({
+        url: file.url,
+        // `SPOILER_` önekli ekler herkes için örtülü (web lib/sensitive-media).
+        name: spoiler && !/^SPOILER_/i.test(file.name) ? `SPOILER_${file.name}` : file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+      }));
+      // Sessiz gönderim metin ön ekiyle çalışır (sunucu soyar); yalnızca ekli
+      // mesajda yazılacak metin yok, o yüzden normal gider.
+      send(text, files, replyingTo?.id);
+      setDraft("");
+      setAttachments([]);
+      setReplyingTo(null);
+      pickedRoles.current.clear();
+    },
+    [attachments, commandBots.data, draft, replyingTo?.id, runCommand, send, serverEmojis, setDraft, stopTyping]
+  );
+
+  const onSelectSticker = useCallback(
+    (sticker: ServerStickerLite) => {
+      stopTyping();
+      // Sunucu kimliği doğrular ve metadata'yı kanonik değerle ezer.
+      send(sticker.name, undefined, replyingTo?.id, {
+        metadata: { sticker: { id: sticker.id } },
+        label: `🖼️ ${sticker.name}`,
+      });
+      setReplyingTo(null);
+    },
+    [replyingTo?.id, send, stopTyping]
+  );
+
+  const onCreatePoll = useCallback(
+    (poll: Poll) => {
+      send(poll.question, undefined, undefined, {
+        messageType: "POLL",
+        metadata: { poll },
+        label: `📊 ${poll.question}`,
+      });
+    },
+    [send]
+  );
+
+  /** Sesli mesaj kaydı bitti: yüklenir ve `metadata.voice` ile hemen gönderilir. */
+  const onVoiceRecorded = useCallback(
+    async (asset: PickedAsset, meta: VoiceMeta) => {
+      // Yükleme sürerken yanıt değişebilir; kayıt bittiği andaki hedef gider.
+      const replyId = replyingTo?.id;
+      setUploadError(null);
+      setUploadProgress("Sesli mesaj yükleniyor…");
+      try {
+        const file = await uploadMessageAttachment(asset, (progress) =>
+          setUploadProgress(`Sesli mesaj yükleniyor… %${Math.round(progress)}`)
+        );
+        send("", [{ url: file.url, name: file.name, mimeType: file.mimeType, size: file.size }], replyId, {
+          metadata: { voice: meta },
+          label: "🎤 Sesli mesaj",
+        });
+        setReplyingTo(null);
+      } catch (reason) {
+        setUploadError(reason instanceof Error ? reason.message : "Sesli mesaj yüklenemedi.");
+      } finally {
+        setUploadProgress(null);
+      }
+    },
+    [replyingTo?.id, send]
+  );
 
   const onSelectGif = useCallback((url: string) => {
     stopTyping();
@@ -405,18 +535,38 @@ export function ChatView({
   }, []);
 
   const onAttachmentSource = useCallback(async (source: AttachmentSource) => {
+    if (source === "poll") {
+      setPollOpen(true);
+      return;
+    }
     setUploadError(null);
+    const remaining = MAX_ATTACHMENTS - attachments.length;
+    if (remaining <= 0) {
+      setUploadError(`Bir mesajda en fazla ${MAX_ATTACHMENTS} dosya olabilir.`);
+      return;
+    }
     try {
       const picked =
         source === "gallery"
-          ? await pickFromGallery({ videos: true })
+          ? await pickManyFromGallery(remaining)
           : source === "camera"
-            ? await captureFromCamera()
-            : await pickDocument();
-      if (!picked) return;
-      setUploadProgress(0);
-      const file = await uploadMessageAttachment(picked, setUploadProgress);
-      setAttachment(file);
+            ? [await captureFromCamera()].filter((item): item is PickedAsset => Boolean(item))
+            : await pickDocuments(remaining);
+      if (picked.length === 0) return;
+      // Sırayla yüklenir: her biri bitince çubuğa çip olarak takılır, biri
+      // başarısız olursa öncekiler kaybolmaz.
+      for (let index = 0; index < picked.length; index += 1) {
+        const prefix = picked.length > 1 ? `Dosya yükleniyor (${index + 1}/${picked.length})` : "Dosya yükleniyor";
+        setUploadProgress(`${prefix}… %0`);
+        const file = await uploadMessageAttachment(picked[index], (progress) =>
+          setUploadProgress(`${prefix}… %${Math.round(progress)}`)
+        );
+        pendingCounter += 1;
+        const key = `pending-${pendingCounter}`;
+        setAttachments((current) =>
+          current.length >= MAX_ATTACHMENTS ? current : [...current, { key, file, spoiler: false }]
+        );
+      }
     } catch (reason) {
       setUploadError(
         reason instanceof Error ? reason.message : "Dosya yüklenemedi."
@@ -424,7 +574,7 @@ export function ChatView({
     } finally {
       setUploadProgress(null);
     }
-  }, []);
+  }, [attachments.length]);
 
   const onLongPressMessage = useCallback((message: ChatMessagePayload, anchor: MessageAnchor) => {
     setSelected({ message, anchor });
@@ -445,6 +595,22 @@ export function ChatView({
   };
 
   const commandMatches = matchCommands(commandBots.data ?? [], draft);
+
+  // `@` / `:` önerileri — yalnızca sunucu kanalında (üyeler, roller, sunucu
+  // emojileri orada). Komut listesi açıksa o öncelikli.
+  const trigger = kind === "channel" && commandMatches.length === 0 ? findSuggestionTrigger(draft, caret) : null;
+  const suggestions = useComposerSuggestions(trigger, serverId);
+
+  const onPickSuggestion = (item: ComposerSuggestion) => {
+    if (!trigger) return;
+    const insert = `${item.insert} `;
+    const next = draft.slice(0, trigger.start) + insert + draft.slice(trigger.end);
+    if (item.roleId) pickedRoles.current.set(item.insert.slice(1), item.roleId);
+    const position = trigger.start + insert.length;
+    setDraft(next);
+    setCaret(position);
+    requestAnimationFrame(() => composerRef.current?.setSelection(position, position));
+  };
 
   const renderItem = useCallback(
     ({ item }: { item: ChatItem }) =>
@@ -611,6 +777,8 @@ export function ChatView({
               kesin olarak ona gelir. */}
           {commandMatches.length > 0 ? (
             <CommandSuggestions matches={commandMatches} onPick={onPickCommand} />
+          ) : suggestions.length > 0 ? (
+            <ComposerSuggestions items={suggestions} onPick={onPickSuggestion} />
           ) : null}
         </View>
 
@@ -627,12 +795,20 @@ export function ChatView({
             value={draft}
             onChangeText={onChangeDraft}
             onSend={onSend}
-            attachment={attachment}
+            attachments={attachments}
             replyingTo={replyingTo}
             uploadProgress={uploadProgress}
             uploadError={uploadError}
             onPickAttachment={onPickAttachment}
-            onRemoveAttachment={() => setAttachment(null)}
+            onRemoveAttachment={(key) => setAttachments((current) => current.filter((item) => item.key !== key))}
+            onToggleSpoiler={(key) =>
+              setAttachments((current) =>
+                current.map((item) => (item.key === key ? { ...item, spoiler: !item.spoiler } : item))
+              )
+            }
+            onSelectSticker={kind === "channel" && serverId ? onSelectSticker : undefined}
+            onVoiceRecorded={(asset, meta) => void onVoiceRecorded(asset, meta)}
+            onCaretChange={setCaret}
             onCancelReply={() => setReplyingTo(null)}
             onSelectGif={onSelectGif}
             onSelectActivity={onSelectActivity}
@@ -641,10 +817,13 @@ export function ChatView({
         )}
       </BlurTargetView>
 
+      <PollComposer visible={pollOpen} onClose={() => setPollOpen(false)} onCreate={onCreatePoll} />
+
       <AttachmentSheet
         visible={attachmentSheet}
         onClose={() => setAttachmentSheet(false)}
         onPick={(source) => void onAttachmentSource(source)}
+        allowPoll
       />
 
       {selected ? (
@@ -709,6 +888,23 @@ export function ChatView({
                   if (ok) setSelected(null);
                 }
           }
+          serverId={serverId}
+          thread={
+            canStartThread && serverId && canStartThreadFrom(selected.message)
+              ? {
+                  defaultName: threadNameFromMessage(selected.message.content),
+                  onCreate: async (name, autoArchiveMinutes) => {
+                    const id = await actions.createThread(selected.message.id, name, autoArchiveMinutes);
+                    if (!id) return;
+                    setSelected(null);
+                    router.push({
+                      pathname: "/chat/channel/[channelId]",
+                      params: { channelId: id, serverId, name: name || threadNameFromMessage(selected.message.content) },
+                    });
+                  },
+                }
+              : undefined
+          }
           pin={
             canPin && canBePinned(selected.message)
               ? {
@@ -767,6 +963,19 @@ function OfficialFooter({ text }: { text?: string }) {
       </View>
     </View>
   );
+}
+
+/** Alt başlık açılabilir mesaj: silinmemiş, sistem satırı değil, zaten alt başlığı yok (web `canStartThread`). */
+function canStartThreadFrom(message: ChatMessagePayload): boolean {
+  const type = message.type as string;
+  return !message.deleted && !readThread(message.metadata) && (type === "DEFAULT" || type === "POLL");
+}
+
+/** Başlangıç mesajından varsayılan ad: ilk satır, 40 karakter (web `threadNameFromMessage`). */
+function threadNameFromMessage(content: string | null | undefined): string {
+  const first = String(content ?? "").split("\n")[0].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  if (!first) return "alt başlık";
+  return first.length > 40 ? `${first.slice(0, 39)}…` : first;
 }
 
 function messageAuthorId(message: ChatMessagePayload) {

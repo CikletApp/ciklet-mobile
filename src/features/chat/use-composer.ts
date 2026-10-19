@@ -32,6 +32,16 @@ export interface ComposerAttachment {
   size?: number;
 }
 
+/** Mesajla birlikte giden ek alanlar — sesli mesaj, anket, çıkartma. */
+export interface ComposerExtras {
+  /** `metadata`'ya eklenir (ör. `{ voice }`, `{ poll }`, `{ sticker: { id } }`). */
+  metadata?: Record<string, unknown>;
+  /** Web `messageType` (ör. "POLL"); verilmezse DEFAULT. */
+  messageType?: string;
+  /** Satırda gösterilecek yer tutucu metin (ör. "📊 Anket"). */
+  label?: string;
+}
+
 export function useComposer(
   kind: ChatKind,
   chatId: string | undefined,
@@ -75,32 +85,48 @@ export function useComposer(
     [chatId, kind, serverId, markFailed, remove, queryClient]
   );
 
+  /**
+   * `attachments`: tek ek ya da liste (en çok 10). Şema bozulmadan ilk dosya
+   * `fileUrl`, birden çoksa tam liste `metadata.attachments` (web
+   * lib/multi-attachments; sunucu süzer).
+   */
   const send = useCallback(
-    (raw: string, attachment?: ComposerAttachment, replyToId?: string) => {
+    (
+      raw: string,
+      attachments?: ComposerAttachment | ComposerAttachment[],
+      replyToId?: string,
+      extras?: ComposerExtras
+    ) => {
       const text = raw.trim();
-      if ((!text && !attachment) || !chatId) return;
+      const files = (Array.isArray(attachments) ? attachments : attachments ? [attachments] : []).slice(0, 10);
+      const first = files[0];
+      if ((!text && !first && !extras?.metadata) || !chatId) return;
       // Web'le aynı gövde (chat-input-area): içerik boşsa dosyanın adresi
       // gider — iki istemci de ek adresini metin olarak göstermiyor. Dosya
       // adı içeriğe yazılsaydı web'de görselin altında başlık gibi dururdu.
-      const content = text || attachment?.url || "";
-      const payload: OutboxPayload = {
-        ...(attachment ? { fileUrl: attachment.url } : {}),
-        ...(replyToId ? { replyToId } : {}),
+      const content = text || first?.url || "";
+      const info = (file: ComposerAttachment) => ({
+        name: file.name,
+        ...(file.mimeType ? { type: file.mimeType } : {}),
+        ...(file.size !== undefined ? { size: file.size } : {}),
+      });
+      const metadata: Record<string, unknown> = {
         // UploadThing adresi ne ad ne tür taşıyor; önizleme (görsel, video,
         // dosya kartı) web'de de mobilde de bu bilgiye bakıyor.
-        ...(attachment
-          ? {
-              metadata: {
-                attachment: {
-                  name: attachment.name,
-                  ...(attachment.mimeType ? { type: attachment.mimeType } : {}),
-                  ...(attachment.size !== undefined ? { size: attachment.size } : {}),
-                },
-              },
-            }
-          : {}),
+        ...(first ? { attachment: info(first) } : {}),
+        ...(files.length > 1 ? { attachments: files.map((file) => ({ url: file.url, ...info(file) })) } : {}),
+        ...extras?.metadata,
       };
-      const outboxId = enqueue(chatId, content, payload, text ? undefined : `📎 ${attachment?.name ?? "Dosya"}`);
+      const payload: OutboxPayload = {
+        ...(first ? { fileUrl: first.url } : {}),
+        ...(replyToId ? { replyToId } : {}),
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+        ...(extras?.messageType ? { messageType: extras.messageType } : {}),
+      };
+      const label =
+        extras?.label ??
+        (text ? undefined : files.length > 1 ? `📎 ${files.length} dosya` : `📎 ${first?.name ?? "Dosya"}`);
+      const outboxId = enqueue(chatId, content, payload, label);
       void deliver(outboxId, content, payload);
     },
     [chatId, enqueue, deliver]

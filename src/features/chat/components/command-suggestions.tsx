@@ -10,8 +10,9 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 /**
  * Kanalda "/" komut önerileri (Telegram'daki bot komut listesi).
  *
- * Komutlar düz mesaj olarak gönderilir; botlar mesajı okuyup yanıtlıyor.
- * Burada yalnızca yazmayı kolaylaştıran öneri listesi var.
+ * Seçilen komut yazı kutusuna "/ad " olarak girer; gönderimde metin kurulu
+ * bir komuta uyuyorsa düz mesaj yerine etkileşim açılır (bkz. interactions.ts,
+ * web ile aynı yol). Uymayan "/" metni eskisi gibi mesaj olarak gider.
  */
 
 export interface BotCommand {

@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
+import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
 import { useChannel, useServerSummary, useUnreadCounts } from "@/api/hooks";
 import { Icon, IconButton } from "@/components/ui";
@@ -13,12 +14,15 @@ import { colors, radii, spacing } from "@/theme/tokens";
  * gönderim ucu (`/api/socket/messages`) hem kanal hem sunucu kimliği ister.
  */
 export default function ChannelChatScreen() {
-  const { channelId, serverId } = useLocalSearchParams<{
+  const { channelId, serverId, name: threadName } = useLocalSearchParams<{
     channelId: string;
     serverId?: string;
+    /** Alt başlık bağlantısından: alt başlıklar kanal listesinde yok, ad buradan gelir. */
+    name?: string;
   }>();
 
   const channel = useChannel(serverId, channelId);
+  const channelName = channel?.name ?? threadName;
   const { data: server } = useServerSummary(serverId);
   // "Yeni mesajlar" ayracı: kanalda imleç yerine okunmamış SAYISI var.
   const unreadCounts = useUnreadCounts();
@@ -35,7 +39,7 @@ export default function ChannelChatScreen() {
     <>
       <Stack.Screen
         options={{
-          title: channel ? `# ${channel.name}` : "",
+          title: channelName ? `# ${channelName}` : "",
           headerStyle: { backgroundColor: colors.panel },
           headerTitleAlign: "left",
           headerTitle: () => (
@@ -54,7 +58,7 @@ export default function ChannelChatScreen() {
                   <Icon name="hash" size={19} color={colors.brand} />
                 </View>
               }
-              title={channel?.name ?? ""}
+              title={channelName ?? ""}
               subtitle={typing ?? (topic || server?.name)}
               subtitleTone={typing ? "live" : "muted"}
               typing={Boolean(typing)}
@@ -91,7 +95,12 @@ export default function ChannelChatScreen() {
         chatId={channelId}
         serverId={serverId}
         unreadSeed={unreadCounts.data ? { count: unreadCounts.data.channelUnreads?.[channelId]?.count ?? 0 } : undefined}
-        placeholder={`#${channel?.name ?? "kanal"} kanalına yaz`}
+        placeholder={`#${channelName ?? "kanal"} kanalına yaz`}
+        canStartThread={
+          channel?.type === ChannelType.TEXT &&
+          !(channel as { parentChannelId?: string | null }).parentChannelId &&
+          !(channel as { forum?: boolean }).forum
+        }
         lockedNotice={
           (channel as { forum?: boolean } | undefined)?.forum
             ? "Forum kanalı: gönderiler şimdilik web ve masaüstünde açılır."

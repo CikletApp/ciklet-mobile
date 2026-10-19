@@ -9,11 +9,14 @@ import { useActivities } from "@/api/hooks";
 import { Avatar, Icon } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { useChatScope } from "../chat-scope";
 import { useCollapsingChrome, type CollapsingChrome } from "./collapsing-chrome";
 import { BackspaceGlyph } from "./composer-glyphs";
 import { useDragToDismiss } from "./drag-dismiss";
 import { EmojiPickerPanel } from "./emoji-picker";
 import { GifPicker } from "./gif-picker";
+import { StickerPicker } from "./sticker-picker";
+import type { ServerStickerLite } from "../server-assets";
 import type { PanelTab } from "./keyboard-space";
 
 /**
@@ -30,6 +33,7 @@ const TABS: { id: PanelTab; label: string }[] = [
   { id: "gif", label: "GIF'ler" },
   { id: "activity", label: "Aktiviteler" },
   { id: "emoji", label: "Emoji" },
+  { id: "sticker", label: "Çıkartma" },
 ];
 
 const PILL_HEIGHT = 40;
@@ -43,6 +47,7 @@ export function ComposerPanel({
   onBackspace,
   onGif,
   onActivity,
+  onSticker,
   onSearchFocusChange,
   onDismiss,
 }: {
@@ -55,11 +60,14 @@ export function ComposerPanel({
   onBackspace: () => void;
   onGif: (url: string) => void;
   onActivity: (activityId: string) => void;
+  /** Sunucu kanalında çıkartma gönderimi; yoksa "Çıkartma" sekmesi yok. */
+  onSticker?: (sticker: ServerStickerLite) => void;
   onSearchFocusChange: (focused: boolean) => void;
   /** Tepeden aşağı çekilince paneli kapatır (klavye açılmaz). */
   onDismiss: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const scope = useChatScope();
   const drag = useDragToDismiss(onDismiss);
   const contentRef = useRef<View>(null);
   // Liste sonu hapın altında kalmasın.
@@ -105,7 +113,10 @@ export function ComposerPanel({
             onSearchFocusChange={onSearchFocusChange}
             headerGesture={drag.header}
             chrome={chrome}
+            serverId={scope?.serverId}
           />
+        ) : tab === "sticker" && scope?.serverId && onSticker ? (
+          <StickerPicker serverId={scope.serverId} onSticker={onSticker} bottomInset={bottomInset} chrome={chrome} />
         ) : tab === "gif" ? (
           <GifPicker onGif={onGif} bottomInset={bottomInset} onSearchFocusChange={onSearchFocusChange} chrome={chrome} />
         ) : (
@@ -141,7 +152,7 @@ export function ComposerPanel({
             }}
           >
             <Frosted blurTarget={contentRef} />
-            {TABS.map((item) => {
+            {TABS.filter((item) => item.id !== "sticker" || (scope?.serverId && onSticker)).map((item) => {
               const selected = item.id === tab;
               return (
                 <Pressable

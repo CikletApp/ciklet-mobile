@@ -1,16 +1,22 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type RefObject } from "react";
-import { BackHandler, Keyboard, Text, TextInput, View } from "react-native";
+import { BackHandler, Keyboard, ScrollView, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image } from "expo-image";
 
 import { Icon, IconButton, Pressable, dokimorjiInputProps, emojify } from "@/components/ui";
+import { classifyAttachment } from "@/lib/attachments";
 import { splitEmoji } from "@/lib/emoji";
-import type { MessageAttachment } from "@/lib/uploads";
+import type { VoiceMeta } from "@/lib/message-extras";
+import type { MessageAttachment, PickedAsset } from "@/lib/uploads";
 import type { ChatMessagePayload } from "@/realtime/events";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { hasSilentPrefix, toggleSilentPrefix } from "../message-markup";
+import type { ServerStickerLite } from "../server-assets";
 import { KeyboardGlyph } from "./composer-glyphs";
 import { ComposerPanel } from "./composer-picker";
+import { RecordingBar, useVoiceRecorder } from "./voice-recorder";
 import {
   rememberPanelTab,
   useKeyboardSpace,
@@ -41,38 +47,59 @@ export interface ComposerHandle {
 }
 const INPUT_BUTTON_SIZE = 36;
 
+/** Gönderilmeyi bekleyen ek — yüklenmiş, çubukta çip olarak durur. */
+export interface PendingFile {
+  key: string;
+  file: MessageAttachment;
+  /** Gönderimde `SPOILER_` önekiyle gider: herkes için örtülü (web kuralı). */
+  spoiler: boolean;
+}
+
 export function Composer({
   inputRef,
   value,
   onChangeText,
   onSend,
   placeholder,
-  attachment,
+  attachments,
   replyingTo,
   uploadProgress,
   uploadError,
   onPickAttachment,
   onRemoveAttachment,
+  onToggleSpoiler,
   onCancelReply,
   onSelectGif,
   onSelectActivity,
+  onSelectSticker,
+  onVoiceRecorded,
+  onCaretChange,
   commandsAvailable = false,
   controlRef,
 }: {
   inputRef: RefObject<TextInput | null>;
   value: string;
   onChangeText: (text: string) => void;
-  onSend: () => void;
+  /** `silent`: basılı tutulan gönder — mesaj `@sessiz` önekiyle gider. */
+  onSend: (options?: { silent?: boolean }) => void;
   placeholder: string;
-  attachment: MessageAttachment | null;
+  attachments: PendingFile[];
   replyingTo: ChatMessagePayload | null;
-  uploadProgress: number | null;
+  /** Yükleme sürüyorsa çubukta gösterilecek ilerleme metni. */
+  uploadProgress: string | null;
   uploadError: string | null;
   onPickAttachment: () => void;
-  onRemoveAttachment: () => void;
+  onRemoveAttachment: (key: string) => void;
+  onToggleSpoiler: (key: string) => void;
   onCancelReply: () => void;
   onSelectGif: (url: string) => void;
   onSelectActivity: (activityId: string) => void;
+  /** Sunucu kanalında çıkartma paneli; yoksa sekme gizli. */
+  onSelectSticker?: (sticker: ServerStickerLite) => void;
+  /** Verilirse yazı boşken gönder düğmesi mikrofona döner (sesli mesaj). */
+  onVoiceRecorded?: (asset: PickedAsset, meta: VoiceMeta) => void;
+  /** İmleç konumu — `@`/`:` önerileri için. */
+  onCaretChange?: (caret: number) => void;
   /** Kanaldaki botların "/" komutu var — klavye açıkken "/" düğmesi görünür. */
   commandsAvailable?: boolean;
   controlRef?: RefObject<ComposerHandle | null>;
@@ -87,8 +114,12 @@ export function Composer({
   /** İmleç — emoji sona değil imlecin olduğu yere girer. */
   const selection = useRef({ start: 0, end: 0 });
 
-  const canSend = value.trim().length > 0 || Boolean(attachment);
+  const canSend = value.trim().length > 0 || attachments.length > 0;
   const isUploading = uploadProgress !== null;
+  const silent = hasSilentPrefix(value);
+  const voice = useVoiceRecorder((asset, meta) => onVoiceRecorded?.(asset, meta));
+  const recording = voice.phase === "recording";
+  const showMic = Boolean(onVoiceRecorded) && !canSend && !isUploading;
   const panelOpen = panel !== null;
   // Arama klavyesi açıkken panel klavyenin üstünde dar bir şerit olarak kalır.
   const compact = panelOpen && searching && keyboardVisible;
@@ -127,7 +158,8 @@ export function Composer({
 
   const openPanel = () => {
     setSearching(false);
-    setPanel(lastTab);
+    // Çıkartma sekmesi yalnızca sunucu kanalında; DM'de emojiye düşer.
+    setPanel(lastTab === "sticker" && !onSelectSticker ? "emoji" : lastTab);
     Keyboard.dismiss();
   };
 
@@ -160,6 +192,7 @@ export function Composer({
   const replaceRange = (start: number, end: number, text: string) => {
     const caret = start + text.length;
     selection.current = { start: caret, end: caret };
+    onCaretChange?.(caret);
     onChangeText(value.slice(0, start) + text + value.slice(end));
     // Değer bir sonraki çizimde yerleşir; imleç ondan sonra taşınır.
     requestAnimationFrame(() => inputRef.current?.setSelection(caret, caret));
@@ -192,32 +225,43 @@ export function Composer({
           gap: spacing.sm,
         }}
       >
-        {attachment ? (
-          <View
+        {attachments.length > 0 ? (
+          // Ek çipleri (en çok 10): her biri tek tek kaldırılır ya da
+          // spoiler olarak işaretlenir (web AttachmentChip).
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={{ gap: spacing.sm }}>
+            {attachments.map((item) => (
+              <AttachmentChip
+                key={item.key}
+                item={item}
+                onRemove={() => onRemoveAttachment(item.key)}
+                onToggleSpoiler={() => onToggleSpoiler(item.key)}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {silent ? (
+          <Pressable
+            onPress={() => onChangeText(toggleSilentPrefix(value))}
+            accessibilityRole="button"
+            accessibilityLabel="Sessiz gönderim açık. Kapatmak için dokun"
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: spacing.sm,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.sm,
-              borderRadius: radii.md,
-              borderCurve: "continuous",
+              alignSelf: "flex-start",
+              gap: spacing.xs,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 4,
+              borderRadius: radii.full,
               backgroundColor: colors.panel,
             }}
           >
-            <IconButton icon="attachment" label="Ek" background="transparent" tint={colors.brand} disabled size={28} />
-            <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
-              {attachment.name}
+            <Icon name="bell-off" size={13} color={colors.muted} />
+            <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: colors.muted }}>
+              Sessiz gönderilecek — bildirim gitmez
             </Text>
-            <IconButton
-              icon="close"
-              label="Eki kaldır"
-              background="transparent"
-              tint={colors.muted}
-              onPress={onRemoveAttachment}
-              size={28}
-            />
-          </View>
+            <Icon name="close" size={12} color={colors.muted} />
+          </Pressable>
         ) : null}
 
         {replyingTo ? (
@@ -251,12 +295,15 @@ export function Composer({
 
         {isUploading || uploadError ? (
           <Text style={{ ...typography.caption, color: uploadError ? colors.danger : colors.muted }}>
-            {uploadError ?? `Dosya yükleniyor… %${Math.round(uploadProgress ?? 0)}`}
+            {uploadError ?? uploadProgress}
           </Text>
         ) : null}
 
         {/* Telegram düzeni: [+] [yazı kutusu (içinde "/" ve emoji/klavye)] [gönder].
             GIF ve aktiviteler artık panelin sekmeleri. */}
+        {recording ? (
+          <RecordingBar elapsedMs={voice.elapsedMs} level={voice.level} onCancel={voice.cancel} onSend={voice.send} />
+        ) : (
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
           <IconButton
             icon="plus"
@@ -289,6 +336,7 @@ export function Composer({
               onChangeText={onChangeText}
               onSelectionChange={(event) => {
                 selection.current = event.nativeEvent.selection;
+                onCaretChange?.(event.nativeEvent.selection.end);
               }}
               onFocus={() => {
                 // Panel aramasının klavyesi açıkken yazı kutusuna dönülürse
@@ -332,17 +380,52 @@ export function Composer({
             </InputButton>
           </View>
 
-          <IconButton
-            icon="send"
-            label="Gönder"
-            onPress={onSend}
-            disabled={!canSend || isUploading}
-            background={canSend ? colors.brand : colors.panel}
-            tint={canSend ? colors.onBrand : colors.muted}
-            size={40}
-            haptic="light"
-          />
+          {showMic ? (
+            // Sesli mesaj: basılı tut → bırakınca gider; dokun → kilitli kayıt.
+            <Pressable
+              onPressIn={() => void voice.start()}
+              onPressOut={voice.release}
+              disabled={voice.phase === "starting"}
+              accessibilityRole="button"
+              accessibilityLabel="Sesli mesaj kaydet"
+              accessibilityHint="Basılı tut ve bırakınca gönder, ya da dokunup kaydı çubuktan bitir"
+              style={({ pressed }) => ({
+                width: 40,
+                height: 40,
+                borderRadius: radii.full,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: pressed ? colors.brand : colors.panel,
+              })}
+            >
+              {({ pressed }) => <Icon name="mic" size={20} color={pressed ? colors.onBrand : colors.muted} />}
+            </Pressable>
+          ) : (
+            // Basılı tutunca sessiz gönderim (Telegram "sessiz gönder").
+            <Pressable
+              onPress={() => onSend()}
+              onLongPress={canSend && !isUploading && !silent ? () => onSend({ silent: true }) : undefined}
+              delayLongPress={400}
+              disabled={!canSend || isUploading}
+              haptic="light"
+              accessibilityRole="button"
+              accessibilityLabel="Gönder"
+              accessibilityHint="Bildirimsiz göndermek için basılı tut"
+              style={({ pressed }) => ({
+                width: 40,
+                height: 40,
+                borderRadius: radii.full,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: canSend ? colors.brand : colors.panel,
+                opacity: !canSend || isUploading ? 0.4 : pressed ? 0.7 : 1,
+              })}
+            >
+              <Icon name="send" size={20} color={canSend ? colors.onBrand : colors.muted} />
+            </Pressable>
+          )}
         </View>
+        )}
       </View>
 
       {/* Klavyenin ya da panelin kapladığı alan. */}
@@ -363,11 +446,84 @@ export function Composer({
               closePanel();
               onSelectActivity(activityId);
             }}
+            onSticker={
+              onSelectSticker
+                ? (sticker) => {
+                    closePanel();
+                    onSelectSticker(sticker);
+                  }
+                : undefined
+            }
             onSearchFocusChange={setSearching}
             onDismiss={closePanel}
           />
         ) : null}
       </Animated.View>
+    </View>
+  );
+}
+
+/** Bekleyen ekin çipi: önizleme, ad, spoiler anahtarı ve kaldır. */
+function AttachmentChip({
+  item,
+  onRemove,
+  onToggleSpoiler,
+}: {
+  item: PendingFile;
+  onRemove: () => void;
+  onToggleSpoiler: () => void;
+}) {
+  const kind = classifyAttachment(item.file.url, { name: item.file.name, type: item.file.mimeType, size: item.file.size });
+  const visual = kind === "image" || kind === "probe";
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        width: 220,
+        paddingLeft: 6,
+        paddingRight: 2,
+        paddingVertical: 6,
+        borderRadius: radii.md,
+        borderCurve: "continuous",
+        backgroundColor: colors.panel,
+      }}
+    >
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: radii.sm,
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          backgroundColor: colors.deep,
+        }}
+      >
+        {visual ? (
+          <Image source={{ uri: item.file.url }} contentFit="cover" blurRadius={item.spoiler ? 12 : 0} style={{ width: 40, height: 40 }} />
+        ) : (
+          <Icon name={kind === "video" ? "video" : kind === "audio" ? "volume" : "file"} size={18} color={colors.brand} />
+        )}
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ ...typography.caption, color: colors.text }} numberOfLines={1}>
+          {item.file.name}
+        </Text>
+        {item.spoiler ? (
+          <Text style={{ fontSize: 11, lineHeight: 14, ...fw(600), color: colors.warning }}>Spoiler</Text>
+        ) : null}
+      </View>
+      <IconButton
+        icon={item.spoiler ? "eye" : "eye-off"}
+        label={item.spoiler ? "Spoiler işaretini kaldır" : "Spoiler olarak işaretle"}
+        background="transparent"
+        tint={item.spoiler ? colors.warning : colors.muted}
+        onPress={onToggleSpoiler}
+        size={28}
+      />
+      <IconButton icon="close" label="Eki kaldır" background="transparent" tint={colors.muted} onPress={onRemove} size={28} />
     </View>
   );
 }
