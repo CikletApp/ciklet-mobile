@@ -12,6 +12,7 @@ import Animated, {
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Stop } from "react-native-svg";
 
 import { findDecoration } from "@/lib/avatar-decorations";
+import { useScreenActive } from "@/lib/use-screen-active";
 
 import { TurkiyeEmblem } from "./turkiye-emblem";
 
@@ -29,8 +30,11 @@ export function AvatarDecorationRing({ id, size }: { id: string | null | undefin
   const outer = size + stroke * 2;
   const gradientId = `deco-${useId().replace(/:/g, "")}`;
   const reduceMotion = useReducedMotion();
+  const screenActive = useScreenActive();
   const rotation = useSharedValue(0);
-  const spin = Boolean(deco?.spin) && !reduceMotion;
+  // Dönüş yalnızca görünür ekranda ve okunur boyutta: küçük avatarlarda
+  // (liste satırları) fark edilmiyor ama her biri kare başına iş üretiyordu.
+  const spin = Boolean(deco?.spin) && !reduceMotion && screenActive && size >= 32;
 
   useEffect(() => {
     if (!spin) {

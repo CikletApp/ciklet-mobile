@@ -13,6 +13,7 @@ import Animated, {
 
 import { TurkiyeEmblem } from "@/components/ui/turkiye-emblem";
 import { PROFILE_EFFECTS } from "@/lib/profile-extras";
+import { useScreenActive } from "@/lib/use-screen-active";
 
 /**
  * Mağaza profil efekti — afişin üstünde süzülen emoji parçacıkları (web
@@ -22,9 +23,11 @@ import { PROFILE_EFFECTS } from "@/lib/profile-extras";
 const SLOTS = [8, 22, 37, 51, 64, 78, 91];
 
 export function ProfileEffectOverlay({ id, height }: { id: string | null | undefined; height: number }) {
+  // Ekran arkada ya da uygulama arka plandayken parçacıklar durur.
+  const active = useScreenActive();
   const particles = id ? PROFILE_EFFECTS[id] : undefined;
   if (!particles) return null;
-  if (id === "fx_turkiye") return <TurkiyeEffect height={height} />;
+  if (id === "fx_turkiye") return <TurkiyeEffect height={height} paused={!active} />;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, overflow: "hidden" }}>
       {SLOTS.map((left, index) => (
@@ -35,6 +38,7 @@ export function ProfileEffectOverlay({ id, height }: { id: string | null | undef
           height={height}
           delay={((index * 0.61) % 4.2) * 1000}
           duration={(3.6 + (index % 3) * 0.5) * 1000}
+          paused={!active}
         />
       ))}
     </View>
@@ -47,21 +51,23 @@ function Particle({
   height,
   delay,
   duration,
+  paused,
 }: {
   glyph: string;
   left: number;
   height: number;
   delay: number;
   duration: number;
+  paused: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const progress = useSharedValue(reduceMotion ? 0.5 : 0);
 
   useEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion || paused) return;
     progress.value = withDelay(delay, withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false));
     return () => cancelAnimation(progress);
-  }, [delay, duration, progress, reduceMotion]);
+  }, [delay, duration, paused, progress, reduceMotion]);
 
   const style = useAnimatedStyle(() => ({
     // Afişin altından üstüne süzülür; başta ve sonda solar.
@@ -88,14 +94,14 @@ const FLAG_STARS = [
   { left: 61, top: 0.18, size: 7, delay: 1800 },
 ];
 
-function TurkiyeEffect({ height }: { height: number }) {
+function TurkiyeEffect({ height, paused }: { height: number; paused: boolean }) {
   const reduceMotion = useReducedMotion();
   const breathe = useSharedValue(0);
   useEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion || paused) return;
     breathe.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.ease) }), -1, true);
     return () => cancelAnimation(breathe);
-  }, [breathe, reduceMotion]);
+  }, [breathe, paused, reduceMotion]);
   const emblemStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${-3 + breathe.value * 5}deg` }, { scale: 1 + breathe.value * 0.06 }],
   }));
@@ -105,7 +111,14 @@ function TurkiyeEffect({ height }: { height: number }) {
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, overflow: "hidden" }}>
       <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "rgba(227, 10, 23, 0.74)" }} />
       {FLAG_STARS.map((star) => (
-        <Twinkle key={star.left} left={star.left} top={star.top * height} size={star.size} delay={star.delay} />
+        <Twinkle
+          key={star.left}
+          left={star.left}
+          top={star.top * height}
+          size={star.size}
+          delay={star.delay}
+          paused={paused}
+        />
       ))}
       <Animated.View
         style={[
@@ -119,14 +132,26 @@ function TurkiyeEffect({ height }: { height: number }) {
   );
 }
 
-function Twinkle({ left, top, size, delay }: { left: number; top: number; size: number; delay: number }) {
+function Twinkle({
+  left,
+  top,
+  size,
+  delay,
+  paused,
+}: {
+  left: number;
+  top: number;
+  size: number;
+  delay: number;
+  paused: boolean;
+}) {
   const reduceMotion = useReducedMotion();
   const pulse = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion || paused) return;
     pulse.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.ease) }), -1, true));
     return () => cancelAnimation(pulse);
-  }, [delay, pulse, reduceMotion]);
+  }, [delay, paused, pulse, reduceMotion]);
   const style = useAnimatedStyle(() => ({ opacity: 0.15 + pulse.value * 0.85, transform: [{ scale: 0.6 + pulse.value * 0.55 }] }));
   return (
     <Animated.View style={[{ position: "absolute", left: `${left}%`, top }, style]}>

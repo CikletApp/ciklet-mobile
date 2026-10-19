@@ -1,5 +1,6 @@
+import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { QueryClient } from "@tanstack/react-query";
+import { focusManager, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import type { PersistQueryClientOptions } from "@tanstack/react-query-persist-client";
 
@@ -18,6 +19,16 @@ import { qk } from "./query-keys";
  *    için sayfalar), AsyncStorage'ı şişirir ve çevrimdışı okunan eski bir
  *    sohbet, canlı akışla senkronize olmadığı için yanıltıcı olur.
  */
+
+/**
+ * React Native'de pencere odağı yok; TanStack'e uygulamanın ön/arka plan
+ * durumu odak olarak bildirilir. Böylece `refetchInterval` arka planda
+ * durur ve ön plana dönüşte bayat sorgular tazelenir.
+ */
+focusManager.setEventListener((setFocused) => {
+  const subscription = AppState.addEventListener("change", (next) => setFocused(next === "active"));
+  return () => subscription.remove();
+});
 
 export const queryClient = new QueryClient({
   defaultOptions: {

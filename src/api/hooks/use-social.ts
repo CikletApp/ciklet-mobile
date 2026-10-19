@@ -193,13 +193,14 @@ export function useSpotifyLink(enabled = true) {
  * doğrulanmış + görünür bağlantıya döner; 5 sn önbellekli. Kart açıkken
  * 30 sn'de bir tazelenir (şarkı değişimi), ilerleme istemcide sayılır.
  */
-export function useSpotifyNowPlaying(profileId: string | undefined, enabled = true) {
+/** `polling`: yalnızca ekran görünürken 30 sn'de bir yoklanır (çağıran `useScreenActive` verir). */
+export function useSpotifyNowPlaying(profileId: string | undefined, enabled = true, polling = true) {
   return useQuery({
     queryKey: qk.spotifyNowPlaying(profileId ?? "yok"),
     enabled: Boolean(profileId) && enabled,
     queryFn: () => api<{ playing: SpotifyNowPlaying | null }>(endpoints.spotifyNowPlaying(profileId!)),
     select: (data) => data?.playing ?? null,
-    refetchInterval: 30_000,
+    refetchInterval: polling ? 30_000 : false,
     staleTime: 10_000,
   });
 }

@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { useSpotifyLink, useSpotifyNowPlaying } from "@/api/hooks";
 import type { SpotifyNowPlaying } from "@/api/types";
 import { Icon, Pressable } from "@/components/ui";
+import { useScreenActive } from "@/lib/use-screen-active";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { startListenAlong, stopListenAlong, useListenAlong } from "./listen-along";
@@ -29,16 +30,18 @@ function positionAt(track: SpotifyNowPlaying, now: number): number {
  * Premium ise çıkar (sunucu da denetler).
  */
 export function SpotifyCard({ profileId, name, isSelf }: { profileId: string; name: string; isSelf: boolean }) {
-  const { data: playing } = useSpotifyNowPlaying(profileId);
+  // Ekran arkada / uygulama arka plandayken ne saniyelik sayaç ne yoklama.
+  const active = useScreenActive();
+  const { data: playing } = useSpotifyNowPlaying(profileId, true, active);
   const { data: viewer } = useSpotifyLink(!isSelf && Boolean(playing));
   const host = useListenAlong((s) => s.host);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || !active) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [playing]);
+  }, [playing, active]);
 
   if (!playing) return null;
   const pos = positionAt(playing, now);
