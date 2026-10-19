@@ -1,6 +1,7 @@
 import { ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 
+import { STORE_TITLE } from "@/lib/purchases";
 import { useCurrentProfile } from "@/api/hooks";
 import {
   Avatar,
@@ -86,7 +87,7 @@ export default function SettingsScreen() {
             <Divider inset={52} />
             <ListRow
               icon="heart"
-              title="Mağaza"
+              title={STORE_TITLE}
               onPress={() => router.push("/store")}
             />
             <Divider inset={52} />

@@ -1,6 +1,7 @@
 import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { router, Stack } from "expo-router";
 
+import { PURCHASES_ENABLED } from "@/lib/purchases";
 import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMentolPlan, useStoreCatalog, useUpdateProfile } from "@/api/hooks";
 import { Avatar, Button, Icon, Pressable, Screen, ScreenLoader, showToast } from "@/components/ui";
@@ -110,13 +111,15 @@ export default function DecorationPickerScreen() {
           {tile(null)}
           {list.map((deco) => tile(deco))}
         </View>
-        <Button
-          label="Mağazada daha fazlası"
-          icon="sparkles"
-          variant="secondary"
-          onPress={() => router.push("/store")}
-          fullWidth
-        />
+        {PURCHASES_ENABLED ? (
+          <Button
+            label="Mağazada daha fazlası"
+            icon="sparkles"
+            variant="secondary"
+            onPress={() => router.push("/store")}
+            fullWidth
+          />
+        ) : null}
       </ScrollView>
     </Screen>
   );

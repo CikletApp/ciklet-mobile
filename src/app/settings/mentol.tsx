@@ -9,6 +9,7 @@ import { useCheckout, useMentolPlan } from "@/api/hooks";
 import { Button, Pressable, Screen, SectionHeader, TextField, showDialog } from "@/components/ui";
 import { RewardedCard } from "@/features/mentol/rewarded-card";
 import { formatTime } from "@/lib/format";
+import { PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -48,29 +49,44 @@ export default function MentolSettingsScreen() {
           </>
         ) : null}
 
-        <SectionHeader title="HEDİYE VEYA PROMOSYON KODU" />
-        <View style={{ marginHorizontal: spacing.lg, padding: spacing.lg, gap: spacing.md, borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel }}>
-          <TextField label="KOD" value={code} onChangeText={(value) => setCode(value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20))} autoCapitalize="characters" placeholder="XXXX-XXXX-XXXX" />
-          <Button label="Kodu Kullan" onPress={() => redeem.mutate()} loading={redeem.isPending} disabled={!code.trim()} fullWidth />
-        </View>
-
-        <SectionHeader title="HEDİYE ET YA DA SATIN AL" />
-        <MentolGiftCard />
-
-        <SectionHeader title="MAĞAZA" />
-        <View style={{ paddingHorizontal: spacing.lg }}>
-          <Button label="Mağazaya git" icon="sparkles" variant="secondary" onPress={() => router.push("/store")} fullWidth />
-        </View>
-
-        <SectionHeader title="PLANLAR" />
-        <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
-          {PLAN_ROWS.map((row) => (
-            <View key={row.name} style={{ padding: spacing.lg, borderRadius: radii.lg, borderCurve: "continuous", backgroundColor: colors.panel, borderWidth: plan.data?.plan === row.id ? 1 : 0, borderColor: colors.brand, gap: 3 }}>
-              <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{row.name}</Text>
-              <Text style={{ ...typography.caption, color: colors.muted }}>{row.detail}</Text>
+        {/* iOS'ta kodla açma, satın alma, hediye ve plan tanıtımı yok (lib/purchases). */}
+        {PURCHASES_ENABLED ? (
+          <>
+            <SectionHeader title="HEDİYE VEYA PROMOSYON KODU" />
+            <View style={{ marginHorizontal: spacing.lg, padding: spacing.lg, gap: spacing.md, borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel }}>
+              <TextField label="KOD" value={code} onChangeText={(value) => setCode(value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20))} autoCapitalize="characters" placeholder="XXXX-XXXX-XXXX" />
+              <Button label="Kodu Kullan" onPress={() => redeem.mutate()} loading={redeem.isPending} disabled={!code.trim()} fullWidth />
             </View>
-          ))}
+
+            <SectionHeader title="HEDİYE ET YA DA SATIN AL" />
+            <MentolGiftCard />
+          </>
+        ) : null}
+
+        <SectionHeader title={STORE_TITLE.toLocaleUpperCase("tr-TR")} />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <Button
+            label={PURCHASES_ENABLED ? "Mağazaya git" : "Koleksiyonuma git"}
+            icon="sparkles"
+            variant="secondary"
+            onPress={() => router.push("/store")}
+            fullWidth
+          />
         </View>
+
+        {PURCHASES_ENABLED ? (
+          <>
+            <SectionHeader title="PLANLAR" />
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+              {PLAN_ROWS.map((row) => (
+                <View key={row.name} style={{ padding: spacing.lg, borderRadius: radii.lg, borderCurve: "continuous", backgroundColor: colors.panel, borderWidth: plan.data?.plan === row.id ? 1 : 0, borderColor: colors.brand, gap: 3 }}>
+                  <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{row.name}</Text>
+                  <Text style={{ ...typography.caption, color: colors.muted }}>{row.detail}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </Screen>
   );

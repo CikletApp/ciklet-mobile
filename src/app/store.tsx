@@ -27,6 +27,7 @@ import { NameplateBackground } from "@/features/profile/nameplate";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import { displayNameOf } from "@/lib/format";
 import { STORE_KIND_LABEL, formatPriceTry } from "@/lib/profile-extras";
+import { PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -36,7 +37,8 @@ import { fw } from "@/theme/fonts";
  * Katalog, önizleme ve sahip olunan ürünü TAKMA uygulama içinde. Satın alma
  * ve hediye ise ödeme kaydı açılıp web ödeme sayfasına sistem tarayıcısıyla
  * gidilerek yapılır (bkz. `use-store.ts`: mağaza içi dijital ürün satışı
- * App Store / Play kurallarına takılır).
+ * App Store / Play kurallarına takılır). iOS'ta satın alma yüzeyi hiç yok:
+ * ekran yalnızca sahip olunan ürünleri takıp çıkarmak için (lib/purchases).
  */
 type Item = StoreCatalogResponse["items"][number];
 
@@ -55,18 +57,18 @@ export default function StoreScreen() {
   if (!catalog.data) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: "Mağaza" }} />
-        <EmptyState icon="sparkles" title="Mağaza açılamadı" description="Bağlantını kontrol edip tekrar dene." />
+        <Stack.Screen options={{ title: STORE_TITLE }} />
+        <EmptyState icon="sparkles" title={`${STORE_TITLE} açılamadı`} description="Bağlantını kontrol edip tekrar dene." />
       </Screen>
     );
   }
 
   const data = catalog.data;
-  const items = data.items.filter((item) => item.kind === kind);
+  const items = data.items.filter((item) => item.kind === kind && (PURCHASES_ENABLED || item.owned));
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Mağaza" }} />
+      <Stack.Screen options={{ title: STORE_TITLE }} />
       <SegmentedTabs
         variant="pill"
         value={kind}
@@ -74,12 +76,20 @@ export default function StoreScreen() {
         items={(Object.keys(STORE_KIND_LABEL) as StoreItemKind[]).map((id) => ({ id, label: STORE_KIND_LABEL[id] }))}
       />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["4xl"] }} keyboardShouldPersistTaps="handled">
-        <Text style={{ ...typography.caption, color: colors.muted }}>
-          {data.mentol
-            ? `Mentol üyesisin: tüm ürünlerde %${data.discountPercent} indirim.`
-            : `Mentol üyelerine %${data.discountPercent} indirim.`}{" "}
-          Ödeme web ödeme sayfasında, tarayıcıda tamamlanır.
-        </Text>
+        {PURCHASES_ENABLED ? (
+          <Text style={{ ...typography.caption, color: colors.muted }}>
+            {data.mentol
+              ? `Mentol üyesisin: tüm ürünlerde %${data.discountPercent} indirim.`
+              : `Mentol üyelerine %${data.discountPercent} indirim.`}{" "}
+            Ödeme web ödeme sayfasında, tarayıcıda tamamlanır.
+          </Text>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon="sparkles"
+            title="Bu türde ürünün yok"
+            description="Sahip olduğun ürünler burada görünür; takıp çıkarabilirsin."
+          />
+        ) : null}
         {items.map((item) => (
           <StoreCard
             key={item.id}
@@ -146,7 +156,7 @@ function StoreCard({
           </Text>
           {item.owned ? (
             <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>SENDE</Text>
-          ) : (
+          ) : !PURCHASES_ENABLED ? null : (
             <Text style={{ ...typography.bodyStrong, color: colors.bright }}>
               {discounted ? (
                 <Text style={{ ...typography.caption, color: colors.muted, textDecorationLine: "line-through" }}>
@@ -168,7 +178,7 @@ function StoreCard({
               loading={update.isPending}
               style={{ flex: 1 }}
             />
-          ) : (
+          ) : !PURCHASES_ENABLED ? null : (
             <Button
               label="Satın al"
               onPress={() => buy({ kind: "store", itemId: item.id })}
@@ -177,16 +187,18 @@ function StoreCard({
               style={{ flex: 1 }}
             />
           )}
-          <Button
-            label="Hediye et"
-            icon="heart"
-            variant="secondary"
-            onPress={() => setGiftOpen((open) => !open)}
-            disabled={!purchasable}
-            style={{ flex: 1 }}
-          />
+          {PURCHASES_ENABLED ? (
+            <Button
+              label="Hediye et"
+              icon="heart"
+              variant="secondary"
+              onPress={() => setGiftOpen((open) => !open)}
+              disabled={!purchasable}
+              style={{ flex: 1 }}
+            />
+          ) : null}
         </View>
-        {giftOpen ? (
+        {PURCHASES_ENABLED && giftOpen ? (
           <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
             <TextField
               label="KİME?"
@@ -206,7 +218,7 @@ function StoreCard({
             />
           </View>
         ) : null}
-        {!purchasable ? (
+        {PURCHASES_ENABLED && !purchasable ? (
           <Text style={{ ...typography.caption, color: colors.muted }}>Satın alma şu an kapalı.</Text>
         ) : null}
       </View>

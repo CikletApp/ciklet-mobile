@@ -6,6 +6,7 @@ import { useCheckout, useServerSummary, useServerTiers } from "@/api/hooks";
 import { Button, EmptyState, Screen, ScreenLoader, showDialog } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { formatPriceTry } from "@/lib/profile-extras";
+import { PURCHASES_ENABLED } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -16,6 +17,8 @@ import { fw } from "@/theme/fonts";
  * uzatma / kademe değiştirme ödeme kaydı açıp web ödeme sayfasını
  * tarayıcıda açar (mağaza kuralları, bkz. `use-store.ts`). Kademe
  * oluşturma ve gelir kartları web Sunucu Ayarları → Abonelikler'de.
+ * iOS'ta fiyat ve abone olma yok; kademeler ve kendi aboneliğin görünür
+ * (lib/purchases).
  */
 export default function ServerSubscriptionsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -52,7 +55,9 @@ export default function ServerSubscriptionsScreen() {
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["4xl"] }}>
           <Text style={{ ...typography.caption, color: colors.muted }}>
             {server?.name ? `${server.name} sunucusunu destekle. ` : ""}
-            Abonelik 30 gün sürer ve kademenin rolünü verir; otomatik yenilenmez. Ödeme web ödeme sayfasında, tarayıcıda tamamlanır.
+            {PURCHASES_ENABLED
+              ? "Abonelik 30 gün sürer ve kademenin rolünü verir; otomatik yenilenmez. Ödeme web ödeme sayfasında, tarayıcıda tamamlanır."
+              : "Abonelik kademenin rolünü verir."}
           </Text>
           {mine ? (
             <View style={{ padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.brandSoft }}>
@@ -82,10 +87,12 @@ export default function ServerSubscriptionsScreen() {
                   <Text style={{ ...typography.title, color: colors.bright, flex: 1 }} numberOfLines={1}>
                     {tier.name}
                   </Text>
-                  <Text style={{ ...typography.bodyStrong, color: colors.bright }}>
-                    {formatPriceTry(tier.price)}
-                    <Text style={{ ...typography.caption, color: colors.muted }}> / ay</Text>
-                  </Text>
+                  {PURCHASES_ENABLED ? (
+                    <Text style={{ ...typography.bodyStrong, color: colors.bright }}>
+                      {formatPriceTry(tier.price)}
+                      <Text style={{ ...typography.caption, color: colors.muted }}> / ay</Text>
+                    </Text>
+                  ) : null}
                 </View>
                 {tier.description ? (
                   <Text style={{ ...typography.body, color: colors.text }}>{tier.description}</Text>
@@ -102,7 +109,7 @@ export default function ServerSubscriptionsScreen() {
                     {tier.subscriberCount !== undefined ? ` · ${tier.subscriberCount} etkin abone` : ""}
                   </Text>
                 ) : null}
-                {tier.active ? (
+                {PURCHASES_ENABLED && tier.active ? (
                   <Button
                     label={label}
                     variant={current ? "secondary" : "primary"}

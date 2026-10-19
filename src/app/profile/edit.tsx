@@ -11,6 +11,7 @@ import { router, Stack } from "expo-router";
 
 import { Image } from "expo-image";
 
+import { STORE_TITLE } from "@/lib/purchases";
 import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMyMemberships, useUpdateProfile } from "@/api/hooks";
 import { Avatar } from "@/components/ui/avatar";
@@ -328,7 +329,7 @@ export default function EditProfileScreen() {
               <Divider inset={52} />
               <ListRow icon="link" title="Bağlantılar" onPress={() => router.push("/profile/connections")} />
               <Divider inset={52} />
-              <ListRow icon="heart" title="Mağaza" subtitle="İsim plakası, profil efekti, süsler" onPress={() => router.push("/store")} />
+              <ListRow icon="heart" title={STORE_TITLE} subtitle="İsim plakası, profil efekti, süsler" onPress={() => router.push("/store")} />
             </ListGroup>
           </View>
 
