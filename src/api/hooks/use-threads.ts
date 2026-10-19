@@ -51,7 +51,9 @@ export function useServerThreads(serverId: string | undefined, enabled = true) {
 
 async function fetchServerThreads(queryClient: QueryClient, serverId: string): Promise<ServerThread[]> {
   try {
-    return await api<ServerThread[]>(endpoints.serverThreads(serverId));
+    // Web `{ threads: [...] }` döndürüyor; düz dizi de kabul edilir.
+    const res = await api<ServerThread[] | { threads: ServerThread[] }>(endpoints.serverThreads(serverId));
+    return Array.isArray(res) ? res : res.threads ?? [];
   } catch (error) {
     if (!(error instanceof ApiError && error.status === 404)) throw error;
   }
