@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
@@ -98,8 +98,31 @@ export default function VoiceChannelScreen() {
     router.back();
   }, [leave]);
 
+  // Taşınırken önce eski oturum kapanır: ekran LiveKit odasını söker
+  // (bağlantı kopar), sonra yeni kanalın ekranına geçilir.
+  const [movingTo, setMovingTo] = useState<string | null>(null);
+  const onMove = useCallback(
+    (targetChannelId: string, targetServerId: string) => {
+      leave();
+      setMovingTo(`/voice/${targetChannelId}?serverId=${targetServerId}`);
+    },
+    [leave]
+  );
+  useEffect(() => {
+    if (movingTo) router.replace(movingTo);
+  }, [movingTo]);
+
   // Moderatörün sana uyguladığı ses moderasyonu (kes / taşı / sustur).
-  useVoiceModeratedEvents(channelId, onLeave);
+  useVoiceModeratedEvents(channelId, onLeave, onMove);
+
+  if (movingTo) {
+    return (
+      <>
+        <Stack.Screen options={{ title: channel?.name ?? "" }} />
+        <ScreenLoader label="Başka kanala taşınıyorsun…" />
+      </>
+    );
+  }
 
   if (status === "error") {
     return (

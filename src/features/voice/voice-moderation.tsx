@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Text } from "react-native";
-import { router } from "expo-router";
 import type { Participant } from "livekit-client";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
@@ -30,11 +29,15 @@ import { colors, typography } from "@/theme/tokens";
 /** LiveKit `TrackSource.MICROPHONE` (protokol enum değeri). */
 const MICROPHONE_SOURCE = 2;
 
-/** Sunucu mikrofon yayınını kapatmış mı (`canPublishSources` mikrofonu içermiyor). */
+/**
+ * Sunucu mikrofon yayınını kapatmış mı: `canPublishSources` dolu ve mikrofonu
+ * içermiyor (web `lib/voice/moderation` susturmayı böyle yazar).
+ * `canPublish: false` tek başına susturma DEĞİL — sahne dinleyicisinin
+ * normal hâli; ona bakılsaydı sahnedeki herkes "susturuldu" görünürdü.
+ */
 export function isServerMuted(participant: Participant | undefined): boolean {
   const permission = participant?.permissions;
   if (!permission) return false;
-  if (permission.canPublish === false) return true;
   const sources = permission.canPublishSources ?? [];
   return sources.length > 0 && !sources.includes(MICROPHONE_SOURCE as never);
 }
@@ -160,9 +163,15 @@ export function useVoiceModerationMenu({
 
 /**
  * Sana uygulanan ses moderasyonu (`voice.moderated`, kullanıcı odası):
- * bilgi verilir; kesmede ekran kapanır, taşımada yeni kanal açılır.
+ * bilgi verilir; kesmede ekran kapanır, taşımada `onMove` çağrılır — ekran
+ * eski LiveKit oturumunu kapatıp yeni kanala öyle geçer (aksi hâlde geçiş
+ * anında iki oda birden bağlı kalıyordu).
  */
-export function useVoiceModeratedEvents(channelId: string, onLeave: () => void) {
+export function useVoiceModeratedEvents(
+  channelId: string,
+  onLeave: () => void,
+  onMove: (targetChannelId: string, serverId: string) => void
+) {
   useEffect(
     () =>
       onGatewayEvent(ServerEvent.VOICE_MODERATED, (frame) => {
@@ -182,11 +191,11 @@ export function useVoiceModeratedEvents(channelId: string, onLeave: () => void) 
           case "move":
             if (typeof frame.targetChannelId === "string") {
               showToast("Bir moderatör seni başka bir kanala taşıdı.");
-              router.replace(`/voice/${frame.targetChannelId}?serverId=${serverId}`);
+              onMove(frame.targetChannelId, serverId);
             }
             break;
         }
       }),
-    [channelId, onLeave]
+    [channelId, onLeave, onMove]
   );
 }
