@@ -80,6 +80,8 @@ export function useSocialEvents() {
       // sayacını `use-unread-sync` artırır.
       onGatewayEvent(ServerEvent.MESSAGE_NOTIFICATION, (frame) => {
         invalidate(qk.directs, qk.inbox);
+        // İstek sayılan DM (arkadaş olmayan) Mesaj İstekleri listesini değiştirir.
+        if (frame.isSpam === true) invalidate(qk.messageRequests);
 
         const sender = frame.sender as { id?: string; username?: string; name?: string | null; imageUrl?: string | null } | undefined;
         const directId = typeof frame.directId === "string" ? frame.directId : null;
