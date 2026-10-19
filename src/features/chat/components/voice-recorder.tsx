@@ -22,7 +22,8 @@ import {
  *
  * Mikrofon düğmesi iki türlü kullanılır (WhatsApp/Telegram gibi):
  *  • basılı tut → bırakınca gönderilir;
- *  • kısa dokun → kayıt kilitli sürer, çubukta İptal / Gönder.
+ *  • kısa dokun → kayıt kilitli sürer; çubukta İptal, düğmeye yeniden
+ *    dokununca gönderilir.
  * 5 dakikada kendiliğinden biter ve gönderilir. Kayıt bitince dosya
  * çağırana verilir; yükleme ve gönderim onun işi (metadata.voice ile).
  */
@@ -131,8 +132,9 @@ export function useVoiceRecorder(onRecorded: (asset: PickedAsset, meta: VoiceMet
 
   /**
    * Mikrofon bırakıldı: uzun basışsa gönder, kısa dokunuşsa kilitli kayıt
-   * sürsün. İzin sorusu sürerken bırakıldıysa da kilitli kalır (kullanıcı
-   * çubuktan gönderir) — basılı tutma bitmiş, otomatik göndermek şaşırtırdı.
+   * sürsün. Kilitliyken düğmeye yeniden dokunmak da buraya düşer (basış
+   * kaydın başından sayılır) ve gönderir. İzin sorusu sürerken bırakıldıysa
+   * kayıt kilitli kalır — basılı tutma bitmiş, otomatik göndermek şaşırtırdı.
    */
   const release = useCallback(() => {
     const held = Date.now() - pressedAt.current;
@@ -161,17 +163,18 @@ export function useVoiceRecorder(onRecorded: (asset: PickedAsset, meta: VoiceMet
   };
 }
 
-/** Kayıt sürerken yazı satırının yerini alan çubuk: iptal, süre, seviye, gönder. */
+/**
+ * Kayıt sürerken yazı satırının yerini alan çubuk: iptal, süre, seviye.
+ * Gönder, yerinde kalan mikrofon düğmesidir (bkz. composer).
+ */
 export function RecordingBar({
   elapsedMs,
   level,
   onCancel,
-  onSend,
 }: {
   elapsedMs: number;
   level: number;
   onCancel: () => void;
-  onSend: () => void;
 }) {
   return (
     <View
@@ -215,23 +218,6 @@ export function RecordingBar({
           />
         ))}
       </View>
-      <Pressable
-        onPress={onSend}
-        haptic="light"
-        accessibilityRole="button"
-        accessibilityLabel="Kaydı bitir ve gönder"
-        style={({ pressed }) => ({
-          width: 40,
-          height: 40,
-          borderRadius: radii.full,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.brand,
-          opacity: pressed ? 0.85 : 1,
-        })}
-      >
-        <Icon name="send" size={18} color={colors.onBrand} />
-      </Pressable>
     </View>
   );
 }

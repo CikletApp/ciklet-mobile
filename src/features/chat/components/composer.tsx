@@ -301,10 +301,14 @@ export function Composer({
 
         {/* Telegram düzeni: [+] [yazı kutusu (içinde "/" ve emoji/klavye)] [gönder].
             GIF ve aktiviteler artık panelin sekmeleri. */}
-        {recording ? (
-          <RecordingBar elapsedMs={voice.elapsedMs} level={voice.level} onCancel={voice.cancel} onSend={voice.send} />
-        ) : (
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
+          {/* Kayıt sürerken yazı satırının yerinde kayıt çubuğu; mikrofon
+              düğmesi YERİNDE kalır — basılı tutan parmağın altından çekilirse
+              bırakma olayı hiç gelmez. */}
+          {recording ? (
+            <RecordingBar elapsedMs={voice.elapsedMs} level={voice.level} onCancel={voice.cancel} />
+          ) : (
+          <>
           <IconButton
             icon="plus"
             label="Dosya ekle"
@@ -379,26 +383,34 @@ export function Composer({
               )}
             </InputButton>
           </View>
+          </>
+          )}
 
-          {showMic ? (
-            // Sesli mesaj: basılı tut → bırakınca gider; dokun → kilitli kayıt.
+          {showMic || recording ? (
+            // Sesli mesaj: basılı tut → bırakınca gider; dokun → kayıt kilitli
+            // sürer, düğmeye yeniden dokununca gönderilir.
             <Pressable
               onPressIn={() => void voice.start()}
               onPressOut={voice.release}
-              disabled={voice.phase === "starting"}
               accessibilityRole="button"
-              accessibilityLabel="Sesli mesaj kaydet"
-              accessibilityHint="Basılı tut ve bırakınca gönder, ya da dokunup kaydı çubuktan bitir"
+              accessibilityLabel={recording ? "Sesli mesajı gönder" : "Sesli mesaj kaydet"}
+              accessibilityHint={recording ? undefined : "Basılı tut ve bırakınca gönder, ya da dokunup kaydı başlat"}
               style={({ pressed }) => ({
                 width: 40,
                 height: 40,
                 borderRadius: radii.full,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: pressed ? colors.brand : colors.panel,
+                backgroundColor: pressed || recording ? colors.brand : colors.panel,
               })}
             >
-              {({ pressed }) => <Icon name="mic" size={20} color={pressed ? colors.onBrand : colors.muted} />}
+              {({ pressed }) =>
+                recording ? (
+                  <Icon name="send" size={20} color={colors.onBrand} />
+                ) : (
+                  <Icon name="mic" size={20} color={pressed ? colors.onBrand : colors.muted} />
+                )
+              }
             </Pressable>
           ) : (
             // Basılı tutunca sessiz gönderim (Telegram "sessiz gönder").
@@ -425,7 +437,6 @@ export function Composer({
             </Pressable>
           )}
         </View>
-        )}
       </View>
 
       {/* Klavyenin ya da panelin kapladığı alan. */}

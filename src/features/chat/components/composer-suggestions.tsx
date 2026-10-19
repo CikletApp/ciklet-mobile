@@ -154,7 +154,10 @@ export function encodeComposerTokens(
       if (index % 2 === 1) return part;
       let out = part;
       for (const name of roleNames) {
-        out = out.split(`@${name}`).join(`<@&${roles.get(name)}>`);
+        // Ad bir kullanıcı adının başı olabilir ("@Mod" / "@Moderatör"):
+        // yalnızca ardından harf gelmiyorsa çevrilir.
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        out = out.replace(new RegExp(`@${escaped}(?![\\wğüşıöçĞÜŞİÖÇ])`, "g"), `<@&${roles.get(name)}>`);
       }
       return out.replace(/(^|[^<\w]):([A-Za-z0-9_]{2,32}):/g, (whole, lead: string, name: string) => {
         const emoji = byName.get(name);
