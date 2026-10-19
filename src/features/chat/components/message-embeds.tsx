@@ -1,6 +1,7 @@
-import { Linking, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Image } from "expo-image";
 
+import { openGuardedLink } from "@/lib/external-link";
 import { Pressable } from "@/components/ui";
 import { openImageViewer } from "@/components/ui/image-viewer";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -81,7 +82,7 @@ function EmbedCard({ embed }: { embed: RichEmbed }) {
         <View style={{ flex: 1, minWidth: 0, gap: spacing.sm }}>
           {embed.author?.name ? (
             <Pressable
-              onPress={() => authorUrl && void Linking.openURL(authorUrl)}
+              onPress={() => openGuardedLink(authorUrl)}
               disabled={!authorUrl}
               noHitSlop
               accessibilityRole={authorUrl ? "link" : "text"}
@@ -103,7 +104,7 @@ function EmbedCard({ embed }: { embed: RichEmbed }) {
           {embed.title ? (
             <Text
               selectable
-              onPress={() => titleUrl && void Linking.openURL(titleUrl)}
+              onPress={() => openGuardedLink(titleUrl)}
               style={{ ...typography.title, color: titleUrl ? colors.accent : colors.bright }}
             >
               {embed.title}

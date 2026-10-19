@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ActivityIndicator, Linking, Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 import Animated, { SlideInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { openGuardedLink } from "@/lib/external-link";
 import { Icon, Pressable, emojify, showToast } from "@/components/ui";
 import type { ActionRow, ButtonComponent, SelectMenuComponent } from "@/lib/message-extras";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
@@ -52,7 +53,7 @@ export function MessageComponents({ message, rows }: { message: ChatMessagePaylo
                 busy={busy === component.custom_id}
                 onPress={() => {
                   if (component.style === 5) {
-                    if (component.url) void Linking.openURL(component.url);
+                    openGuardedLink(component.url);
                     return;
                   }
                   if (component.custom_id) void fire(component.custom_id);

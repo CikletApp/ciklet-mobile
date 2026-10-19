@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Linking, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { useQuery } from "@tanstack/react-query";
 
+import { openGuardedLink } from "@/lib/external-link";
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { Icon } from "@/components/ui";
@@ -41,7 +42,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
 
   return (
     <Pressable
-      onPress={() => void Linking.openURL(url)}
+      onPress={() => openGuardedLink(url)}
       accessibilityRole="link"
       accessibilityLabel={`${data.title || siteName} bağlantısını aç`}
       style={({ pressed }) => ({

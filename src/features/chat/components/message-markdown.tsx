@@ -1,7 +1,8 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { Linking, Text, View, type TextStyle } from "react-native";
+import { Text, View, type TextStyle } from "react-native";
 import { Image } from "expo-image";
 
+import { openGuardedLink } from "@/lib/external-link";
 import { emojify, emojiSizeFor } from "@/components/ui";
 import { useAuth } from "@/stores/auth";
 import { colors, spacing, typography } from "@/theme/tokens";
@@ -174,7 +175,7 @@ function renderInline(value: string, prefix: string, ctx: InlineContext): ReactN
 
     if (token.kind === "url") {
       nodes.push(
-        <Text key={key} onPress={() => void Linking.openURL(token.url)} style={{ color: colors.accent, textDecorationLine: "underline" }}>
+        <Text key={key} onPress={() => openGuardedLink(token.url)} style={{ color: colors.accent, textDecorationLine: "underline" }}>
           {token.label}
         </Text>
       );
