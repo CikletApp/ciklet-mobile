@@ -32,6 +32,9 @@ import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 import { PollMessage } from "./poll-message";
 import { extraAttachments, readSticker } from "@/lib/message-extras";
+import { useChatScope } from "../chat-scope";
+import { isCustomEmojiOnly, parseCustomEmojiToken } from "../message-markup";
+import { useServerEmojis } from "../server-assets";
 import { fw } from "@/theme/fonts";
 import { readable, senderColor } from "@/theme/palette";
 
@@ -158,6 +161,8 @@ export function MessageItem({
     return { opacity: progress, transform: [{ scale: 0.6 + 0.4 * progress }] };
   });
   const largeEmoji = bigEmoji && !compact && isEmojiOnly(message.content);
+  // Yalnızca sunucu emojilerinden oluşan mesaj: emojiler büyük (web `bigCustom`).
+  const bigCustomEmoji = bigEmoji && !compact && !message.fileUrl && isCustomEmojiOnly(message.content);
 
   // "X bir mesajı sabitledi." — içerik ham gösterilmez, satır kurulur.
   // (SDK'nın tür listesinde henüz yok; bu yüzden düz metinle karşılaştırılır.)
@@ -304,7 +309,7 @@ export function MessageItem({
           key={emoji}
           onPress={() => onReactionPress?.(message, emoji)}
           accessibilityRole="button"
-          accessibilityLabel={`${emoji} tepkisi, ${count}`}
+          accessibilityLabel={`${parseCustomEmojiToken(emoji) ? `:${parseCustomEmojiToken(emoji)?.name}:` : emoji} tepkisi, ${count}`}
           style={({ pressed }) => ({
             flexDirection: "row",
             alignItems: "center",
@@ -317,7 +322,7 @@ export function MessageItem({
             backgroundColor: pressed ? colors.raised : colors.panel,
           })}
         >
-          <Text style={{ fontSize: 14 }}>{emojify(emoji, `r-${emoji}`, 17)}</Text>
+          <ReactionGlyph emoji={emoji} size={17} />
           <Text style={{ fontSize: 11, color: colors.muted }}>{count}</Text>
         </Pressable>
       ))}
@@ -328,6 +333,7 @@ export function MessageItem({
     <MessageMarkdown
       value={message.content}
       compact={compact}
+      bigCustomEmoji={bigCustomEmoji}
       style={largeEmoji ? { fontSize: 28, lineHeight: 34 } : undefined}
     />
   ) : null;
@@ -694,6 +700,20 @@ function extractFirstWebUrl(content: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Tepki çipindeki emoji: Unicode emoji Twemoji görseli, `<:ad:id>` sunucu
+ * emojisi kendi görseli; emoji silindiyse `:ad:` metni (web `ReactionRow`).
+ */
+function ReactionGlyph({ emoji, size }: { emoji: string; size: number }) {
+  const scope = useChatScope();
+  const custom = parseCustomEmojiToken(emoji);
+  const emojis = useServerEmojis(custom ? scope?.serverId : undefined);
+  if (!custom) return <Text style={{ fontSize: 14 }}>{emojify(emoji, `r-${emoji}`, size)}</Text>;
+  const found = emojis.find((item) => item.id === custom.id);
+  if (!found) return <Text style={{ fontSize: 12, color: colors.muted }}>{`:${custom.name}:`}</Text>;
+  return <Image source={{ uri: found.imageUrl }} style={{ width: size, height: size }} contentFit="contain" accessibilityLabel={`:${found.name}:`} />;
 }
 
 function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>) {

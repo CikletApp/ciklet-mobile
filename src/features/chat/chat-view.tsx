@@ -48,6 +48,7 @@ import { MessageItem, type MessageAnchor } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
 import { PinnedBar, PinnedListSheet } from "./components/pinned-bar";
 import { TypingBubble } from "./components/typing-bubble";
+import { ChatScopeProvider, type ChatScope } from "./chat-scope";
 import { canForwardMessage } from "./forward";
 import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
 import { useComposer } from "./use-composer";
@@ -129,6 +130,7 @@ export function ChatView({
   const myId = useAuth((state) => state.profile?.id);
   const actions = useMessageActions(kind, chatId, serverId);
   const insets = useSafeAreaInsets();
+  const scope = useMemo<ChatScope>(() => ({ kind, chatId, serverId }), [kind, chatId, serverId]);
   // "/" komutları yalnızca sunucu kanallarında (botlar orada).
   const commandBots = useBotCommands(
     kind === "channel" && !readOnlyOfficial ? serverId : undefined,
@@ -486,6 +488,7 @@ export function ChatView({
   return (
     // Klavye ve emoji paneli boşluğunu yazma çubuğu kendisi ayırıyor
     // (bkz. components/composer.tsx); burada `KeyboardAvoider` YOK.
+    <ChatScopeProvider value={scope}>
     <View style={{ flex: 1, backgroundColor: colors.chat }}>
       {/* Bağlam menüsü açılınca Android'de bulanıklaşan yüzey. Başlık bu
           ekranın dışında (yerel yığın başlığı); o yalnızca kararır. */}
@@ -736,6 +739,7 @@ export function ChatView({
         onUnpin={(messageId) => void pinAction(messageId, false)}
       />
     </View>
+    </ChatScopeProvider>
   );
 }
 
