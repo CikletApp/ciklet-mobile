@@ -87,6 +87,7 @@ export function ChatView({
   placeholder,
   readOnlyOfficial = false,
   lockedNotice,
+  requireAttachment = false,
   oneToOne = false,
   unreadSeed,
   intro,
@@ -103,6 +104,11 @@ export function ChatView({
    * şimdilik web'de). Mesajlar okunur, yazılamaz.
    */
   lockedNotice?: string;
+  /**
+   * Medya kanalı: yalnızca ekli mesaj gönderilir (sunucu eksiz mesajı
+   * reddediyor; burada gönderilmeden önce söylenir).
+   */
+  requireAttachment?: boolean;
   /**
    * Birebir sohbet (ve Notlarım): karşı tarafın adı ve avatarı her
    * baloncukta tekrarlanmaz — kim olduğu başlıkta zaten yazıyor.
@@ -373,12 +379,16 @@ export function ChatView({
 
   const onSend = useCallback(() => {
     if (!draft.trim() && !attachment) return;
+    if (requireAttachment && !attachment) {
+      showToast("Bu medya kanalına yalnızca görsel, video ya da dosya ekli mesaj gönderilebilir.", "error");
+      return;
+    }
     stopTyping();
     send(draft, attachment ?? undefined, replyingTo?.id);
     setDraft("");
     setAttachment(null);
     setReplyingTo(null);
-  }, [attachment, draft, replyingTo?.id, send, setDraft, stopTyping]);
+  }, [attachment, draft, replyingTo?.id, requireAttachment, send, setDraft, stopTyping]);
 
   const onSelectGif = useCallback((url: string) => {
     stopTyping();

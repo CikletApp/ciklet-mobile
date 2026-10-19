@@ -16,6 +16,7 @@ import {
   useServerDetails,
   useServerMembers,
   useServerSummary,
+  useSidebarThreads,
   useUnreadCounts,
 } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
@@ -30,6 +31,7 @@ import {
   type IconName,
 } from "@/components/ui";
 import { openNotificationSettings } from "@/features/notifications/notification-sheet";
+import { openThread } from "@/features/server/thread-nav";
 import { effectiveChannelNotification, findSetting } from "@/lib/notification-settings";
 import { useNow } from "@/lib/use-now";
 import { usePresenceStore } from "@/stores/presence";
@@ -67,6 +69,8 @@ export default function ServerChannelsScreen() {
     });
 
   const sections = buildSections(channels ?? []);
+  // Açık alt başlıklar üst kanalın altında (web kenar çubuğu; forum hariç).
+  const threadsByParent = useSidebarThreads(serverId, channels);
   const { data: notificationSettings } = useNotificationSettings();
   const now = useNow(60_000);
   /** Basılı tutulan kanal — eylem sayfası (bildirimler, düzenle). */
@@ -203,13 +207,23 @@ export default function ServerChannelsScreen() {
             );
           }}
           renderItem={({ item }) => (
-            <ChannelRow
-              serverId={serverId}
-              channel={item}
-              muted={channelMuted(item.id)}
-              onLongPress={() => setMenuChannel(item)}
-              unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
-            />
+            <>
+              <ChannelRow
+                serverId={serverId}
+                channel={item}
+                muted={channelMuted(item.id)}
+                onLongPress={() => setMenuChannel(item)}
+                unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
+              />
+              {threadsByParent.get(item.id)?.map((thread) => (
+                <ThreadRow
+                  key={thread.id}
+                  name={thread.name}
+                  unread={unread?.channelUnreads?.[thread.id]?.count ?? 0}
+                  onPress={() => openThread(serverId, item.id, thread)}
+                />
+              ))}
+            </>
           )}
         />
       )}
@@ -410,6 +424,40 @@ function ChannelRow({
       </View>
       {muted ? <Icon name="bell-off" size={15} color={colors.muted} /> : null}
       {lit ? <UnreadBadge count={unread} tone="brand" /> : null}
+    </Pressable>
+  );
+}
+
+/** Üst kanalın altında girintili alt başlık satırı. */
+function ThreadRow({ name, unread, onPress }: { name: string; unread: number; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${name} alt başlığı`}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        marginLeft: spacing.sm + spacing.md + 9,
+        marginRight: spacing.sm,
+        paddingLeft: spacing.md,
+        paddingRight: spacing.md,
+        paddingVertical: spacing.sm,
+        borderLeftWidth: 2,
+        borderLeftColor: colors.border,
+        borderTopRightRadius: radii.md,
+        borderBottomRightRadius: radii.md,
+        backgroundColor: pressed ? colors.raised : "transparent",
+      })}
+    >
+      <Text
+        style={{ ...typography.caption, fontSize: 14, ...fw(unread > 0 ? 700 : 500), color: unread > 0 ? colors.bright : colors.muted, flex: 1 }}
+        numberOfLines={1}
+      >
+        {name}
+      </Text>
+      {unread > 0 ? <UnreadBadge count={unread} tone="brand" /> : null}
     </Pressable>
   );
 }

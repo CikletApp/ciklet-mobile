@@ -1,9 +1,18 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { useChannel, useMyMembership, useServerSummary, useUnreadCounts } from "@/api/hooks";
+import { ApiError } from "@/api/client";
+import {
+  useArchiveThread,
+  useChannel,
+  useMyMembership,
+  useServerSummary,
+  useThreadState,
+  useUnreadCounts,
+} from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
-import { Icon, IconButton } from "@/components/ui";
+import { ActionSheet, Icon, IconButton, showToast, type ActionSheetItem, type IconName } from "@/components/ui";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
 import {
@@ -12,31 +21,53 @@ import {
   useNsfwAcknowledged,
   useTimeoutNotice,
 } from "@/features/server/channel-gates";
+import { ForumView } from "@/features/server/forum-view";
+import { MediaGallery } from "@/features/server/media-gallery";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
-import { colors, radii, spacing } from "@/theme/tokens";
+import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
  * Kanal sohbeti. `serverId` sorgu parametresi olarak taşınır: mesaj
  * gönderim ucu (`/api/socket/messages`) hem kanal hem sunucu kimliği ister.
+ *
+ * Aynı rota alt başlıkları da açar (`parentId` + `threadName`): web'de alt
+ * başlık üst kanala bağlı bir kanal satırı; mesajlaşma aynı, yalnızca
+ * başlık, menü (üst kanala dön, arşivle) ve arşivde salt okunurluk farklı.
+ * Forum kanalı sohbet yerine gönderi listesi, medya kanalı galeri
+ * görünümüyle açılır.
  */
 export default function ChannelChatScreen() {
-  const { channelId, serverId } = useLocalSearchParams<{
+  const { channelId, serverId, parentId, threadName } = useLocalSearchParams<{
     channelId: string;
     serverId?: string;
+    parentId?: string;
+    threadName?: string;
   }>();
+  const isThread = Boolean(parentId);
 
   const channel = useChannel(serverId, channelId);
+  const parent = useChannel(serverId, parentId);
   const { data: server } = useServerSummary(serverId);
   // "Yeni mesajlar" ayracı: kanalda imleç yerine okunmamış SAYISI var.
   const unreadCounts = useUnreadCounts();
 
-  // Kanal ayarlarındaki açıklama (2026-09 web güncellemesi). SDK'nın Channel
-  // tipi henüz taşımıyor; uç Prisma satırını olduğu gibi döndürdüğü için
-  // alan yanıtta var.
+  // Kanal ayarlarındaki bayraklar (konu, NSFW, forum, medya…). SDK'nın
+  // Channel tipi taşımıyor; uç Prisma satırını olduğu gibi döndürüyor.
   const extras = channel as ChannelExtras | undefined;
+  // Alt başlık izinleri ve yaş sınırı üst kanaldan miras (web ile aynı).
+  const gateSource = (isThread ? parent : channel) as ChannelExtras | undefined;
   const topic = extras?.topic?.trim();
+  const isForum = !isThread && extras?.forum === true;
+  const isMedia = !isThread && extras?.mediaOnly === true;
+  const [view, setView] = useState<"chat" | "gallery">("chat");
+
+  const thread = useThreadState(serverId, isThread ? parentId : undefined, channelId);
+  const archive = useArchiveThread(serverId ?? "");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const title = isThread ? (thread.thread?.name ?? threadName ?? "Alt başlık") : (channel?.name ?? "");
+
   // Kapılar: yaş sınırı perdesi, kural kabulü, kendi zaman aşımın.
-  const nsfw = useNsfwAcknowledged(channelId, extras?.nsfw === true);
+  const nsfw = useNsfwAcknowledged(isThread ? parentId : channelId, gateSource?.nsfw === true);
   const { data: membership } = useMyMembership(serverId);
   const timeoutNotice = useTimeoutNotice(
     (membership as { timedOutUntil?: string | null } | undefined)?.timedOutUntil
@@ -45,11 +76,57 @@ export default function ChannelChatScreen() {
   const { typers } = useTyping(channelId);
   const typing = typingLabel(typers, { ellipsis: false });
 
+  const setArchived = (archived: boolean) => {
+    if (!serverId) return;
+    archive.mutate(
+      { threadId: channelId, archived },
+      {
+        onSuccess: () => showToast(archived ? "Alt başlık arşivlendi." : "Alt başlık yeniden açıldı."),
+        onError: (error) =>
+          showToast(error instanceof ApiError ? error.message : "Alt başlık güncellenemedi.", "error"),
+      }
+    );
+  };
+
+  const menuItems: ActionSheetItem[] = isThread
+    ? [
+        {
+          key: "parent",
+          label: parent ? `#${parent.name} kanalına dön` : "Üst kanala dön",
+          icon: "arrow-left",
+          onPress: () => router.replace(`/chat/channel/${parentId}?serverId=${serverId}`),
+        },
+        {
+          key: "threads",
+          label: "Tüm alt başlıklar",
+          icon: "list",
+          onPress: () => router.push(`/servers/${serverId}/threads/${parentId}`),
+        },
+        thread.archived
+          ? { key: "unarchive", label: "Arşivden çıkar", icon: "rotate-ccw", onPress: () => setArchived(false) }
+          : {
+              key: "archive",
+              label: "Arşivle",
+              detail: "Açan kişi ya da moderatör arşivleyebilir",
+              icon: "folder",
+              onPress: () => setArchived(true),
+            },
+      ]
+    : [];
+
+  const lockedNotice = isForum
+    ? undefined
+    : thread.archived
+      ? "Bu alt başlık arşivlendi; yazmak için menüden arşivden çıkar."
+      : timeoutNotice;
+
+  const headerIcon: IconName = isThread ? "message" : isForum ? "list" : isMedia ? "image" : "hash";
+
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          title: channel ? `# ${channel.name}` : "",
+          title: title ? `# ${title}` : "",
           headerStyle: { backgroundColor: colors.panel },
           headerTitleAlign: "left",
           headerTitle: () => (
@@ -65,11 +142,16 @@ export default function ChannelChatScreen() {
                     backgroundColor: colors.brandSoft,
                   }}
                 >
-                  <Icon name="hash" size={19} color={colors.brand} />
+                  <Icon name={headerIcon} size={19} color={colors.brand} />
                 </View>
               }
-              title={channel?.name ?? ""}
-              subtitle={typing ?? (topic || server?.name)}
+              title={title}
+              subtitle={
+                typing ??
+                (isThread
+                  ? `${thread.archived ? "Arşivde · " : ""}#${parent?.name ?? "kanal"}`
+                  : topic || server?.name)
+              }
               subtitleTone={typing ? "live" : "muted"}
               typing={Boolean(typing)}
               onPress={serverId ? () => router.back() : undefined}
@@ -78,6 +160,15 @@ export default function ChannelChatScreen() {
           ),
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              {isMedia ? (
+                <IconButton
+                  icon={view === "chat" ? "image" : "message"}
+                  label={view === "chat" ? "Galeri görünümü" : "Sohbet görünümü"}
+                  background="transparent"
+                  tint={colors.bright}
+                  onPress={() => setView((current) => (current === "chat" ? "gallery" : "chat"))}
+                />
+              ) : null}
               <IconButton
                 icon="search"
                 label="Sunucuda ara"
@@ -89,37 +180,76 @@ export default function ChannelChatScreen() {
                     : router.push("/search")
                 }
               />
-              <IconButton
-                icon="compass"
-                label="Aktiviteler"
-                background="transparent"
-                tint={colors.bright}
-                onPress={() =>
-                  router.push(
-                    `/activities?chatId=${channelId}&serverId=${serverId ?? ""}`
-                  )
-                }
-              />
+              {isThread ? (
+                <IconButton
+                  icon="more"
+                  label="Alt başlık seçenekleri"
+                  background="transparent"
+                  tint={colors.bright}
+                  onPress={() => setMenuOpen(true)}
+                />
+              ) : !isForum && serverId ? (
+                <IconButton
+                  icon="list"
+                  label="Alt başlıklar"
+                  background="transparent"
+                  tint={colors.bright}
+                  onPress={() => router.push(`/servers/${serverId}/threads/${channelId}`)}
+                />
+              ) : null}
+              {!isForum ? (
+                <IconButton
+                  icon="compass"
+                  label="Aktiviteler"
+                  background="transparent"
+                  tint={colors.bright}
+                  onPress={() => router.push(`/activities?chatId=${channelId}&serverId=${serverId ?? ""}`)}
+                />
+              ) : null}
             </View>
           ),
         }}
       />
-      <ChatView
-        kind="channel"
-        chatId={channelId}
-        serverId={serverId}
-        unreadSeed={unreadCounts.data ? { count: unreadCounts.data.channelUnreads?.[channelId]?.count ?? 0 } : undefined}
-        placeholder={`#${channel?.name ?? "kanal"} kanalına yaz`}
-        lockedNotice={
-          extras?.forum
-            ? "Forum kanalı: gönderiler şimdilik web ve masaüstünde açılır."
-            : timeoutNotice
-        }
-      />
+      {isForum && serverId ? (
+        <ForumView serverId={serverId} channelId={channelId} />
+      ) : isMedia && view === "gallery" ? (
+        <MediaGallery channelId={channelId} />
+      ) : (
+        <ChatView
+          kind="channel"
+          chatId={channelId}
+          serverId={serverId}
+          unreadSeed={unreadCounts.data ? { count: unreadCounts.data.channelUnreads?.[channelId]?.count ?? 0 } : undefined}
+          placeholder={
+            isMedia
+              ? `#${channel?.name ?? "kanal"} · bir görsel ya da dosya ekle`
+              : isThread
+                ? `${title} alt başlığına yaz`
+                : `#${channel?.name ?? "kanal"} kanalına yaz`
+          }
+          requireAttachment={isMedia}
+          lockedNotice={lockedNotice}
+        />
+      )}
       {serverId ? <RulesCurtain serverId={serverId} /> : null}
       {!nsfw.acknowledged ? (
-        <NsfwCurtain channelName={channel?.name ?? "kanal"} onAccept={nsfw.acknowledge} onBack={() => router.back()} />
+        <NsfwCurtain
+          channelName={(isThread ? parent?.name : channel?.name) ?? "kanal"}
+          onAccept={nsfw.acknowledge}
+          onBack={() => router.back()}
+        />
       ) : null}
+
+      <ActionSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        header={
+          <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
+            {title}
+          </Text>
+        }
+        items={menuItems}
+      />
     </View>
   );
 }
