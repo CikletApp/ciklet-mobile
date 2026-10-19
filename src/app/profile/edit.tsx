@@ -16,6 +16,10 @@ import { useCurrentProfile, useMyMemberships, useUpdateProfile } from "@/api/hoo
 import { Avatar } from "@/components/ui/avatar";
 import { showDialog } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
+import { Divider, ListGroup, ListRow } from "@/components/ui/list";
+import { findDecoration } from "@/lib/avatar-decorations";
+import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
+import { GAMES_VISIBILITY_OPTIONS } from "@/lib/profile-extras";
 import { pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -300,6 +304,67 @@ export default function EditProfileScreen() {
             maxLength={190}
             multiline
           />
+
+          {/* Profil öğeleri: her biri anında kaydedilir (üstteki Kaydet'ten bağımsız). */}
+          <View style={{ gap: spacing.sm }}>
+            <Text style={{ ...typography.overline, color: colors.muted }}>PROFİL ÖĞELERİ</Text>
+            <ListGroup>
+              <ListRow
+                icon="emoji"
+                title="Özel Durum"
+                detail={(() => {
+                  const status = activeCustomStatus(profile);
+                  return status ? formatCustomStatus(status) : undefined;
+                })()}
+                onPress={() => router.push("/profile/status")}
+              />
+              <Divider inset={52} />
+              <ListRow
+                icon="sparkles"
+                title="Avatar Süsü"
+                detail={findDecoration(profile.avatarDecorationId)?.name ?? "Yok"}
+                onPress={() => router.push("/profile/decoration")}
+              />
+              <Divider inset={52} />
+              <ListRow icon="link" title="Bağlantılar" onPress={() => router.push("/profile/connections")} />
+              <Divider inset={52} />
+              <ListRow icon="heart" title="Mağaza" subtitle="İsim plakası, profil efekti, süsler" onPress={() => router.push("/store")} />
+            </ListGroup>
+          </View>
+
+          <View style={{ gap: spacing.sm }}>
+            <Text style={{ ...typography.overline, color: colors.muted }}>OYUN KOLEKSİYONU</Text>
+            <Text style={{ ...typography.caption, color: colors.muted }}>
+              Oynadığın oyunlar ve kullandığın programlar masaüstü uygulamasından kendiliğinden toplanır. Profilinde kimin göreceğini seç.
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+              {GAMES_VISIBILITY_OPTIONS.map((option) => {
+                const active = (profile.gamesVisibility ?? "EVERYONE") === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => !active && updateProfile.mutate({ gamesVisibility: option.value })}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    accessibilityHint={option.desc}
+                    style={{
+                      minHeight: 36,
+                      justifyContent: "center",
+                      paddingHorizontal: 14,
+                      borderRadius: radii.full,
+                      borderWidth: 1,
+                      borderColor: active ? colors.brand : colors.border,
+                      backgroundColor: active ? colors.brandSoft : colors.bg,
+                    }}
+                  >
+                    <Text style={{ ...typography.caption, fontSize: 14, color: active ? colors.brand : colors.text }}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
           {updateProfile.isError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>

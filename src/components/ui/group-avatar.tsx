@@ -141,6 +141,8 @@ export function GroupAvatar({
             fallbackText={member.name || member.username}
             size={inner - ring * 2}
             backgroundColor={backgroundColor}
+            // Örülü grup simgesinde süs halkası küçük karoları birbirine bindirir.
+            decorationId={null}
           />
         </View>
       ))}

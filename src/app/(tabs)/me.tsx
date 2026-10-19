@@ -18,6 +18,7 @@ import {
   type IconName,
 } from "@/components/ui";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
+import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { formatActivity } from "@/lib/format";
 import { setSelfPresence } from "@/realtime/provider";
 import { useAuth } from "@/stores/auth";
@@ -61,6 +62,7 @@ export default function MeScreen() {
   // Oturum profili (giriş yanıtı) afişi taşımıyor; yalnızca /current-profile taşır.
   const bannerUrl = (me as { bannerUrl?: string | null } | null)?.bannerUrl ?? null;
   const activity = formatActivity(usePresence(me?.id).activity);
+  const customStatus = activeCustomStatus(profile);
 
   return (
     <Screen edges={["top", "left", "right"]}>
@@ -112,6 +114,11 @@ export default function MeScreen() {
               {me?.username ? `@${me.username}` : ""}
               {me?.pronouns ? ` · ${me.pronouns}` : ""}
             </Text>
+            {customStatus ? (
+              <Text style={{ ...typography.body, color: colors.text, marginTop: spacing.xs }} numberOfLines={2}>
+                {formatCustomStatus(customStatus)}
+              </Text>
+            ) : null}
             {activity ? (
               <Text style={{ ...typography.caption, color: colors.brand, marginTop: spacing.xs }} numberOfLines={1}>
                 {activity}
@@ -148,6 +155,14 @@ export default function MeScreen() {
                 </View>
               );
             })}
+            <Divider inset={52} />
+            {/* Özel durum presence'tan ayrı: emoji + metin + süre. */}
+            <ListRow
+              icon="emoji"
+              title={customStatus ? formatCustomStatus(customStatus) : "Özel durum ayarla"}
+              subtitle={customStatus ? "Değiştir ya da temizle" : "Adının altında herkese görünür"}
+              onPress={() => router.push("/profile/status")}
+            />
           </ListGroup>
         </View>
 

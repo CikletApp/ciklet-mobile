@@ -7,6 +7,7 @@ import {
 } from "@ciklet/embedded-activities-sdk/types";
 
 import { useAuth } from "@/stores/auth";
+import { rememberDecorations } from "@/stores/decorations";
 import { api, ApiError } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
@@ -19,7 +20,12 @@ import { showToast } from "@/components/ui/toast";
 export function useFriendships() {
   return useQuery({
     queryKey: qk.friends,
-    queryFn: () => api<FriendWithProfiles[]>(endpoints.friends),
+    queryFn: async () => {
+      const rows = await api<FriendWithProfiles[]>(endpoints.friends);
+      // Satırlar avatar süsünü taşıyor; DM listesi gibi dar payload'lar buradan okur.
+      rememberDecorations((rows ?? []).flatMap((row) => [row.profileOne, row.profileTwo]));
+      return rows;
+    },
   });
 }
 

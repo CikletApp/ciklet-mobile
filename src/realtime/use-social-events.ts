@@ -10,6 +10,7 @@ import { isHiddenChannel } from "@/features/unread/unread-cache";
 import { playMessageTone, primeSounds } from "@/lib/sounds";
 import { activeChatId } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
+import { rememberDecorations } from "@/stores/decorations";
 import { usePreferences } from "@/stores/preferences";
 import { usePresenceStore } from "@/stores/presence";
 import { ServerEvent } from "./events";
@@ -79,6 +80,8 @@ export function useSocialEvents() {
       // sayacını `use-unread-sync` artırır.
       onGatewayEvent(ServerEvent.MESSAGE_NOTIFICATION, (frame) => {
         invalidate(qk.directs, qk.inbox);
+        // İstek sayılan DM (arkadaş olmayan) Mesaj İstekleri listesini değiştirir.
+        if (frame.isSpam === true) invalidate(qk.messageRequests);
 
         const sender = frame.sender as { id?: string; username?: string; name?: string | null; imageUrl?: string | null } | undefined;
         const directId = typeof frame.directId === "string" ? frame.directId : null;
@@ -143,6 +146,7 @@ export function useSocialEvents() {
       onGatewayEvent(ServerEvent.PROFILE_UPDATED, (frame) => {
         const visual = frame.profile as { id?: unknown } | undefined;
         if (typeof visual?.id !== "string") return;
+        rememberDecorations([visual]);
         invalidate(qk.directs, qk.friends, qk.profileCard(visual.id), ["members"]);
         if (visual.id === useAuth.getState().profile?.id) invalidate(qk.currentProfile);
       }),

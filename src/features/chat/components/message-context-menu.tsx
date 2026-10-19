@@ -36,6 +36,7 @@ import { useDragToDismiss } from "./drag-dismiss";
 import { EmojiPickerPanel } from "./emoji-picker";
 import { saveAttachment } from "./message-attachment";
 import { MessageItem, copyableText, type MessageAnchor } from "./message-item";
+import { useBookmarkAction } from "@/features/social/bookmark";
 
 /**
  * Mesajın bağlam menüsü — Telegram düzeni.
@@ -157,6 +158,7 @@ export function MessageContextMenu({
 
   const text = copyableText(message);
   const attachment = savableAttachment(message);
+  const bookmark = useBookmarkAction(message, onClose);
 
   // Telegram sırası: yanıtla, kopyala, kaydet, sabitle, ilet, düzenle;
   // yıkıcı olan en altta, ayraçla ayrı.
@@ -193,6 +195,7 @@ export function MessageContextMenu({
       onPress: pin.onToggle,
     });
   }
+  if (bookmark) actions.push(bookmark);
   if (onForward) actions.push({ key: "forward", icon: "forward", label: "İlet", onPress: onForward });
   if (thread) actions.push({ key: "thread", icon: "message", label: "Alt başlık oluştur", onPress: () => setMode("thread") });
   // İletilen mesaj düzenlenemez (web 403 döner): içerik başkasının sözü.

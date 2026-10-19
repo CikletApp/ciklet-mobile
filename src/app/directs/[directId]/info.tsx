@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
+import { pickAndUploadGroupImage } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -50,6 +51,7 @@ export default function GroupInfoScreen() {
   const { accepted } = useFriends();
   const updateGroup = useUpdateGroup(directId);
   const removeDirect = useRemoveDirect();
+  const [imageBusy, setImageBusy] = useState(false);
 
   /**
    * Ad taslağı YALNIZCA düzenleme sırasında var: `null` = düzenlenmiyor.
@@ -126,6 +128,40 @@ export default function GroupInfoScreen() {
     );
   };
 
+  /** Grup simgesi (yalnızca sahip): değiştir → seç + yükle + PATCH; kaldır → `null`. */
+  const changeImage = async () => {
+    if (imageBusy) return;
+    setImageBusy(true);
+    try {
+      const imageUrl = await pickAndUploadGroupImage();
+      if (imageUrl) await updateGroup.mutateAsync({ imageUrl });
+    } catch (reason) {
+      showDialog("Simge değiştirilemedi", reason instanceof Error ? reason.message : "Beklenmeyen bir hata oldu.");
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const onImagePress = () => {
+    if (!direct.imageUrl) {
+      void changeImage();
+      return;
+    }
+    showDialog("Grup simgesi", "Simge kaldırılırsa üye avatarlarından örülü simge görünür.", [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Kaldır",
+        style: "destructive",
+        onPress: () =>
+          updateGroup.mutate(
+            { imageUrl: null },
+            { onError: () => showDialog("Simge kaldırılamadı", "Beklenmeyen bir hata oldu.") }
+          ),
+      },
+      { text: "Değiştir", onPress: () => void changeImage() },
+    ]);
+  };
+
   const removeMember = (profileId: string, label: string) => {
     showDialog("Üyeyi çıkar", `${label} gruptan çıkarılacak.`, [
       { text: "Vazgeç", style: "cancel" },
@@ -162,15 +198,46 @@ export default function GroupInfoScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
         <View style={{ alignItems: "center", paddingVertical: spacing.xl, gap: spacing.md }}>
-          <GroupAvatar
-            members={display.members}
-            excludeId={myId}
-            imageUrl={display.imageUrl}
-            name={display.title}
-            size={92}
-            radius={radii.bento}
-            backgroundColor={colors.bento}
-          />
+          <Pressable
+            onPress={onImagePress}
+            disabled={!isOwner || imageBusy}
+            haptic={isOwner ? "light" : undefined}
+            accessibilityRole={isOwner ? "button" : "image"}
+            accessibilityLabel={isOwner ? "Grup simgesini değiştir" : "Grup simgesi"}
+          >
+            <GroupAvatar
+              members={display.members}
+              excludeId={myId}
+              imageUrl={display.imageUrl}
+              name={display.title}
+              size={92}
+              radius={radii.bento}
+              backgroundColor={colors.bento}
+            />
+            {isOwner ? (
+              <View
+                style={{
+                  position: "absolute",
+                  right: -4,
+                  bottom: -4,
+                  width: 30,
+                  height: 30,
+                  borderRadius: radii.full,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 2,
+                  borderColor: colors.bg,
+                  backgroundColor: colors.brand,
+                }}
+              >
+                {imageBusy ? (
+                  <ActivityIndicator size="small" color={colors.onBrand} />
+                ) : (
+                  <Icon name="camera" size={15} color={colors.onBrand} />
+                )}
+              </View>
+            ) : null}
+          </Pressable>
 
           {editing ? (
             <View style={{ width: "100%", paddingHorizontal: spacing.lg, gap: spacing.sm }}>

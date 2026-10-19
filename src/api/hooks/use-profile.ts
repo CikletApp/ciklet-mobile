@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OwnProfile } from "@ciklet/embedded-activities-sdk/types";
 
 import { useAuth } from "@/stores/auth";
+import { rememberDecorations } from "@/stores/decorations";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
@@ -17,7 +18,11 @@ import type {
 export function useCurrentProfile() {
   return useQuery({
     queryKey: qk.currentProfile,
-    queryFn: () => api<CurrentProfile>(endpoints.currentProfile),
+    queryFn: async () => {
+      const profile = await api<CurrentProfile>(endpoints.currentProfile);
+      rememberDecorations([profile]);
+      return profile;
+    },
   });
 }
 
@@ -38,6 +43,7 @@ export function useUpdateProfile() {
     onSuccess: (updated) => {
       queryClient.setQueryData(qk.currentProfile, updated);
       setProfile(updated as unknown as OwnProfile);
+      rememberDecorations([updated]);
     },
   });
 }
@@ -52,7 +58,11 @@ export function useProfileCard(profileId: string | undefined) {
   return useQuery({
     queryKey: qk.profileCard(profileId ?? "yok"),
     enabled: Boolean(profileId),
-    queryFn: () => api<ProfileCardResponse>(endpoints.profileCard(profileId!)),
+    queryFn: async () => {
+      const card = await api<ProfileCardResponse>(endpoints.profileCard(profileId!));
+      rememberDecorations([card.profile]);
+      return card;
+    },
     staleTime: 60_000,
   });
 }

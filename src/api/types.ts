@@ -35,6 +35,12 @@ export interface CurrentProfile extends PublicProfile {
   friendReqServerMembers: boolean | null;
   eulaAccepted: boolean;
   updatedAt: string;
+  /** Özel durum (2026-10 eki); okuyan taraf süresi dolmuşu eler. */
+  customStatusText?: string | null;
+  customStatusEmoji?: string | null;
+  customStatusUntil?: string | null;
+  gamesVisibility?: GamesVisibility;
+  avatarDecorationId?: string | null;
 }
 
 /** `PATCH /api/current-profile` gövdesi — yalnızca gönderilen alanlar yazılır. */
@@ -52,6 +58,17 @@ export interface UpdateProfileInput {
   friendReqEveryone?: boolean;
   friendReqFriendsOfFriends?: boolean;
   friendReqServerMembers?: boolean;
+  /** Özel durum: üçü birlikte gönderilir; `null` temizler (ISO bitiş). */
+  customStatusText?: string | null;
+  customStatusEmoji?: string | null;
+  customStatusUntil?: string | null;
+  /** Oyun koleksiyonunu kim görür. */
+  gamesVisibility?: GamesVisibility;
+  /** Avatar süsü kimliği (`lib/avatar-decorations`); Mentol/mağaza denetimi sunucuda. */
+  avatarDecorationId?: string | null;
+  /** Mağaza kozmetikleri — yalnızca sahip olunan ürün takılır. */
+  nameplateId?: string | null;
+  profileEffectId?: string | null;
 }
 
 /**
@@ -377,6 +394,12 @@ export interface ProfileCardResponse {
     /** Yüklenen afiş görseli; öncelik görselde, yoksa renk (web ile aynı kural). */
     bannerUrl?: string | null;
     isOfficial?: boolean;
+    avatarDecorationId?: string | null;
+    customStatusText?: string | null;
+    customStatusEmoji?: string | null;
+    customStatusUntil?: string | null;
+    nameplateId?: string | null;
+    profileEffectId?: string | null;
   };
   isSelf: boolean;
   /** Mentol planı — rozet metni istemcide eşlenir. */
@@ -388,9 +411,88 @@ export interface ProfileCardResponse {
     status: "PENDING" | "ACCEPTED" | "BLOCKED";
     profileOneId: string;
     blockedById: string | null;
+    /** Arkadaşlığın başladığı an; eski satırlarda yoksa `createdAt`. */
+    acceptedAt?: string | null;
+    createdAt?: string;
   } | null;
   mutualFriendsCount: number;
   mutualFriends: SearchProfileSlim[];
+  // ── Üye kartı genişlemesi (ciklet-web, plan.md kategori 3) ──────────
+  /** Türetilmiş rozetler (`lib/profile-badges`); sunucu üretir, istemci çizer. */
+  badges?: ProfileBadge[];
+  /** İkisinin de görünür üye olduğu sunucular (en çok 50). */
+  mutualServers?: { id: string; name: string; imageUrl: string | null }[];
+  /** Son 7 günün etkinlikleri, en yeni önce (en çok 10). */
+  recentActivity?: ProfileActivitySession[];
+  /** Oyun koleksiyonu; görünürlük kapalıysa iki liste de boş gelir. */
+  collection?: { games: ProfileGameView[]; programs: ProfileGameView[] };
+  /** Görünür bağlantılar (kendi kartında hepsi). */
+  connections?: ProfileConnectionView[];
+}
+
+export type ProfileBadgeId =
+  | "official"
+  | "bot"
+  | "developer"
+  | "mentol_plus"
+  | "mentol_pro"
+  | "early_member";
+
+export interface ProfileBadge {
+  id: ProfileBadgeId;
+  label: string;
+  description: string;
+}
+
+/** ciklet-web: `ActivitySession` satırı (kart ucu seçimi). */
+export interface ProfileActivitySession {
+  id: string;
+  type: string;
+  name: string;
+  details: string | null;
+  largeImageUrl: string | null;
+  appIconUrl: string | null;
+  startedAt: string;
+  lastSeenAt: string;
+  /** `null` → oturum hâlâ sürüyor. */
+  endedAt: string | null;
+}
+
+export type GamesVisibility = "EVERYONE" | "FRIENDS" | "NOBODY";
+
+/** ciklet-web: `lib/profile-games.ts` → `ProfileGameView`. */
+export interface ProfileGameView {
+  name: string;
+  type: string;
+  playtimeMs: number;
+  sessionCount: number;
+  lastPlayedAt: string;
+  coverUrl: string | null;
+  iconUrl: string | null;
+  hidden: boolean;
+}
+
+export type ConnectionType =
+  | "steam"
+  | "epic"
+  | "xbox"
+  | "playstation"
+  | "riot"
+  | "twitch"
+  | "youtube"
+  | "instagram"
+  | "x"
+  | "github"
+  | "spotify";
+
+/** ciklet-web: `GET/PUT /api/profile/connections` ve kart ucu. */
+export interface ProfileConnectionView {
+  type: ConnectionType;
+  handle: string;
+  /** Tıklanabilir dış adres; bazı platformlarda yok. */
+  url: string | null;
+  verified: boolean;
+  visible: boolean;
 }
 
 // ── Profil ek açıklamaları ──────────────────────────────────────────
@@ -470,4 +572,127 @@ export interface PinnedByProfile {
 export interface PinFields {
   pinnedAt?: string | null;
   pinnedBy?: PinnedByProfile | null;
+}
+
+// ── Spotify ─────────────────────────────────────────────────────────
+
+/** ciklet-web: `lib/spotify-sync.ts` → `NowPlaying`. */
+export interface SpotifyNowPlaying {
+  isPlaying: boolean;
+  uri: string;
+  title: string;
+  artists: string;
+  album: string;
+  imageUrl: string | null;
+  url: string | null;
+  progressMs: number;
+  durationMs: number;
+  /** Yanıtın sunucuda alındığı an (ms); ilerleme bununla ileri sarılır. */
+  fetchedAt: number;
+}
+
+/** ciklet-web: `GET /api/connections/spotify` — oturum sahibinin bağlantısı. */
+export interface SpotifyLinkStatus {
+  configured: boolean;
+  linked: boolean;
+  displayName: string | null;
+  premium: boolean;
+}
+
+/**
+ * ciklet-web: `POST /api/spotify/listen-along` yanıtı. `state`:
+ * playing | host_paused | no_device | premium_required | not_linked |
+ * hidden | failed | rate_limited | stopped.
+ */
+export interface ListenAlongResponse {
+  state: string;
+  track?: SpotifyNowPlaying;
+}
+
+// ── Yer imleri, bahsetmeler, mesaj istekleri ───────────────────────
+
+/** ciklet-web: `GET /api/bookmarks` (hidrasyonlu liste) satırı. */
+export interface BookmarkEntry {
+  messageId: string;
+  content: string;
+  fileUrl: string | null;
+  createdAt: string;
+  savedAt: string;
+  author: SearchProfileSlim | null;
+  scope: "channel" | "direct";
+  /** Kanal kimliği ya da DM kimliği. */
+  chatId: string;
+  channelName: string | null;
+  serverName: string | null;
+  /** Web adresi; mobil kendi rotasını `scope` + `chatId`'den kurar. */
+  url: string;
+}
+
+/** ciklet-web: `GET /api/mentions` satırı (son 7 gün, kanal mesajları). */
+export interface MentionEntry {
+  messageId: string;
+  content: string;
+  createdAt: string;
+  author: SearchProfileSlim | null;
+  channelId: string;
+  channelName: string;
+  serverId: string;
+  serverName: string;
+  url: string;
+}
+
+/** ciklet-web: `GET /api/directs/requests` satırı. */
+export interface MessageRequestEntry {
+  directId: string;
+  other: SearchProfileSlim;
+  /** Okunmamış mesaj sayısı (0 olanlar listelenmez). */
+  count: number;
+}
+
+// ── Mağaza ve abonelikler ──────────────────────────────────────────
+
+export type StoreItemKind = "decoration" | "nameplate" | "effect";
+
+/** ciklet-web: `GET /api/store`. Fiyatlar TL ana birim. */
+export interface StoreCatalogResponse {
+  currency: string;
+  mentol: boolean;
+  discountPercent: number;
+  /** Ödeme sağlayıcısı yapılandırılmamışsa satın alma kapalı. */
+  purchasable: boolean;
+  items: {
+    id: string;
+    kind: StoreItemKind;
+    name: string;
+    description: string;
+    price: number;
+    finalPrice: number;
+    owned: boolean;
+  }[];
+  equipped: {
+    decoration: string | null;
+    nameplate: string | null;
+    effect: string | null;
+  };
+}
+
+/** ciklet-web: `GET /api/servers/[id]/subscription-tiers`. */
+export interface ServerTiersResponse {
+  manager: boolean;
+  tiers: {
+    id: string;
+    name: string;
+    description: string | null;
+    /** TL ana birim (uç kuruştan çevirir). */
+    price: number;
+    active: boolean;
+    role: { id: string; name: string; color: string | null } | null;
+    subscriberCount?: number;
+  }[];
+  mine: { tierId: string; status: string; expiresAt: string } | null;
+}
+
+/** Ödeme ucu yanıtı — ödeme sayfası `/mentol/odeme/[paymentId]`. */
+export interface CheckoutResponse {
+  paymentId: string;
 }

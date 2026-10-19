@@ -16,6 +16,7 @@ import {
   useNicknames,
   useOpenDirect,
   useRemoveDirect,
+  useMessageRequests,
   useSelfDirect,
   type DirectDisplay,
 } from "@/api/hooks";
@@ -41,6 +42,7 @@ import {
 } from "@/components/ui";
 import { ActiveNow } from "@/features/home/active-now";
 import { ChatActionsSheet, type ChatActionsTarget } from "@/features/home/chat-actions-sheet";
+import { ListenAlongBar } from "@/features/spotify/spotify-card";
 import { formatChatListTime, formatDirectPreview } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useAuth } from "@/stores/auth";
@@ -77,6 +79,8 @@ export default function ChatsScreen() {
   const pinnedDirectIds = usePreferences((s) => s.pinnedDirectIds);
   const setPreference = usePreferences((s) => s.setPreference);
   const [filter, setFilter] = useState<Filter>("all");
+  // Arkadaş olmayanlardan gelen DM'ler listede değil, Mesaj İstekleri'nde bekler.
+  const requests = useMessageRequests();
   const [menuOpen, setMenuOpen] = useState(false);
   // Basılı tutulan satır — eylem sayfası bunun için açık.
   const [actionsFor, setActionsFor] = useState<ChatActionsTarget | null>(null);
@@ -235,6 +239,13 @@ export default function ChatsScreen() {
         onClose={() => setMenuOpen(false)}
         items={[
           { label: "Notlarım", icon: "bookmark", onPress: openNotes },
+          {
+            label: requests.count > 0 ? `Mesaj İstekleri (${requests.count})` : "Mesaj İstekleri",
+            icon: "message",
+            onPress: () => router.push("/requests"),
+          },
+          { label: "Kaydedilenler", icon: "bookmark", onPress: () => router.push("/saved") },
+          { label: "Bahsetmeler", icon: "bell", onPress: () => router.push("/mentions") },
           { label: "Yeni grup", icon: "users", onPress: () => router.push("/directs/new-group") },
           { label: "Arkadaşlar", icon: "user", onPress: () => router.push("/friends") },
           { label: "Ayarlar", icon: "settings", onPress: () => router.push("/settings") },
@@ -282,7 +293,15 @@ export default function ChatsScreen() {
           /* Etkin arkadaşlar şeridi yalnızca filtresiz görünümde anlamlı;
              "Okunmamış" filtresindeyken listeyi aşağı itip filtrenin
              sonucunu gizliyordu. */
-          ListHeaderComponent={filter === "all" ? <ActiveNow /> : null}
+          ListHeaderComponent={
+            filter === "all" ? (
+              <>
+                <ListenAlongBar />
+                {requests.count > 0 ? <RequestsBanner count={requests.count} /> : null}
+                <ActiveNow />
+              </>
+            ) : null
+          }
           contentContainerStyle={{
             paddingTop: spacing.xs,
             paddingBottom: tabInset + spacing.lg,
@@ -294,6 +313,35 @@ export default function ChatsScreen() {
       <ModernRefreshIndicator visible={isRefetching} />
 
     </Screen>
+  );
+}
+
+/** Bekleyen mesaj istekleri — sayaçlı tek satır, dokununca istekler ekranı. */
+function RequestsBanner({ count }: { count: number }) {
+  return (
+    <Pressable
+      onPress={() => router.push("/requests")}
+      haptic="light"
+      noHitSlop
+      accessibilityRole="button"
+      accessibilityLabel={`${count} mesaj isteği`}
+      style={({ pressed }) => ({
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.sm,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        paddingHorizontal: spacing.md,
+        minHeight: 48,
+        borderRadius: radii.lg,
+        backgroundColor: pressed ? colors.raised : colors.panel,
+      })}
+    >
+      <Icon name="message" size={18} color={colors.brand} />
+      <Text style={{ ...typography.bodyStrong, color: colors.bright, flex: 1 }}>Mesaj İstekleri</Text>
+      <UnreadBadge count={count} tone="brand" />
+      <Icon name="chevron-right" size={16} color={colors.muted} />
+    </Pressable>
   );
 }
 

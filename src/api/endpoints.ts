@@ -247,4 +247,32 @@ export const endpoints = {
   callCancel: "/api/calls/cancel",
   /** GET → `{ invites }` — bağlantı anında bekleyen davetler. */
   callsPending: "/api/calls/pending",
+
+  // ── Profil genişlemesi, sosyal ve para ────────────────────────────
+  /** GET liste, PUT `{ type, handle, visible? }`, DELETE `{ type }`. */
+  profileConnections: "/api/profile/connections",
+  /** GET bağlantı durumu, DELETE bağlantıyı kaldır. Bağlama OAuth ile webde. */
+  spotifyConnection: "/api/connections/spotify",
+  spotifyNowPlaying: (profileId: string) =>
+    `/api/spotify/now-playing/${encodeURIComponent(profileId)}`,
+  /** POST `{ hostProfileId, action: "sync" | "stop" }` — ~10 sn'de bir. */
+  spotifyListenAlong: "/api/spotify/listen-along",
+  /** GET liste (`?idsOnly=1` → `{ ids }`), POST `{ messageId, scope, chatId }`, DELETE `{ messageId }`. */
+  bookmarks: (idsOnly?: boolean) => `/api/bookmarks${qs({ idsOnly: idsOnly ? 1 : undefined })}`,
+  /** Son 7 günde bahsedilen kanal mesajları. */
+  mentions: "/api/mentions",
+  /** GET istekler (`?count=1` → `{ count }`), POST `{ directId, action: "accept" | "ignore" }`. */
+  messageRequests: (count?: boolean) => `/api/directs/requests${qs({ count: count ? 1 : undefined })}`,
+  /** GET katalog + sahiplik + takılılar. */
+  store: "/api/store",
+  /** POST `{ itemId, giftTo? }` → `{ paymentId }`. */
+  storeCheckout: "/api/store/checkout",
+  /** POST `{ plan, period, giftTo? }` → `{ paymentId, … }`. */
+  mentolCheckout: "/api/mentol/checkout",
+  serverTiers: (serverId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/subscription-tiers`,
+  serverTierCheckout: (serverId: string, tierId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/subscription-tiers/${encodeURIComponent(tierId)}/checkout`,
+  /** Web ödeme sayfası (API değil; tarayıcıda açılır). */
+  paymentPage: (paymentId: string) => `/mentol/odeme/${encodeURIComponent(paymentId)}`,
 } as const;

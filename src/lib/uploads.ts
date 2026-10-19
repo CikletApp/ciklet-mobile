@@ -90,7 +90,7 @@ export interface PickedAsset {
   lastModified?: number | null;
 }
 
-type UploadEndpoint = "messageFile" | "profileImage" | "profileBanner" | "serverImage" | "serverBanner";
+type UploadEndpoint = "messageFile" | "profileImage" | "profileBanner" | "serverImage" | "serverBanner" | "groupImage";
 
 const EXTENSION_BY_MIME: Readonly<Record<string, string>> = {
   "image/jpeg": "jpg",
@@ -298,3 +298,7 @@ export async function pickDocuments(limit: number): Promise<PickedAsset[]> {
   if (result.canceled || !result.assets?.length) return [];
   return result.assets.slice(0, limit).map(fromDocumentPicker);
 }
+
+/** Grup DM simgesi (görsel, 4 MB, kare) — webdeki `groupImage` rotası. */
+export const pickAndUploadGroupImage = (onProgress?: (progress: number) => void) =>
+  pickAndUploadImage("groupImage", [1, 1], onProgress);

@@ -8,6 +8,8 @@ import { API_BASE_URL } from "@/lib/config";
 import { usePresenceStatus } from "@/stores/presence";
 import { colors, radii } from "@/theme/tokens";
 import { PresenceDot } from "./icon";
+import { AvatarDecorationRing } from "./avatar-decoration";
+import { useDecorationOf } from "@/stores/decorations";
 import { fw } from "@/theme/fonts";
 
 /**
@@ -44,6 +46,12 @@ interface AvatarProps {
    * kırpmayı kendi sarmalayıcısında yapar.
    */
   radius?: number;
+  /**
+   * Avatar süsü kimliği. Verilmezse (`undefined`) profil kimliğiyle süs
+   * önbelleğinden okunur (`stores/decorations`); `null` süsü bilerek kapatır
+   * (ör. seçicideki "Süs yok" önizlemesi).
+   */
+  decorationId?: string | null;
 }
 
 export function Avatar({
@@ -57,10 +65,17 @@ export function Avatar({
   backgroundColor = colors.bg,
   radius,
   presenceSize,
+  decorationId,
 }: AvatarProps) {
   // Hook koşulsuz çağrılmalı; kimlik yoksa depo OFFLINE döner.
   const livePresence = usePresenceStatus(profileId);
   const status = presence ?? livePresence;
+  // Önbellekten yalnızca yuvarlak kişi avatarlarında okunur: halka bir
+  // çember, köşeli (sunucu / grup) kutuya oturmaz.
+  const cachedDecoration = useDecorationOf(
+    decorationId === undefined && shape === "circle" && radius === undefined ? profileId : undefined
+  );
+  const decoration = decorationId === undefined ? cachedDecoration : decorationId;
 
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
@@ -119,6 +134,8 @@ export function Avatar({
           accessibilityLabel={fallbackText ? `${fallbackText} avatarı` : "Avatar"}
         />
       )}
+
+      {decoration ? <AvatarDecorationRing id={decoration} size={size} /> : null}
 
       {showPresence && profileId ? (
         <View style={{ position: "absolute", right: -1, bottom: -1 }}>
