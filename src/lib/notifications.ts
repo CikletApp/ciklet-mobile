@@ -4,6 +4,7 @@ import { AppState, Platform } from "react-native";
 
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
+import { callKit } from "@/features/call/callkit";
 import { usePreferences } from "@/stores/preferences";
 
 import { brand } from "@/theme/tokens";
@@ -176,6 +177,10 @@ export async function clearBadge() {
  * Uygulama TAMAMEN KAPALIYKEN gelen arama/mesaj bildirimi yalnızca bu
  * kayıtla mümkün; soket süreçle birlikte ölüyor.
  *
+ * iOS'ta aynı kayda PushKit VoIP token'ı da eklenir: sıradan push uyuyan
+ * uygulamayı arama için uyandıramıyor, VoIP push uyandırır ve arama CallKit
+ * ekranında çalar (modules/ciklet-calls/ios). Token geç gelirse
+ * (`onVoipToken`) kayıt yinelenir — bkz. realtime/use-call-events.
  */
 export async function registerPushToken(): Promise<void> {
   try {
@@ -191,11 +196,13 @@ export async function registerPushToken(): Promise<void> {
     if (!token) return;
 
     const preferences = usePreferences.getState();
+    const voip = await voipRegistration();
     await api(endpoints.pushRegister, {
       method: "POST",
       body: {
         token,
         platform: Platform.OS,
+        ...voip,
         messagesEnabled: preferences.messageNotifications,
         callsEnabled: preferences.callNotifications,
         friendRequestsEnabled: preferences.friendNotifications,
@@ -209,6 +216,18 @@ export async function registerPushToken(): Promise<void> {
     // modunda görünüyordu; üretimde bildirimler iz bırakmadan gelmiyordu.
     // Release'te de logcat'e düşer (ReactNativeJS etiketi).
     console.warn("[bildirim] push kaydı yapılamadı:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** iOS VoIP token'ı ve APNs ortamı (dev client sandbox'a kayıtlı); yoksa boş. */
+async function voipRegistration(): Promise<{ voipToken?: string; voipEnvironment?: "development" | "production" }> {
+  if (!callKit) return {};
+  try {
+    const voipToken = await callKit.getVoipToken();
+    if (!voipToken) return {};
+    return { voipToken, voipEnvironment: callKit.getApsEnvironment() };
+  } catch {
+    return {};
   }
 }
 

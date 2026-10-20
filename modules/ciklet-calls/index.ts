@@ -1,14 +1,16 @@
 import { type NativeModule, requireOptionalNativeModule } from "expo";
 
 /**
- * Yerel gelen-arama bildirimi (yalnızca Android). iOS'ta ya da modülsüz
- * derlemede `null` — çağıran yalnızca uygulama içi zil ekranına düşer.
- * iOS tarafı (ios/) yalnızca yakınlık sensörünü sağlar; gelen arama
- * işlevlerini JS Android'le sınırlar (`nativeIncomingCalls`).
+ * Yerel arama modülü — iki platformda farklı yüz:
  *
- * Tam ekran gelen arama için Expo'nun bildirim API'sinde karşılık yok
- * (fullScreenIntent / CallStyle); bu modül onu sağlar. Kotlin tarafı:
- * android/src/main/java/expo/modules/cikletcalls.
+ *  - Android: gelen-arama bildirimi (tam ekran / CallStyle) ve süren
+ *    görüşmenin ön plan hizmeti. Expo'nun bildirim API'sinde karşılık yok.
+ *    Kotlin: android/src/main/java/expo/modules/cikletcalls.
+ *  - iOS: CallKit + PushKit (VoIP push) — `CikletCallKitModule`. Swift:
+ *    ios/. Gelen arama sistem arama ekranında çalar, görüşme kilit ekranında
+ *    ve uygulama değiştiricide sistem göstergesiyle sürer.
+ *
+ * Modülsüz derlemede `null` — çağıran uygulama içi zil ekranına düşer.
  */
 export interface IncomingCallOptions {
   callId: string;
@@ -50,11 +52,81 @@ declare class CikletCallsModule extends NativeModule<CikletCallsEvents> {
   startOngoingCall(title: string, video: boolean, callId: string): void;
   stopOngoingCall(): void;
   /**
-   * Yakınlık sensörüyle ekran karartma (Android: PROXIMITY_SCREEN_OFF_WAKE_LOCK,
-   * iOS: UIDevice.isProximityMonitoringEnabled). Yalnızca sesli görüşmede,
-   * ses ahizedeyken açılır. Eski derlemede işlev yok — çağıran denetler.
+   * Yakınlık sensörü (iki platform): sesli görüşmede ahizedeyken telefon
+   * yüze yaklaşınca ekran kararır. Eski derlemede yoktur — çağıran denetler.
    */
   setProximityScreenOff?(enabled: boolean): void;
 }
 
-export default requireOptionalNativeModule<CikletCallsModule>("CikletCalls");
+// ── iOS: CallKit + PushKit ───────────────────────────────────────────────
+
+/** VoIP push yükünden ya da JS'ten bildirilen gelen arama (hepsi isteğe bağlı dize). */
+export interface NativeIncomingCall {
+  callId: string;
+  callerId?: string;
+  callerName?: string;
+  callerAvatar?: string;
+  callType?: string;
+  directId?: string;
+  declineUrl?: string;
+  /** epoch ms */
+  expiresAt?: number;
+}
+
+export interface NativeActiveCall extends NativeIncomingCall {
+  key: string;
+  incoming: boolean;
+  answered: boolean;
+  connected: boolean;
+}
+
+/**
+ * CallKit eylemleri (kullanıcı sistem arayüzünde bir şey yaptı):
+ *  - accept: Cevapla (yük gelen aramanın bilgisini taşır)
+ *  - decline: çalarken Reddet; `handled` true ise ret yerelden
+ *    (`declineUrl`) gönderildi, JS yalnızca yerelde kapatır
+ *  - hangup: bağlı/giden görüşme sistemden bitirildi
+ *  - mute / unmute: sistemdeki sessiz düğmesi
+ *  - ended: çalan arama süre dolunca ya da "bitti" push'uyla kapandı
+ *  - rejected: sistem çağrıyı kabul etmedi (Rahatsız Etmeyin vb.)
+ */
+export type CallKitAction = "accept" | "decline" | "hangup" | "mute" | "unmute" | "ended" | "rejected";
+
+export type CallKitActionEvent = NativeIncomingCall & { action: CallKitAction; handled?: boolean };
+
+export type CallKitEndReason = "local" | "remote" | "elsewhere" | "declined-elsewhere" | "unanswered" | "failed";
+
+export type CallKitPendingEvent =
+  | { name: "onIncomingCall"; body: NativeIncomingCall }
+  | { name: "onCallAction"; body: CallKitActionEvent }
+  | { name: "onVoipToken"; body: { token: string | null } };
+
+type CikletCallKitEvents = {
+  onVoipToken: (event: { token: string | null }) => void;
+  onIncomingCall: (event: NativeIncomingCall) => void;
+  onCallAction: (event: CallKitActionEvent) => void;
+};
+
+export declare class CikletCallKitModule extends NativeModule<CikletCallKitEvents> {
+  isSupported(): boolean;
+  isCallKitSupported(): boolean;
+  getApsEnvironment(): "development" | "production";
+  getVoipToken(): Promise<string | null>;
+  /** Dinleyiciler kurulduktan SONRA: JS yokken biriken olaylar; sonrakiler doğrudan gelir. */
+  takePendingEvents(): Promise<CallKitPendingEvent[]>;
+  stopListening(): Promise<void>;
+  getActiveCalls(): Promise<NativeActiveCall[]>;
+  /** Aynı callId zaten bildirildiyse (VoIP push) bir şey yapmaz. */
+  reportIncomingCall(info: NativeIncomingCall): Promise<void>;
+  startOutgoingCall(key: string, name: string, video: boolean): Promise<void>;
+  reportConnected(key: string): Promise<void>;
+  endCall(key: string, reason: CallKitEndReason): Promise<void>;
+  setMuted(key: string, muted: boolean): Promise<void>;
+}
+
+const native = requireOptionalNativeModule<CikletCallsModule & CikletCallKitModule>("CikletCalls");
+
+export default native as CikletCallsModule | null;
+
+/** Aynı yerel modülün iOS yüzü; tür ayrımı yalnızca çağıran tarafı korur. */
+export const CikletCallKit = native as CikletCallKitModule | null;

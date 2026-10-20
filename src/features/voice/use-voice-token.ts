@@ -32,7 +32,17 @@ export function useVoiceToken(
   {
     needsCamera = false,
     defaultRoute = "speaker",
-  }: { needsCamera?: boolean; defaultRoute?: BuiltInRoute } = {}
+    callKitManaged = false,
+  }: {
+    needsCamera?: boolean;
+    defaultRoute?: BuiltInRoute;
+    /**
+     * iOS DM araması CallKit'te: ses oturumunu sistem etkinleştirir
+     * (`didActivate` → WebRTC). Kendimiz `setActive` çağırmak CallKit'in
+     * oturumuyla çakışır; açma/kapama ona bırakılır.
+     */
+    callKitManaged?: boolean;
+  } = {}
 ) {
   const profile = useAuth((s) => s.profile);
   const [result, setResult] = useState<{
@@ -50,6 +60,7 @@ export function useVoiceToken(
     // Sesli kanaldayken DM araması gibi iç içe oturumlarda yerel ses
     // oturumu yalnızca SON oturum kapanınca durur.
     const stopIfLast = () => {
+      if (callKitManaged) return;
       if (!hasActiveAudioSessions()) void AudioSession.stopAudioSession().catch(() => {});
     };
 
@@ -70,7 +81,7 @@ export function useVoiceToken(
           return;
         }
         routeId = id;
-        await AudioSession.startAudioSession();
+        if (!callKitManaged) await AudioSession.startAudioSession();
         const issued = await fetchRoomToken(roomId, profile.username);
         if (!cancelled) setResult({ roomId, token: issued.token, moderation: issued.moderation, error: null });
       } catch (err) {
@@ -88,7 +99,7 @@ export function useVoiceToken(
       routeId = null;
       stopIfLast();
     };
-  }, [roomId, profile, needsCamera, defaultRoute]);
+  }, [roomId, profile, needsCamera, defaultRoute, callKitManaged]);
 
   if (result && result.roomId === roomId) {
     return { token: result.token, moderation: result.moderation, error: result.error };

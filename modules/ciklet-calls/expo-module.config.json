@@ -1,9 +1,10 @@
 {
-  "platforms": ["apple", "android"],
-  "apple": {
-    "modules": ["CikletCallsModule"]
-  },
+  "platforms": ["android", "apple"],
   "android": {
     "modules": ["expo.modules.cikletcalls.CikletCallsModule"]
+  },
+  "apple": {
+    "modules": ["CikletCallsModule"],
+    "appDelegateSubscribers": ["CikletCallsAppDelegateSubscriber"]
   }
 }

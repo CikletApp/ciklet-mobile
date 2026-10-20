@@ -3,6 +3,7 @@ import { Platform, Vibration } from "react-native";
 import CikletCalls from "../../../modules/ciklet-calls";
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
+import { currentVoipToken } from "@/features/call/callkit";
 import { resolveMediaUrl } from "@/lib/config";
 import { stopRingtone } from "@/lib/sounds";
 import { useCall, type CallPeer } from "@/stores/call";
@@ -111,7 +112,7 @@ export function acceptIncomingCall(directId: string): void {
   dismissIncomingCallNotification(session.callId);
   void api(endpoints.callAccept, {
     method: "POST",
-    body: { callId: session.callId, callerId: session.peer.id },
+    body: { callId: session.callId, callerId: session.peer.id, voipToken: currentVoipToken() ?? undefined },
   }).catch(() => {});
   useCall.setState({ session: { ...session, directId } });
   useCall.getState().markConnected();
@@ -126,7 +127,7 @@ export function declineIncomingCall(): void {
   dismissIncomingCallNotification(session.callId);
   void api(endpoints.callDecline, {
     method: "POST",
-    body: { callId: session.callId, callerId: session.peer.id },
+    body: { callId: session.callId, callerId: session.peer.id, voipToken: currentVoipToken() ?? undefined },
   }).catch(() => {});
   useCall.getState().end();
 }

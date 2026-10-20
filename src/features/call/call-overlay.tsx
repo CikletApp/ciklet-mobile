@@ -18,6 +18,8 @@ import { displayNameOf } from "@/lib/format";
 import { useCallActions } from "@/realtime/use-call-events";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { callKit } from "./callkit";
+import { CallKitMuteSync } from "./callkit-mute-sync";
 import { MiniCall } from "./mini-call";
 import { useOngoingCallService } from "./use-ongoing-call-service";
 import { useCallTimer } from "./use-call-timer";
@@ -225,6 +227,8 @@ function ConnectedCall({
   const { token, error } = useVoiceToken(directId, {
     needsCamera: initialKind === "video",
     defaultRoute: initialKind === "video" ? "speaker" : "earpiece",
+    // iOS: ses oturumunu CallKit etkinleştirir/kapatır (features/call/callkit).
+    callKitManaged: callKit !== null,
   });
   const minimized = useCall((s) => s.minimized);
   const setMinimized = useCall((s) => s.setMinimized);
@@ -287,6 +291,7 @@ function ConnectedCall({
       options={{ adaptiveStream: true, dynacast: true }}
     >
       <VideoUpgradeBridge />
+      <CallKitMuteSync />
       <Modal
         visible={!minimized}
         animationType="slide"
