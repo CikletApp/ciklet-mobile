@@ -570,11 +570,18 @@ extension CikletCallController: CXProviderDelegate {
   }
 
   func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
-    if let record = record(for: action.callUUID) {
-      configureAudioCategory(video: record.video)
+    let started = self.record(for: action.callUUID)
+    if let started = started {
+      configureAudioCategory(video: started.video)
     }
     action.fulfill()
     provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: Date())
+    // Süren görüşmeye katılım / başka cihazdan aktarım (JS joinOngoingCall):
+    // oturum doğrudan "bağlı" açılıyor ve `reportConnected` bu eylem
+    // tamamlanmadan geliyor. Sistem göstergesi "bağlanıyor"da kalmasın.
+    if let started = started, started.connected {
+      provider.reportOutgoingCall(with: action.callUUID, connectedAt: Date())
+    }
   }
 
   func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
