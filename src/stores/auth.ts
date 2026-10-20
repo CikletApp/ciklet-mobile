@@ -8,6 +8,7 @@ import { resetInteractionModal } from "@/features/chat/interaction-modal-store";
 import { setListenAlongProfile, stopListenAlong } from "@/features/spotify/listen-along";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
 import { clearNativeCookies } from "@/lib/cookies";
+import { kvGet, kvSet } from "@/lib/local-db";
 import { unregisterPushToken } from "@/lib/notifications";
 import { clearNsfwAcknowledgements } from "@/lib/nsfw-ack";
 import { clearDecorations } from "@/stores/decorations";
@@ -38,6 +39,13 @@ type SessionProfile = OwnProfile & { eulaAccepted?: boolean };
  * sonra telefon, sonra uygulama. Bayrağı hiç göndermeyen (eski) sunucu
  * sözleşme kapısına takılmaz; yalnızca açıkça `false` bekletir.
  */
+/** Son doğrulanan profil — açılışta ağı beklemeden kabuğu açmak için (yerel veritabanı, çıkışta silinir). */
+const PROFILE_KV = "auth.profile";
+
+function rememberProfile(profile: SessionProfile | null) {
+  if (profile?.id) void kvSet(PROFILE_KV, profile);
+}
+
 function gateStatus(profile: SessionProfile | null, phonePending: boolean): AuthStatus {
   if (profile?.eulaAccepted === false) return "eulaPending";
   if (phonePending) return "phonePending";
@@ -104,9 +112,19 @@ export const useAuth = create<AuthState>((set, get) => ({
 
     // Süresi dolmuş/dolmak üzere olan token'ı önce yenile; taze token varken
     // gereksiz ağ turu atma.
+    // Yerel öncelikli açılış (WhatsApp): son doğrulanan profil sözleşme
+    // kapısından geçiyorsa kabuk HEMEN açılır, sohbet listesi yerelden
+    // çizilir; oturum ve profil arkada doğrulanır. Oturum sunucuda
+    // düşmüşse 401'i client.ts yakalar ve çıkış yaptırır.
+    const cached = kvGet<SessionProfile>(PROFILE_KV)?.value ?? null;
+    const optimistic = Boolean(cached?.id) && gateStatus(cached, false) === "signedIn";
+    if (optimistic) set({ status: "signedIn", profile: cached });
+
     if (isExpiringSoon(session.expiresAt)) {
       const ok = await apiClient.refreshSession();
-      if (!ok) {
+      // Ağ hatasında yenileme false döner ama oturum durur (çevrimdışı):
+      // kullanıcı dışarı atılmaz. Token gerçekten öldüyse oturum silinmiştir.
+      if (!ok && !(await apiClient.getSession())) {
         set({ status: "signedOut", profile: null });
         return;
       }
@@ -114,12 +132,16 @@ export const useAuth = create<AuthState>((set, get) => ({
 
     try {
       const profile = await apiClient.api<SessionProfile>(endpoints.currentProfile);
+      rememberProfile(profile);
       set({ status: gateStatus(profile, false), profile });
     } catch (err) {
       // 401 ise client.ts zaten oturumu düşürdü. Ağ hatasıysa oturumu
       // KORU — çevrimdışı açılışta kullanıcıyı giriş ekranına atmak yanlış
       // olur; ekranlar cache'ten çalışabilir.
-      if (err instanceof apiClient.ApiError && err.isNetwork) {
+      if (optimistic) {
+        // Kabuk zaten açık; geçici sunucu hatası kullanıcıyı dışarı atmasın.
+        if (err instanceof apiClient.ApiError && err.isUnauthorized) set({ status: "signedOut", profile: null });
+      } else if (err instanceof apiClient.ApiError && err.isNetwork) {
         set({ status: "signedIn", profile: null });
       } else {
         set({ status: "signedOut", profile: null });
@@ -134,6 +156,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     const current = await apiClient.api<SessionProfile>(endpoints.currentProfile).catch(() => null);
     // Profil okunamadıysa sunucunun giriş yanıtındaki bayrak yedek.
     const gateProfile = current ?? (res.eulaRequired ? { ...res.profile, eulaAccepted: false } : null);
+    rememberProfile(current);
     set({ status: gateStatus(gateProfile, res.phoneVerificationRequired === true), profile: current ?? res.profile });
   },
 
@@ -175,7 +198,10 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   dismissBan: () => set({ status: "signedOut", ban: null }),
 
-  setProfile: (profile) => set({ profile }),
+  setProfile: (profile) => {
+    rememberProfile(profile);
+    set({ profile });
+  },
 
   ensureFreshSession: async () => {
     if (get().status !== "signedIn") return;

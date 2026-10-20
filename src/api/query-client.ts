@@ -1,10 +1,13 @@
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { focusManager, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import type { PersistQueryClientOptions } from "@tanstack/react-query-persist-client";
+import { Image } from "expo-image";
 
 import { clearStoredMessages, startMessageStore } from "@/features/chat/message-store";
+import { kvGet, kvSet, wipeLocalDb } from "@/lib/local-db";
+import { clearMedia } from "@/lib/media-cache";
 import { qk } from "./query-keys";
 
 /**
@@ -15,10 +18,16 @@ import { qk } from "./query-keys";
  * veri arkada gelir. Metroda/uçakta uygulama tamamen boş açılmaz.
  *
  * Neyin saklandığı bilinçlidir:
- *  - Sunucular, DM listesi, arkadaşlar, profil → saklanır (yavaş değişir)
- *  - Mesaj geçmişi ve arama → SAKLANMAZ. Mesajlar hızla büyür (her sohbet
- *    için sayfalar), AsyncStorage'ı şişirir ve çevrimdışı okunan eski bir
- *    sohbet, canlı akışla senkronize olmadığı için yanıltıcı olur.
+ *  - Sunucular, DM listesi, arkadaşlar, profil, okunmamış sayıları →
+ *    yerel SQLite'ta anlık görüntü (`kv` tablosu). Modül yüklenirken
+ *    EŞZAMANLI okunup önbelleğe tohumlanır: sohbet listesi ilk karede,
+ *    ağı ve AsyncStorage geri yüklemesini beklemeden çizilir (WhatsApp).
+ *    Tohumun zamanı korunur; bayat sayılır ve ekran açılınca arkada tazelenir.
+ *  - Mesaj geçmişi → genel önbellekte değil, ayrı yerel depoda
+ *    (features/chat/message-store: sohbet başına boşluksuz kesim, LRU).
+ *  - Arama → saklanmaz.
+ *  - Web'de yerel veritabanı yok; aynı anahtarlar AsyncStorage
+ *    kalıcılığıyla saklanır.
  */
 
 /**
@@ -46,8 +55,53 @@ export const queryClient = new QueryClient({
   },
 });
 
-// Son sohbetlerin son mesajları cihazda (features/chat/message-store):
-// açılışta diskten yüklenir, sohbet önbellekleri değiştikçe yazılır.
+/** Anlık görüntüsü yerel veritabanında tutulan sorgular (anahtarın tamamı sabit). */
+const SNAPSHOT_KEYS: readonly (readonly string[])[] = [
+  qk.currentProfile,
+  qk.directs,
+  qk.friends,
+  qk.memberships,
+  qk.unreadCounts,
+];
+const SNAPSHOT_ROOTS = new Set(SNAPSHOT_KEYS.map((key) => key[0]));
+const snapshotKv = (root: string) => `query:${root}`;
+
+/** Açılış: anlık görüntüler önbelleğe — ilk render'dan önce, eşzamanlı. */
+function seedSnapshots() {
+  for (const key of SNAPSHOT_KEYS) {
+    const stored = kvGet<unknown>(snapshotKv(key[0]));
+    if (stored?.value === undefined || stored.value === null) continue;
+    queryClient.setQueryData(key, stored.value, { updatedAt: stored.updatedAt });
+  }
+}
+
+const snapshotTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function watchSnapshots() {
+  queryClient.getQueryCache().subscribe((event) => {
+    if (event.type !== "updated" || event.action.type !== "success") return;
+    const [root] = event.query.queryKey as [string];
+    if (!SNAPSHOT_ROOTS.has(root) || event.query.queryKey.length !== 1) return;
+    if (snapshotTimers.has(root)) return;
+    snapshotTimers.set(
+      root,
+      setTimeout(() => {
+        snapshotTimers.delete(root);
+        const query = queryClient.getQueryCache().find({ queryKey: [root], exact: true });
+        if (query?.state.status !== "success" || query.state.data === undefined) return;
+        void kvSet(snapshotKv(root), query.state.data, query.state.dataUpdatedAt);
+      }, 1_000)
+    );
+  });
+}
+
+if (Platform.OS !== "web") {
+  seedSnapshots();
+  watchSnapshots();
+}
+
+// Sohbetlerin mesajları cihazda (features/chat/message-store): sohbet
+// açılınca diskten okunur, önbellek değiştikçe yazılır.
 startMessageStore(queryClient);
 
 const persister = createAsyncStoragePersister({
@@ -58,14 +112,8 @@ const persister = createAsyncStoragePersister({
   throttleTime: 2_000,
 });
 
-/** Kalıcılığa alınacak sorgular — anahtarın ilk parçasına göre. */
-const PERSISTED_KEYS = new Set<string>([
-  qk.currentProfile[0],
-  qk.directs[0],
-  qk.friends[0],
-  qk.memberships[0],
-  qk.unreadCounts[0],
-]);
+/** AsyncStorage kalıcılığı yalnızca web'de (yerelde SQLite anlık görüntüleri var). */
+const PERSISTED_KEYS = Platform.OS === "web" ? SNAPSHOT_ROOTS : new Set<string>();
 
 export const persistOptions: Omit<PersistQueryClientOptions, "queryClient"> = {
   persister,
@@ -84,10 +132,33 @@ export const persistOptions: Omit<PersistQueryClientOptions, "queryClient"> = {
 };
 
 /**
- * Çıkışta diskteki cache silinir. Bunu yapmazsak bir sonraki kullanıcı,
- * uygulamayı açtığında bir önceki hesabın sohbet listesini görür.
+ * Çıkışta diskteki her şey silinir: sorgu önbelleği, yerel mesaj
+ * veritabanı, gönderim kuyruğu ve indirilen medya. Bunu yapmazsak bir
+ * sonraki kullanıcı bir önceki hesabın sohbetlerini ve dosyalarını görür.
  */
 export async function clearPersistedCache() {
+  for (const timer of snapshotTimers.values()) clearTimeout(timer);
+  snapshotTimers.clear();
+  clearStoredMessages();
   queryClient.clear();
-  await Promise.all([persister.removeClient(), clearStoredMessages()]);
+  // Kuyruk modülü burada içe aktarılmıyor (döngü); temizliği outbox-sender
+  // `onLocalDataCleared` ile yapar.
+  for (const listener of clearListeners) listener();
+  await Promise.all([
+    persister.removeClient(),
+    wipeLocalDb(),
+    clearMedia(),
+    Image.clearDiskCache().catch(() => false),
+    Image.clearMemoryCache().catch(() => false),
+  ]);
+}
+
+const clearListeners = new Set<() => void>();
+
+/** Çıkışta yerel veri silinirken çağrılır (kuyruk, görsel önbelleği…). */
+export function onLocalDataCleared(listener: () => void): () => void {
+  clearListeners.add(listener);
+  return () => {
+    clearListeners.delete(listener);
+  };
 }
