@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, Switch, Text, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
@@ -6,8 +6,12 @@ import { Directory, File, Paths } from "expo-file-system";
 
 import { useMentolPlan } from "@/api/hooks";
 import { Button, Divider, Icon, ListGroup, ListRow, Screen, SectionHeader, SegmentedTabs, showDialog } from "@/components/ui";
+import { wipeStoredMessages } from "@/features/chat/message-store";
+import { formatFileSize } from "@/lib/attachments";
+import { messageStorageBytes } from "@/lib/local-db";
+import { clearMedia, mediaUsage } from "@/lib/media-cache";
 import { pickFromGallery } from "@/lib/uploads";
-import { usePreferences, type ChatDensity } from "@/stores/preferences";
+import { usePreferences, type AutoDownload, type ChatDensity } from "@/stores/preferences";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -62,6 +66,8 @@ export default function ChatSettingsScreen() {
         </View>
 
         <ChatBackgroundSection />
+
+        <StorageSection />
       </ScrollView>
     </Screen>
   );
@@ -202,6 +208,110 @@ function ChatBackgroundSection() {
             </Text>
           </View>
         )}
+      </View>
+    </>
+  );
+}
+
+const AUTO_DOWNLOAD: { id: AutoDownload; label: string }[] = [
+  { id: "all", label: "Hepsi" },
+  { id: "voice", label: "Sesli mesaj" },
+  { id: "none", label: "Hiçbiri" },
+];
+
+/**
+ * Depolama ve veriler (WhatsApp: Depolama ve veriler) — medya otomatik
+ * indirme kuralları ve cihazdaki kopyanın boyutu. Görseller her zaman
+ * görüntülendiklerinde iner ve görsel önbelleğinde kalır; kural sesli mesaj,
+ * video ve dosyaların cihaza önceden inmesini belirler.
+ */
+function StorageSection() {
+  const wifi = usePreferences((state) => state.autoDownloadWifi);
+  const cellular = usePreferences((state) => state.autoDownloadCellular);
+  const setPreference = usePreferences((state) => state.setPreference);
+  const [usage, setUsage] = useState<{ media: number; messages: number } | null>(null);
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    void messageStorageBytes()
+      .catch(() => 0)
+      .then((messages) => {
+        if (alive) setUsage({ media: mediaUsage().bytes, messages });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [revision]);
+
+  const clearMediaCache = () => {
+    showDialog("Medya önbelleğini temizle", "İndirilen sesli mesajlar, videolar, dosyalar ve görseller bu cihazdan silinir; gerektiğinde yeniden iner.", [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Temizle",
+        style: "destructive",
+        onPress: () => {
+          void Promise.all([clearMedia(), Image.clearDiskCache().catch(() => false)]).finally(() =>
+            setRevision((value) => value + 1)
+          );
+        },
+      },
+    ]);
+  };
+
+  const clearMessages = () => {
+    showDialog("Yerel mesajları sil", "Bu cihazdaki mesaj kopyası silinir. Sohbetler açıldıkça sunucudan yeniden yüklenir.", [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: () => {
+          void wipeStoredMessages().finally(() => setRevision((value) => value + 1));
+        },
+      },
+    ]);
+  };
+
+  return (
+    <>
+      <SectionHeader title="MEDYA OTOMATİK İNDİRME" />
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+        <View style={{ gap: spacing.xs }}>
+          <Text style={{ ...typography.overline, color: colors.muted }}>WI-FI İLE</Text>
+          <SegmentedTabs items={AUTO_DOWNLOAD} value={wifi} onChange={(value) => setPreference("autoDownloadWifi", value)} />
+        </View>
+        <View style={{ gap: spacing.xs }}>
+          <Text style={{ ...typography.overline, color: colors.muted }}>MOBİL VERİ İLE</Text>
+          <SegmentedTabs
+            items={AUTO_DOWNLOAD}
+            value={cellular}
+            onChange={(value) => setPreference("autoDownloadCellular", value)}
+          />
+        </View>
+        <Text style={{ ...typography.caption, color: colors.muted }}>
+          İnen sesli mesajlar ve dosyalar bu cihazda saklanır; sonraki açılışlarda internetsiz de açılır.
+        </Text>
+      </View>
+
+      <SectionHeader title="DEPOLAMA" />
+      <View style={{ paddingHorizontal: spacing.lg }}>
+        <ListGroup>
+          <ListRow
+            icon="download"
+            title="Medya önbelleğini temizle"
+            subtitle="Sesli mesaj, video, dosya ve görseller"
+            detail={usage ? formatFileSize(usage.media) || "0 B" : undefined}
+            onPress={clearMediaCache}
+          />
+          <Divider inset={16} />
+          <ListRow
+            icon="message"
+            title="Yerel mesajları sil"
+            subtitle="Çevrimdışı okunabilen mesaj kopyası"
+            detail={usage ? formatFileSize(usage.messages) || "0 B" : undefined}
+            onPress={clearMessages}
+          />
+        </ListGroup>
       </View>
     </>
   );

@@ -15,6 +15,7 @@ import {
   type AttachmentKind,
 } from "@/lib/attachments";
 import { downloadAttachment } from "@/lib/downloads";
+import { localMediaUri, useLocalMedia } from "@/lib/media-cache";
 import { isSensitive, isSpoilerName, readVoice } from "@/lib/message-extras";
 import { MediaGate } from "./media-gate";
 import { VoiceMessagePlayer } from "./voice-message-player";
@@ -212,6 +213,9 @@ function ImageAttachment({
           contentFit="cover"
           transition={150}
           recyclingKey={url}
+          // Görselin cihazdaki kopyası expo-image disk önbelleğinde; bir
+          // kez inen görsel çevrimdışı da görünür.
+          cachePolicy="memory-disk"
           onLoad={(event) => {
             const { width, height } = event.source;
             if (width > 0 && height > 0) setNatural({ width, height });
@@ -258,6 +262,8 @@ function VideoAttachment({
   const [started, setStarted] = useState(false);
   const [failed, setFailed] = useState(false);
   const download = useDownload(url, info);
+  // Otomatik indirme kuralı (Wi-Fi'da varsayılan açık) izin verirse cihaza iner.
+  useLocalMedia(url, "video");
 
   if (failed) {
     const card = (
@@ -332,7 +338,10 @@ function VideoAttachment({
 function InlineVideo({ url, fill, onError }: { url: string; fill: boolean; onError: () => void }) {
   const [aspect, setAspect] = useState(16 / 9);
   const [ready, setReady] = useState(false);
-  const player = useVideoPlayer(url, (instance) => {
+  // Kaynak oynatma başlarken bir kez seçilir (yerel kopya varsa o); indirme
+  // oynatma sırasında biterse kaynak değişip video baştan başlamasın.
+  const [source] = useState(() => localMediaUri(url, "video") ?? url);
+  const player = useVideoPlayer(source, (instance) => {
     instance.play();
   });
 
@@ -405,6 +414,8 @@ function FileCard({
   const sizeLabel = formatFileSize(info?.size);
   const visual = KIND_ICON[kind];
   const download = useDownload(url, info);
+  // Wi-Fi'da (ayara göre) dosya arkada cihaza iner; "İndir" sonra ağsız kopyalar.
+  useLocalMedia(url, "file");
 
   return (
     <Pressable

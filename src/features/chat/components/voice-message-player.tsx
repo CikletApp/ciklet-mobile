@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Text, View, type GestureResponderEvent } from "react-native";
+import { ActivityIndicator, Text, View, type GestureResponderEvent } from "react-native";
 import { createAudioPlayer, type AudioPlayer, type AudioStatus } from "expo-audio";
 import Svg, { Path, Rect } from "react-native-svg";
 
 import { Pressable, showToast } from "@/components/ui";
+import { ensureMedia, useLocalMedia } from "@/lib/media-cache";
 import { formatVoiceDuration, type VoiceMeta } from "@/lib/message-extras";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing } from "@/theme/tokens";
@@ -16,7 +17,34 @@ import { claimPlayback, preparePlaybackMode, releasePlayback } from "../voice-me
  *
  * Yerel oynatıcı İLK dokunuşta kurulur: listedeki her sesli mesaj için
  * oynatıcı açmak, kullanıcı dinlemese de belleği ve veriyi harcardı.
+ *
+ * Ses dosyası CİHAZDAN çalar (lib/media-cache): otomatik indirme kuralı
+ * izin veriyorsa mesaj görününce arkada iner; değilse ilk dokunuşta iner.
+ * Eskiden `play()` oynatıcı kaynağı yüklemeden çağrılıyor ve ilk dokunuş
+ * sessizce yutuluyordu (biraz bekleyip ikinci dokunuşta çalıyordu). Artık
+ * oynatıcı "yüklendi" diyene kadar düğmede gösterge döner, sonra kendiliğinden
+ * çalar.
  */
+
+/** Oynatıcı kaynağı bu süre içinde yüklenmezse yine de çalmayı dener. */
+const LOAD_TIMEOUT_MS = 10_000;
+
+function waitUntilLoaded(player: AudioPlayer): Promise<void> {
+  if (player.isLoaded) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, LOAD_TIMEOUT_MS);
+    const subscription = player.addListener("playbackStatusUpdate", (status: AudioStatus) => {
+      if (status.isLoaded) done();
+    });
+    function done() {
+      clearTimeout(timer);
+      subscription.remove();
+      resolve();
+    }
+    // Dinleyici bağlanana kadar yüklenmiş olabilir.
+    if (player.isLoaded) done();
+  });
+}
 
 const RATES = [1, 1.5, 2] as const;
 const FALLBACK_BARS = Array.from({ length: 32 }, () => 0.3);
@@ -31,7 +59,10 @@ export function VoiceMessagePlayer({
   onLongPress?: () => void;
 }) {
   const playerRef = useRef<AudioPlayer | null>(null);
+  const startingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const local = useLocalMedia(url, "voice");
   const [progress, setProgress] = useState(0);
   const [rate, setRate] = useState<(typeof RATES)[number]>(1);
   const [width, setWidth] = useState(0);
@@ -52,10 +83,10 @@ export function VoiceMessagePlayer({
     []
   );
 
-  const ensurePlayer = (): AudioPlayer | null => {
+  const ensurePlayer = (source: string): AudioPlayer | null => {
     if (playerRef.current) return playerRef.current;
     try {
-      const player = createAudioPlayer({ uri: url }, { updateInterval: 100 });
+      const player = createAudioPlayer({ uri: source }, { updateInterval: 100 });
       player.addListener("playbackStatusUpdate", (status: AudioStatus) => {
         if (playerRef.current !== player) return;
         if (status.didJustFinish) {
@@ -77,23 +108,55 @@ export function VoiceMessagePlayer({
     }
   };
 
+  /** Kaynak: yerel kopya; yoksa önce cihaza indirilir; indirilemezse sunucudan akış denenir. */
+  const resolveSource = async (): Promise<string> => {
+    if (local.uri) return local.uri;
+    try {
+      return await ensureMedia(url, "voice");
+    } catch {
+      return url;
+    }
+  };
+
   const toggle = async () => {
-    const player = ensurePlayer();
-    if (!player) return;
-    if (player.playing) {
-      player.pause();
+    const existing = playerRef.current;
+    if (existing?.playing) {
+      existing.pause();
       return;
     }
-    await preparePlaybackMode();
-    claimPlayback(player);
-    player.setPlaybackRate(rate);
-    player.play();
+    if (startingRef.current) return;
+    startingRef.current = true;
+    try {
+      let player = existing;
+      if (!player) {
+        setLoading(true);
+        player = ensurePlayer(await resolveSource());
+      }
+      if (!player) return;
+      if (!player.isLoaded) {
+        setLoading(true);
+        await waitUntilLoaded(player);
+      }
+      // Bu arada bileşen söküldüyse çalma.
+      if (playerRef.current !== player) return;
+      await preparePlaybackMode();
+      claimPlayback(player);
+      player.setPlaybackRate(rate);
+      player.play();
+    } catch {
+      showToast("Sesli mesaj oynatılamadı.", "error");
+    } finally {
+      startingRef.current = false;
+      setLoading(false);
+    }
   };
 
   const seek = (event: GestureResponderEvent) => {
     if (width <= 0) return;
     const ratio = Math.min(1, Math.max(0, event.nativeEvent.locationX / width));
-    const player = ensurePlayer();
+    // Henüz oynatıcı yoksa (dinlenmemiş) yalnızca yerel kopyadan kurulur;
+    // sarma için indirme başlatılmaz.
+    const player = playerRef.current ?? (local.uri ? ensurePlayer(local.uri) : null);
     if (!player) return;
     const duration = player.duration > 0 ? player.duration : meta.durationMs / 1000;
     setProgress(ratio);
@@ -135,7 +198,7 @@ export function VoiceMessagePlayer({
         delayLongPress={280}
         haptic="light"
         accessibilityRole="button"
-        accessibilityLabel={playing ? "Duraklat" : "Sesli mesajı oynat"}
+        accessibilityLabel={playing ? "Duraklat" : loading ? "Sesli mesaj yükleniyor" : "Sesli mesajı oynat"}
         style={({ pressed }) => ({
           width: 36,
           height: 36,
@@ -146,7 +209,11 @@ export function VoiceMessagePlayer({
           opacity: pressed ? 0.85 : 1,
         })}
       >
-        <PlayPauseGlyph playing={playing} color={colors.onBrand} />
+        {loading || (local.downloading && !playing && progress === 0) ? (
+          <ActivityIndicator size="small" color={colors.onBrand} />
+        ) : (
+          <PlayPauseGlyph playing={playing} color={colors.onBrand} />
+        )}
       </Pressable>
 
       <Pressable
