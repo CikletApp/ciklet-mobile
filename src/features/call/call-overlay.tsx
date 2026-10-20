@@ -131,6 +131,8 @@ export function CallOverlay() {
                   : "Sesli arıyor…"
                 : session.status === "busy"
                   ? "Meşgul"
+                  : session.status === "noAnswer"
+                  ? "Cevap yok"
                   : "Aranıyor…"}
             </Text>
           </View>

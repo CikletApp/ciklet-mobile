@@ -21,7 +21,8 @@ export interface CallPeer {
 }
 
 /** "busy": karşı taraf reddetti — arayan birkaç saniye "Meşgul" görür ve meşgul sesi duyar. */
-export type CallStatus = "ringing" | "calling" | "connected" | "busy";
+/** "noAnswer": karşı taraf 45 sn içinde açmadı — arayan kısa süre "Cevap yok" görür. */
+export type CallStatus = "ringing" | "calling" | "connected" | "busy" | "noAnswer";
 export type CallKind = "audio" | "video";
 
 export interface CallSession {
@@ -71,6 +72,7 @@ interface CallState {
   setSpeaker: (speaker: boolean) => void;
   setMinimized: (minimized: boolean) => void;
   markBusy: () => void;
+  markNoAnswer: () => void;
   setCameraFacing: (facing: "user" | "environment") => void;
   setVideoUpgrade: (state: "outgoing" | "incoming" | null) => void;
   /** Bağlı sesli görüşme görüntülüye döner (istek kabul edildi). */
@@ -109,6 +111,7 @@ export const useCall = create<CallState>((set) => ({
   setSpeaker: (speaker) => set({ speaker }),
   setMinimized: (minimized) => set({ minimized }),
   markBusy: () => set((state) => (state.session ? { session: { ...state.session, status: "busy" } } : state)),
+  markNoAnswer: () => set((state) => (state.session ? { session: { ...state.session, status: "noAnswer" } } : state)),
   setCameraFacing: (cameraFacing) => set({ cameraFacing }),
   setVideoUpgrade: (videoUpgrade) => set({ videoUpgrade }),
   switchToVideo: () =>

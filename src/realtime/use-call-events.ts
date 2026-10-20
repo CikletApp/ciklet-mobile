@@ -181,6 +181,50 @@ export function ring(frame: IncomingCallFrame) {
 }
 
 /** Çalan ya da bağlı çağrıyı yerelde kapat (sunucuya istek atmaz). */
+/**
+ * Giden aramanın çalma süresi — sunucunun daveti kapattığı süreyle aynı
+ * (ciklet-web lib/calls/store CALL_RING_MS, web istemcisi de 45 sn).
+ * Sunucu süre dolunca YALNIZCA arananı bilgilendiriyor; mobilde arayan
+ * için sayaç yoktu ve ekran sonsuza dek "Aranıyor…"da kalıyordu.
+ */
+const OUTGOING_RING_MS = 45_000;
+/** "Cevap yok" ekranının kalma süresi. */
+const NO_ANSWER_HOLD_MS = 2_500;
+
+let outgoingTimer: ReturnType<typeof setTimeout> | null = null;
+
+useCall.subscribe((state, prev) => {
+  const isCalling = state.session?.direction === "outgoing" && state.session.status === "calling";
+  const wasCalling = prev.session?.direction === "outgoing" && prev.session.status === "calling";
+  if (isCalling && !wasCalling) {
+    if (outgoingTimer) clearTimeout(outgoingTimer);
+    outgoingTimer = setTimeout(expireOutgoingCall, OUTGOING_RING_MS);
+  } else if (!isCalling && outgoingTimer) {
+    clearTimeout(outgoingTimer);
+    outgoingTimer = null;
+  }
+});
+
+function expireOutgoingCall() {
+  outgoingTimer = null;
+  const session = useCall.getState().session;
+  if (session?.direction !== "outgoing" || session.status !== "calling") return;
+  useCall.getState().markNoAnswer();
+  // Daveti hemen kapat: karşı tarafın zili de susar, kart "cevapsız" olur
+  // (süpürmeyi beklemeden). Hata önemsiz; sunucu süreyle yine kapatır.
+  if (session.callId) {
+    void api(endpoints.callCancel, { method: "POST", body: { callId: session.callId } }).catch(() => {});
+  }
+  const callId = session.callId;
+  setTimeout(() => {
+    const current = useCall.getState().session;
+    if (current?.status === "noAnswer" && current.callId === callId) {
+      setCallKitEndReason("unanswered");
+      stopCallLocally();
+    }
+  }, NO_ANSWER_HOLD_MS);
+}
+
 /** Reddedilen giden aramada "Meşgul" ekranının kalma süresi (meşgul sesi 3 sn). */
 const BUSY_HOLD_MS = 3_000;
 
