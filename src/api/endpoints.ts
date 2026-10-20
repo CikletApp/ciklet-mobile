@@ -41,6 +41,10 @@ export const endpoints = {
   phoneTelegramStart: "/api/phone/telegram/start",
   mentolPlan: "/api/mentol/me",
   mentolRedeem: "/api/mentol/redeem",
+  /** GET mağaza içi abonelik bilgisi (açık mağazalar, ürünler, hesap belirteci, etkin abonelik). */
+  mentolIap: "/api/mentol/iap",
+  /** POST mağaza satın alması doğrulama → güncel plan (`/api/mentol/me` biçimi) + `store`. */
+  mentolIapVerify: "/api/mentol/iap/verify",
   /** Ödüllü reklam durumu (GET) ve tek kullanımlık SSV nonce'u (POST). */
   rewardedAds: "/api/ads/rewarded",
   rewardedAdsSession: "/api/ads/rewarded/session",
