@@ -51,6 +51,11 @@ interface CallState {
   minimized: boolean;
   /** Kendi kameranın yönü — önde ayna görüntü, arkada değil. */
   cameraFacing: "user" | "environment";
+  /**
+   * Sesliden görüntülüye geçiş isteği (features/call/video-upgrade):
+   * "outgoing" biz istedik ve yanıt bekliyoruz, "incoming" karşı taraf istiyor.
+   */
+  videoUpgrade: "outgoing" | "incoming" | null;
 
   start: (session: CallSession) => void;
   markConnected: (callId?: string | null) => void;
@@ -60,6 +65,9 @@ interface CallState {
   setMinimized: (minimized: boolean) => void;
   markBusy: () => void;
   setCameraFacing: (facing: "user" | "environment") => void;
+  setVideoUpgrade: (state: "outgoing" | "incoming" | null) => void;
+  /** Bağlı sesli görüşme görüntülüye döner (istek kabul edildi). */
+  switchToVideo: () => void;
 }
 
 export const useCall = create<CallState>((set) => ({
@@ -68,8 +76,10 @@ export const useCall = create<CallState>((set) => ({
   speaker: true,
   minimized: false,
   cameraFacing: "user",
+  videoUpgrade: null,
 
-  start: (session) => set({ session, muted: false, speaker: true, minimized: false, cameraFacing: "user" }),
+  start: (session) =>
+    set({ session, muted: false, speaker: true, minimized: false, cameraFacing: "user", videoUpgrade: null }),
 
   markConnected: (callId) =>
     set((state) =>
@@ -85,11 +95,17 @@ export const useCall = create<CallState>((set) => ({
         : state
     ),
 
-  end: () => set({ session: null, muted: false, speaker: true, minimized: false, cameraFacing: "user" }),
+  end: () =>
+    set({ session: null, muted: false, speaker: true, minimized: false, cameraFacing: "user", videoUpgrade: null }),
 
   setMuted: (muted) => set({ muted }),
   setSpeaker: (speaker) => set({ speaker }),
   setMinimized: (minimized) => set({ minimized }),
   markBusy: () => set((state) => (state.session ? { session: { ...state.session, status: "busy" } } : state)),
   setCameraFacing: (cameraFacing) => set({ cameraFacing }),
+  setVideoUpgrade: (videoUpgrade) => set({ videoUpgrade }),
+  switchToVideo: () =>
+    set((state) =>
+      state.session ? { session: { ...state.session, kind: "video" }, videoUpgrade: null } : { videoUpgrade: null }
+    ),
 }));
