@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 import {
   isTrackReference,
   useLocalParticipant,
@@ -31,7 +31,15 @@ import { useCallTimer } from "./use-call-timer";
  * önce uygulanmalı. Bu yüzden VideoTrack anahtarları rolü ("main-"/"pip-")
  * içerir — yer değiştirince ikisi de doğru zOrder ile yeniden kurulur.
  * zOrder 2 (setZOrderOnTop) kontrollerin bile üstüne çizer; kullanılmaz.
+ *
+ * WhatsApp gibi: karşı tarafın görüntüsü akarken üst bilgi ve kontroller
+ * {@link CHROME_HIDE_MS} sonra kaybolur, ekrana dokununca geri gelir. Sol
+ * üstte küçült (uygulamada gezilir, köşede mini pencere kalır), sağ üstte
+ * sohbete git.
  */
+
+/** Dokunmadan bu kadar sonra kontroller gizlenir. */
+const CHROME_HIDE_MS = 4_000;
 
 const PIP_WIDTH = 104;
 const PIP_HEIGHT = 148;
@@ -55,7 +63,15 @@ function isLive(ref: TrackReference | undefined): ref is TrackReference {
   return !!ref && !ref.publication.isMuted && !!ref.publication.track;
 }
 
-export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
+export function VideoCallStage({
+  onHangUp,
+  onMinimize,
+  onOpenChat,
+}: {
+  onHangUp: () => void;
+  onMinimize: () => void;
+  onOpenChat?: () => void;
+}) {
   const session = useCall((s) => s.session);
   const me = useAuth((s) => s.profile);
   const insets = useSafeAreaInsets();
@@ -65,6 +81,7 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
   const elapsed = useCallTimer(session?.startedAt);
   const [swapped, setSwapped] = useState(false);
   const [controlsHeight, setControlsHeight] = useState(140);
+  const facing = useCall((s) => s.cameraFacing);
 
   const remote = participants.find((p) => !p.isLocal);
   const localRef = cameras.find((t) => t.participant.isLocal);
@@ -96,6 +113,29 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
           speaking: Boolean(remote?.isSpeaking),
         };
 
+  // Kontrollerin görünürlüğü. Yalnızca karşı tarafın görüntüsü akarken
+  // gizlenir: kamera kapalıyken ekranda saklanacak görüntü yok.
+  const canHide = remoteSide.on;
+  const [chrome, setChrome] = useState(true);
+  const chromeShown = chrome || !canHide;
+  const [opacity] = useState(() => new Animated.Value(1));
+  // Her dokunuş sayacı artırır; efekt sayacı yeniden kurar.
+  const [pokes, setPokes] = useState(0);
+  const poke = () => {
+    setChrome(true);
+    setPokes((n) => n + 1);
+  };
+
+  useEffect(() => {
+    if (!canHide || !chrome) return;
+    const timer = setTimeout(() => setChrome(false), CHROME_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [canHide, chrome, pokes]);
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: chromeShown ? 1 : 0, duration: 220, useNativeDriver: true }).start();
+  }, [chromeShown, opacity]);
+
   const mainIdentity = identityOf(main);
   const pipIdentity = identityOf(pip);
 
@@ -116,7 +156,7 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
             style={{ flex: 1 }}
             objectFit="cover"
             zOrder={0}
-            mirror={main.isLocal}
+            mirror={main.isLocal && facing === "user"}
           />
         ) : (
           <View
@@ -154,6 +194,15 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
         )}
       </View>
 
+      {/* Görüntüye dokunmak kontrolleri açar/kapatır. */}
+      <Pressable
+        noHitSlop
+        onPress={() => (chromeShown && canHide ? setChrome(false) : poke())}
+        accessibilityRole="button"
+        accessibilityLabel={chromeShown ? "Kontrolleri gizle" : "Kontrolleri göster"}
+        style={StyleSheet.absoluteFill}
+      />
+
       {/* Kendi görüntün / yer değiştirince karşı taraf */}
       {showPip ? (
         <Pressable
@@ -165,7 +214,7 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
           style={{
             position: "absolute",
             right: spacing.lg,
-            bottom: controlsHeight + spacing.sm,
+            bottom: chromeShown ? controlsHeight + spacing.sm : insets.bottom + spacing.lg,
             width: PIP_WIDTH,
             height: PIP_HEIGHT,
             // Android'de SurfaceView köşe kırpmasını yok sayar; büyük yarıçap
@@ -185,7 +234,7 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
               style={{ flex: 1 }}
               objectFit="cover"
               zOrder={1}
-              mirror={pip.isLocal}
+              mirror={pip.isLocal && facing === "user"}
             />
           ) : (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
@@ -201,25 +250,37 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
         </Pressable>
       ) : null}
 
-      {/* Üst bilgi: karşı taraf + süre */}
-      <View
-        pointerEvents="none"
+      {/* Üst çubuk: küçült · karşı taraf + süre · sohbet */}
+      <Animated.View
+        pointerEvents={chromeShown ? "box-none" : "none"}
         style={{
           position: "absolute",
           top: insets.top + spacing.sm,
-          left: spacing.lg,
-          right: spacing.lg,
+          left: spacing.md,
+          right: spacing.md,
+          flexDirection: "row",
           alignItems: "center",
+          gap: spacing.sm,
+          opacity,
         }}
       >
-        <Text numberOfLines={1} style={{ ...typography.title, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>
-          {peerName}
-        </Text>
-        <Text style={{ ...typography.caption, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>{elapsed}</Text>
-      </View>
+        <TopButton icon="chevron-down" label="Görüşmeyi küçült" onPress={onMinimize} />
+        <View pointerEvents="none" style={{ flex: 1, alignItems: "center" }}>
+          <Text numberOfLines={1} style={{ ...typography.title, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>
+            {peerName}
+          </Text>
+          <Text style={{ ...typography.caption, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>{elapsed}</Text>
+        </View>
+        {onOpenChat ? (
+          <TopButton icon="message" label="Mesajlara git" onPress={onOpenChat} />
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
+      </Animated.View>
 
       {/* Kontroller görüntünün üstünde */}
-      <View
+      <Animated.View
+        pointerEvents={chromeShown ? "box-none" : "none"}
         onLayout={(event) => setControlsHeight(Math.round(event.nativeEvent.layout.height))}
         style={{
           position: "absolute",
@@ -229,10 +290,32 @@ export function VideoCallStage({ onHangUp }: { onHangUp: () => void }) {
           paddingTop: spacing.lg,
           paddingBottom: insets.bottom + spacing.xl,
           experimental_backgroundImage: "linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.45))",
+          opacity,
         }}
       >
-        <CallControls onHangUp={onHangUp} showCamera variant="overlay" allowEarpiece={false} />
-      </View>
+        <CallControls onHangUp={onHangUp} showCamera variant="overlay" allowEarpiece={false} onInteract={poke} />
+      </Animated.View>
     </View>
+  );
+}
+
+function TopButton({ icon, label, onPress }: { icon: "chevron-down" | "message"; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      haptic="light"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        width: 40,
+        height: 40,
+        borderRadius: radii.full,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: pressed ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
+      })}
+    >
+      <Icon name={icon} size={22} color={OVERLAY_TEXT} />
+    </Pressable>
   );
 }

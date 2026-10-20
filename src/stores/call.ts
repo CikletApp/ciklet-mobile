@@ -43,20 +43,31 @@ interface CallState {
   muted: boolean;
   /** Hoparlör açık mı. */
   speaker: boolean;
+  /**
+   * Bağlı çağrı küçültüldü mü (WhatsApp gibi): tam ekran kapanır, uygulamada
+   * gezilir, köşede sürüklenebilir mini pencere kalır. LiveKit odası açık.
+   */
+  minimized: boolean;
+  /** Kendi kameranın yönü — önde ayna görüntü, arkada değil. */
+  cameraFacing: "user" | "environment";
 
   start: (session: CallSession) => void;
   markConnected: (callId?: string | null) => void;
   end: () => void;
   setMuted: (muted: boolean) => void;
   setSpeaker: (speaker: boolean) => void;
+  setMinimized: (minimized: boolean) => void;
+  setCameraFacing: (facing: "user" | "environment") => void;
 }
 
 export const useCall = create<CallState>((set) => ({
   session: null,
   muted: false,
   speaker: true,
+  minimized: false,
+  cameraFacing: "user",
 
-  start: (session) => set({ session, muted: false, speaker: true }),
+  start: (session) => set({ session, muted: false, speaker: true, minimized: false, cameraFacing: "user" }),
 
   markConnected: (callId) =>
     set((state) =>
@@ -72,8 +83,10 @@ export const useCall = create<CallState>((set) => ({
         : state
     ),
 
-  end: () => set({ session: null, muted: false, speaker: true }),
+  end: () => set({ session: null, muted: false, speaker: true, minimized: false, cameraFacing: "user" }),
 
   setMuted: (muted) => set({ muted }),
   setSpeaker: (speaker) => set({ speaker }),
+  setMinimized: (minimized) => set({ minimized }),
+  setCameraFacing: (cameraFacing) => set({ cameraFacing }),
 }));

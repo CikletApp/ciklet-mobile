@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { useLocalParticipant } from "@livekit/react-native";
+import { Track, type LocalVideoTrack } from "livekit-client";
 
 import { Icon, Pressable, showToast, type HapticKind, type IconName } from "@/components/ui";
+import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { showSystemRoutePicker, useAudioRoute, type AudioRoute } from "./audio-route";
 
@@ -32,6 +34,7 @@ export function CallControls({
   showMic = true,
   serverMuted = false,
   serverDeafened = false,
+  onInteract,
 }: {
   onHangUp: () => void;
   hangUpLabel?: string;
@@ -52,6 +55,8 @@ export function CallControls({
   serverMuted?: boolean;
   /** Sunucuda sağırlaştırıldın: hoparlör kapalı gösterilir, ses gelmez. */
   serverDeafened?: boolean;
+  /** Herhangi bir düğmeye basıldı — görüntülü sahne gizleme sayacını sıfırlar. */
+  onInteract?: () => void;
 }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const audio = useAudioRoute();
@@ -87,15 +92,46 @@ export function CallControls({
     }
   }, [localParticipant, isMicrophoneEnabled, busy, serverMuted]);
 
+  const facing = useCall((s) => s.cameraFacing);
+  const setFacing = useCall((s) => s.setCameraFacing);
+
   const toggleCamera = useCallback(async () => {
     if (!localParticipant || busy) return;
     setBusy(true);
     try {
-      await localParticipant.setCameraEnabled(!isCameraEnabled);
+      // Yeniden açılan kamera son seçilen yönle gelsin (arka kamerada
+      // kapatıp açınca öne atlamasın).
+      await localParticipant.setCameraEnabled(!isCameraEnabled, isCameraEnabled ? undefined : { facingMode: facing });
     } finally {
       setBusy(false);
     }
-  }, [localParticipant, isCameraEnabled, busy]);
+  }, [localParticipant, isCameraEnabled, busy, facing]);
+
+  /**
+   * Ön ↔ arka kamera (WhatsApp'taki çevir düğmesi). Yayın kesilmeden iz
+   * yeni yönle yeniden başlatılır; desteklemeyen sürümde react-native-webrtc'nin
+   * `_switchCamera`'sına düşülür.
+   */
+  const flipCamera = useCallback(async () => {
+    const track = localParticipant?.getTrackPublication(Track.Source.Camera)?.videoTrack as LocalVideoTrack | undefined;
+    if (!track || busy) return;
+    const next = facing === "user" ? "environment" : "user";
+    setBusy(true);
+    try {
+      await track.restartTrack({ facingMode: next });
+      setFacing(next);
+    } catch {
+      const native = track.mediaStreamTrack as unknown as { _switchCamera?: () => void };
+      if (native._switchCamera) {
+        native._switchCamera();
+        setFacing(next);
+      } else {
+        showToast("Kamera değiştirilemedi.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [localParticipant, busy, facing, setFacing]);
 
   const overlay = variant === "overlay";
   const idleBackground = overlay ? "rgba(255,255,255,0.18)" : colors.raised;
@@ -135,11 +171,13 @@ export function CallControls({
       ) : null}
 
       <View
+        onTouchStart={onInteract}
         style={{
           flexDirection: "row",
           alignItems: "flex-start",
           justifyContent: "center",
-          gap: spacing.xl,
+          // Görüntülü görüşmede beş düğme yan yana; dar ekrana sığsın.
+          gap: showCamera ? spacing.lg : spacing.xl,
         }}
       >
         {showMic && serverMuted ? (
@@ -173,6 +211,18 @@ export function CallControls({
             onPress={toggleCamera}
             background={isCameraEnabled ? colors.brand : idleBackground}
             tint={isCameraEnabled ? colors.onBrand : idleTint}
+          />
+        ) : null}
+
+        {showCamera && isCameraEnabled ? (
+          <ControlButton
+            icon="rotate-ccw"
+            label={facing === "user" ? "Arka kameraya geç" : "Ön kameraya geç"}
+            caption="Çevir"
+            captionColor={captionColor}
+            onPress={() => void flipCamera()}
+            background={idleBackground}
+            tint={idleTint}
           />
         ) : null}
 

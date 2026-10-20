@@ -1,4 +1,5 @@
 import { Modal, Text, View } from "react-native";
+import { router } from "expo-router";
 import { LiveKitRoom, useParticipants } from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +13,7 @@ import { displayNameOf } from "@/lib/format";
 import { useCallActions } from "@/realtime/use-call-events";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { MiniCall } from "./mini-call";
 import { useCallTimer } from "./use-call-timer";
 import { VideoCallStage } from "./video-call-stage";
 
@@ -50,8 +52,12 @@ export function CallOverlay() {
 
   const isRinging = session.status === "ringing";
   const isConnected = session.status === "connected";
-  // Bağlı görüntülü aramada sahne tam ekran video — tema zemini yerine siyah.
-  const isVideoStage = isConnected && session.kind === "video";
+
+  // Bağlı çağrı modalın DIŞINDA: LiveKit odası küçültülünce de açık kalmalı
+  // (modal kapanınca içi sökülür, oda düşerdi).
+  if (isConnected && resolvedDirectId) {
+    return <ConnectedCall directId={resolvedDirectId} onHangUp={hangUp} kind={session.kind} />;
+  }
 
   return (
     <Modal
@@ -61,14 +67,8 @@ export function CallOverlay() {
       navigationBarTranslucent
       onRequestClose={hangUp}
     >
-      <View style={{ flex: 1, backgroundColor: isVideoStage ? "#000000" : colors.deep }}>
-        {isConnected && resolvedDirectId ? (
-          <ConnectedCall
-            directId={resolvedDirectId}
-            onHangUp={hangUp}
-            kind={session.kind}
-          />
-        ) : (
+      <View style={{ flex: 1, backgroundColor: colors.deep }}>
+        {(
           <View
             style={{
               flex: 1,
@@ -100,7 +100,7 @@ export function CallOverlay() {
         {/* Bağlı çağrıda kontroller LiveKit odasının içinde (CallStage) —
             orada mikrofon ve hoparlör durumunu okuyabiliyorlar. Burada
             yalnızca zil ve bekleme durumlarının düğmeleri var. */}
-        {isConnected ? null : (
+        {(
           <View
             style={{
               flexDirection: "row",
@@ -140,7 +140,11 @@ export function CallOverlay() {
   );
 }
 
-/** Bağlı çağrı — LiveKit odası. */
+/**
+ * Bağlı çağrı — LiveKit odası. Oda her zaman takılı; tam ekran sahne bir
+ * modalda, küçültülünce (WhatsApp gibi) modal kapanır ve uygulamanın
+ * üstünde sürüklenebilir mini pencere kalır. Android geri tuşu küçültür.
+ */
 function ConnectedCall({
   directId,
   onHangUp,
@@ -156,36 +160,41 @@ function ConnectedCall({
     needsCamera: kind === "video",
     defaultRoute: kind === "video" ? "speaker" : "earpiece",
   });
+  const minimized = useCall((s) => s.minimized);
+  const setMinimized = useCall((s) => s.setMinimized);
 
   useKeepAwake();
 
-  if (error) {
-    return (
-      <View
-        style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xl }}
-      >
-        <Text style={{ ...typography.body, color: colors.danger, textAlign: "center" }}>
-          {error}
-        </Text>
-        {/* iOS'ta geri tuşu yok — hata ekranında takılı kalınmasın. */}
-        <CallAction icon="close" label="Kapat" background={colors.danger} onPress={onHangUp} />
-      </View>
-    );
-  }
+  const minimize = () => setMinimized(true);
+  const openChat = () => {
+    setMinimized(true);
+    router.navigate({ pathname: "/chat/direct/[directId]", params: { directId } });
+  };
+  const background = kind === "video" ? "#000000" : colors.deep;
 
-  if (!token) {
+  if (error || !token) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <Text
-          style={{
-            ...typography.body,
-            // Görüntülü aramada zemin siyah; tema rengi açık temada okunmaz.
-            color: kind === "video" ? "rgba(255,255,255,0.7)" : colors.muted,
-          }}
-        >
-          Bağlanılıyor…
-        </Text>
-      </View>
+      <Modal visible animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={onHangUp}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xl, backgroundColor: background }}>
+          {error ? (
+            <>
+              <Text style={{ ...typography.body, color: colors.danger, textAlign: "center" }}>{error}</Text>
+              {/* iOS'ta geri tuşu yok — hata ekranında takılı kalınmasın. */}
+              <CallAction icon="close" label="Kapat" background={colors.danger} onPress={onHangUp} />
+            </>
+          ) : (
+            <Text
+              style={{
+                ...typography.body,
+                // Görüntülü aramada zemin siyah; tema rengi açık temada okunmaz.
+                color: kind === "video" ? "rgba(255,255,255,0.7)" : colors.muted,
+              }}
+            >
+              Bağlanılıyor…
+            </Text>
+          )}
+        </View>
+      </Modal>
     );
   }
 
@@ -198,13 +207,36 @@ function ConnectedCall({
       video={kind === "video"}
       options={{ adaptiveStream: true, dynacast: true }}
     >
-      {kind === "video" ? <VideoCallStage onHangUp={onHangUp} /> : <CallStage onHangUp={onHangUp} />}
+      <Modal
+        visible={!minimized}
+        animationType="slide"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={minimize}
+      >
+        <View style={{ flex: 1, backgroundColor: background }}>
+          {kind === "video" ? (
+            <VideoCallStage onHangUp={onHangUp} onMinimize={minimize} onOpenChat={openChat} />
+          ) : (
+            <CallStage onHangUp={onHangUp} onMinimize={minimize} onOpenChat={openChat} />
+          )}
+        </View>
+      </Modal>
+      {minimized ? <MiniCall kind={kind} onRestore={() => setMinimized(false)} onHangUp={onHangUp} /> : null}
     </LiveKitRoom>
   );
 }
 
 /** Sesli arama sahnesi. Görüntülü arama `VideoCallStage`'de. */
-function CallStage({ onHangUp }: { onHangUp: () => void }) {
+function CallStage({
+  onHangUp,
+  onMinimize,
+  onOpenChat,
+}: {
+  onHangUp: () => void;
+  onMinimize: () => void;
+  onOpenChat: () => void;
+}) {
   const session = useCall((s) => s.session);
   const participants = useParticipants();
   const elapsed = useCallTimer(session?.startedAt);
@@ -214,6 +246,18 @@ function CallStage({ onHangUp }: { onHangUp: () => void }) {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Küçült ve sohbete git — görüşme sürerken uygulamada gezilir. */}
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          paddingTop: insets.top + spacing.sm,
+          paddingHorizontal: spacing.md,
+        }}
+      >
+        <IconButton icon="chevron-down" label="Görüşmeyi küçült" onPress={onMinimize} size={40} background={colors.raised} tint={colors.bright} />
+        <IconButton icon="message" label="Mesajlara git" onPress={onOpenChat} size={40} background={colors.raised} tint={colors.bright} />
+      </View>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg, padding: spacing.lg }}>
         <View
           style={{
