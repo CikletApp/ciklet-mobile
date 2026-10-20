@@ -17,7 +17,7 @@ Pod::Spec.new do |s|
   # sürüme çözülür; burada ayrıca sabitlenmez.
   s.dependency 'WebRTC-SDK'
 
-  s.frameworks = 'CallKit', 'PushKit', 'AVFoundation', 'UIKit'
+  s.frameworks = 'CallKit', 'PushKit', 'AVFoundation', 'UIKit', 'Intents'
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',

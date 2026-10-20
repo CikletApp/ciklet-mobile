@@ -93,7 +93,9 @@ function begin(session: CallSession): void {
   outgoingCounter += 1;
   const key = `outgoing-${Date.now()}-${outgoingCounter}`;
   activeKey = key;
-  void callKit?.startOutgoingCall(key, displayNameOf(session.peer), session.kind === "video").catch(ignore);
+  void callKit
+    ?.startOutgoingCall(key, displayNameOf(session.peer), session.kind === "video", session.peer.id)
+    .catch(ignore);
 }
 
 /**

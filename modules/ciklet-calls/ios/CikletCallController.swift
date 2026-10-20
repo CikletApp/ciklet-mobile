@@ -1,6 +1,7 @@
 import AVFoundation
 import CallKit
 import Foundation
+import Intents
 import PushKit
 import UIKit
 import WebRTC
@@ -58,9 +59,11 @@ final class CikletCallController: NSObject {
     config.maximumCallGroups = 1
     config.maximumCallsPerCallGroup = 1
     config.supportedHandleTypes = [.generic]
-    // Son aramalar listesinden geri arama (INStartCallIntent) henüz
-    // karşılanmıyor; oraya düşmesin.
-    config.includesCallsInRecents = false
+    // Telefon uygulamasının Son Aramalar listesine yazılır (WhatsApp gibi).
+    // Tanıtıcı (CXHandle) karşı tarafın PROFİL KİMLİĞİ, görünen ad
+    // localizedCallerName; listeden dokununca INStartCallIntent ile gelen
+    // kimlik `handleStartCallActivity`'de JS'e verilir ve aynı kişi aranır.
+    config.includesCallsInRecents = true
     // expo-notifications eklentisi assets/sounds'u ana pakete kopyalıyor.
     if Bundle.main.url(forResource: "ringtone", withExtension: "wav") != nil {
       config.ringtoneSound = "ringtone.wav"
@@ -256,22 +259,75 @@ final class CikletCallController: NSObject {
 
   // MARK: Giden arama ve durum
 
-  func startOutgoing(key: String, name: String, video: Bool) {
+  /**
+   * `peerId`: karşı tarafın profil kimliği — CXHandle değeri. Son Aramalar
+   * satırı bununla geri aranır; görünen ad ayrıca bildirilir (aksi hâlde
+   * listede kimlik görünürdü).
+   */
+  func startOutgoing(key: String, name: String, video: Bool, peerId: String) {
     guard calls[key] == nil else { return }
-    let record = CallRecord(key: key, uuid: UUID(), incoming: false, info: ["callerName": name, "video": video])
+    let record = CallRecord(
+      key: key, uuid: UUID(), incoming: false, info: ["callerName": name, "video": video, "callerId": peerId]
+    )
     calls[key] = record
     prepareManualAudio()
-    let handle = CXHandle(type: .generic, value: name.isEmpty ? "Ciklet" : name)
+    let handleValue = !peerId.isEmpty ? peerId : (name.isEmpty ? "Ciklet" : name)
+    let handle = CXHandle(type: .generic, value: handleValue)
     let action = CXStartCallAction(call: record.uuid, handle: handle)
     action.isVideo = video
     action.contactIdentifier = name
     callController.request(CXTransaction(action: action)) { [weak self] error in
-      guard let self = self, let error = error else { return }
+      guard let self = self else { return }
       onMain {
-        NSLog("[CikletCalls] start call failed: \(error.localizedDescription)")
-        if self.calls[key] === record { self.finish(record) }
+        if let error = error {
+          NSLog("[CikletCalls] start call failed: \(error.localizedDescription)")
+          if self.calls[key] === record { self.finish(record) }
+          return
+        }
+        guard self.calls[key] === record else { return }
+        let update = CXCallUpdate()
+        update.remoteHandle = handle
+        update.localizedCallerName = name.isEmpty ? "Ciklet" : name
+        update.hasVideo = video
+        update.supportsHolding = false
+        update.supportsGrouping = false
+        update.supportsUngrouping = false
+        update.supportsDTMF = false
+        self.provider.reportCall(with: record.uuid, updated: update)
       }
     }
+  }
+
+  // MARK: Son Aramalar'dan geri arama
+
+  /**
+   * Telefon uygulamasının Son Aramalar listesinden (ya da Siri'den) Ciklet
+   * satırına dokunuldu: sistem uygulamayı INStartCallIntent taşıyan bir
+   * NSUserActivity ile açar. Kişinin tanıtıcısı = profil kimliği. JS'e
+   * `onStartCallRequest` olarak gider; JS yoksa (soğuk açılış) kuyrukta
+   * bekler ve `takePendingEvents` ile alınır.
+   */
+  @discardableResult
+  func handleStartCallActivity(_ userActivity: NSUserActivity) -> Bool {
+    guard let intent = userActivity.interaction?.intent else { return false }
+    var person: INPerson?
+    var video = false
+    if let start = intent as? INStartCallIntent {
+      person = start.contacts?.first
+      video = start.callCapability == .videoCall
+    } else if let audio = intent as? INStartAudioCallIntent {
+      person = audio.contacts?.first
+    } else if let videoIntent = intent as? INStartVideoCallIntent {
+      person = videoIntent.contacts?.first
+      video = true
+    } else {
+      return false
+    }
+    guard let peerId = person?.personHandle?.value, !peerId.isEmpty else { return false }
+    var body: [String: Any] = ["peerId": peerId, "video": video]
+    if let name = person?.displayName, !name.isEmpty { body["name"] = name }
+    onMain { self.emit("onStartCallRequest", body) }
+    return true
   }
 
   /** Görüşme bağlandı: giden aramada "bağlandı", uygulamadan kabulde CallKit'e kabul. */

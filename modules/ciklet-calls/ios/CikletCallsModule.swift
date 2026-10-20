@@ -12,7 +12,7 @@ public class CikletCallsModule: Module {
   public func definition() -> ModuleDefinition {
     Name("CikletCalls")
 
-    Events("onVoipToken", "onIncomingCall", "onCallAction")
+    Events("onVoipToken", "onIncomingCall", "onCallAction", "onStartCallRequest")
 
     OnCreate {
       CikletCallController.shared.startPushRegistry()
@@ -55,8 +55,8 @@ public class CikletCallsModule: Module {
       CikletCallController.shared.reportIncoming(info: info, fromPush: false)
     }.runOnQueue(.main)
 
-    AsyncFunction("startOutgoingCall") { (key: String, name: String, video: Bool) in
-      CikletCallController.shared.startOutgoing(key: key, name: name, video: video)
+    AsyncFunction("startOutgoingCall") { (key: String, name: String, video: Bool, peerId: String) in
+      CikletCallController.shared.startOutgoing(key: key, name: name, video: video, peerId: peerId)
     }.runOnQueue(.main)
 
     AsyncFunction("reportConnected") { (key: String) in

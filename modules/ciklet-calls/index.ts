@@ -96,15 +96,27 @@ export type CallKitActionEvent = NativeIncomingCall & { action: CallKitAction; h
 
 export type CallKitEndReason = "local" | "remote" | "elsewhere" | "declined-elsewhere" | "unanswered" | "failed";
 
+/**
+ * Telefon uygulamasının Son Aramalar listesinden (ya da Siri'den) geri arama
+ * isteği (INStartCallIntent). `peerId` CallKit tanıtıcısı = profil kimliği.
+ */
+export interface StartCallRequest {
+  peerId: string;
+  name?: string;
+  video: boolean;
+}
+
 export type CallKitPendingEvent =
   | { name: "onIncomingCall"; body: NativeIncomingCall }
   | { name: "onCallAction"; body: CallKitActionEvent }
-  | { name: "onVoipToken"; body: { token: string | null } };
+  | { name: "onVoipToken"; body: { token: string | null } }
+  | { name: "onStartCallRequest"; body: StartCallRequest };
 
 type CikletCallKitEvents = {
   onVoipToken: (event: { token: string | null }) => void;
   onIncomingCall: (event: NativeIncomingCall) => void;
   onCallAction: (event: CallKitActionEvent) => void;
+  onStartCallRequest: (event: StartCallRequest) => void;
 };
 
 export declare class CikletCallKitModule extends NativeModule<CikletCallKitEvents> {
@@ -118,7 +130,8 @@ export declare class CikletCallKitModule extends NativeModule<CikletCallKitEvent
   getActiveCalls(): Promise<NativeActiveCall[]>;
   /** Aynı callId zaten bildirildiyse (VoIP push) bir şey yapmaz. */
   reportIncomingCall(info: NativeIncomingCall): Promise<void>;
-  startOutgoingCall(key: string, name: string, video: boolean): Promise<void>;
+  /** `peerId`: CallKit tanıtıcısı (Son Aramalar'dan geri arama bununla gelir). */
+  startOutgoingCall(key: string, name: string, video: boolean, peerId: string): Promise<void>;
   reportConnected(key: string): Promise<void>;
   endCall(key: string, reason: CallKitEndReason): Promise<void>;
   setMuted(key: string, muted: boolean): Promise<void>;

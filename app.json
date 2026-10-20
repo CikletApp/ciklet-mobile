@@ -18,6 +18,11 @@
           "audio",
           "voip"
         ],
+        "NSUserActivityTypes": [
+          "INStartCallIntent",
+          "INStartAudioCallIntent",
+          "INStartVideoCallIntent"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },

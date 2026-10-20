@@ -24,7 +24,7 @@ import {
 } from "@/features/call/incoming-call";
 import { resolveMediaUrl } from "@/lib/config";
 import { registerPushToken } from "@/lib/notifications";
-import type { CallKitActionEvent, NativeIncomingCall } from "../../modules/ciklet-calls";
+import type { CallKitActionEvent, NativeIncomingCall, StartCallRequest } from "../../modules/ciklet-calls";
 import { useAuth } from "@/stores/auth";
 import { useCall, type CallKind, type CallPeer } from "@/stores/call";
 import { usePresenceStore } from "@/stores/presence";
@@ -306,6 +306,28 @@ function handleCallKitAction(event: CallKitActionEvent, queryClient: QueryClient
   }
 }
 
+/**
+ * iOS: Telefon uygulamasının Son Aramalar listesinden Ciklet satırına
+ * dokunuldu — o kişiyle DM bulunur/açılır (`/api/directs/init` var olanı
+ * döndürür) ve aynı türde aranır. Süren bir çağrı varsa yok sayılır.
+ */
+function callBackFromRecents(request: StartCallRequest): void {
+  const peerId = request?.peerId;
+  if (!peerId || useCall.getState().session) return;
+  void api<DirectSummary>(endpoints.directInit, { method: "POST", body: { friendId: peerId } })
+    .then((direct) => {
+      if (!direct?.id || useCall.getState().session) return;
+      const profile = direct.profileOne.id === peerId ? direct.profileOne : direct.profileTwo;
+      if (profile.id !== peerId) return;
+      placeCallTo(
+        { id: profile.id, username: profile.username, name: profile.name, imageUrl: profile.imageUrl },
+        direct.id,
+        request.video ? "video" : "audio"
+      );
+    })
+    .catch(() => showDialog("Aranamıyor", "Arama başlatılamadı. Bağlantını kontrol edip tekrar dene."));
+}
+
 /** iOS: CallKit/PushKit olaylarını dinle; JS yokken birikenleri devral. */
 function attachCallKit(queryClient: QueryClient): () => void {
   const kit = callKit;
@@ -316,6 +338,7 @@ function attachCallKit(queryClient: QueryClient): () => void {
     kit.addListener("onCallAction", (event) => handleCallKitAction(event, queryClient)),
     // Token ilk kez geldi ya da yenilendi: cihaz kaydı güncellensin.
     kit.addListener("onVoipToken", () => void registerPushToken()),
+    kit.addListener("onStartCallRequest", callBackFromRecents),
   ];
   void kit
     .takePendingEvents()
@@ -325,6 +348,7 @@ function attachCallKit(queryClient: QueryClient): () => void {
         if (event.name === "onIncomingCall") ringFromNative(event.body);
         else if (event.name === "onCallAction") handleCallKitAction(event.body, queryClient);
         else if (event.name === "onVoipToken") void registerPushToken();
+        else if (event.name === "onStartCallRequest") callBackFromRecents(event.body);
       }
     })
     .catch(() => {});
@@ -438,40 +462,39 @@ export function useCallEvents() {
 }
 
 /** Çağrı eylemleri — ekranlar bunları kullanır. */
+/** Bir kişiyi ara (kanca dışından da: Son Aramalar'dan geri arama). `directId` LiveKit oda adıdır. */
+export function placeCallTo(peer: CallPeer, directId: string, kind: CallKind = "audio"): void {
+  useCall.getState().start({ callId: null, direction: "outgoing", status: "calling", kind, peer, directId });
+
+  void api<{ callId: string; expiresAt: number }>(endpoints.calls, {
+    method: "POST",
+    body: { receiverId: peer.id, type: kind },
+  })
+    .then(({ callId, expiresAt }) => {
+      const session = useCall.getState().session;
+      // Bu arada kapatıldıysa sunucudaki daveti de düşür.
+      if (!session || session.peer.id !== peer.id) {
+        void api(endpoints.callCancel, { method: "POST", body: { callId } }).catch(() => {});
+        return;
+      }
+      useCall.setState({ session: { ...session, callId, expiresAt } });
+    })
+    .catch((error) => {
+      setCallKitEndReason("failed");
+      useCall.getState().end();
+      const reason =
+        error instanceof ApiError && error.status === 403
+          ? `${peer.name?.trim() || peer.username} şu an arama kabul etmiyor.`
+          : "Arama başlatılamadı. Bağlantını kontrol edip tekrar dene.";
+      showDialog("Aranamıyor", reason);
+    });
+}
+
 export function useCallActions() {
-  const start = useCall((s) => s.start);
-  const end = useCall((s) => s.end);
-
   /** Bir kişiyi ara. `directId` LiveKit oda adı olarak kullanılır. */
-  const placeCall = useCallback(
-    (peer: CallPeer, directId: string, kind: CallKind = "audio") => {
-      start({ callId: null, direction: "outgoing", status: "calling", kind, peer, directId });
-
-      void api<{ callId: string; expiresAt: number }>(endpoints.calls, {
-        method: "POST",
-        body: { receiverId: peer.id, type: kind },
-      })
-        .then(({ callId, expiresAt }) => {
-          const session = useCall.getState().session;
-          // Bu arada kapatıldıysa sunucudaki daveti de düşür.
-          if (!session || session.peer.id !== peer.id) {
-            void api(endpoints.callCancel, { method: "POST", body: { callId } }).catch(() => {});
-            return;
-          }
-          useCall.setState({ session: { ...session, callId, expiresAt } });
-        })
-        .catch((error) => {
-          setCallKitEndReason("failed");
-          end();
-          const reason =
-            error instanceof ApiError && error.status === 403
-              ? `${peer.name?.trim() || peer.username} şu an arama kabul etmiyor.`
-              : "Arama başlatılamadı. Bağlantını kontrol edip tekrar dene.";
-          showDialog("Aranamıyor", reason);
-        });
-    },
-    [start, end]
-  );
+  const placeCall = useCallback((peer: CallPeer, directId: string, kind: CallKind = "audio") => {
+    placeCallTo(peer, directId, kind);
+  }, []);
 
   /** Gelen aramayı kabul et. */
   const acceptCall = useCallback((directId: string) => {
