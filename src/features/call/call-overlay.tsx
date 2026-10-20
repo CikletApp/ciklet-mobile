@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { Modal, Text, View } from "react-native";
 import { router } from "expo-router";
-import { LiveKitRoom, useParticipants } from "@livekit/react-native";
+import { LiveKitRoom, useConnectionState, useParticipants } from "@livekit/react-native";
+import { ConnectionState } from "livekit-client";
 import { useKeepAwake } from "expo-keep-awake";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { api } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
 import { useDirects } from "@/api/hooks";
-import { Avatar, IconButton } from "@/components/ui";
+import { Avatar, IconButton, Pressable, showToast } from "@/components/ui";
 import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LIVEKIT_URL } from "@/lib/livekit";
@@ -24,9 +28,17 @@ import { VideoCallStage } from "./video-call-stage";
  * çağrı. Tam ekran modal olarak açılır; kullanıcı hangi ekranda olursa olsun
  * gelen aramayı görür. Bu yüzden kök düzene bağlanır, tek tek ekranlara değil.
  */
+/** Aramayı mesajla reddet (WhatsApp) — zil ekranının içinde açılır. */
+const QUICK_REPLIES = [
+  "Şu an konuşamıyorum, sonra arayacağım.",
+  "Müsait değilim, yazabilir misin?",
+  "Birazdan dönüş yapacağım.",
+];
+
 export function CallOverlay() {
   const session = useCall((s) => s.session);
   const { acceptCall, declineCall, hangUp } = useCallActions();
+  const [repliesOpen, setRepliesOpen] = useState(false);
 
   /**
    * Gelen aramada LiveKit oda adını çözer.
@@ -48,7 +60,20 @@ export function CallOverlay() {
     )?.id ??
     null;
 
-  if (!session) return null;
+  if (!session) {
+    if (repliesOpen) setRepliesOpen(false);
+    return null;
+  }
+
+  const replyWith = (text: string) => {
+    const directId = resolvedDirectId;
+    setRepliesOpen(false);
+    declineCall();
+    if (!directId) return;
+    void api(endpoints.sendDirectMessage(directId), { method: "POST", body: { content: text } }).catch(() =>
+      showToast("Mesaj gönderilemedi.")
+    );
+  };
 
   const isRinging = session.status === "ringing";
   const isConnected = session.status === "connected";
@@ -100,6 +125,28 @@ export function CallOverlay() {
         {/* Bağlı çağrıda kontroller LiveKit odasının içinde (CallStage) —
             orada mikrofon ve hoparlör durumunu okuyabiliyorlar. Burada
             yalnızca zil ve bekleme durumlarının düğmeleri var. */}
+        {isRinging && repliesOpen ? (
+          <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.md }}>
+            {QUICK_REPLIES.map((text) => (
+              <Pressable
+                key={text}
+                haptic="light"
+                onPress={() => replyWith(text)}
+                accessibilityRole="button"
+                style={({ pressed }) => ({
+                  paddingVertical: spacing.md,
+                  paddingHorizontal: spacing.lg,
+                  borderRadius: radii.xl,
+                  borderCurve: "continuous",
+                  backgroundColor: pressed ? colors.raised : colors.panel,
+                })}
+              >
+                <Text style={{ ...typography.body, color: colors.bright }}>{text}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
         {(
           <View
             style={{
@@ -118,6 +165,14 @@ export function CallOverlay() {
                   background={colors.danger}
                   onPress={declineCall}
                 />
+                {resolvedDirectId ? (
+                  <CallAction
+                    icon="message"
+                    label="Mesaj"
+                    background={repliesOpen ? colors.brand : colors.raised}
+                    onPress={() => setRepliesOpen((open) => !open)}
+                  />
+                ) : null}
                 <CallAction
                   icon="phone"
                   label="Kabul et"
@@ -241,6 +296,7 @@ function CallStage({
   const participants = useParticipants();
   const elapsed = useCallTimer(session?.startedAt);
   const insets = useSafeAreaInsets();
+  const reconnecting = useConnectionState() === ConnectionState.Reconnecting;
 
   const speaking = participants.some((p) => p.isSpeaking && !p.isLocal);
 
@@ -278,7 +334,9 @@ function CallStage({
         <Text style={{ ...typography.displayLg, color: colors.bright }}>
           {session ? displayNameOf(session.peer) : ""}
         </Text>
-        <Text style={{ ...typography.body, color: colors.muted }}>{elapsed}</Text>
+        <Text style={{ ...typography.body, color: reconnecting ? "#e0a100" : colors.muted }}>
+          {reconnecting ? "Yeniden bağlanılıyor…" : elapsed}
+        </Text>
       </View>
 
       {/* Sessize alma ve ses çıkışı LiveKit odasının İÇİNDE olmak zorunda —

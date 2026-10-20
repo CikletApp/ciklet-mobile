@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { Animated, Platform, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Reanimated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import {
   isTrackReference,
+  useConnectionState,
   useLocalParticipant,
   useParticipants,
   useTracks,
   VideoTrack,
   type TrackReference,
 } from "@livekit/react-native";
-import { Track } from "livekit-client";
+import { ConnectionState, Track } from "livekit-client";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar, Icon, Pressable } from "@/components/ui";
@@ -82,6 +85,32 @@ export function VideoCallStage({
   const [swapped, setSwapped] = useState(false);
   const [controlsHeight, setControlsHeight] = useState(140);
   const facing = useCall((s) => s.cameraFacing);
+  const reconnecting = useConnectionState() === ConnectionState.Reconnecting;
+  const { width: screenW, height: screenH } = useWindowDimensions();
+
+  // Küçük pencere dört köşeden birine sürüklenir (WhatsApp gibi).
+  const [pipCorner, setPipCorner] = useState<{ side: "left" | "right"; edge: "top" | "bottom" }>({
+    side: "right",
+    edge: "bottom",
+  });
+  const dragX = useSharedValue(0);
+  const dragY = useSharedValue(0);
+  const pipDrag = Gesture.Pan()
+    .minDistance(8)
+    .onUpdate((event) => {
+      dragX.set(event.translationX);
+      dragY.set(event.translationY);
+    })
+    .onEnd((event) => {
+      const side = event.absoluteX < screenW / 2 ? "left" : "right";
+      const edge = event.absoluteY < screenH / 2 ? "top" : "bottom";
+      runOnJS(setPipCorner)({ side, edge });
+      dragX.set(0);
+      dragY.set(0);
+    });
+  const pipDragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: dragX.get() }, { translateY: dragY.get() }],
+  }));
 
   const remote = participants.find((p) => !p.isLocal);
   const localRef = cameras.find((t) => t.participant.isLocal);
@@ -117,7 +146,7 @@ export function VideoCallStage({
   // gizlenir: kamera kapalıyken ekranda saklanacak görüntü yok.
   const canHide = remoteSide.on;
   const [chrome, setChrome] = useState(true);
-  const chromeShown = chrome || !canHide;
+  const chromeShown = chrome || !canHide || reconnecting;
   const [opacity] = useState(() => new Animated.Value(1));
   // Her dokunuş sayacı artırır; efekt sayacı yeniden kurar.
   const [pokes, setPokes] = useState(0);
@@ -205,16 +234,29 @@ export function VideoCallStage({
 
       {/* Kendi görüntün / yer değiştirince karşı taraf */}
       {showPip ? (
+        <GestureDetector gesture={pipDrag}>
+        <Reanimated.View
+          style={[
+            pipDragStyle,
+            {
+              position: "absolute",
+              [pipCorner.side]: spacing.lg,
+              ...(pipCorner.edge === "bottom"
+                ? { bottom: chromeShown ? controlsHeight + spacing.sm : insets.bottom + spacing.lg }
+                : { top: insets.top + (chromeShown ? 64 : spacing.sm) }),
+              width: PIP_WIDTH,
+              height: PIP_HEIGHT,
+            },
+          ]}
+        >
         <Pressable
           haptic="light"
           noHitSlop
           onPress={() => setSwapped((value) => !value)}
           accessibilityRole="button"
           accessibilityLabel="Görüntüleri değiştir"
+          accessibilityHint="Köşeye taşımak için sürükle"
           style={{
-            position: "absolute",
-            right: spacing.lg,
-            bottom: chromeShown ? controlsHeight + spacing.sm : insets.bottom + spacing.lg,
             width: PIP_WIDTH,
             height: PIP_HEIGHT,
             // Android'de SurfaceView köşe kırpmasını yok sayar; büyük yarıçap
@@ -248,6 +290,8 @@ export function VideoCallStage({
             </View>
           )}
         </Pressable>
+        </Reanimated.View>
+        </GestureDetector>
       ) : null}
 
       {/* Üst çubuk: küçült · karşı taraf + süre · sohbet */}
@@ -269,7 +313,9 @@ export function VideoCallStage({
           <Text numberOfLines={1} style={{ ...typography.title, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>
             {peerName}
           </Text>
-          <Text style={{ ...typography.caption, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>{elapsed}</Text>
+          <Text style={{ ...typography.caption, color: reconnecting ? "#ffd166" : OVERLAY_TEXT, ...TEXT_SHADOW }}>
+            {reconnecting ? "Yeniden bağlanılıyor…" : elapsed}
+          </Text>
         </View>
         {onOpenChat ? (
           <TopButton icon="message" label="Mesajlara git" onPress={onOpenChat} />
