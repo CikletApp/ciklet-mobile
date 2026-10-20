@@ -71,6 +71,10 @@ export type IconName =
   | "sparkles"
   | "monitor"
   | "rotate-ccw"
+  // Ekran paylaşımı
+  | "screen-share"
+  | "screen-share-off"
+  | "maximize"
   // Ses
   | "mic"
   | "mic-off"
@@ -247,6 +251,9 @@ const PATHS: Record<IconName, string[]> = {
   ],
   monitor: ["M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z", "M8 20h8", "M12 16v4"],
   "rotate-ccw": ["M3 12a9 9 0 1 0 2.6-6.4L3 8", "M3 3v5h5"],
+  "screen-share": ["M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3", "M8 21h8", "M12 17v4", "m17 8 5-5", "M17 3h5v5"],
+  "screen-share-off": ["M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3", "M8 21h8", "M12 17v4", "m22 3-5 5", "m17 3 5 5"],
+  maximize: ["M8 3H5a2 2 0 0 0-2 2v3", "M21 8V5a2 2 0 0 0-2-2h-3", "M3 16v3a2 2 0 0 0 2 2h3", "M16 21h3a2 2 0 0 0 2-2v-3"],
   mic: ["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"],
   "mic-off": [
     "M15 9.3V5a3 3 0 0 0-5.7-1.3",

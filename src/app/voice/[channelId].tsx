@@ -26,6 +26,12 @@ import {
   Screen,
   ScreenLoader,
 } from "@/components/ui";
+import {
+  ScreenShareSelfCard,
+  ScreenShareStage,
+  useRemoteScreenShares,
+} from "@/features/screen-share/screen-share-view";
+import { useScreenShare } from "@/features/screen-share/use-screen-share";
 import { CallControls } from "@/features/voice/call-controls";
 import { PushToTalkButton } from "@/features/voice/push-to-talk";
 import { SoundboardSheet, useSoundboard } from "@/features/voice/soundboard";
@@ -255,6 +261,9 @@ function VoiceRoomBody({
     [livekitParticipants]
   );
   const cameraTracks = useTracks([Track.Source.Camera]).filter(isTrackReference);
+  // Ekran paylaşımı: başkalarınınki büyük karoda; kendininki çizilmez.
+  const screenShare = useScreenShare();
+  const remoteShares = useRemoteScreenShares();
 
   // Konuşan kimlikleri LiveKit'ten gelir; kimlik olarak `identity`
   // kullanılıyor ve Ciklet token'ı bunu kullanıcı adına ayarlıyor.
@@ -280,7 +289,9 @@ function VoiceRoomBody({
           <StagePanel channelId={channelId} topic={stageTopic} moderator={isStageModerator(actor)} />
         ) : null}
 
-        <View style={{ flex: 1 }}>
+        {remoteShares.length > 0 ? <ScreenShareStage shares={remoteShares} style={{ flex: 3 }} /> : null}
+
+        <View style={{ flex: remoteShares.length > 0 ? 2 : 1, overflow: "hidden" }}>
           {isVideo && cameraTracks.length > 0 ? (
             <View
               style={{
@@ -408,6 +419,10 @@ function VoiceRoomBody({
           )}
         </View>
 
+        {screenShare.sharing ? (
+          <ScreenShareSelfCard onStop={() => void screenShare.stop()} busy={screenShare.busy} />
+        ) : null}
+
         {mediaError ? (
           <View
             style={{
@@ -429,9 +444,20 @@ function VoiceRoomBody({
           </View>
         ) : null}
 
-        {pushToTalk || (!isStage && serverId) ? (
+        {pushToTalk || (!isStage && serverId) || screenShare.canShare ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <View style={{ flex: 1 }}>{pushToTalk ? <PushToTalkButton disabled={selfMuted} /> : null}</View>
+            {screenShare.canShare ? (
+              <IconButton
+                icon={screenShare.sharing ? "screen-share-off" : "screen-share"}
+                label={screenShare.sharing ? "Ekran paylaşımını durdur" : "Ekranı paylaş"}
+                size={48}
+                background={screenShare.sharing ? colors.brand : colors.raised}
+                tint={screenShare.sharing ? colors.onBrand : colors.bright}
+                disabled={screenShare.busy}
+                onPress={() => void screenShare.toggle()}
+              />
+            ) : null}
             {!isStage && serverId ? (
               <IconButton
                 icon="sparkles"
@@ -459,6 +485,7 @@ function VoiceRoomBody({
       </View>
 
       {moderation.sheets}
+      {screenShare.picker}
       <SoundboardSheet
         serverId={serverId}
         visible={soundboardOpen}

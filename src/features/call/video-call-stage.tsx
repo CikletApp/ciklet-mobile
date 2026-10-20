@@ -14,7 +14,14 @@ import {
 import { ConnectionState, Track } from "livekit-client";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Avatar, Icon, Pressable } from "@/components/ui";
+import { Avatar, Icon, Pressable, type IconName } from "@/components/ui";
+import {
+  ScreenShareFullscreen,
+  ScreenShareSelfCard,
+  sharerName,
+  useRemoteScreenShares,
+} from "@/features/screen-share/screen-share-view";
+import { useScreenShare } from "@/features/screen-share/use-screen-share";
 import { CallControls } from "@/features/voice/call-controls";
 import { displayNameOf } from "@/lib/format";
 import { useAuth } from "@/stores/auth";
@@ -39,6 +46,11 @@ import { useCallTimer } from "./use-call-timer";
  * {@link CHROME_HIDE_MS} sonra kaybolur, ekrana dokununca geri gelir. Sol
  * üstte küçült (uygulamada gezilir, köşede mini pencere kalır), sağ üstte
  * sohbete git.
+ *
+ * Ekran paylaşımı: karşı taraf ekranını paylaşınca ana görüntü onun
+ * ekranı olur (kırpılmadan, `contain`), kameralar küçük pencerede;
+ * uzun basınca tam ekran. Kendi paylaşımın çizilmez (yansıma döngüsü),
+ * kontrollerin üstünde "paylaşıyorsun" kartı görünür.
  */
 
 /** Dokunmadan bu kadar sonra kontroller gizlenir. */
@@ -115,6 +127,9 @@ export function VideoCallStage({
   const remote = participants.find((p) => !p.isLocal);
   const localRef = cameras.find((t) => t.participant.isLocal);
   const remoteRef = cameras.find((t) => !t.participant.isLocal);
+  const remoteShare = useRemoteScreenShares()[0];
+  const screenShare = useScreenShare();
+  const [shareFullscreen, setShareFullscreen] = useState(false);
 
   const localSide: Side = { isLocal: true, ref: localRef, on: isCameraEnabled && isLive(localRef) };
   const remoteSide: Side = { isLocal: false, ref: remoteRef, on: isLive(remoteRef) };
@@ -123,7 +138,15 @@ export function VideoCallStage({
   const showPip = localSide.on || remoteSide.on || Boolean(remote);
   const isSwapped = swapped && showPip;
   const main = isSwapped ? localSide : remoteSide;
-  const pip = isSwapped ? remoteSide : localSide;
+  // Karşı taraf ekran paylaşırken ana alan ekranın; küçük pencerede açıksa
+  // onun kamerası, dokununca kendi kameran.
+  const pip = remoteShare
+    ? remoteSide.on && !swapped
+      ? remoteSide
+      : localSide
+    : isSwapped
+      ? remoteSide
+      : localSide;
 
   const peerName = session ? displayNameOf(session.peer) : "";
 
@@ -144,7 +167,7 @@ export function VideoCallStage({
 
   // Kontrollerin görünürlüğü. Yalnızca karşı tarafın görüntüsü akarken
   // gizlenir: kamera kapalıyken ekranda saklanacak görüntü yok.
-  const canHide = remoteSide.on;
+  const canHide = remoteSide.on || Boolean(remoteShare);
   const [chrome, setChrome] = useState(true);
   const chromeShown = chrome || !canHide || reconnecting;
   const [opacity] = useState(() => new Animated.Value(1));
@@ -177,8 +200,16 @@ export function VideoCallStage({
   return (
     <View style={{ flex: 1, backgroundColor: STAGE_BACKGROUND }}>
       {/* Ana görüntü */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: main.on ? STAGE_BACKGROUND : TILE_BACKGROUND }]}>
-        {main.on && main.ref ? (
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: remoteShare || main.on ? STAGE_BACKGROUND : TILE_BACKGROUND }]}>
+        {remoteShare ? (
+          <VideoTrack
+            key={`main-screen-${remoteShare.publication.trackSid}`}
+            trackRef={remoteShare}
+            style={{ flex: 1 }}
+            objectFit="contain"
+            zOrder={0}
+          />
+        ) : main.on && main.ref ? (
           <VideoTrack
             key={`main-${main.ref.participant.identity}`}
             trackRef={main.ref}
@@ -227,8 +258,10 @@ export function VideoCallStage({
       <Pressable
         noHitSlop
         onPress={() => (chromeShown && canHide ? setChrome(false) : poke())}
+        onLongPress={remoteShare ? () => setShareFullscreen(true) : undefined}
         accessibilityRole="button"
         accessibilityLabel={chromeShown ? "Kontrolleri gizle" : "Kontrolleri göster"}
+        accessibilityHint={remoteShare ? `${sharerName(remoteShare)} ekranını tam ekran açmak için basılı tut` : undefined}
         style={StyleSheet.absoluteFill}
       />
 
@@ -317,6 +350,17 @@ export function VideoCallStage({
             {reconnecting ? "Yeniden bağlanılıyor…" : elapsed}
           </Text>
         </View>
+        {screenShare.canShare ? (
+          <TopButton
+            icon={screenShare.sharing ? "screen-share-off" : "screen-share"}
+            label={screenShare.sharing ? "Ekran paylaşımını durdur" : "Ekranı paylaş"}
+            active={screenShare.sharing}
+            onPress={() => {
+              poke();
+              void screenShare.toggle();
+            }}
+          />
+        ) : null}
         {onOpenChat ? (
           <TopButton icon="message" label="Mesajlara git" onPress={onOpenChat} />
         ) : (
@@ -339,13 +383,34 @@ export function VideoCallStage({
           opacity,
         }}
       >
+        {screenShare.sharing ? (
+          <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+            <ScreenShareSelfCard variant="overlay" onStop={() => void screenShare.stop()} busy={screenShare.busy} />
+          </View>
+        ) : null}
         <CallControls onHangUp={onHangUp} showCamera variant="overlay" allowEarpiece={false} onInteract={poke} />
       </Animated.View>
+
+      <ScreenShareFullscreen
+        trackRef={shareFullscreen ? remoteShare : undefined}
+        onClose={() => setShareFullscreen(false)}
+      />
+      {screenShare.picker}
     </View>
   );
 }
 
-function TopButton({ icon, label, onPress }: { icon: "chevron-down" | "message"; label: string; onPress: () => void }) {
+function TopButton({
+  icon,
+  label,
+  onPress,
+  active = false,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -358,10 +423,10 @@ function TopButton({ icon, label, onPress }: { icon: "chevron-down" | "message";
         borderRadius: radii.full,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: pressed ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
+        backgroundColor: active ? colors.brand : pressed ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
       })}
     >
-      <Icon name={icon} size={22} color={OVERLAY_TEXT} />
+      <Icon name={icon} size={22} color={active ? colors.onBrand : OVERLAY_TEXT} />
     </Pressable>
   );
 }
