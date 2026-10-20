@@ -15,7 +15,8 @@
         "NSMicrophoneUsageDescription": "Sesli kanallarda konuşabilmek için mikrofon erişimi gerekir.",
         "NSCameraUsageDescription": "Görüntülü görüşmelerde kamera erişimi gerekir.",
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "voip"
         ],
         "ITSAppUsesNonExemptEncryption": false
       }

@@ -1,10 +1,18 @@
 import { useCallback, useEffect } from "react";
 import { AppState, Vibration } from "react-native";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
+import type { DirectSummary } from "@/api/types";
+import {
+  callKit,
+  currentVoipToken,
+  isCurrentCallKitCall,
+  reportIncomingToCallKit,
+  setCallKitEndReason,
+} from "@/features/call/callkit";
 import {
   acceptIncomingCall,
   consumePendingCallAction,
@@ -12,7 +20,11 @@ import {
   dismissIncomingCallNotification,
   nativeIncomingCalls,
   presentIncomingCallNotification,
+  setPendingCallAction,
 } from "@/features/call/incoming-call";
+import { resolveMediaUrl } from "@/lib/config";
+import { registerPushToken } from "@/lib/notifications";
+import type { CallKitActionEvent, NativeIncomingCall } from "../../modules/ciklet-calls";
 import { useAuth } from "@/stores/auth";
 import { useCall, type CallKind, type CallPeer } from "@/stores/call";
 import { usePresenceStore } from "@/stores/presence";
@@ -43,6 +55,12 @@ import { playBusyTone, startRingtone, stopRingtone } from "@/lib/sounds";
  * assets/sounds/ringtone.wav). Arka planda/kapalıyken Android'de sistem
  * bildirimi (tam ekran + Cevapla/Reddet, zil kanaldan) — bkz.
  * features/call/incoming-call.ts; ekrana dönünce JS zili devralır.
+ *
+ * iOS'ta (CallKit, features/call/callkit.ts) zili HER DURUMDA sistem çalar:
+ * gelen arama CallKit'e bildirilir, uygulama içi zil ekranı (CallOverlay)
+ * önde yine görünür ama zil sesi/titreşim çalınmaz — ikisi üst üste binerdi.
+ * Kapalı uygulamaya arama VoIP push'la gelir; yerel taraf çağrıyı JS'ten
+ * önce bildirir, JS açılınca `takePendingEvents` ile durumu devralır.
  */
 
 /** Zil titreşimi: 1 sn beklet, 0.6 sn titret — döngüsel. */
@@ -121,6 +139,22 @@ export function ring(frame: IncomingCallFrame) {
     return;
   }
 
+  if (callKit) {
+    // Sistem çalar (ön planda üst şerit, kilitliyken tam ekran). VoIP
+    // push'la zaten bildirildiyse yerel taraf ikinciyi yok sayar.
+    reportIncomingToCallKit({
+      callId: frame.callId,
+      callerId: frame.caller.id,
+      callerName: frame.caller.name?.trim() || frame.caller.username,
+      callerAvatar: resolveMediaUrl(frame.caller.imageUrl) ?? "",
+      callType: video ? "video" : "audio",
+      directId: frame.directChannelId ?? "",
+      declineUrl: frame.declineUrl ?? "",
+      expiresAt: frame.expiresAt,
+    });
+    return;
+  }
+
   if (AppState.currentState === "active" || !nativeIncomingCalls) {
     // Tam ekran bildirimden açılışta uygulama önce öne gelir, davet sonra
     // yüklenir; sistem bildirimi (ve onun zili) burada düşürülür ki çift
@@ -151,6 +185,135 @@ export function stopCallLocally(): void {
   stopRingtone();
   dismissIncomingCallNotification(session?.callId);
   useCall.getState().end();
+}
+
+/** Kendi aramanı iptal et veya bağlı çağrıyı kapat (kanca dışından da: CallKit "Bitir"). */
+export function hangUpCall(): void {
+  const session = useCall.getState().session;
+  if (!session) return;
+  Vibration.cancel();
+  stopRingtone();
+  dismissIncomingCallNotification(session.callId);
+  if (session.direction === "outgoing" && session.status !== "connected") {
+    void api(endpoints.callCancel, {
+      method: "POST",
+      body: { callId: session.callId ?? undefined, receiverId: session.peer.id },
+    }).catch(() => {});
+  }
+  useCall.getState().end();
+}
+
+// ── iOS CallKit eylemleri ────────────────────────────────────────────────
+
+function directIdFor(queryClient: QueryClient, peerId: string): string | null {
+  const directs = queryClient.getQueryData<DirectSummary[]>(qk.directs);
+  return directs?.find((d) => d.profileOne.id === peerId || d.profileTwo.id === peerId)?.id ?? null;
+}
+
+function frameFromNative(info: NativeIncomingCall): IncomingCallFrame {
+  return {
+    callId: info.callId,
+    caller: {
+      id: info.callerId ?? "",
+      username: info.callerName ?? "",
+      name: info.callerName ?? null,
+      imageUrl: info.callerAvatar || null,
+    },
+    type: info.callType,
+    expiresAt: typeof info.expiresAt === "number" ? info.expiresAt : undefined,
+    directChannelId: info.directId || null,
+    declineUrl: info.declineUrl || null,
+  };
+}
+
+/** VoIP push'la gelen (JS'ten önce sisteme bildirilmiş) arama → uygulama durumu. */
+function ringFromNative(info: NativeIncomingCall): void {
+  if (!info?.callId) return;
+  ring(frameFromNative(info));
+  // Çalınmadı (Rahatsız Etmeyin, tercih): sistem ekranı da kapansın.
+  if (useCall.getState().session?.callId !== info.callId) {
+    void callKit?.endCall(info.callId, "unanswered").catch(() => {});
+  }
+}
+
+function handleCallKitAction(event: CallKitActionEvent, queryClient: QueryClient): void {
+  const session = useCall.getState().session;
+  const ringingHere =
+    session?.direction === "incoming" && session.status === "ringing" && session.callId === event.callId;
+
+  switch (event.action) {
+    case "accept": {
+      if (ringingHere && session) {
+        const directId = session.directId ?? (event.directId || null) ?? directIdFor(queryClient, session.peer.id);
+        if (directId) {
+          acceptIncomingCall(directId);
+          return;
+        }
+      }
+      if (ringingHere) return; // oda adı yok: zil ekranı açık kalır, kullanıcı oradan kabul eder
+      // Davet henüz yüklenmedi (soğuk açılış): `ring` bekleyen kabulü tüketir —
+      // push yükü oda adını taşıyorsa hemen, taşımıyorsa bekleyen davetlerden.
+      setPendingCallAction(event.callId, "accept");
+      if (event.callerId && event.directId) ring(frameFromNative(event));
+      else pollPendingInvites();
+      return;
+    }
+    case "decline": {
+      if (ringingHere) {
+        if (event.handled) stopCallLocally();
+        else declineIncomingCall();
+      } else if (!event.handled) {
+        void api(endpoints.callDecline, { method: "POST", body: { callId: event.callId, voipToken: currentVoipToken() ?? undefined } }).catch(() => {});
+      }
+      void queryClient.invalidateQueries({ queryKey: qk.directs });
+      return;
+    }
+    case "hangup":
+      if (isCurrentCallKitCall(event.callId)) hangUpCall();
+      return;
+    case "ended":
+      if (ringingHere) {
+        stopCallLocally();
+        void queryClient.invalidateQueries({ queryKey: qk.directs });
+      }
+      return;
+    case "rejected":
+      // Sistem çağrıyı almadı (ör. Rahatsız Etmeyin): önde uygulama içi zil.
+      if (ringingHere && AppState.currentState === "active") startLocalRing();
+      return;
+    default:
+      // mute/unmute: LiveKit odasındaki CallKitMuteSync işler.
+      return;
+  }
+}
+
+/** iOS: CallKit/PushKit olaylarını dinle; JS yokken birikenleri devral. */
+function attachCallKit(queryClient: QueryClient): () => void {
+  const kit = callKit;
+  if (!kit) return () => {};
+  let alive = true;
+  const subscriptions = [
+    kit.addListener("onIncomingCall", ringFromNative),
+    kit.addListener("onCallAction", (event) => handleCallKitAction(event, queryClient)),
+    // Token ilk kez geldi ya da yenilendi: cihaz kaydı güncellensin.
+    kit.addListener("onVoipToken", () => void registerPushToken()),
+  ];
+  void kit
+    .takePendingEvents()
+    .then((events) => {
+      if (!alive) return;
+      for (const event of events) {
+        if (event.name === "onIncomingCall") ringFromNative(event.body);
+        else if (event.name === "onCallAction") handleCallKitAction(event.body, queryClient);
+        else if (event.name === "onVoipToken") void registerPushToken();
+      }
+    })
+    .catch(() => {});
+  return () => {
+    alive = false;
+    subscriptions.forEach((subscription) => subscription.remove());
+    void kit.stopListening().catch(() => {});
+  };
 }
 
 export function useCallEvents() {
@@ -187,16 +350,21 @@ export function useCallEvents() {
           const busyCallId = session.callId;
           setTimeout(() => {
             const current = useCall.getState().session;
-            if (current?.status === "busy" && current.callId === busyCallId) stopCall();
+            if (current?.status === "busy" && current.callId === busyCallId) {
+              setCallKitEndReason("remote");
+              stopCall();
+            }
           }, BUSY_HOLD_MS);
           return;
         }
+        setCallKitEndReason("remote");
         stopCall();
       }),
 
       onGatewayEvent(ServerEvent.CALL_CANCELLED, (frame) => {
         const session = useCall.getState().session;
         if (session?.callId && frame.callId && session.callId !== frame.callId) return;
+        setCallKitEndReason("remote");
         stopCall();
       }),
 
@@ -206,6 +374,7 @@ export function useCallEvents() {
       onGatewayEvent(ServerEvent.CALL_HANDLED_ELSEWHERE, (frame) => {
         const session = useCall.getState().session;
         if (!session || session.callId !== frame.callId || session.status !== "ringing") return;
+        setCallKitEndReason(frame.status === "denied" ? "declined-elsewhere" : "elsewhere");
         stopCall();
       }),
 
@@ -215,7 +384,8 @@ export function useCallEvents() {
     // Arka planda sistem bildirimi çalarken ekrana dönüldü: bildirimi düşür,
     // zili uygulama devralsın (CallOverlay zaten görünür).
     const appState = AppState.addEventListener("change", (next) => {
-      if (next !== "active") return;
+      // iOS: zili CallKit çalıyor; uygulama içi zil üstüne binmesin.
+      if (next !== "active" || callKit) return;
       const session = useCall.getState().session;
       if (session?.direction === "incoming" && session.status === "ringing") {
         dismissIncomingCallNotification(session.callId);
@@ -235,10 +405,13 @@ export function useCallEvents() {
       }
     });
 
+    const releaseCallKit = attachCallKit(queryClient);
+
     return () => {
       releases.forEach((release) => release());
       appState.remove();
       nativeActions?.remove();
+      releaseCallKit();
       Vibration.cancel();
       stopRingtone();
     };
@@ -269,6 +442,7 @@ export function useCallActions() {
           useCall.setState({ session: { ...session, callId, expiresAt } });
         })
         .catch((error) => {
+          setCallKitEndReason("failed");
           end();
           const reason =
             error instanceof ApiError && error.status === 403
@@ -292,19 +466,8 @@ export function useCallActions() {
 
   /** Kendi aramanı iptal et veya bağlı çağrıyı kapat. */
   const hangUp = useCallback(() => {
-    const session = useCall.getState().session;
-    if (!session) return;
-    Vibration.cancel();
-    stopRingtone();
-    dismissIncomingCallNotification(session.callId);
-    if (session.direction === "outgoing" && session.status !== "connected") {
-      void api(endpoints.callCancel, {
-        method: "POST",
-        body: { callId: session.callId ?? undefined, receiverId: session.peer.id },
-      }).catch(() => {});
-    }
-    end();
-  }, [end]);
+    hangUpCall();
+  }, []);
 
   return { placeCall, acceptCall, declineCall, hangUp };
 }
