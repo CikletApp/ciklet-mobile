@@ -1,4 +1,5 @@
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
@@ -18,6 +19,7 @@ import {
   type IconName,
 } from "@/components/ui";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
+import { useTabBarScrollHandler } from "@/components/ui/tab-bar-collapse";
 import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { formatActivity } from "@/lib/format";
 import { setSelfPresence } from "@/realtime/provider";
@@ -48,6 +50,7 @@ function statusColor(status: PresenceStatus): string {
 
 export default function MeScreen() {
   const tabInset = useFloatingTabInset();
+  const tabScroll = useTabBarScrollHandler();
   const sessionProfile = useAuth((s) => s.profile);
   const { data: profile } = useCurrentProfile();
   const { accepted, incoming } = useFriends();
@@ -71,7 +74,11 @@ export default function MeScreen() {
         right={<HeaderButton icon="settings" label="Tüm ayarlar" onPress={() => router.push("/settings")} />}
       />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: tabInset + spacing.lg }}>
+      <Animated.ScrollView
+        onScroll={tabScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingBottom: tabInset + spacing.lg }}
+      >
         {/* Profil kartı — web'deki profil kartıyla aynı dil: bant rengi + avatar. */}
         <View style={{ marginHorizontal: spacing.lg, marginTop: spacing.sm, borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.bentoBorder }}>
           {/* Afiş: görsel varsa görsel (web ile aynı öncelik), yoksa bant rengi.
@@ -186,7 +193,7 @@ export default function MeScreen() {
             {new Date(me.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })} tarihinden beri Ciklet’te
           </Text>
         ) : null}
-      </ScrollView>
+      </Animated.ScrollView>
     </Screen>
   );
 }

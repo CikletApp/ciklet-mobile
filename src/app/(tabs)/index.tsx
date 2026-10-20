@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { FlatList, RefreshControl, Text, View } from "react-native";
+import { RefreshControl, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import ReanimatedSwipeable, {
@@ -49,6 +50,7 @@ import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
+import { useTabBarScrollHandler } from "@/components/ui/tab-bar-collapse";
 import { fw } from "@/theme/fonts";
 import { usePullRefresh } from "@/lib/use-pull-refresh";
 
@@ -72,6 +74,7 @@ const FILTERS: TabItem<Filter>[] = [
 
 export default function ChatsScreen() {
   const tabInset = useFloatingTabInset();
+  const tabScroll = useTabBarScrollHandler();
   const { conversations, isLoading, refetch } = useConversationList();
   const pull = usePullRefresh(refetch);
   const { data: selfDirect } = useSelfDirect();
@@ -266,7 +269,9 @@ export default function ChatsScreen() {
       {isLoading ? (
         <ListSkeleton />
       ) : (
-        <FlatList
+        <Animated.FlatList
+          onScroll={tabScroll}
+          scrollEventThrottle={16}
           data={visible}
           keyExtractor={(d) => d.id}
           renderItem={({ item }) => (

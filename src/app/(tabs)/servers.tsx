@@ -5,7 +5,7 @@
  */
 /* eslint-disable react-hooks/immutability, react-hooks/refs */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import { RefreshControl, Text, TextInput, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -45,6 +45,7 @@ import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
+import { useTabBarScrollHandler } from "@/components/ui/tab-bar-collapse";
 
 /**
  * Sunucular — sunucuların kendi evi.
@@ -74,6 +75,7 @@ const ROW_STEP = 72;
 
 export default function ServersScreen() {
   const tabInset = useFloatingTabInset();
+  const tabScroll = useTabBarScrollHandler();
   const { items, isLoading } = useRailItems();
   const { data: unread } = useUnreadCounts();
   const reorder = useReorderRail();
@@ -228,7 +230,9 @@ export default function ServersScreen() {
           }
         />
       ) : (
-        <ScrollView
+        <Animated.ScrollView
+          onScroll={tabScroll}
+          scrollEventThrottle={16}
           scrollEnabled={draggingId === null}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -285,7 +289,7 @@ export default function ServersScreen() {
             </DraggableRow>
           ))}
 
-        </ScrollView>
+        </Animated.ScrollView>
       )}
 
       <ModernRefreshIndicator visible={refreshing} />

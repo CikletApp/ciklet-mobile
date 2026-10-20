@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { router } from "expo-router";
 
 import {
@@ -24,6 +25,7 @@ import {
   UnreadBadge,
 } from "@/components/ui";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
+import { useTabBarScrollHandler } from "@/components/ui/tab-bar-collapse";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { usePullRefresh } from "@/lib/use-pull-refresh";
 
@@ -39,6 +41,7 @@ import { usePullRefresh } from "@/lib/use-pull-refresh";
  */
 export default function NotificationsScreen() {
   const tabInset = useFloatingTabInset();
+  const tabScroll = useTabBarScrollHandler();
   const { incoming, isLoading: friendsLoading, refetch: refetchFriends, isRefetching } = useFriends();
   const inbox = useInbox();
   const unread = useUnreadCounts();
@@ -68,7 +71,9 @@ export default function NotificationsScreen() {
         right={<HeaderButton icon="user-plus" label="Arkadaş ekle" onPress={() => router.push("/friends/add")} />}
       />
 
-      <ScrollView
+      <Animated.ScrollView
+        onScroll={tabScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: tabInset + spacing.lg, flexGrow: 1 }}
         // Uygulamanın tek yenileme dili: sistem çemberi gizli, yerine Ciklet
         // logolu rozet (Sohbetler ve Sunucular'la aynı).
@@ -148,7 +153,7 @@ export default function NotificationsScreen() {
             ))}
           </>
         ) : null}
-      </ScrollView>
+      </Animated.ScrollView>
       <ModernRefreshIndicator visible={isRefetching} top={72} />
     </Screen>
   );

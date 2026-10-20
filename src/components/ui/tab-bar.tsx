@@ -1,6 +1,8 @@
-import { Platform, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Platform, Text, useWindowDimensions, View } from "react-native";
 import type { BottomTabBarProps } from "expo-router/build/layouts/Tabs";
 import Animated, {
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -15,6 +17,7 @@ import { colors, radii, spacing } from "@/theme/tokens";
 import { Avatar } from "./avatar";
 import { Icon, type IconName } from "./icon";
 import { Pressable } from "./pressable";
+import { expandTabBar, tabBarCollapse } from "./tab-bar-collapse";
 import { fw } from "@/theme/fonts";
 
 /**
@@ -25,6 +28,11 @@ import { fw } from "@/theme/fonts";
  * çizgi, özellikle açık temada, hangi sekmede olunduğunu yeterince
  * söylemiyordu. Sohbetler sekmesi okunmamış mesaj sayısını rozetle taşır:
  * kullanıcı başka bir sekmedeyken yeni mesajı buradan görür.
+ *
+ * Listede aşağı ilerlerken çubuk küçülür (daralır, alçalır, etiketler
+ * gizlenir) ve ortada-altta durmaya devam eder; geri kaydırınca, tepeye
+ * dönünce ya da kaydırma durduktan kısa süre sonra eski boyuna döner.
+ * Bkz. `tab-bar-collapse.ts` — her şey UI iş parçacığında.
  */
 const ICONS: Record<string, IconName> = {
   index: "message",
@@ -35,6 +43,14 @@ const ICONS: Record<string, IconName> = {
 
 /** Çubuğun yüksekliği: dolgu 5×2 + sekme 58 + kenarlık 1×2. */
 const BAR_HEIGHT = 70;
+
+/** Küçülmüş hâl: dolgu 3×2 + sekme 44 (en küçük dokunma hedefi) + kenarlık 1×2 = 52. */
+const PAD = 5;
+const PAD_SMALL = 3;
+const ITEM_HEIGHT = 58;
+const ITEM_HEIGHT_SMALL = 44;
+/** Küçülünce çubuk her iki yandan ekran genişliğinin bu oranı kadar daralır. */
+const SHRINK_RATIO = 0.13;
 
 /**
  * Çubuğun alt kenara uzaklığı. Güvenli alanın tamamı yerine biraz daha
@@ -55,6 +71,9 @@ export function tabBarBottomOffset(inset: number) {
  * Yüzen çubuk mutlak konumlu olduğu için ekranlar için yer AYIRMAZ.
  * Kaydırılabilir içeriğin son öğesi çubuğun altında kalmasın diye
  * listelere bu kadar alt boşluk verilir (çubuk + konumu + payı).
+ * Tam boya göre hesaplanır: çubuk alt kenara sabit kalıp yukarıdan
+ * küçüldüğü için küçük hâlde de son öğe açıkta kalır, kaydırma sırasında
+ * boşluk değişip listeyi oynatmaz.
  */
 export function useFloatingTabInset() {
   const insets = useSafeAreaInsets();
@@ -63,6 +82,19 @@ export function useFloatingTabInset() {
 
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  // Her sekmenin kendi listesi var; yeni sekme tam boy çubukla açılır.
+  useEffect(() => {
+    expandTabBar();
+  }, [state.index]);
+  const shrink = Math.round(width * SHRINK_RATIO);
+  const bar = useAnimatedStyle(() => {
+    const p = tabBarCollapse.get();
+    return {
+      marginHorizontal: p * shrink,
+      padding: interpolate(p, [0, 1], [PAD, PAD_SMALL]),
+    };
+  });
   // Rozet mesaj değil SOHBET sayar: "42" bir sayı yığını, "3 sohbet" bir yapılacak.
   const { chats: unreadChats } = useDirectUnreadCounts();
   // Sunucular da aynı mantıkla: okunmamış mesajı olan SUNUCU sayısı.
@@ -85,17 +117,19 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
       }}
       pointerEvents="box-none"
     >
-      <View
-        style={{
-          flexDirection: "row",
-          padding: 5,
-          borderRadius: radii.full,
-          borderCurve: "continuous",
-          borderWidth: 1,
-          borderColor: colors.bentoBorder,
-          backgroundColor: colors.panel,
-          boxShadow: `0 8px 30px ${colors.shadow}`,
-        }}
+      <Animated.View
+        style={[
+          {
+            flexDirection: "row",
+            borderRadius: radii.full,
+            borderCurve: "continuous",
+            borderWidth: 1,
+            borderColor: colors.bentoBorder,
+            backgroundColor: colors.panel,
+            boxShadow: `0 8px 30px ${colors.shadow}`,
+          },
+          bar,
+        ]}
       >
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -124,7 +158,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
             />
           );
         })}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -149,8 +183,24 @@ function TabItem({
   const press = useSharedValue(0);
 
   const content = useAnimatedStyle(() => ({
+    minHeight: interpolate(tabBarCollapse.get(), [0, 1], [ITEM_HEIGHT, ITEM_HEIGHT_SMALL]),
     transform: [{ scale: withSpring(press.value ? 0.94 : 1, { damping: 16 }) }],
   }));
+
+  const iconScale = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(tabBarCollapse.get(), [0, 1], [1, 0.86]) }],
+  }));
+
+  // Etiket küçülürken yüksekliği ve boşluğu sıfıra iner, solar. Erişilebilirlik
+  // etiketi `Pressable` üzerinde olduğundan ekran okuyucu etkilenmez.
+  const labelStyle = useAnimatedStyle(() => {
+    const p = tabBarCollapse.get();
+    return {
+      height: 14 * (1 - p),
+      marginTop: 3 * (1 - p),
+      opacity: interpolate(p, [0, 0.6], [1, 0], "clamp"),
+    };
+  });
 
   const pill = useAnimatedStyle(() => ({
     opacity: withTiming(focused ? 1 : 0, { duration: 180 }),
@@ -176,7 +226,7 @@ function TabItem({
       }}
       style={{ flex: 1 }}
     >
-      <Animated.View style={[{ alignItems: "center", justifyContent: "center", gap: 3, minHeight: 58 }, content]}>
+      <Animated.View style={[{ alignItems: "center", justifyContent: "center" }, content]}>
         {/* Etkin sekmenin hapı — ikon ve etiketi birlikte sarar. */}
         <Animated.View
           style={[
@@ -193,7 +243,7 @@ function TabItem({
             pill,
           ]}
         />
-        <View>
+        <Animated.View style={iconScale}>
           {avatar ? (
             // Halka rengi seçimden bağımsız: gerçek durum rozeti olarak okunmalı.
             <Avatar
@@ -228,13 +278,15 @@ function TabItem({
               <Text style={{ fontSize: 10, lineHeight: 12, ...fw(800), color: colors.onBrand }}>{badgeLabel}</Text>
             </View>
           ) : null}
-        </View>
-        <Text
-          style={{ fontSize: 11, lineHeight: 14, ...fw(focused ? 700 : 500), color: tint }}
-          numberOfLines={1}
-        >
-          {label}
-        </Text>
+        </Animated.View>
+        <Animated.View style={[{ overflow: "hidden" }, labelStyle]}>
+          <Text
+            style={{ fontSize: 11, lineHeight: 14, ...fw(focused ? 700 : 500), color: tint }}
+            numberOfLines={1}
+          >
+            {label}
+          </Text>
+        </Animated.View>
       </Animated.View>
     </Pressable>
   );
