@@ -1,7 +1,7 @@
-import { ActivityIndicator, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { Icon, Pressable } from "@/components/ui";
-import type { OutboxMessage } from "@/stores/outbox";
+import { useOutbox, type OutboxMessage } from "@/stores/outbox";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -9,8 +9,10 @@ import { fw } from "@/theme/fonts";
  * Henüz sunucuya ulaşmamış mesaj.
  *
  * Gerçek mesajlarla aynı baloncuk dilini kullanır ve sağda durur (her zaman
- * bize ait), tek farkı soluk oluşu ve durum göstergesi. Başarısız satırda
- * "Tekrar dene" / "Sil" görünür — kullanıcı yazdığı metni kaybetmez.
+ * bize ait), tek farkı soluk oluşu ve durum göstergesi. Bekleyen (ağ yok
+ * ya da yolda) satırda WhatsApp'taki gibi SAAT simgesi durur; dosya
+ * yükleniyorsa yüzdesi yazar. Başarısız satırda "Tekrar dene" / "Sil"
+ * görünür — kullanıcı yazdığı metni kaybetmez.
  */
 export function OutboxItem({
   message,
@@ -22,6 +24,7 @@ export function OutboxItem({
   onDiscard: () => void;
 }) {
   const failed = message.status === "failed";
+  const progress = useOutbox((state) => state.progress[message.id]);
 
   return (
     <View
@@ -53,7 +56,7 @@ export function OutboxItem({
         {failed ? (
           <>
             <Text style={{ ...typography.caption, color: colors.danger }}>
-              {message.error ?? "Gönderilemedi"}
+              {message.error ? `Gönderilemedi — ${message.error}` : "Gönderilemedi"}
             </Text>
             <View style={{ flexDirection: "row", gap: spacing.lg, paddingTop: 2 }}>
               <Pressable
@@ -87,8 +90,14 @@ export function OutboxItem({
             </View>
           </>
         ) : (
-          <View style={{ alignSelf: "flex-end" }}>
-            <ActivityIndicator size="small" color={colors.muted} />
+          <View
+            style={{ alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: spacing.xs }}
+            accessibilityLabel={progress !== undefined ? `Yükleniyor, yüzde ${progress}` : "Gönderilmeyi bekliyor"}
+          >
+            {progress !== undefined ? (
+              <Text style={{ ...typography.caption, color: colors.muted }}>%{progress}</Text>
+            ) : null}
+            <Icon name="clock" size={12} color={colors.muted} />
           </View>
         )}
       </View>

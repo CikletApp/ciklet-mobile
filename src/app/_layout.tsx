@@ -16,6 +16,7 @@ import { ImageViewerHost } from "@/components/ui/image-viewer";
 import { BrandSplash } from "@/features/auth/auth-shell";
 import { CallOverlay } from "@/features/call/call-overlay";
 import { InteractionModalHost } from "@/features/chat/interaction-modal";
+import { startOutboxSender } from "@/features/chat/outbox-sender";
 import { NotificationSettingsHost } from "@/features/notifications/notification-sheet";
 import { reanimatedMotionMode, useReducedMotion } from "@/lib/accessibility";
 import { useScreenTracking } from "@/lib/analytics";
@@ -58,6 +59,10 @@ const TAB_TITLES: Record<string, MessageKey> = {
   notifications: "tabs.notifications",
   me: "tabs.me",
 };
+
+// Kalıcı gönderim kuyruğu: ekrandan bağımsız, uygulama ömrü boyunca
+// (çevrimdışı yazılanlar bağlantı gelince gider — features/chat/outbox-sender).
+startOutboxSender(queryClient);
 
 void SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ fade: true, duration: 250 });

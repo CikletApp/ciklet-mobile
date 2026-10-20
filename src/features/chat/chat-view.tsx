@@ -34,6 +34,7 @@ import {
   uploadMessageAttachment,
   type PickedAsset,
 } from "@/lib/uploads";
+import { isOnline } from "@/lib/network";
 import { readThread, type Poll, type VoiceMeta } from "@/lib/message-extras";
 import { OFFICIAL_FOOTER_TITLE } from "@/lib/official";
 import { isAfterSnowflake } from "@/lib/snowflake";
@@ -153,7 +154,7 @@ export function ChatView({
   } = useChatMessages(kind, chatId);
 
   const { typers, notifyTyping, stopTyping } = useTyping(chatId);
-  const { send, retry, discard } = useComposer(kind, chatId, serverId);
+  const { send, sendLocalFile, retry, discard } = useComposer(kind, chatId, serverId);
   const outbox = useChatOutbox(chatId);
   const myId = useAuth((state) => state.profile?.id);
   const actions = useMessageActions(kind, chatId, serverId);
@@ -544,32 +545,24 @@ export function ChatView({
     [send]
   );
 
-  /** Sesli mesaj kaydı bitti: yüklenir ve `metadata.voice` ile hemen gönderilir. */
+  /**
+   * Sesli mesaj kaydı bitti: kuyruğa girer (saat simgesi), motor yükleyip
+   * `metadata.voice` ile gönderir. Çevrimdışıyken de kaybolmaz; bağlantı
+   * gelince gider. Kayıt cihazda kalır, kendi sesli mesajın ağsız çalar.
+   */
   const onVoiceRecorded = useCallback(
     async (asset: PickedAsset, meta: VoiceMeta) => {
-      // Yükleme sürerken yanıt değişebilir; kayıt bittiği andaki hedef gider.
-      if (uploadingRef.current) return;
-      uploadingRef.current = true;
+      // Kayıt bittiği andaki yanıt hedefi gider.
       const replyId = replyingTo?.id;
       setUploadError(null);
-      setUploadProgress("Sesli mesaj yükleniyor…");
       try {
-        const file = await uploadMessageAttachment(asset, (progress) =>
-          setUploadProgress(`Sesli mesaj yükleniyor… %${Math.round(progress)}`)
-        );
-        send("", [{ url: file.url, name: file.name, mimeType: file.mimeType, size: file.size }], replyId, {
-          metadata: { voice: meta },
-          label: "🎤 Sesli mesaj",
-        });
+        await sendLocalFile(asset, replyId, { metadata: { voice: meta }, label: "🎤 Sesli mesaj" });
         setReplyingTo(null);
       } catch (reason) {
-        setUploadError(reason instanceof Error ? reason.message : "Sesli mesaj yüklenemedi.");
-      } finally {
-        uploadingRef.current = false;
-        setUploadProgress(null);
+        setUploadError(reason instanceof Error ? reason.message : "Sesli mesaj kaydedilemedi.");
       }
     },
-    [replyingTo?.id, send]
+    [replyingTo?.id, sendLocalFile]
   );
 
   const onSelectGif = useCallback((url: string) => {
@@ -615,14 +608,32 @@ export function ChatView({
             : await pickDocuments(remaining);
       if (picked.length === 0) return;
       uploadingRef.current = true;
+      // Çevrimdışı: dosyalar ayrı mesajlar olarak kuyruğa girer (saat
+      // simgesi) ve bağlantı gelince yüklenip gönderilir (WhatsApp).
+      const queueOffline = async (rest: PickedAsset[]) => {
+        for (const asset of rest) await sendLocalFile(asset, replyingTo?.id);
+        setReplyingTo(null);
+        showToast("Çevrimdışısın — dosyalar bağlantı gelince gönderilecek");
+      };
       // Sırayla yüklenir: her biri bitince çubuğa çip olarak takılır, biri
       // başarısız olursa öncekiler kaybolmaz.
       for (let index = 0; index < picked.length; index += 1) {
+        if (!isOnline()) {
+          await queueOffline(picked.slice(index));
+          return;
+        }
         const prefix = picked.length > 1 ? `Dosya yükleniyor (${index + 1}/${picked.length})` : "Dosya yükleniyor";
         setUploadProgress(`${prefix}… %0`);
-        const file = await uploadMessageAttachment(picked[index], (progress) =>
-          setUploadProgress(`${prefix}… %${Math.round(progress)}`)
-        );
+        let file: Awaited<ReturnType<typeof uploadMessageAttachment>>;
+        try {
+          file = await uploadMessageAttachment(picked[index], (progress) =>
+            setUploadProgress(`${prefix}… %${Math.round(progress)}`)
+          );
+        } catch (reason) {
+          if (isOnline()) throw reason;
+          await queueOffline(picked.slice(index));
+          return;
+        }
         pendingCounter += 1;
         const key = `pending-${pendingCounter}`;
         setAttachments((current) =>
@@ -637,7 +648,7 @@ export function ChatView({
       uploadingRef.current = false;
       setUploadProgress(null);
     }
-  }, [attachments.length]);
+  }, [attachments.length, replyingTo?.id, sendLocalFile]);
 
   const onLongPressMessage = useCallback((message: ChatMessagePayload, anchor: MessageAnchor) => {
     setSelected({ message, anchor });
