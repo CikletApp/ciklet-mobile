@@ -260,15 +260,7 @@ export function useAudioRoute() {
     };
   }, []);
 
-  // Emülatör gibi ahizesi olmayan cihazda tercih edilen çıkış yoksa
-  // düğme gerçekte çalanı göstersin.
-  const builtIn: BuiltInRoute =
-    Platform.OS === "android" && outputs.length > 0 && !outputs.includes(preferred)
-      ? preferred === "earpiece"
-        ? "speaker"
-        : "earpiece"
-      : preferred;
-
+  const builtIn = builtInRouteOf(preferred, outputs);
   const route: AudioRoute = external ?? builtIn;
 
   /** Kulaklık yokken ahize ↔ hoparlör geçişi. */
@@ -285,6 +277,38 @@ export function useAudioRoute() {
       : [];
 
   return { route, toggle, choices, select: setAudioRoute };
+}
+
+/**
+ * Emülatör gibi ahizesi olmayan cihazda tercih edilen çıkış yoksa düğme
+ * gerçekte çalanı göstersin.
+ */
+function builtInRouteOf(preferred: BuiltInRoute, outputs: string[]): BuiltInRoute {
+  return Platform.OS === "android" && outputs.length > 0 && !outputs.includes(preferred)
+    ? preferred === "earpiece"
+      ? "speaker"
+      : "earpiece"
+    : preferred;
+}
+
+/**
+ * O anki çıkış — yalnızca okur, yoklama YAPMAZ (yoklamayı kontroller
+ * çubuğundaki `useAudioRoute` yürütür; ikinci bir yoklayıcı aynı cihaza iki
+ * kez geçiş yapardı). Yakınlık sensörü gibi "ahizede miyiz" sorusu için.
+ */
+export function useCurrentAudioRoute(): AudioRoute {
+  const preferred = useAudioRouteStore((s) => s.preferred);
+  const external = useAudioRouteStore((s) => s.external);
+  const outputs = useAudioRouteStore((s) => s.outputs);
+  return external ?? builtInRouteOf(preferred, outputs);
+}
+
+/** Görüntülüye geçerken: kulaklık yoksa ve ses ahizedeyse hoparlöre al (WhatsApp gibi). */
+export function moveOffEarpiece(): void {
+  const { preferred, external, outputs } = useAudioRouteStore.getState();
+  if (external) return;
+  if (builtInRouteOf(preferred, outputs) !== "earpiece") return;
+  void setAudioRoute("speaker");
 }
 
 function sameList(a: string[], b: string[]) {

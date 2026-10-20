@@ -10,6 +10,7 @@ import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useDirects } from "@/api/hooks";
 import { Avatar, IconButton, Pressable, showToast } from "@/components/ui";
+import { useCurrentAudioRoute } from "@/features/voice/audio-route";
 import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LIVEKIT_URL } from "@/lib/livekit";
@@ -20,7 +21,9 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { MiniCall } from "./mini-call";
 import { useOngoingCallService } from "./use-ongoing-call-service";
 import { useCallTimer } from "./use-call-timer";
+import { useProximityScreenOff } from "./use-proximity-screen-off";
 import { VideoCallStage } from "./video-call-stage";
+import { useVideoUpgradeActions, useVideoUpgradeListener } from "./video-upgrade";
 
 /**
  * Çağrı katmanı — uygulamanın her yerinden görünür.
@@ -212,17 +215,26 @@ function ConnectedCall({
   onHangUp: () => void;
   kind: "audio" | "video";
 }) {
+  // Token ve ses oturumu görüşmenin İLK türüyle kurulur: sesliden
+  // görüntülüye geçişte (video-upgrade) bunlar değişseydi useVoiceToken
+  // yeniden çalışır, oda yeniden kurulur ve görüşme kopardı. Kamera izni ve
+  // hoparlöre geçiş o yolda ayrıca yapılıyor.
+  const [initialKind] = useState(kind);
   // Sesli arama telefon gibi ahizeden, görüntülü arama hoparlörden başlar;
   // kulaklık bağlıysa ikisinde de o kazanır.
   const { token, error } = useVoiceToken(directId, {
-    needsCamera: kind === "video",
-    defaultRoute: kind === "video" ? "speaker" : "earpiece",
+    needsCamera: initialKind === "video",
+    defaultRoute: initialKind === "video" ? "speaker" : "earpiece",
   });
   const minimized = useCall((s) => s.minimized);
   const setMinimized = useCall((s) => s.setMinimized);
   const session = useCall((s) => s.session);
 
   useKeepAwake();
+  // Sesli görüşmede ses ahizedeyken telefon kulağa yaklaşınca ekran kararır
+  // (yanlış dokunuş olmasın); hoparlörde, kulaklıkta ve görüntülüde kapalı.
+  const route = useCurrentAudioRoute();
+  useProximityScreenOff(kind === "audio" && route === "earpiece" && Boolean(token));
   // Arka plana geçince (başka uygulama) görüşme düşmesin: Android ön plan
   // hizmeti mikrofonu/kamerayı ve süreci canlı tutar.
   useOngoingCallService({
@@ -274,6 +286,7 @@ function ConnectedCall({
       video={kind === "video"}
       options={{ adaptiveStream: true, dynacast: true }}
     >
+      <VideoUpgradeBridge />
       <Modal
         visible={!minimized}
         animationType="slide"
@@ -294,6 +307,12 @@ function ConnectedCall({
   );
 }
 
+/** Sesliden görüntülüye geçiş isteklerini dinler — küçültülmüşken de takılı. */
+function VideoUpgradeBridge() {
+  useVideoUpgradeListener();
+  return null;
+}
+
 /** Sesli arama sahnesi. Görüntülü arama `VideoCallStage`'de. */
 function CallStage({
   onHangUp,
@@ -311,6 +330,8 @@ function CallStage({
   const reconnecting = useConnectionState() === ConnectionState.Reconnecting;
 
   const speaking = participants.some((p) => p.isSpeaking && !p.isLocal);
+  const upgrade = useCall((s) => s.videoUpgrade);
+  const upgradeActions = useVideoUpgradeActions();
 
   return (
     <View style={{ flex: 1 }}>
@@ -324,7 +345,18 @@ function CallStage({
         }}
       >
         <IconButton icon="chevron-down" label="Görüşmeyi küçült" onPress={onMinimize} size={40} background={colors.raised} tint={colors.bright} />
-        <IconButton icon="message" label="Mesajlara git" onPress={onOpenChat} size={40} background={colors.raised} tint={colors.bright} />
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          {/* Sesliden görüntülüye geç (WhatsApp): karşı tarafa istek gider. */}
+          <IconButton
+            icon="video"
+            label={upgrade === "outgoing" ? "Görüntülü görüşme isteği gönderildi" : "Görüntülü görüşmeye geç"}
+            onPress={() => void upgradeActions.request()}
+            size={40}
+            background={upgrade === "outgoing" ? colors.brand : colors.raised}
+            tint={upgrade === "outgoing" ? colors.onBrand : colors.bright}
+          />
+          <IconButton icon="message" label="Mesajlara git" onPress={onOpenChat} size={40} background={colors.raised} tint={colors.bright} />
+        </View>
       </View>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg, padding: spacing.lg }}>
         <View
@@ -351,12 +383,97 @@ function CallStage({
         </Text>
       </View>
 
+      {upgrade ? (
+        <VideoUpgradePrompt
+          incoming={upgrade === "incoming"}
+          peerName={session ? displayNameOf(session.peer) : ""}
+          onAccept={() => void upgradeActions.accept()}
+          onDecline={upgradeActions.decline}
+          onCancel={upgradeActions.cancel}
+        />
+      ) : null}
+
       {/* Sessize alma ve ses çıkışı LiveKit odasının İÇİNDE olmak zorunda —
           kontroller odanın kendi durumunu okuyor. */}
       <View style={{ paddingBottom: insets.bottom + spacing["2xl"] }}>
         <CallControls onHangUp={onHangUp} />
       </View>
     </View>
+  );
+}
+
+/** Görüntülüye geçiş isteği: gelen için Reddet/Kabul et, giden için Vazgeç. */
+function VideoUpgradePrompt({
+  incoming,
+  peerName,
+  onAccept,
+  onDecline,
+  onCancel,
+}: {
+  incoming: boolean;
+  peerName: string;
+  onAccept: () => void;
+  onDecline: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={{
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.lg,
+        padding: spacing.md,
+        gap: spacing.md,
+        borderRadius: radii.xl,
+        borderCurve: "continuous",
+        backgroundColor: colors.panel,
+      }}
+    >
+      <Text style={{ ...typography.body, color: colors.bright, textAlign: "center" }}>
+        {incoming
+          ? `${peerName} görüntülü görüşmeye geçmek istiyor`
+          : "Görüntülü görüşme isteği gönderildi…"}
+      </Text>
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.md }}>
+        {incoming ? (
+          <>
+            <PromptButton label="Reddet" background={colors.raised} tint={colors.bright} onPress={onDecline} />
+            <PromptButton label="Kabul et" background={colors.success} tint="#ffffff" onPress={onAccept} />
+          </>
+        ) : (
+          <PromptButton label="Vazgeç" background={colors.raised} tint={colors.bright} onPress={onCancel} />
+        )}
+      </View>
+    </View>
+  );
+}
+
+function PromptButton({
+  label,
+  background,
+  tint,
+  onPress,
+}: {
+  label: string;
+  background: string;
+  tint: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      haptic="light"
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radii.full,
+        backgroundColor: background,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Text style={{ ...typography.bodyStrong, color: tint }}>{label}</Text>
+    </Pressable>
   );
 }
 

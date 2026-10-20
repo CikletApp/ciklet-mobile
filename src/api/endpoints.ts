@@ -243,6 +243,8 @@ export const endpoints = {
   callCancel: "/api/calls/cancel",
   /** GET → `{ invites }` — bağlantı anında bekleyen davetler. */
   callsPending: "/api/calls/pending",
+  /** GET → `{ items, nextCursor }` — arama geçmişi (yalnızca kendi kayıtların). */
+  callsHistory: (cursor?: string) => `/api/calls/history${qs({ cursor: cursor || undefined })}`,
 
   // ── Profil genişlemesi, sosyal ve para ────────────────────────────
   /** GET liste, PUT `{ type, handle, visible? }`, DELETE `{ type }`. */

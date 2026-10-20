@@ -249,6 +249,7 @@ export default function ChatsScreen() {
             icon: "message",
             onPress: () => router.push("/requests"),
           },
+          { label: "Aramalar", icon: "phone", onPress: () => router.push("/calls") },
           { label: "Kaydedilenler", icon: "bookmark", onPress: () => router.push("/saved") },
           { label: "Bahsetmeler", icon: "bell", onPress: () => router.push("/mentions") },
           { label: "Yeni grup", icon: "users", onPress: () => router.push("/directs/new-group") },

@@ -101,7 +101,10 @@ export type IconName =
   | "camera"
   // GIF seçici
   | "arrow-left"
-  | "trending-up";
+  | "trending-up"
+  // Arama geçmişi: gelen / giden yönü
+  | "arrow-down-left"
+  | "arrow-up-right";
 
 interface IconProps {
   name: IconName;
@@ -311,6 +314,8 @@ const PATHS: Record<IconName, string[]> = {
   ],
   "arrow-left": ["m12 19-7-7 7-7", "M19 12H5"],
   "trending-up": ["M22 7 13.5 15.5 8.5 10.5 2 17", "M16 7h6v6"],
+  "arrow-down-left": ["M17 7 7 17", "M17 17H7V7"],
+  "arrow-up-right": ["M7 7h10v10", "M7 17 17 7"],
 };
 
 /** Nokta/daire tabanlı ikonlar yol yerine ilkel şekil kullanır. */
