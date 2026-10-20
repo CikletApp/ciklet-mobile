@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import type { SearchProfileSlim } from "@/api/types";
 import { Avatar, Pressable, emojify } from "@/components/ui";
 import { displayNameOf, formatRelativeShort } from "@/lib/format";
+import { formatMessagePreview } from "@/lib/message-preview";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -33,7 +34,8 @@ export function MessagePreviewRow({
   trailing?: React.ReactNode;
 }) {
   const name = author ? displayNameOf(author) : "Bir kullanıcı";
-  const text = content.trim() || (hasFile ? "📎 Ek" : "");
+  // Ek mesajında içerik dosyanın adresi olabilir; adres görünmez (lib/message-preview).
+  const text = formatMessagePreview({ content }, { fallback: hasFile ? "📎 Ek" : "" });
 
   return (
     <Pressable

@@ -182,6 +182,8 @@ export function messageFromEnvelope(event: MessageEnvelope): ChatMessagePayload 
         id: event.replyTo.messageId,
         // Silinmiş mesajın önizlemesi gösterilmez (sunucudaki `presentReply`).
         content: event.replyTo.deleted ? "" : event.replyTo.preview,
+        // Ek türü (lib/message-preview): alıntı etiketi bundan ("🎤 Sesli mesaj").
+        media: event.replyTo.deleted ? null : (event.replyTo.media ?? null),
         deleted: event.replyTo.deleted,
         profile: {
           id: event.replyTo.authorId,

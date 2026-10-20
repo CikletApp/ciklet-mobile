@@ -56,7 +56,10 @@ export interface MessageEnvelope {
     messageId: string;
     authorId: string;
     authorUsername: string;
+    /** Ek adreslerinden ayıklanmış metin (sunucu `lib/message-preview`). */
     preview: string;
+    /** Alıntılanan mesajın ek türü (`{ kind, durationMs?, name? }`); düz metinde yok. */
+    media?: unknown;
     deleted: boolean;
     expiresAt?: string;
   } | null;

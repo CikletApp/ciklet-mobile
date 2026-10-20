@@ -11,6 +11,7 @@ import { Avatar, EmptyState, ErrorState, Icon, Pressable, Screen, SegmentedTabs 
 import { formatChatListTime } from "@/lib/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { formatMessagePreview } from "@/lib/message-preview";
 
 /**
  * Sunucu içi mesaj arama — web kanal başlığındaki arama kutusunun mobil
@@ -172,7 +173,7 @@ export default function ServerSearchScreen() {
                     <Text style={{ fontSize: 11, color: colors.muted }}>{formatChatListTime(item.createdAt)}</Text>
                   </View>
                   <Text style={{ ...typography.body, color: colors.text }} numberOfLines={2}>
-                    {item.content?.trim() || "Dosya eki"}
+                    {formatMessagePreview(item, { fallback: "Dosya eki" })}
                   </Text>
                 </View>
               </Pressable>
