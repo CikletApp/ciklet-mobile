@@ -307,11 +307,32 @@ export function ChatView({
    * paneli kapanır, yazma çubuğu aşağı iner — okurken ekranın yarısı
    * klavyeyle ya da panelle kaplı olmamalı. Liste ters (`inverted`) olduğu
    * için ARTAN offset geçmişe gitmek demek.
+   *
+   * Yalnızca KULLANICININ kaydırması sayılır (parmakla sürükleme ve onun
+   * savurma devamı). Mesaj gönderince/gelince liste kendiliğinden kayıyor;
+   * eskiden bu da "geçmişe gitti" sanılıp klavye her gönderimde kapanıyordu
+   * (Android'de kapanan klavyenin yeri bir an boş da kalıyordu).
    */
+  const userScrolling = useRef(false);
+  const dragEndedAt = useRef(0);
+  const onScrollBeginDrag = useCallback(() => {
+    userScrolling.current = true;
+  }, []);
+  const onScrollEndDrag = useCallback(() => {
+    userScrolling.current = false;
+    dragEndedAt.current = Date.now();
+  }, []);
+  const onMomentumScrollBegin = useCallback(() => {
+    // Savurma sürüklemenin devamıysa kullanıcınındır; programatik kaydırma değil.
+    if (Date.now() - dragEndedAt.current < 150) userScrolling.current = true;
+  }, []);
+  const onMomentumScrollEnd = useCallback(() => {
+    userScrolling.current = false;
+  }, []);
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = event.nativeEvent.contentOffset.y;
-      const goingBack = y > lastOffset.current + 12;
+      const goingBack = userScrolling.current && y > lastOffset.current + 12;
       lastOffset.current = y;
       // Yalnızca eşik geçilince çizim — kaydırma ekranı yeniden çizdirmesin.
       const near = y < NEAR_BOTTOM_PX;
@@ -779,6 +800,10 @@ export function ChatView({
             }}
             keyboardDismissMode="interactive"
             onScroll={onScroll}
+            onScrollBeginDrag={onScrollBeginDrag}
+            onScrollEndDrag={onScrollEndDrag}
+            onMomentumScrollBegin={onMomentumScrollBegin}
+            onMomentumScrollEnd={onMomentumScrollEnd}
             scrollEventThrottle={64}
             /**
              * Uzun sohbetlerde bellek ve kare süresi ayarı. Değerler ölçülerek
