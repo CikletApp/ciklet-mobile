@@ -10,6 +10,7 @@ import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useDirects } from "@/api/hooks";
 import { Avatar, IconButton, Pressable, showToast } from "@/components/ui";
+import { useCurrentAudioRoute } from "@/features/voice/audio-route";
 import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LIVEKIT_URL } from "@/lib/livekit";
@@ -20,6 +21,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { MiniCall } from "./mini-call";
 import { useOngoingCallService } from "./use-ongoing-call-service";
 import { useCallTimer } from "./use-call-timer";
+import { useProximityScreenOff } from "./use-proximity-screen-off";
 import { VideoCallStage } from "./video-call-stage";
 import { useVideoUpgradeActions, useVideoUpgradeListener } from "./video-upgrade";
 
@@ -229,6 +231,10 @@ function ConnectedCall({
   const session = useCall((s) => s.session);
 
   useKeepAwake();
+  // Sesli görüşmede ses ahizedeyken telefon kulağa yaklaşınca ekran kararır
+  // (yanlış dokunuş olmasın); hoparlörde, kulaklıkta ve görüntülüde kapalı.
+  const route = useCurrentAudioRoute();
+  useProximityScreenOff(kind === "audio" && route === "earpiece" && Boolean(token));
   // Arka plana geçince (başka uygulama) görüşme düşmesin: Android ön plan
   // hizmeti mikrofonu/kamerayı ve süreci canlı tutar.
   useOngoingCallService({

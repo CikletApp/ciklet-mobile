@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -35,6 +36,7 @@ class CikletCallsModule : Module() {
 
     OnDestroy {
       actionListener = null
+      releaseProximityLock()
     }
 
     // Uygulama zaten açıkken bildirimden geldi (singleTask → onNewIntent).
@@ -106,12 +108,51 @@ class CikletCallsModule : Module() {
     Function("setShowWhenLocked") { enabled: Boolean ->
       appContext.currentActivity?.let { IncomingCallNotifier.applyLockScreenFlags(it, enabled) }
     }
+
+    /**
+     * Yakınlık sensörü: sesli görüşmede ses ahizedeyken telefon kulağa
+     * yaklaşınca ekran kararır (yanağın dokunuşu düğmeye basmasın). Telefon
+     * uygulamalarının kullandığı PROXIMITY_SCREEN_OFF_WAKE_LOCK — ekranı
+     * sistem kapatır/açar, sensörü uygulama okumaz.
+     */
+    Function("setProximityScreenOff") { enabled: Boolean ->
+      if (enabled) acquireProximityLock() else releaseProximityLock()
+    }
+  }
+
+  private var proximityLock: PowerManager.WakeLock? = null
+
+  @Synchronized
+  private fun acquireProximityLock() {
+    if (proximityLock?.isHeld == true) return
+    val power = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+    if (!power.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) return
+    val lock = power.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "ciklet:call-proximity")
+    lock.setReferenceCounted(false)
+    // Üst sınır emniyet için: JS kapatmayı unutsa (süreç çökmesi vb.) kilit
+    // sonsuza dek ekranı karartmaya hazır kalmasın.
+    lock.acquire(PROXIMITY_MAX_MS)
+    proximityLock = lock
+  }
+
+  @Synchronized
+  private fun releaseProximityLock() {
+    val lock = proximityLock ?: return
+    proximityLock = null
+    if (lock.isHeld) {
+      // Telefon hâlâ kulaktaysa ekran ancak uzaklaşınca açılır — kulaktan
+      // indirmeden yanlış dokunuş olmasın.
+      lock.release(PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY)
+    }
   }
 
   private val context: Context
     get() = appContext.reactContext ?: throw CodedException("Uygulama bağlamı yok.")
 
   companion object {
+    /** Yakınlık kilidinin en uzun ömrü (4 saat) — görüşmeden uzun. */
+    private const val PROXIMITY_MAX_MS = 4L * 60 * 60 * 1000
+
     /** Reddet yayını → canlı JS'e olay (süreç yaşıyorsa). */
     @Volatile
     var actionListener: ((action: String, callId: String) -> Unit)? = null
