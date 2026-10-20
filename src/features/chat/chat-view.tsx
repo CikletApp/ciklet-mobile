@@ -60,6 +60,7 @@ import { PinnedBar, PinnedListSheet } from "./components/pinned-bar";
 import { TypingBubble } from "./components/typing-bubble";
 import { ChatScopeProvider, type ChatScope } from "./chat-scope";
 import { canForwardMessage } from "./forward";
+import { dropExpired, nextExpiry } from "./message-expiry";
 import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
 import { matchSlashCommand, runSlashCommand, waitForAck } from "./interactions";
 import { SILENT_PREFIX } from "./message-markup";
@@ -325,10 +326,13 @@ export function ChatView({
     []
   );
 
-  const messages = useMemo(
+  const allMessages = useMemo(
     () => data?.pages.flatMap((page) => page.items) ?? [],
     [data]
   );
+  // Süreli DM: ekranda duran mesaj silinme anı gelince listeden düşer.
+  const expiryClock = useExpiryClock(allMessages);
+  const messages = useMemo(() => dropExpired(allMessages, expiryClock), [allMessages, expiryClock]);
 
   /**
    * "Yeni mesajlar" ayracı sohbet başına BİR KEZ tohumlanır (web
@@ -1094,4 +1098,27 @@ function UnreadDivider() {
       <View style={{ width: 24, height: 1, backgroundColor: colors.brand, opacity: 0.6 }} />
     </View>
   );
+}
+
+/** Modül düzeyinde: render içinde doğrudan `Date.now` React Compiler'a takılıyor. */
+function nowMs(): number {
+  return Date.now();
+}
+
+/** `setTimeout` üst sınırı (~24,8 gün); aşılırsa hemen tetiklenir. */
+const MAX_TIMEOUT_MS = 2_147_000_000;
+
+/**
+ * Süreli mesajlar için saat: listedeki en yakın silinme anında bir kez
+ * ilerler; süreli mesaj yoksa zamanlayıcı kurulmaz.
+ */
+function useExpiryClock(messages: readonly ChatMessagePayload[]): number {
+  const [now, setNow] = useState(nowMs);
+  const next = useMemo(() => nextExpiry(messages, now), [messages, now]);
+  useEffect(() => {
+    if (next === null) return;
+    const timer = setTimeout(() => setNow(nowMs()), Math.min(Math.max(0, next - nowMs() + 50), MAX_TIMEOUT_MS));
+    return () => clearTimeout(timer);
+  }, [next]);
+  return now;
 }

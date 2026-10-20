@@ -8,6 +8,7 @@ import { qk } from "@/api/query-keys";
 import type { ProfileAnnotationEntry } from "@/api/types";
 import { showInAppNotice } from "@/components/in-app-notice";
 import { openInteractionModal } from "@/features/chat/interaction-modal-store";
+import { syncLatestMessages } from "@/features/chat/message-sync";
 import { isHiddenChannel } from "@/features/unread/unread-cache";
 import {
   effectiveChannelNotification,
@@ -106,6 +107,13 @@ export function useSocialEvents() {
         invalidate(qk.directs, qk.inbox);
         // İstek sayılan DM (arkadaş olmayan) Mesaj İstekleri listesini değiştirir.
         if (frame.isSpam === true) invalidate(qk.messageRequests);
+
+        // Mesajı telefondaki sohbet önbelleğine kopyala: sohbet açılınca son
+        // yazılanlar ağ beklemeden orada olsun (açık sohbete canlı akış yazıyor).
+        const incomingDirectId = typeof frame.directId === "string" ? frame.directId : null;
+        if (incomingDirectId && frame.isSpam !== true && activeChatId() !== incomingDirectId) {
+          void syncLatestMessages(queryClient, "direct", incomingDirectId, { seedIfEmpty: true });
+        }
 
         const sender = frame.sender as { id?: string; username?: string; name?: string | null; imageUrl?: string | null } | undefined;
         const directId = typeof frame.directId === "string" ? frame.directId : null;

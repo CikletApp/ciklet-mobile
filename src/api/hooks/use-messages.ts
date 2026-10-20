@@ -2,6 +2,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import type { MessagesPage } from "@ciklet/embedded-activities-sdk/types";
 
 import type { ChatMessagePayload } from "@/realtime/events";
+import { storedAt, storedMessages } from "@/features/chat/message-store";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
@@ -30,6 +31,10 @@ export function useChatMessages(kind: ChatKind, chatId: string | undefined) {
           : endpoints.directMessages(chatId!, pageParam)
       ),
     initialPageParam: undefined as string | undefined,
+    // Cihazdaki son mesajlar anında görünür; tazelik `useChatStream`'in
+    // açılış eşitlemesinden gelir (features/chat/message-sync).
+    initialData: () => (chatId ? storedMessages(chatId) : undefined),
+    initialDataUpdatedAt: () => (chatId ? storedAt(chatId) : undefined),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     // Canlı akış cache'i zaten güncel tutuyor; odak değişiminde yeniden
     // çekmek kaydırma konumunu bozar.

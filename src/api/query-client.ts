@@ -4,6 +4,7 @@ import { focusManager, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import type { PersistQueryClientOptions } from "@tanstack/react-query-persist-client";
 
+import { clearStoredMessages, startMessageStore } from "@/features/chat/message-store";
 import { qk } from "./query-keys";
 
 /**
@@ -45,6 +46,10 @@ export const queryClient = new QueryClient({
   },
 });
 
+// Son sohbetlerin son mesajları cihazda (features/chat/message-store):
+// açılışta diskten yüklenir, sohbet önbellekleri değiştikçe yazılır.
+startMessageStore(queryClient);
+
 const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
   key: "ciklet.query-cache",
@@ -84,5 +89,5 @@ export const persistOptions: Omit<PersistQueryClientOptions, "queryClient"> = {
  */
 export async function clearPersistedCache() {
   queryClient.clear();
-  await persister.removeClient();
+  await Promise.all([persister.removeClient(), clearStoredMessages()]);
 }

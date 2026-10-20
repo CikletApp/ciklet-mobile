@@ -1,15 +1,13 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { MessagesPage } from "@ciklet/embedded-activities-sdk/types";
 
-import { api } from "@/api/client";
-import { endpoints } from "@/api/endpoints";
 import type { ChatKind } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { useOutbox } from "@/stores/outbox";
 import { clearTyper } from "@/stores/typing";
 import { applyReactionDelta, type MessageCache } from "@/features/chat/reaction-cache";
 import { applyPinUpdate } from "@/features/chat/pins";
+import { syncLatestMessages } from "@/features/chat/message-sync";
 import {
   ServerEvent,
   messageFromEnvelope,
@@ -81,34 +79,8 @@ export function useChatStream(kind: ChatKind, chatId: string | undefined) {
       }
     };
 
-    let catchingUp = false;
-    const catchUp = async () => {
-      if (catchingUp) return;
-      catchingUp = true;
-      try {
-        const page = await api<MessagesPage<ChatMessagePayload>>(
-          kind === "channel" ? endpoints.channelMessages(chatId) : endpoints.directMessages(chatId)
-        );
-        const old = queryClient.getQueryData<MessageCache>(key);
-        // İlk yükleme `useChatMessages`'ın işi; boş cache'e sayfa yazılmaz.
-        if (!old?.pages?.length) return;
-        const known = new Set(old.pages.flatMap((p) => p.items.map((item) => item.id)));
-        const fresh = page.items.filter((item) => !known.has(item.id));
-        if (fresh.length === 0) return;
-        // Sayfanın TAMAMI yabancıysa boşluk bir sayfadan büyük olabilir:
-        // parça parça eklemek ortada delik bırakır; geçmiş baştan çekilir.
-        if (fresh.length === page.items.length) {
-          await queryClient.invalidateQueries({ queryKey: key });
-          return;
-        }
-        for (const item of fresh) useOutbox.getState().resolveByContent(chatId, item.content);
-        prepend(fresh);
-      } catch {
-        // Ağ yok; bir sonraki yoklama ya da bağlantı açılışı yeniden dener.
-      } finally {
-        catchingUp = false;
-      }
-    };
+    // Telafi: en yeni sayfa önbellekle eşitlenir (features/chat/message-sync).
+    const catchUp = () => syncLatestMessages(queryClient, kind, chatId);
 
     const releaseChat = subscribeToChat(chatId, (event) => {
       // Oda yalnızca `message.create` taşıyor; ileride başka tür eklenirse
@@ -155,7 +127,9 @@ export function useChatStream(kind: ChatKind, chatId: string | undefined) {
     const poll = setInterval(() => {
       if (getConnectionState() !== "connected") void catchUp();
     }, CATCH_UP_POLL_MS);
-    if (getConnectionState() !== "connected") void catchUp();
+    // Açılışta HER ZAMAN: sohbet kapalıyken gelen mesajlar canlı akışa
+    // hiç düşmedi; önbellek (ya da cihazdaki kopya) onları bilmiyor.
+    void catchUp();
 
     return () => {
       releaseChat();
