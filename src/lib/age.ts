@@ -7,7 +7,7 @@
  */
 
 /** Ciklet'e kaydolmak için doldurulmuş olması gereken yaş. */
-export const MIN_SIGNUP_AGE = 18;
+export const MIN_SIGNUP_AGE = 13;
 
 /** Doldurulmuş yaş (yıl). Doğum günü bu yıl henüz gelmediyse bir eksiltir. */
 export function completedAge(birth: Date, now: Date = new Date()): number {
