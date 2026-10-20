@@ -80,6 +80,8 @@ export const qk = {
   bookmarkIds: ["bookmarks", "ids"] as const,
   bookmarks: ["bookmarks", "list"] as const,
   mentions: ["mentions"] as const,
+  /** Arama geçmişi (sayfalı). */
+  callHistory: ["call-history"] as const,
   /** Mesaj istekleri listesi; sayaç listeden türetilir. */
   messageRequests: ["message-requests"] as const,
   store: ["store"] as const,

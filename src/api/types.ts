@@ -645,6 +645,31 @@ export interface MentionEntry {
   url: string;
 }
 
+/**
+ * ciklet-web: `GET /api/calls/history` satırı. `category` bakanın gözünden:
+ * gelen (cevaplanan), giden (cevaplansın ya da cevaplanmasın), cevapsız,
+ * reddedilen. `peer` her zaman karşı taraf.
+ */
+export interface CallHistoryItem {
+  id: string;
+  callId: string;
+  kind: "audio" | "video";
+  direction: "incoming" | "outgoing";
+  category: "incoming" | "outgoing" | "missed" | "declined";
+  answered: boolean;
+  outcome: "ANSWERED" | "MISSED" | "DECLINED" | "CANCELLED";
+  directId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationSecs: number | null;
+  peer: { id: string; username: string; name: string | null; imageUrl: string | null };
+}
+
+export interface CallHistoryPage {
+  items: CallHistoryItem[];
+  nextCursor: string | null;
+}
+
 /** ciklet-web: `GET /api/directs/requests` satırı. */
 export interface MessageRequestEntry {
   directId: string;
