@@ -6,7 +6,7 @@
  * düzeyinde bir kez kurulur, her çağrıda yeniden yaratılmaz.
  */
 
-import { attachmentPreviewLabel, readAttachmentInfo } from "./attachments";
+import { formatMessagePreview } from "./message-preview";
 
 const timeFormat = new Intl.DateTimeFormat("tr-TR", {
   hour: "2-digit",
@@ -161,6 +161,8 @@ export function formatDirectPreview(
     fileUrl: string | null;
     /** Varsa `metadata.attachment` türü belirler (web'le aynı). */
     metadata?: unknown;
+    /** Sunucunun hesapladığı ek türü (lib/message-preview). */
+    media?: unknown;
     profileId: string;
     type: string;
     deleted: boolean;
@@ -192,12 +194,9 @@ export function formatDirectPreview(
       if (message.profileId === myId) return "Bir mesajı sabitledin";
       return authorName ? `${authorName} bir mesajı sabitledi` : "Bir mesaj sabitlendi";
     default:
-      preview = content || (message.fileUrl ? "Bir dosya gönderdi" : "Yeni mesaj");
       // Ek gönderilince içerik çoğu zaman dosyanın kendi adresi oluyor;
-      // listede uzun bir CDN bağlantısı yerine ne olduğu yazılır.
-      if (message.fileUrl && (!content || content === message.fileUrl.trim() || /^https?:\/\/\S+$/.test(content))) {
-        preview = attachmentPreviewLabel(message.fileUrl, readAttachmentInfo(message.metadata));
-      }
+      // listede bağlantı yerine ne olduğu yazılır (lib/message-preview).
+      preview = formatMessagePreview(message, { fallback: message.fileUrl ? "Bir dosya gönderdi" : "Yeni mesaj" });
   }
 
   const isUserMessage = message.type === "DEFAULT" || message.type === "ACTIVITY_REPLY";

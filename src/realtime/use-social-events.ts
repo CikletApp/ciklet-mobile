@@ -16,6 +16,7 @@ import {
   findSetting,
   type NotificationSettingRecord,
 } from "@/lib/notification-settings";
+import { formatMessagePreview } from "@/lib/message-preview";
 import { playMessageTone, primeSounds } from "@/lib/sounds";
 import { activeChatId } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
@@ -126,7 +127,8 @@ export function useSocialEvents() {
         void playMessageTone();
         showInAppNotice({
           title: sender.name?.trim() || sender.username,
-          body: typeof frame.message === "string" && frame.message.trim() ? frame.message : "Yeni mesaj",
+          // Ek adresi kartta görünmez; türün etiketi (lib/message-preview).
+          body: formatMessagePreview({ message: typeof frame.message === "string" ? frame.message : "", media: frame.media }, { fallback: "Yeni mesaj" }),
           imageUrl: sender.imageUrl,
           fallbackText: sender.username,
           onPress: directId ? () => router.push(`/chat/direct/${directId}`) : undefined,
@@ -139,7 +141,7 @@ export function useSocialEvents() {
         const serverId = typeof frame.serverId === "string" ? frame.serverId : "";
         const senderName = typeof frame.senderName === "string" ? frame.senderName : "Biri";
         const channelName = typeof frame.channelName === "string" ? frame.channelName : null;
-        const content = typeof frame.content === "string" ? frame.content : "";
+        const content = formatMessagePreview({ content: typeof frame.content === "string" ? frame.content : "", media: frame.media });
         if (!channelId || !noticeAllowed(channelId)) return;
         if (!channelAllows(serverId || null, channelId, true)) return;
 

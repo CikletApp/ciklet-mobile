@@ -7,6 +7,7 @@ import { Image } from "expo-image";
 import { Icon, IconButton, Pressable, dokimorjiInputProps, emojify } from "@/components/ui";
 import { classifyAttachment } from "@/lib/attachments";
 import { splitEmoji } from "@/lib/emoji";
+import { formatMessagePreview } from "@/lib/message-preview";
 import type { VoiceMeta } from "@/lib/message-extras";
 import type { MessageAttachment, PickedAsset } from "@/lib/uploads";
 import type { ChatMessagePayload } from "@/realtime/events";
@@ -280,7 +281,7 @@ export function Composer({
           >
             <IconButton icon="reply" label="Yanıt" background="transparent" tint={colors.brand} disabled size={28} />
             <Text style={{ ...typography.caption, color: colors.text, flex: 1 }} numberOfLines={1}>
-              {emojify(replyingTo.content, "reply", 16)}
+              {emojify(formatMessagePreview(replyingTo), "reply", 16)}
             </Text>
             <IconButton
               icon="close"

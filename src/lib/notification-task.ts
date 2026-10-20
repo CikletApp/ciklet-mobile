@@ -5,6 +5,7 @@ import { AppState, Platform, Vibration } from "react-native";
 
 import { showInAppNotice } from "@/components/in-app-notice";
 import { dismissIncomingCallNotification } from "@/features/call/incoming-call";
+import { formatMessagePreview } from "@/lib/message-preview";
 import { ANDROID_CHANNEL, MESSAGE_CATEGORY } from "@/lib/notifications";
 import { playMessageTone, stopRingtone } from "@/lib/sounds";
 import { getConnectionState } from "@/realtime/gateway";
@@ -151,6 +152,22 @@ export async function registerBackgroundNotificationTask(): Promise<void> {
   }
 }
 
+/**
+ * Push gövdesi: sunucu ek adresini artık göndermiyor ama eski sunucu/kuyrukta
+ * bekleyen bir push hâlâ ham UploadThing/GIF adresi taşıyabilir; bildirimde
+ * bağlantı görünmesin (lib/message-preview). Grup gövdesi "Ad: metin".
+ */
+function previewBody(body: string | undefined): string {
+  if (!body) return "";
+  const colon = body.indexOf(": ");
+  if (colon > 0 && colon < 80) {
+    const head = body.slice(0, colon + 2);
+    const rest = formatMessagePreview({ content: body.slice(colon + 2) });
+    if (rest) return head + rest;
+  }
+  return formatMessagePreview({ content: body });
+}
+
 export async function handleDataPush(data: PushData): Promise<void> {
   const type = data.type.toLowerCase();
   const active = AppState.currentState === "active";
@@ -197,7 +214,7 @@ export async function handleDataPush(data: PushData): Promise<void> {
       if (prefs.notificationSounds) void playMessageTone();
       showInAppNotice({
         title: data.title ?? "Yeni mesaj",
-        body: data.body ?? "",
+        body: previewBody(data.body),
         icon: "message",
         onPress: () => router.push(`/chat/direct/${directId}`),
       });
@@ -208,7 +225,7 @@ export async function handleDataPush(data: PushData): Promise<void> {
       identifier: `message:${data.directId}`,
       content: {
         title: data.title ?? "Yeni mesaj",
-        body: data.body ?? "",
+        body: previewBody(data.body),
         data: { ...data, type: "message" },
         categoryIdentifier: MESSAGE_CATEGORY,
         sound: prefs.notificationSounds ? "default" : undefined,
@@ -228,7 +245,7 @@ export async function handleDataPush(data: PushData): Promise<void> {
     identifier: data.messageId ? `${type}:${data.messageId}` : undefined,
     content: {
       title: data.title ?? "Ciklet",
-      body: data.body ?? "",
+      body: previewBody(data.body),
       data: { ...data },
       sound: prefs.notificationSounds ? "default" : undefined,
       color: brand.primary,

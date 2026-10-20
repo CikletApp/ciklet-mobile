@@ -22,6 +22,18 @@ export const tr = {
     me: "Sen",
     unread: "{label}, {count} okunmamış",
   },
+  /** Önizleme etiketleri — yanıt alıntısı, bildirim, sohbet listesi (lib/message-preview). */
+  messagePreview: {
+    voice: "🎤 Sesli mesaj",
+    voiceWithDuration: "🎤 Sesli mesaj ({duration})",
+    image: "📷 Fotoğraf",
+    video: "🎥 Video",
+    gif: "GIF",
+    sticker: "Çıkartma",
+    clip: "🎬 Klip",
+    file: "📎 {name}",
+    attachment: "📎 Ek",
+  },
   settings: {
     title: "Ayarlar",
     editProfile: "Profilini düzenle",

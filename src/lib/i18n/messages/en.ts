@@ -17,6 +17,17 @@ export const en = {
     me: "You",
     unread: "{label}, {count} unread",
   },
+  messagePreview: {
+    voice: "🎤 Voice message",
+    voiceWithDuration: "🎤 Voice message ({duration})",
+    image: "📷 Photo",
+    video: "🎥 Video",
+    gif: "GIF",
+    sticker: "Sticker",
+    clip: "🎬 Clip",
+    file: "📎 {name}",
+    attachment: "📎 Attachment",
+  },
   settings: {
     title: "Settings",
     editProfile: "Edit your profile",

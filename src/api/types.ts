@@ -179,7 +179,10 @@ export interface DirectPeer {
 
 export interface DirectLatestMessage {
   id: string;
+  /** Ek adreslerinden ayıklanmış önizleme metni (sunucu `lib/message-preview`). */
   content: string;
+  /** Ek türü (`{ kind, durationMs?, name? }`); düz metin mesajında null/yok. */
+  media?: unknown;
   fileUrl: string | null;
   profileId: string;
   type:

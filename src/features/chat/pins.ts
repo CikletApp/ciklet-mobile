@@ -7,7 +7,8 @@ import type { ChatKind } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import type { PinFields } from "@/api/types";
 import { showToast } from "@/components/ui";
-import { attachmentPreviewLabel, classifyAttachment, readAttachmentInfo, type AttachmentKind } from "@/lib/attachments";
+import { classifyAttachment, readAttachmentInfo, type AttachmentKind } from "@/lib/attachments";
+import { formatMessagePreview } from "@/lib/message-preview";
 import type { ChatMessagePayload } from "@/realtime/events";
 import type { MessageCache } from "./reaction-cache";
 
@@ -185,13 +186,9 @@ export function pinAttachment(message: ChatMessagePayload): { url: string; kind:
 
 /** Çubuk ve liste için tek satırlık önizleme metni. */
 export function pinPreview(message: ChatMessagePayload): string {
-  const content = message.content.trim();
-  const url = message.fileUrl?.trim();
-  if (url && (!content || content === url || /^https?:\/\/\S+$/.test(content))) {
-    return attachmentPreviewLabel(url, readAttachmentInfo(message.metadata));
-  }
-  if (message.type === "ACTIVITY_INVITE") return content || "Aktivite daveti";
-  return content.replace(/\s+/g, " ") || "Mesaj";
+  if (message.type === "ACTIVITY_INVITE") return message.content.trim() || "Aktivite daveti";
+  // Ek adresi görünmez; türün etiketi ("🎤 Sesli mesaj") — lib/message-preview.
+  return formatMessagePreview(message, { fallback: "Mesaj" });
 }
 
 /** Mesajın yazarı — kanalda üye profili, DM'de doğrudan profil. */

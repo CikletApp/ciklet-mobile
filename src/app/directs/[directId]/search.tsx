@@ -17,6 +17,7 @@ import { Avatar, EmptyState, ErrorState, Icon, Pressable, Screen } from "@/compo
 import { formatChatListTime } from "@/lib/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { formatMessagePreview } from "@/lib/message-preview";
 
 /**
  * DM sohbetinin İÇİNDE arama — web'deki süzgeçli arama panelinin mobil
@@ -171,7 +172,7 @@ export default function DirectSearchScreen() {
                   </Text>
                 </View>
                 <Text style={{ ...typography.body, color: colors.text }} numberOfLines={2}>
-                  {item.content?.trim() || "Dosya eki"}
+                  {formatMessagePreview(item, { fallback: "Dosya eki" })}
                 </Text>
               </View>
             </Pressable>

@@ -17,6 +17,7 @@ import { Avatar, Icon, emojify, type IconName } from "@/components/ui";
 import { classifyAttachment, readAttachmentInfo } from "@/lib/attachments";
 import { isEmojiOnly } from "@/lib/emoji";
 import { formatTime } from "@/lib/format";
+import { formatMessagePreview } from "@/lib/message-preview";
 import { isOfficialProfile } from "@/lib/official";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useAuth } from "@/stores/auth";
@@ -324,7 +325,7 @@ export function MessageItem({
         </Text>
       ) : null}
       <Text style={{ ...typography.caption, color: colors.text }} numberOfLines={2}>
-        {replyTarget.content}
+        {formatMessagePreview(replyTarget)}
       </Text>
     </Pressable>
   ) : null;
