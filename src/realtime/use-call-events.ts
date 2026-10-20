@@ -56,9 +56,13 @@ import { playBusyTone, startRingtone, stopRingtone } from "@/lib/sounds";
  * bildirimi (tam ekran + Cevapla/Reddet, zil kanaldan) — bkz.
  * features/call/incoming-call.ts; ekrana dönünce JS zili devralır.
  *
- * iOS'ta (CallKit, features/call/callkit.ts) zili HER DURUMDA sistem çalar:
- * gelen arama CallKit'e bildirilir, uygulama içi zil ekranı (CallOverlay)
- * önde yine görünür ama zil sesi/titreşim çalınmaz — ikisi üst üste binerdi.
+ * iOS'ta (CallKit, features/call/callkit.ts) zili HER DURUMDA sistem çalar
+ * ve gelen aramanın TEK arayüzü sistemin arama arayüzüdür (WhatsApp gibi):
+ * önde üst şerit, kilitliyken/arka planda tam ekran. Uygulama içi zil ekranı
+ * (CallOverlay) ve zil sesi/titreşim çizilmez/çalınmaz — ikisi üst üste
+ * binerdi (`ringsInSystemUi`). Yalnızca sistem çağrıyı almazsa (Rahatsız
+ * Etmeyin vb.) ya da kabulde oda adı çözülemezse uygulama içi zile dönülür.
+ * Bunun bedeli: "mesajla reddet" iOS'ta sistem arayüzünde yok.
  * Kapalı uygulamaya arama VoIP push'la gelir; yerel taraf çağrıyı JS'ten
  * önce bildirir, JS açılınca `takePendingEvents` ile durumu devralır.
  */
@@ -131,6 +135,7 @@ export function ring(frame: IncomingCallFrame) {
     peer: frame.caller,
     directId: frame.directChannelId ?? null,
     expiresAt: frame.expiresAt,
+    ringsInSystemUi: callKit !== null,
   });
 
   const pendingAction = consumePendingCallAction(frame.callId);
@@ -236,6 +241,13 @@ function ringFromNative(info: NativeIncomingCall): void {
   }
 }
 
+/** iOS: sistem arayüzü çalamıyor/yetmiyor — uygulama içi zil ekranını aç. */
+function fallBackToInAppRinging(callId: string): void {
+  const session = useCall.getState().session;
+  if (session?.callId !== callId || session.status !== "ringing" || !session.ringsInSystemUi) return;
+  useCall.setState({ session: { ...session, ringsInSystemUi: false } });
+}
+
 function handleCallKitAction(event: CallKitActionEvent, queryClient: QueryClient): void {
   const session = useCall.getState().session;
   const ringingHere =
@@ -250,7 +262,11 @@ function handleCallKitAction(event: CallKitActionEvent, queryClient: QueryClient
           return;
         }
       }
-      if (ringingHere) return; // oda adı yok: zil ekranı açık kalır, kullanıcı oradan kabul eder
+      if (ringingHere) {
+        // Oda adı yok: uygulama içi zil ekranı açılır, kullanıcı oradan kabul eder.
+        fallBackToInAppRinging(event.callId);
+        return;
+      }
       // Davet henüz yüklenmedi (soğuk açılış): `ring` bekleyen kabulü tüketir —
       // push yükü oda adını taşıyorsa hemen, taşımıyorsa bekleyen davetlerden.
       setPendingCallAction(event.callId, "accept");
@@ -278,8 +294,11 @@ function handleCallKitAction(event: CallKitActionEvent, queryClient: QueryClient
       }
       return;
     case "rejected":
-      // Sistem çağrıyı almadı (ör. Rahatsız Etmeyin): önde uygulama içi zil.
-      if (ringingHere && AppState.currentState === "active") startLocalRing();
+      // Sistem çağrıyı almadı (ör. Rahatsız Etmeyin): uygulama içi zil ekranı,
+      // önde zil sesi.
+      if (!ringingHere) return;
+      fallBackToInAppRinging(event.callId);
+      if (AppState.currentState === "active") startLocalRing();
       return;
     default:
       // mute/unmute: LiveKit odasındaki CallKitMuteSync işler.

@@ -36,6 +36,13 @@ export interface CallSession {
   /** Gelen davetin sunucu tarafındaki son geçerlilik anı (epoch ms). */
   expiresAt?: number;
   startedAt?: number;
+  /**
+   * iOS: gelen arama sistem arama arayüzünde (CallKit) çalıyor — uygulama
+   * içi zil ekranı çizilmez, ikisi üst üste binerdi (WhatsApp gibi önde de
+   * sistem arayüzü). Sistem çağrıyı almazsa (Rahatsız Etmeyin) ya da kabulde
+   * oda adı çözülemezse `false` olur ve uygulama içi zil ekranı açılır.
+   */
+  ringsInSystemUi?: boolean;
 }
 
 interface CallState {

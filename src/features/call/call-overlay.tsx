@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { router } from "expo-router";
 import { LiveKitRoom, useConnectionState, useParticipants } from "@livekit/react-native";
 import { ConnectionState } from "livekit-client";
@@ -20,6 +20,7 @@ import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { callKit } from "./callkit";
 import { CallKitMuteSync } from "./callkit-mute-sync";
+import { CallSurface } from "./call-surface";
 import { MiniCall } from "./mini-call";
 import { useOngoingCallService } from "./use-ongoing-call-service";
 import { useCallTimer } from "./use-call-timer";
@@ -31,8 +32,12 @@ import { useVideoUpgradeActions, useVideoUpgradeListener } from "./video-upgrade
  * Çağrı katmanı — uygulamanın her yerinden görünür.
  *
  * Üç durum tek bileşende: gelen arama (zil), giden arama (bekleme) ve bağlı
- * çağrı. Tam ekran modal olarak açılır; kullanıcı hangi ekranda olursa olsun
- * gelen aramayı görür. Bu yüzden kök düzene bağlanır, tek tek ekranlara değil.
+ * çağrı. Tam ekran yüzeyde açılır (CallSurface: Android'de Modal, iOS'ta
+ * pencere katmanı — nedeni orada); kullanıcı hangi ekranda olursa olsun
+ * çağrıyı görür. Bu yüzden kök düzene bağlanır, tek tek ekranlara değil.
+ *
+ * iOS'ta gelen aramanın zili sistem arama arayüzünde (CallKit); uygulama içi
+ * zil ekranı yalnızca sistem çağrıyı almazsa açılır (`ringsInSystemUi`).
  */
 /** Aramayı mesajla reddet (WhatsApp) — zil ekranının içinde açılır. */
 const QUICK_REPLIES = [
@@ -90,14 +95,15 @@ export function CallOverlay() {
     return <ConnectedCall directId={resolvedDirectId} onHangUp={hangUp} kind={session.kind} />;
   }
 
+  // iOS: gelen arama sistem arama arayüzünde çalıyor (use-call-events `ring`);
+  // uygulama içi zil ekranı onunla üst üste binmesin.
+  if (isRinging && session.ringsInSystemUi) {
+    if (repliesOpen) setRepliesOpen(false);
+    return null;
+  }
+
   return (
-    <Modal
-      visible
-      animationType="slide"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={hangUp}
-    >
+    <CallSurface onRequestClose={hangUp}>
       <View style={{ flex: 1, backgroundColor: colors.deep }}>
         {(
           <View
@@ -199,7 +205,7 @@ export function CallOverlay() {
           </View>
         )}
       </View>
-    </Modal>
+    </CallSurface>
   );
 }
 
@@ -257,7 +263,7 @@ function ConnectedCall({
 
   if (error || !token) {
     return (
-      <Modal visible animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={onHangUp}>
+      <CallSurface onRequestClose={onHangUp}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xl, backgroundColor: background }}>
           {error ? (
             <>
@@ -277,7 +283,7 @@ function ConnectedCall({
             </Text>
           )}
         </View>
-      </Modal>
+      </CallSurface>
     );
   }
 
@@ -292,13 +298,7 @@ function ConnectedCall({
     >
       <VideoUpgradeBridge />
       <CallKitMuteSync />
-      <Modal
-        visible={!minimized}
-        animationType="slide"
-        statusBarTranslucent
-        navigationBarTranslucent
-        onRequestClose={minimize}
-      >
+      <CallSurface visible={!minimized} onRequestClose={minimize}>
         <View style={{ flex: 1, backgroundColor: background }}>
           {kind === "video" ? (
             <VideoCallStage onHangUp={onHangUp} onMinimize={minimize} onOpenChat={openChat} />
@@ -306,7 +306,7 @@ function ConnectedCall({
             <CallStage onHangUp={onHangUp} onMinimize={minimize} onOpenChat={openChat} />
           )}
         </View>
-      </Modal>
+      </CallSurface>
       {minimized ? <MiniCall kind={kind} onRestore={() => setMinimized(false)} onHangUp={onHangUp} /> : null}
     </LiveKitRoom>
   );
