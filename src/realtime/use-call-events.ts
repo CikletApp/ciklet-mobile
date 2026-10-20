@@ -19,7 +19,7 @@ import { usePresenceStore } from "@/stores/presence";
 import { ServerEvent } from "./events";
 import { onGatewayEvent, onGatewayOpen } from "./gateway";
 import { showDialog } from "@/components/ui";
-import { startRingtone, stopRingtone } from "@/lib/sounds";
+import { playBusyTone, startRingtone, stopRingtone } from "@/lib/sounds";
 
 /**
  * DM aramaları — ADR-0012 sonrası.
@@ -142,6 +142,9 @@ export function ring(frame: IncomingCallFrame) {
 }
 
 /** Çalan ya da bağlı çağrıyı yerelde kapat (sunucuya istek atmaz). */
+/** Reddedilen giden aramada "Meşgul" ekranının kalma süresi (meşgul sesi 3 sn). */
+const BUSY_HOLD_MS = 3_000;
+
 export function stopCallLocally(): void {
   const session = useCall.getState().session;
   Vibration.cancel();
@@ -177,6 +180,17 @@ export function useCallEvents() {
       onGatewayEvent(ServerEvent.CALL_DENIED, (frame) => {
         const session = useCall.getState().session;
         if (session?.callId && frame.callId && session.callId !== frame.callId) return;
+        // Arayan: telefon gibi "Meşgul" + meşgul sesi, sonra kapanır.
+        if (session?.direction === "outgoing" && session.status === "calling") {
+          useCall.getState().markBusy();
+          void playBusyTone();
+          const busyCallId = session.callId;
+          setTimeout(() => {
+            const current = useCall.getState().session;
+            if (current?.status === "busy" && current.callId === busyCallId) stopCall();
+          }, BUSY_HOLD_MS);
+          return;
+        }
         stopCall();
       }),
 

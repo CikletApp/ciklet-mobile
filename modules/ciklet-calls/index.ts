@@ -25,7 +25,7 @@ export interface IncomingCallOptions {
   declineUrl?: string | null;
 }
 
-export type CallActionEvent = { action: "decline" | "accept" | "show"; callId: string };
+export type CallActionEvent = { action: "decline" | "accept" | "show" | "hangup"; callId: string };
 
 type CikletCallsEvents = {
   onCallAction: (event: CallActionEvent) => void;
@@ -40,6 +40,13 @@ declare class CikletCallsModule extends NativeModule<CikletCallsEvents> {
   /** Bildirimi düşürür ve kilit ekranı bayraklarını kapatır. */
   dismissIncomingCall(callId?: string | null): void;
   setShowWhenLocked(enabled: boolean): void;
+  /**
+   * Süren görüşmenin ön plan hizmeti (mikrofon, görüntülüde kamera) — arka
+   * plana geçince Android'in ses/görüntüyü kesip süreci öldürmesini önler.
+   * Görüşme ÖN PLANDAYKEN başlatılmalı.
+   */
+  startOngoingCall(title: string, video: boolean, callId: string): void;
+  stopOngoingCall(): void;
 }
 
 export default requireOptionalNativeModule<CikletCallsModule>("CikletCalls");

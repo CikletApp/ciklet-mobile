@@ -15,6 +15,9 @@ import { useVoice } from "@/stores/voice";
 
 let ringtone: AudioPlayer | null = null;
 let messageTone: AudioPlayer | null = null;
+let ringback: AudioPlayer | null = null;
+let busyTone: AudioPlayer | null = null;
+let busyTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Ses kipi türe göre ayrı. Zil ses odağını TAMAMEN alır ("doNotMix");
@@ -42,6 +45,12 @@ useVoice.subscribe((state, prev) => {
 });
 useCall.subscribe((state, prev) => {
   if (prev.session?.status === "connected" && state.session?.status !== "connected") currentMode = null;
+  // Giden arama çalarken çalma sesi; açılınca, reddedilince ya da düşünce susar.
+  const calling = state.session?.direction === "outgoing" && state.session.status === "calling";
+  const wasCalling = prev.session?.direction === "outgoing" && prev.session.status === "calling";
+  if (calling && !wasCalling) void startRingback();
+  else if (!calling && wasCalling) stopRingback();
+  if (!state.session && prev.session) stopBusyTone();
 });
 
 async function applyMode(kind: SoundMode): Promise<void> {
@@ -103,6 +112,61 @@ export function stopRingtone(): void {
     void ringtone?.seekTo(0);
   } catch {
     /* oynatıcı çoktan serbest bırakılmış */
+  }
+}
+
+/**
+ * Giden aramada çalma sesi ("dıt… dıt…"): karşı taraf açana, reddedene ya
+ * da arama düşene kadar döner. Türkiye çalma tonu: 450 Hz, 1 sn açık, 4 sn
+ * kapalı (assets/sounds/ringback.wav). Eskiden arayan hiçbir şey duymuyor,
+ * aramanın gerçekten çalıp çalmadığını anlamıyordu.
+ */
+export async function startRingback(): Promise<void> {
+  try {
+    if (!inLiveAudio()) await applyMode("ring");
+    ringback ??= createAudioPlayer(require("../../assets/sounds/ringback.wav"));
+    ringback.loop = true;
+    ringback.volume = 0.8;
+    await ringback.seekTo(0);
+    ringback.play();
+  } catch (error) {
+    if (__DEV__) console.warn("[ses] çalma sesi çalınamadı", error);
+  }
+}
+
+export function stopRingback(): void {
+  try {
+    ringback?.pause();
+    void ringback?.seekTo(0);
+  } catch {
+    /* oynatıcı çoktan serbest bırakılmış */
+  }
+}
+
+/** Meşgul sesi (karşı taraf reddetti): 450 Hz, 0,5 sn açık/kapalı, 3 kez. */
+export async function playBusyTone(): Promise<void> {
+  stopRingback();
+  try {
+    if (!inLiveAudio()) await applyMode("ring");
+    busyTone ??= createAudioPlayer(require("../../assets/sounds/busy.wav"));
+    busyTone.loop = false;
+    busyTone.volume = 0.8;
+    await busyTone.seekTo(0);
+    busyTone.play();
+    if (busyTimer) clearTimeout(busyTimer);
+    busyTimer = setTimeout(stopBusyTone, 3_200);
+  } catch (error) {
+    if (__DEV__) console.warn("[ses] meşgul sesi çalınamadı", error);
+  }
+}
+
+export function stopBusyTone(): void {
+  if (busyTimer) clearTimeout(busyTimer);
+  busyTimer = null;
+  try {
+    busyTone?.pause();
+  } catch {
+    /* zaten durmuş */
   }
 }
 

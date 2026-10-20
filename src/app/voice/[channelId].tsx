@@ -40,6 +40,7 @@ import { LIVEKIT_URL, type VoiceModerationState } from "@/lib/livekit";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { useOngoingCallService } from "@/features/call/use-ongoing-call-service";
 
 /**
  * Sesli kanal ekranı.
@@ -99,6 +100,14 @@ export default function VoiceChannelScreen() {
     leave();
     router.back();
   }, [leave]);
+
+  // Başka uygulamaya geçince ses kesilmesin (Android ön plan hizmeti).
+  useOngoingCallService({
+    title: channel?.name ?? "Ses kanalı",
+    video: isVideo,
+    callId: channelId ?? "voice",
+    onHangUp: onLeave,
+  });
 
   // Taşınırken önce eski oturum kapanır: ekran LiveKit odasını söker
   // (bağlantı kopar), sonra yeni kanalın ekranına geçilir.

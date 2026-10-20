@@ -200,7 +200,7 @@ object IncomingCallNotifier {
     }
   }
 
-  private fun smallIcon(context: Context): Int {
+  internal fun smallIcon(context: Context): Int {
     val custom = context.resources.getIdentifier("notification_icon", "drawable", context.packageName)
     return if (custom != 0) custom else context.applicationInfo.icon
   }

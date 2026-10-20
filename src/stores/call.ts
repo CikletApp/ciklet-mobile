@@ -20,7 +20,8 @@ export interface CallPeer {
   imageUrl: string | null;
 }
 
-export type CallStatus = "ringing" | "calling" | "connected";
+/** "busy": karşı taraf reddetti — arayan birkaç saniye "Meşgul" görür ve meşgul sesi duyar. */
+export type CallStatus = "ringing" | "calling" | "connected" | "busy";
 export type CallKind = "audio" | "video";
 
 export interface CallSession {
@@ -57,6 +58,7 @@ interface CallState {
   setMuted: (muted: boolean) => void;
   setSpeaker: (speaker: boolean) => void;
   setMinimized: (minimized: boolean) => void;
+  markBusy: () => void;
   setCameraFacing: (facing: "user" | "environment") => void;
 }
 
@@ -88,5 +90,6 @@ export const useCall = create<CallState>((set) => ({
   setMuted: (muted) => set({ muted }),
   setSpeaker: (speaker) => set({ speaker }),
   setMinimized: (minimized) => set({ minimized }),
+  markBusy: () => set((state) => (state.session ? { session: { ...state.session, status: "busy" } } : state)),
   setCameraFacing: (cameraFacing) => set({ cameraFacing }),
 }));

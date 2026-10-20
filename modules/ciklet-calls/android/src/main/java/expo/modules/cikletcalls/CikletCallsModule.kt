@@ -94,6 +94,15 @@ class CikletCallsModule : Module() {
       appContext.currentActivity?.let { IncomingCallNotifier.applyLockScreenFlags(it, false) }
     }
 
+    /** Süren görüşme ön plan hizmeti — arka planda ses/görüntü kesilmesin. */
+    Function("startOngoingCall") { title: String, video: Boolean, callId: String ->
+      OngoingCallService.start(context, title, video, callId)
+    }
+
+    Function("stopOngoingCall") {
+      OngoingCallService.stop(context)
+    }
+
     Function("setShowWhenLocked") { enabled: Boolean ->
       appContext.currentActivity?.let { IncomingCallNotifier.applyLockScreenFlags(it, enabled) }
     }

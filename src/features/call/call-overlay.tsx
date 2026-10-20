@@ -18,6 +18,7 @@ import { useCallActions } from "@/realtime/use-call-events";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { MiniCall } from "./mini-call";
+import { useOngoingCallService } from "./use-ongoing-call-service";
 import { useCallTimer } from "./use-call-timer";
 import { VideoCallStage } from "./video-call-stage";
 
@@ -117,7 +118,9 @@ export function CallOverlay() {
                 ? session.kind === "video"
                   ? "Görüntülü arıyor…"
                   : "Sesli arıyor…"
-                : "Aranıyor…"}
+                : session.status === "busy"
+                  ? "Meşgul"
+                  : "Aranıyor…"}
             </Text>
           </View>
         )}
@@ -217,8 +220,17 @@ function ConnectedCall({
   });
   const minimized = useCall((s) => s.minimized);
   const setMinimized = useCall((s) => s.setMinimized);
+  const session = useCall((s) => s.session);
 
   useKeepAwake();
+  // Arka plana geçince (başka uygulama) görüşme düşmesin: Android ön plan
+  // hizmeti mikrofonu/kamerayı ve süreci canlı tutar.
+  useOngoingCallService({
+    title: session ? displayNameOf(session.peer) : "Görüşme",
+    video: kind === "video",
+    callId: session?.callId ?? directId,
+    onHangUp,
+  });
 
   const minimize = () => setMinimized(true);
   const openChat = () => {
