@@ -26,11 +26,12 @@ import type { MessageCache } from "./reaction-cache";
  * simgesi). Tetikleyiciler: yeni kayıt, ağ geri geldi (NetInfo), ağ
  * geçidi yeniden bağlandı, uygulama ön plana döndü, bekleme süresi doldu.
  *
- * Çift gönderim: HTTP gönderim ucu istemci nonce'u KABUL ETMİYOR (gövde
- * şeması `.strict()`; yalnızca ağ geçidi zarfı `clientNonce` taşıyor). Yanıt
- * gelmeden kopan istek sunucuya ulaşmış olabilir; böyle kayıt "belirsiz"
- * işaretlenir ve yeniden göndermeden önce sohbetin en yeni sayfasında
- * aynı içerikli kendi mesajımız aranır.
+ * Çift gönderim: her kayıt kuyruk kimliğini `clientNonce` olarak gönderir;
+ * sunucu aynı nonce'la gelen tekrarı yeni mesaj yazmadan ilk yanıtla
+ * karşılar (ciklet-web lib/message-nonce, 10 dk). Yedek olarak (nonce'u
+ * bilmeyen eski sunucu) yanıtı gelmeden kopan kayıt "belirsiz" işaretlenir
+ * ve yeniden göndermeden önce sohbetin en yeni sayfasında aynı içerikli
+ * kendi mesajımız aranır.
  */
 
 const OUTBOX_DIR = "outbox";
@@ -234,7 +235,9 @@ async function deliver(entry: OutboxMessage): Promise<void> {
       current.kind === "channel"
         ? endpoints.sendChannelMessage(current.chatId, current.serverId ?? "")
         : endpoints.sendDirectMessage(current.chatId),
-      { method: "POST", body: { content: current.content, ...current.payload } }
+      // `clientNonce`: sunucu aynı nonce'la gelen tekrarı yeni mesaj yazmadan
+      // ilk yanıtla karşılar (ciklet-web lib/message-nonce).
+      { method: "POST", body: { content: current.content, ...current.payload, clientNonce: current.id } }
     );
     // Yanıt sunum katmanından geçmiş tam mesaj; kimliği varsa listeye hemen
     // yazılır, yoksa canlı yayın satırı düşürür.
