@@ -7,9 +7,10 @@ import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useCheckout, useMentolPlan } from "@/api/hooks";
 import { Button, Pressable, Screen, SectionHeader, TextField, showDialog } from "@/components/ui";
+import { MentolIapCard } from "@/features/mentol/iap-card";
 import { RewardedCard } from "@/features/mentol/rewarded-card";
 import { formatTime } from "@/lib/format";
-import { PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
+import { IAP_ENABLED, PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -49,6 +50,14 @@ export default function MentolSettingsScreen() {
           </>
         ) : null}
 
+        {/* Mağaza içi abonelik (App Store / Google Play) — derleme bayrağıyla (lib/purchases). */}
+        {IAP_ENABLED ? (
+          <>
+            <SectionHeader title="MENTOL ABONELİĞİ" />
+            <MentolIapCard plan={plan.data} />
+          </>
+        ) : null}
+
         {/* iOS'ta kodla açma, satın alma, hediye ve plan tanıtımı yok (lib/purchases). */}
         {PURCHASES_ENABLED ? (
           <>
@@ -58,8 +67,9 @@ export default function MentolSettingsScreen() {
               <Button label="Kodu Kullan" onPress={() => redeem.mutate()} loading={redeem.isPending} disabled={!code.trim()} fullWidth />
             </View>
 
-            <SectionHeader title="HEDİYE ET YA DA SATIN AL" />
-            <MentolGiftCard />
+            <SectionHeader title={IAP_ENABLED ? "HEDİYE ET" : "HEDİYE ET YA DA SATIN AL"} />
+            {/* Mağaza aboneliği açıkken kendine alma mağazadan; web ödemesi yalnızca hediye. */}
+            <MentolGiftCard giftOnly={IAP_ENABLED} />
           </>
         ) : null}
 
@@ -74,7 +84,7 @@ export default function MentolSettingsScreen() {
           />
         </View>
 
-        {PURCHASES_ENABLED ? (
+        {PURCHASES_ENABLED || IAP_ENABLED ? (
           <>
             <SectionHeader title="PLANLAR" />
             <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
@@ -97,7 +107,7 @@ export default function MentolSettingsScreen() {
  * ödeme kaydı → web ödeme sayfası tarayıcıda. Ad boşsa plan kendine alınır.
  * Ödeme uygulama içinde yapılmaz (mağaza kuralları; bkz. `use-store.ts`).
  */
-function MentolGiftCard() {
+function MentolGiftCard({ giftOnly = false }: { giftOnly?: boolean }) {
   const checkout = useCheckout();
   const [username, setUsername] = useState("");
   const [plan, setPlan] = useState<"PLUS" | "PRO">("PLUS");
@@ -113,7 +123,9 @@ function MentolGiftCard() {
   return (
     <View style={{ marginHorizontal: spacing.lg, padding: spacing.lg, gap: spacing.md, borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel }}>
       <Text style={{ ...typography.caption, color: colors.muted }}>
-        Kullanıcı adını yaz, planı seç; ödeme tamamlanınca Mentol doğrudan o kişiye işlenir. Boş bırakırsan plan sana alınır.
+        {giftOnly
+          ? "Kullanıcı adını yaz, planı seç; ödeme tamamlanınca Mentol doğrudan o kişiye işlenir."
+          : "Kullanıcı adını yaz, planı seç; ödeme tamamlanınca Mentol doğrudan o kişiye işlenir. Boş bırakırsan plan sana alınır."}
       </Text>
       <TextField label="KİME?" value={username} onChangeText={setUsername} placeholder="@kullaniciadi" autoCapitalize="none" autoCorrect={false} />
       <ChoiceRow
@@ -132,7 +144,14 @@ function MentolGiftCard() {
           { value: "yearly", label: "1 yıl" },
         ]}
       />
-      <Button label={giftTo ? "Hediye et" : "Satın al"} icon={giftTo ? "heart" : "sparkles"} onPress={submit} loading={checkout.isPending} fullWidth />
+      <Button
+        label={giftTo || giftOnly ? "Hediye et" : "Satın al"}
+        icon={giftTo || giftOnly ? "heart" : "sparkles"}
+        onPress={submit}
+        loading={checkout.isPending}
+        disabled={giftOnly && !giftTo}
+        fullWidth
+      />
       <Text style={{ ...typography.caption, color: colors.muted }}>
         Ödeme web ödeme sayfasında, tarayıcıda tamamlanır. Botlara ve kendine hediye gönderilemez.
       </Text>

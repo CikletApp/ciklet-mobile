@@ -91,7 +91,8 @@
           "cameraPermission": "Fotoğraf çekip göndermek için kamera erişimi gerekir."
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": true,

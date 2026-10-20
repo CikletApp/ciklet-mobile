@@ -63,6 +63,18 @@ export interface MentolPlan {
    */
   source?: "paid" | "reward" | null;
   features: { label: string; maxUploadMb: number; maxServers: number; customThemes: boolean; badge: boolean };
+  /** App Store / Google Play aboneliği (sunucu desteklemiyorsa alan yok). */
+  store?: MentolStoreSubscription | null;
+}
+
+export interface MentolStoreSubscription {
+  platform: "apple" | "google";
+  productId: string;
+  plan: "PLUS" | "PRO";
+  /** active | grace | billing_retry | canceled | on_hold | paused | expired | revoked | pending */
+  status: string;
+  autoRenew: boolean | null;
+  expiresAt: string | null;
 }
 
 /**
