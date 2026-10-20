@@ -2,12 +2,19 @@ import { create } from "zustand";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import type { PresenceEntry, RichPresence } from "@/api/types";
+import { visibleActivity, type RecognizedSet } from "@/lib/recognized-games";
 
 /**
  * Presence deposu — soket-güdümlü, sunucudan gelen tek doğruluk kaynağı.
  *
  * TanStack Query'de tutulmaz: bu veri istekle değil yayınla gelir, sık
  * değişir ve önbelleğe alınması anlamsızdır.
+ *
+ * Etkinlikler HAM tutulur; Ciklet'in tanımadığı oyun/program
+ * (lib/recognized-games) seçicide süzülür — tanınan küme sonradan gelince
+ * önceden alınmış etkinlikler de görünür. Bileşenler etkinliği
+ * {@link usePresence} ile ya da `entries` okuyorsa {@link useRecognizedGames}
+ * + `visibleActivity` ile okumalı.
  */
 interface PresenceState {
   entries: Record<string, PresenceEntry>;
@@ -28,6 +35,11 @@ interface PresenceState {
    * kullanıcıya bir an "Çevrimiçi ✓" göstermemek için seçici bunu bekler.
    */
   selfKnown: boolean;
+  /**
+   * Tanınan oyun/program ad anahtarları (`GET /api/games/recognized`,
+   * realtime/recognized-games). Yüklenene dek null: oyun kovası gizli.
+   */
+  recognized: RecognizedSet | null;
 
   /** `statuses` sunucudan DİZİ olarak gelir — bkz. realtime/events.ts. */
   applyBatch: (
@@ -37,6 +49,7 @@ interface PresenceState {
   setStatus: (userId: string, status: PresenceStatus) => void;
   setActivity: (userId: string, activity: RichPresence | null) => void;
   setSelfStatus: (status: PresenceStatus, manual?: PresenceStatus) => void;
+  setRecognized: (keys: RecognizedSet) => void;
   reset: () => void;
 }
 
@@ -47,6 +60,7 @@ export const usePresenceStore = create<PresenceState>((set) => ({
   selfStatus: PresenceStatus.ONLINE,
   selfManual: PresenceStatus.ONLINE,
   selfKnown: false,
+  recognized: null,
 
   applyBatch: (statuses, activities) =>
     set((state) => {
@@ -93,7 +107,16 @@ export const usePresenceStore = create<PresenceState>((set) => ({
 
   setSelfStatus: (selfStatus, manual) => set({ selfStatus, selfManual: manual ?? selfStatus, selfKnown: true }),
 
-  reset: () => set({ entries: {}, selfStatus: PresenceStatus.ONLINE, selfManual: PresenceStatus.ONLINE, selfKnown: false }),
+  setRecognized: (recognized) => set({ recognized }),
+
+  reset: () =>
+    set({
+      entries: {},
+      selfStatus: PresenceStatus.ONLINE,
+      selfManual: PresenceStatus.ONLINE,
+      selfKnown: false,
+      recognized: null,
+    }),
 }));
 
 /**
@@ -102,9 +125,18 @@ export const usePresenceStore = create<PresenceState>((set) => ({
  * listeyi yeniden render eder.
  */
 export function usePresence(userId: string | undefined): PresenceEntry {
-  return usePresenceStore((state) =>
+  const entry = usePresenceStore((state) =>
     userId ? (state.entries[userId] ?? EMPTY) : EMPTY
   );
+  const recognized = usePresenceStore((state) => state.recognized);
+  // Ciklet'in tanımadığı oyun/program görünmez (lib/recognized-games).
+  const activity = visibleActivity(entry.activity, recognized);
+  return activity === entry.activity ? entry : { ...entry, activity };
+}
+
+/** Tanınan oyun kümesi — `entries`'i doğrudan okuyan listeler etkinliği bununla süzer. */
+export function useRecognizedGames(): RecognizedSet | null {
+  return usePresenceStore((state) => state.recognized);
 }
 
 export function usePresenceStatus(userId: string | undefined): PresenceStatus {

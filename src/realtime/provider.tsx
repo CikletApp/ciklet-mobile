@@ -14,6 +14,7 @@ import {
   stopGateway,
   wakeGateway,
 } from "./gateway";
+import { startRecognizedGamesSync } from "./recognized-games";
 import { useCallEvents } from "./use-call-events";
 import { useMessageNotifications } from "./use-message-notifications";
 import { useSocialEvents } from "./use-social-events";
@@ -103,6 +104,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     }
     startGateway();
   }, [status, resetPresence]);
+
+  // Tanınan oyun kümesi: gelene dek oyun/program etkinlikleri gizli
+  // (lib/recognized-games); 10 dk'da bir tazelenir.
+  useEffect(() => {
+    if (status !== "signedIn") return;
+    return startRecognizedGamesSync();
+  }, [status]);
 
   // ── Ön plan / arka plan ───────────────────────────────────────────
   const appState = useRef<AppStateStatus>(AppState.currentState);

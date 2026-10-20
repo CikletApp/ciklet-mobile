@@ -10,7 +10,8 @@ import { Avatar, Icon, Pressable } from "@/components/ui";
 import { resolveMediaUrl } from "@/lib/config";
 import { displayNameOf, formatActivity } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
-import { usePresenceStore } from "@/stores/presence";
+import { visibleActivity } from "@/lib/recognized-games";
+import { usePresenceStore, useRecognizedGames } from "@/stores/presence";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
@@ -25,20 +26,25 @@ const ACTIVITY_CARD_WIDTH = 210;
 export function ActiveNow() {
   const { accepted } = useFriends();
   const entries = usePresenceStore((s) => s.entries);
+  const recognized = useRecognizedGames();
   const openDirect = useOpenDirect();
   const scheme = useTheme((s) => s.scheme);
   // Yalnızca bir şey YAPANLAR (oyun, müzik, yayın…): web'deki "Şimdi Aktif"
   // gibi. Aktivitesiz çevrimiçi arkadaş burada gösterilmez; çevrimiçi
-  // olduğu sohbet listesindeki durum noktasından zaten görünüyor.
+  // olduğu sohbet listesindeki durum noktasından zaten görünüyor. Ciklet'in
+  // tanımadığı oyun/program etkinlik sayılmaz (lib/recognized-games).
   const active = useMemo(
     () => accepted
-      .map((friend) => ({ friend, entry: entries[friend.profile.id] }))
-      .filter((item): item is { friend: typeof item.friend; entry: NonNullable<typeof item.entry> } =>
+      .map((friend) => {
+        const entry = entries[friend.profile.id];
+        return { friend, status: entry?.status, activity: visibleActivity(entry?.activity, recognized) };
+      })
+      .filter((item): item is { friend: typeof item.friend; status: PresenceStatus; activity: RichPresence } =>
         !isOfficialProfile(item.friend.profile) &&
-        ACTIVE_STATUSES.includes(item.entry?.status ?? PresenceStatus.OFFLINE) &&
-        Boolean(item.entry?.activity)
+        ACTIVE_STATUSES.includes(item.status ?? PresenceStatus.OFFLINE) &&
+        Boolean(item.activity)
       ),
-    [accepted, entries]
+    [accepted, entries, recognized]
   );
   if (active.length === 0) return null;
 
@@ -48,8 +54,7 @@ export function ActiveNow() {
         ŞİMDİ AKTİF — {active.length}
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.md }}>
-        {active.map(({ friend, entry }) => {
-          const activity = entry?.activity;
+        {active.map(({ friend, activity }) => {
           // Kapaklar göreli yol olarak gelebilir (/api/presence/covers/…).
           const largeImage = resolveMediaUrl(activity?.largeImageUrl);
           const smallImage = resolveMediaUrl(activity?.smallImageUrl);

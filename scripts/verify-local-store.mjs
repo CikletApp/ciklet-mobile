@@ -1,4 +1,4 @@
-// Yerel depo, gönderim kuyruğu ve medya ön indirme kuyruğunun saf kurallarını doğrular.
+// Yerel depo, gönderim kuyruğu, medya ön indirme kuyruğu ve tanınan oyun kuralının saf mantığını doğrular.
 // Çalıştırma: node scripts/verify-local-store.mjs   (Node 22.18+: .ts tip ayıklama)
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -11,6 +11,7 @@ import {
 } from "../src/features/chat/message-db-logic.ts";
 import { backoffMs, nextSendable, nextWakeAt, queueHeads } from "../src/stores/outbox-logic.ts";
 import { createPrefetchQueue, pickVoiceTargets, prefetchBackoffMs } from "../src/lib/media-prefetch-logic.ts";
+import { isRecognizedGame, parseRecognizedKeys, recognitionKey, visibleActivity } from "../src/lib/recognized-games.ts";
 
 const msg = (id, minute, extra = {}) => ({
   id,
@@ -285,4 +286,31 @@ test("sesli mesaj seçimi: en yeniler, silinen/süresi dolan/büyük/ses olmayan
   // Tarama sınırı: dev geçmişin tamamına bakılmaz.
   assert.deepEqual(pickVoiceTargets(pages, { ...options, maxScan: 6 }).map((t) => t.url), ["https://cdn/9.m4a"]);
   assert.deepEqual(pickVoiceTargets(undefined, options), []);
+});
+
+// ── Tanınan oyunlar (src/lib/recognized-games.ts — web ile birebir) ──
+
+test("tanıma anahtarı: web normalizeGameName ile aynı, Latin dışı ad ham küçük harf", () => {
+  assert.equal(recognitionKey("VALORANT"), "valorant");
+  assert.equal(recognitionKey("Valorant™"), "valorant");
+  assert.equal(recognitionKey("  Pokémon® Légendes: Z-A "), "pokemon legendes z a");
+  assert.equal(recognitionKey("原神"), "原神");
+  assert.equal(recognitionKey("  ГТА  "), "гта");
+});
+
+test("tanıma: oyun/program kovası küme yokken gizli, müzik/yayın hep görünür", () => {
+  const set = parseRecognizedKeys({ keys: ["valorant", 3, null, "visual studio code"] });
+  assert.deepEqual([...set], ["valorant", "visual studio code"]);
+  for (const type of ["PLAYING", "COMPETING", "WORKING", "CREATING"]) {
+    assert.equal(isRecognizedGame(null, "VALORANT", type), false);
+    assert.equal(isRecognizedGame(set, "VALORANT", type), true);
+    assert.equal(isRecognizedGame(set, "Kendi Uygulamam", type), false);
+  }
+  for (const type of ["LISTENING", "WATCHING", "STREAMING"]) assert.equal(isRecognizedGame(null, "Spotify", type), true);
+  assert.equal(isRecognizedGame(set, "", "PLAYING"), false);
+  const game = { name: "Visual Studio Code", type: "WORKING" };
+  assert.equal(visibleActivity(game, set), game);
+  assert.equal(visibleActivity({ name: "x", type: "PLAYING" }, set), null);
+  assert.equal(visibleActivity(null, set), null);
+  assert.deepEqual([...parseRecognizedKeys(null)], []);
 });

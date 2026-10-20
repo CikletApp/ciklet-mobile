@@ -234,6 +234,11 @@ export const endpoints = {
     `/api/livekit${qs({ room, username })}`,
   activities: "/api/activities",
   activityAuthorize: "/api/activities/authorize",
+  /**
+   * GET `{ keys: string[] }` — Ciklet'in tanıdığı oyun/program ad anahtarları
+   * (oturum gerekir). Canlı oyun etkinliği bu kümeye göre süzülür (lib/recognized-games).
+   */
+  recognizedGames: "/api/games/recognized",
 
   // ── DM aramaları (ADR-0012: eylemler HTTP, sonuçları ağ geçidinden) ──
   /** POST `{ receiverId, type }` → `{ callId, expiresAt, directChannelId }`. */
