@@ -12,7 +12,10 @@ export function openThread(
   thread: { id: string; name: string },
   { replace = false }: { replace?: boolean } = {}
 ) {
-  const href = `/chat/channel/${thread.id}?serverId=${serverId}&parentId=${parentId}&threadName=${encodeURIComponent(thread.name)}`;
+  const href = {
+    pathname: "/chat/channel/[channelId]",
+    params: { channelId: thread.id, serverId, parentId, threadName: thread.name },
+  } as const;
   if (replace) router.replace(href);
   else router.push(href);
 }

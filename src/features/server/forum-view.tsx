@@ -10,6 +10,7 @@ import { formatChatListTime } from "@/lib/format";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { openThread } from "./thread-nav";
+import { usePullRefresh } from "@/lib/use-pull-refresh";
 
 /**
  * Forum kanalı — web forum sayfasının mobil karşılığı: sohbet yerine
@@ -23,6 +24,7 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
   const [tab, setTab] = useState<"open" | "archived">("open");
   const [tag, setTag] = useState<string | undefined>(undefined);
   const forum = useForumPosts(serverId, channelId, { sort, tag, archived: tab === "archived" });
+  const pull = usePullRefresh(forum.refetch);
   const tags = forum.data?.tags ?? [];
 
   return (
@@ -71,8 +73,8 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
           data={forum.data?.posts}
           keyExtractor={(post) => post.id}
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 120 }}
-          refreshing={forum.isRefetching}
-          onRefresh={() => void forum.refetch()}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           renderItem={({ item }) => (
             <PostCard post={item} onPress={() => openThread(serverId, channelId, item)} />
           )}

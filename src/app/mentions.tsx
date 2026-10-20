@@ -5,6 +5,7 @@ import { useMentions } from "@/api/hooks";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { MessagePreviewRow } from "@/features/social/message-preview-row";
 import { colors, spacing } from "@/theme/tokens";
+import { usePullRefresh } from "@/lib/use-pull-refresh";
 
 /**
  * Bahsetmeler (web `/mentions`) — son 7 günde senden bahsedilen kanal
@@ -13,6 +14,7 @@ import { colors, spacing } from "@/theme/tokens";
  */
 export default function MentionsScreen() {
   const mentions = useMentions();
+  const pull = usePullRefresh(mentions.refetch);
 
   return (
     <Screen>
@@ -24,7 +26,7 @@ export default function MentionsScreen() {
           data={mentions.data ?? []}
           keyExtractor={(entry) => entry.messageId}
           contentContainerStyle={{ paddingVertical: spacing.md, gap: spacing.sm, flexGrow: 1 }}
-          refreshControl={<RefreshControl refreshing={mentions.isRefetching} onRefresh={() => void mentions.refetch()} tintColor={colors.brand} />}
+          refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.brand} />}
           ListEmptyComponent={
             <View style={{ flex: 1, paddingTop: spacing["3xl"] }}>
               <EmptyState icon="bell" title="Bahsetme yok" description="Son 7 günde senden bahseden bir mesaj olmadı." />

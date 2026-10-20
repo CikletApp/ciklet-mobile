@@ -25,6 +25,7 @@ import {
 } from "@/components/ui";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { usePullRefresh } from "@/lib/use-pull-refresh";
 
 /**
  * Bildirimler — "bana ne oldu?" sorusunun tek yeri.
@@ -57,11 +58,7 @@ export default function NotificationsScreen() {
   const nothing = incoming.length === 0 && directs.length === 0 && unreadServers.length === 0;
   const loading = friendsLoading || inbox.isLoading;
 
-  const refresh = () => {
-    void refetchFriends();
-    void inbox.refetch();
-    void unread.refetch();
-  };
+  const pull = usePullRefresh(() => Promise.all([refetchFriends(), inbox.refetch(), unread.refetch()]));
 
   return (
     <Screen edges={["top", "left", "right"]}>
@@ -77,8 +74,8 @@ export default function NotificationsScreen() {
         // logolu rozet (Sohbetler ve Sunucular'la aynı).
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refresh}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             colors={["transparent"]}
             tintColor="transparent"
             progressBackgroundColor="transparent"

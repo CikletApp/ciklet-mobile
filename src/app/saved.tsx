@@ -6,6 +6,7 @@ import type { BookmarkEntry } from "@/api/types";
 import { EmptyState, IconButton, ListSkeleton, Screen, showToast } from "@/components/ui";
 import { MessagePreviewRow } from "@/features/social/message-preview-row";
 import { colors, spacing } from "@/theme/tokens";
+import { usePullRefresh } from "@/lib/use-pull-refresh";
 
 /**
  * Kaydedilenler (web `/saved`) — mesaj eylemlerinde "Kaydet" ile işaretlenen
@@ -15,6 +16,7 @@ import { colors, spacing } from "@/theme/tokens";
  */
 export default function SavedScreen() {
   const bookmarks = useBookmarks();
+  const pull = usePullRefresh(bookmarks.refetch);
   const toggle = useToggleBookmark();
 
   const open = (entry: BookmarkEntry) => {
@@ -43,7 +45,7 @@ export default function SavedScreen() {
           data={bookmarks.data ?? []}
           keyExtractor={(entry) => entry.messageId}
           contentContainerStyle={{ paddingVertical: spacing.md, gap: spacing.sm, flexGrow: 1 }}
-          refreshControl={<RefreshControl refreshing={bookmarks.isRefetching} onRefresh={() => void bookmarks.refetch()} tintColor={colors.brand} />}
+          refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.brand} />}
           ListEmptyComponent={
             <View style={{ flex: 1, paddingTop: spacing["3xl"] }}>
               <EmptyState

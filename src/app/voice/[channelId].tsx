@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import {
   isTrackReference,
   LiveKitRoom,
@@ -102,11 +102,11 @@ export default function VoiceChannelScreen() {
 
   // Taşınırken önce eski oturum kapanır: ekran LiveKit odasını söker
   // (bağlantı kopar), sonra yeni kanalın ekranına geçilir.
-  const [movingTo, setMovingTo] = useState<string | null>(null);
+  const [movingTo, setMovingTo] = useState<Href | null>(null);
   const onMove = useCallback(
     (targetChannelId: string, targetServerId: string) => {
       leave();
-      setMovingTo(`/voice/${targetChannelId}?serverId=${targetServerId}`);
+      setMovingTo({ pathname: "/voice/[channelId]", params: { channelId: targetChannelId, serverId: targetServerId } });
     },
     [leave]
   );

@@ -17,6 +17,7 @@ import {
 import { displayNameOf } from "@/lib/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { usePullRefresh } from "@/lib/use-pull-refresh";
 
 /**
  * Mesaj İstekleri (web `/requests`) — arkadaş listende olmayanlardan gelen
@@ -28,6 +29,7 @@ import { fw } from "@/theme/fonts";
  */
 export default function MessageRequestsScreen() {
   const requests = useMessageRequests();
+  const pull = usePullRefresh(requests.refetch);
   const respond = useRespondMessageRequest();
 
   const act = (entry: MessageRequestEntry, action: "accept" | "ignore" | "block") =>
@@ -58,7 +60,7 @@ export default function MessageRequestsScreen() {
           data={requests.data ?? []}
           keyExtractor={(entry) => entry.directId}
           contentContainerStyle={{ paddingVertical: spacing.md, gap: spacing.sm, flexGrow: 1 }}
-          refreshControl={<RefreshControl refreshing={requests.isRefetching} onRefresh={() => void requests.refetch()} tintColor={colors.brand} />}
+          refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.brand} />}
           ListHeaderComponent={
             <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs }}>
               Arkadaş listende olmayan kişilerden gelen mesajlar. Kabul edene kadar bildirim almazsın; kuralı Gizlilik ayarlarından değiştirebilirsin.

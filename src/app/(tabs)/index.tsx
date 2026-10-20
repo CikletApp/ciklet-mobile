@@ -50,6 +50,7 @@ import { usePreferences } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
 import { fw } from "@/theme/fonts";
+import { usePullRefresh } from "@/lib/use-pull-refresh";
 
 /**
  * Sohbetler — birebir ve grup mesajlarının tek evi.
@@ -71,7 +72,8 @@ const FILTERS: TabItem<Filter>[] = [
 
 export default function ChatsScreen() {
   const tabInset = useFloatingTabInset();
-  const { conversations, isLoading, refetch, isRefetching } = useConversationList();
+  const { conversations, isLoading, refetch } = useConversationList();
+  const pull = usePullRefresh(refetch);
   const { data: selfDirect } = useSelfDirect();
   const openDirect = useOpenDirect();
   const removeDirect = useRemoveDirect();
@@ -283,8 +285,8 @@ export default function ChatsScreen() {
           )}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
               colors={["transparent"]}
               tintColor="transparent"
               progressBackgroundColor="transparent"
@@ -310,7 +312,7 @@ export default function ChatsScreen() {
         />
       )}
 
-      <ModernRefreshIndicator visible={isRefetching} />
+      <ModernRefreshIndicator visible={pull.refreshing} />
 
     </Screen>
   );
