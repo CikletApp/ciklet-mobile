@@ -4,6 +4,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { useDirect, useDirectDisplay } from "@/api/hooks";
 import { Avatar, DropdownMenu, GroupAvatar, Icon, IconButton, type MenuItem } from "@/components/ui";
+import { OngoingCallBanner } from "@/features/call/ongoing-call-banner";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
 import { ChatWelcome } from "@/features/chat/components/chat-welcome";
@@ -177,6 +178,8 @@ export default function DirectChatScreen() {
       {canExpire ? (
         <DirectExpirySheet directId={directId} visible={expiryOpen} onClose={() => setExpiryOpen(false)} />
       ) : null}
+      {/* Süren görüşme: başka cihazındaysa "Buraya aktar", değilse "Katıl". */}
+      {canCall && peer ? <OngoingCallBanner directId={directId} peer={peer} /> : null}
       <ChatView
         kind="direct"
         chatId={directId}

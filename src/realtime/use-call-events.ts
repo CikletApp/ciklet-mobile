@@ -534,6 +534,28 @@ export function placeCallTo(peer: CallPeer, directId: string, kind: CallKind = "
     });
 }
 
+/**
+ * Süren bir DM görüşmesine katıl — davet ve zil YOK (features/call/ongoing-call).
+ *
+ * Görüşme başka bir cihazındaysa bu aktarımdır: LiveKit aynı kimliği taşıyan
+ * eski bağlantıyı düşürür. Oturum doğrudan "connected" açılır; iOS'ta CallKit
+ * eşitlemesi onu giden arama olarak bildirip hemen bağlı işaretler (ses
+ * oturumunu CallKit etkinleştiriyor). Sunucuya çağrı isteği gitmez: arama
+ * kaydı ve kart zaten var.
+ */
+export function joinOngoingCall(peer: CallPeer, directId: string, kind: CallKind = "audio"): void {
+  if (useCall.getState().session) return;
+  useCall.getState().start({
+    callId: null,
+    direction: "outgoing",
+    status: "connected",
+    kind,
+    peer,
+    directId,
+    startedAt: Date.now(),
+  });
+}
+
 export function useCallActions() {
   /** Bir kişiyi ara. `directId` LiveKit oda adı olarak kullanılır. */
   const placeCall = useCallback((peer: CallPeer, directId: string, kind: CallKind = "audio") => {

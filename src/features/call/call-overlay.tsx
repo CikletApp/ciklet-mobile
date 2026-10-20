@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { router } from "expo-router";
-import { LiveKitRoom, useConnectionState, useParticipants } from "@livekit/react-native";
-import { ConnectionState } from "livekit-client";
+import { LiveKitRoom, useConnectionState, useParticipants, useRoomContext } from "@livekit/react-native";
+import { ConnectionState, DisconnectReason, RoomEvent } from "livekit-client";
 import { useKeepAwake } from "expo-keep-awake";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,10 +15,14 @@ import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LIVEKIT_URL } from "@/lib/livekit";
 import { displayNameOf } from "@/lib/format";
-import { useCallActions } from "@/realtime/use-call-events";
+import { ClientEvent } from "@/realtime/events";
+import { onGatewayOpen, sendGatewayEvent } from "@/realtime/gateway";
+import { stopCallLocally, useCallActions } from "@/realtime/use-call-events";
 import { useCall } from "@/stores/call";
+import { useVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
-import { callKit } from "./callkit";
+import { callKit, setCallKitEndReason } from "./callkit";
+import { CALL_TRANSFERRED_MESSAGE } from "./ongoing-call";
 import { CallKitMuteSync } from "./callkit-mute-sync";
 import { CallSurface } from "./call-surface";
 import { MiniCall } from "./mini-call";
@@ -299,6 +303,7 @@ function ConnectedCall({
       options={{ adaptiveStream: true, dynacast: true }}
     >
       <VideoUpgradeBridge />
+      <CallPresenceBridge directId={directId} kind={initialKind} />
       <CallKitMuteSync />
       <CallSurface visible={!minimized} onRequestClose={minimize}>
         <View style={{ flex: 1, backgroundColor: background }}>
@@ -312,6 +317,63 @@ function ConnectedCall({
       {minimized ? <MiniCall kind={kind} onRestore={() => setMinimized(false)} onHangUp={onHangUp} /> : null}
     </LiveKitRoom>
   );
+}
+
+/**
+ * DM görüşmesinin ağ geçidi üyeliği ve başka cihaza aktarım.
+ *
+ * Üyelik: web gibi `voice.join` gönderilir. Gönderilmeseydi görüşme ağ
+ * geçidinde yalnızca LiveKit webhook'u üzerinden (cihaz bilgisi olmadan)
+ * görünür, kullanıcının masaüstü "Telefonunda görüşüyorsun" diyemez ve
+ * görüşmeyi buraya aktarmış masaüstünün kapanan soketi kullanıcıyı
+ * görüşmeden silebilirdi (ağ geçidi üyeliği katılan bağlantıya yazıyor).
+ * Sesli kanaldayken (iç içe oturum) gönderilmez: ağ geçidi bağlantı başına
+ * TEK kanal tutuyor ve DM katılımı sunucu kanalındaki üyeliği düşürürdü.
+ *
+ * Aktarım: LiveKit kimliği her cihazda aynı ve aynı hesapla başka yerden
+ * katılınınca bu bağlantıyı `DUPLICATE_IDENTITY` ile düşürür. Görüşme o
+ * zaman YALNIZCA burada kapanır: ayrılış ağ geçidine gitmez (kullanıcı hâlâ
+ * görüşmede), zil/CallKit/ön plan hizmeti sessizce durur, iOS sistem
+ * arayüzü "başka yerde yanıtlandı" der.
+ */
+function CallPresenceBridge({ directId, kind }: { directId: string; kind: "audio" | "video" }) {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    let joined = false;
+    let transferred = false;
+
+    const join = () => {
+      if (room.state !== ConnectionState.Connected) return;
+      if (useVoice.getState().active) return;
+      joined = true;
+      sendGatewayEvent({ event_type: ClientEvent.VOICE_JOIN, channel_id: directId, call_type: kind });
+    };
+    const onDisconnected = (reason?: DisconnectReason) => {
+      if (reason !== DisconnectReason.DUPLICATE_IDENTITY) return;
+      transferred = true;
+      setCallKitEndReason("elsewhere");
+      stopCallLocally();
+      showToast(CALL_TRANSFERRED_MESSAGE);
+    };
+
+    room.on(RoomEvent.Connected, join);
+    room.on(RoomEvent.Disconnected, onDisconnected);
+    // Ağ geçidi yeniden bağlanınca üyelik bu bağlantıya yeniden yazılmalı.
+    const releaseOpen = onGatewayOpen(join);
+    join();
+
+    return () => {
+      room.off(RoomEvent.Connected, join);
+      room.off(RoomEvent.Disconnected, onDisconnected);
+      releaseOpen();
+      if (joined && !transferred) {
+        sendGatewayEvent({ event_type: ClientEvent.VOICE_LEAVE, channel_id: directId });
+      }
+    };
+  }, [room, directId, kind]);
+
+  return null;
 }
 
 /** Sesliden görüntülüye geçiş isteklerini dinler — küçültülmüşken de takılı. */
