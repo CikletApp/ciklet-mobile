@@ -65,10 +65,12 @@
         "@livekit/react-native-expo-plugin",
         {
           "android": {
-            "audioType": "communication"
+            "audioType": "communication",
+            "enableScreenShareService": true
           }
         }
       ],
+      "./plugins/with-screen-share",
       "expo-image",
       "expo-web-browser",
       "expo-video",
