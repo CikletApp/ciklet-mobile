@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Directory, File, Paths } from "expo-file-system";
 
 import CikletDownloads from "../../modules/ciklet-downloads";
+import { localMediaUri } from "./media-cache";
 
 /**
  * Ek indirme — uygulamadan ÇIKMADAN.
@@ -93,6 +94,13 @@ async function savedDirectory(): Promise<Directory | null> {
 async function downloadToCache(url: string): Promise<File> {
   const staging = new Directory(Paths.cache, "downloads");
   if (!staging.exists) staging.create({ intermediates: true, idempotent: true });
+  // Medya önbelleğinde (lib/media-cache) kopyası varsa ağa çıkılmaz.
+  const local = localMediaUri(url, "file") ?? localMediaUri(url, "video") ?? localMediaUri(url, "voice");
+  if (local) {
+    const copy = new File(staging, `${Date.now()}`);
+    new File(local).copy(copy);
+    return copy;
+  }
   return File.downloadFileAsync(url, new File(staging, `${Date.now()}`));
 }
 
