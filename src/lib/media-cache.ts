@@ -1,10 +1,11 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { Directory, File, Paths } from "expo-file-system";
 
-import { usePreferences, type AutoDownload } from "@/stores/preferences";
+import { usePreferences } from "@/stores/preferences";
 import { enqueueWrite, localDb } from "./local-db";
-import { networkKind } from "./network";
+import { createPrefetchQueue, type PrefetchItem } from "./media-prefetch-logic";
+import { networkKind, onNetworkChange } from "./network";
 
 /**
  * Medya önbelleği — sesli mesaj, dosya ve videoların CİHAZDAKİ kopyası
@@ -19,6 +20,12 @@ import { networkKind } from "./network";
  * "memory-disk") onları zaten saklıyor.
  *
  * Toplam boyut {@link MAX_BYTES}'ı aşınca en uzun süredir açılmayanlar silinir.
+ *
+ * Sesli mesajlar ayrıca ARKA PLAN KUYRUĞUYLA iner ({@link prefetchVoice},
+ * kuralları `media-prefetch-logic.ts`): sohbet önbelleğine düştükleri anda
+ * (`features/chat/voice-prefetch`), ekranda görünmeseler de. Kuyruk kendi
+ * iki yuvasını kullanır; kullanıcının dokunduğu indirme onun arkasında
+ * beklemez.
  */
 
 export type MediaKind = "voice" | "file" | "video" | "image";
@@ -26,6 +33,12 @@ export type MediaKind = "voice" | "file" | "video" | "image";
 const FOLDER = "media";
 const MAX_BYTES = 1024 * 1024 * 1024;
 const PARALLEL = 2;
+/** Arka plan kuyruğu: eşzamanlı indirme, kuyruk boyu, deneme. */
+const PREFETCH_PARALLEL = 2;
+const PREFETCH_MAX_JOBS = 300;
+const PREFETCH_MAX_ATTEMPTS = 5;
+/** Arka planda bundan büyük dosya inmez (sesli mesaj en çok 5 dk AAC, ~5 MB). */
+export const PREFETCH_MAX_BYTES = 15 * 1024 * 1024;
 
 interface Entry {
   bytes: number;
@@ -38,6 +51,10 @@ let index: Map<string, Entry> | null = null;
 let version = 0;
 const listeners = new Set<() => void>();
 const inflight = new Map<string, Promise<string>>();
+/** Süren indirmelerin ilerlemesi (0–1); boyut bilinmiyorsa yok. */
+const progress = new Map<string, number>();
+/** `clearMedia` her çağrıda artar: temizlikten önce başlayan indirme kaydedilmez. */
+let generation = 0;
 const touched = new Set<string>();
 let touchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -173,24 +190,59 @@ async function slot<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
-/**
- * Dosyayı cihaza indirir (varsa hemen döner) ve yerel adresini verir.
- * Aynı adres için eşzamanlı çağrılar tek indirmeyi paylaşır.
- */
-export function ensureMedia(url: string, kind: MediaKind): Promise<string> {
+class PermanentDownloadError extends Error {
+  readonly permanent = true;
+}
+
+interface DownloadOptions {
+  /** Arka plan kuyruğu: paylaşılan yuvayı beklemez (kuyruğun kendi sınırı var). */
+  background?: boolean;
+  /** Sunucunun bildirdiği boyut bunu aşarsa indirme kesilir. */
+  maxBytes?: number;
+}
+
+function download(url: string, kind: MediaKind, options: DownloadOptions = {}): Promise<string> {
   const local = localMediaUri(url, kind);
   if (local) return Promise.resolve(local);
   const name = mediaFileName(url, kind);
   const running = inflight.get(name);
   if (running) return running;
-  const promise = slot(async () => {
+  const task = async () => {
     ensureIndex();
     if (!folder) throw new Error("Medya klasörü yok");
+    const startedIn = generation;
     // ".part"a iner, tamamlanınca asıl ada taşınır: yarıda kesilen indirme
     // bozuk bir dosyayı kalıcı hâle getirmesin.
     const partial = new File(folder, `${name}.part`);
+    const abort = options.maxBytes && typeof AbortController === "function" ? new AbortController() : null;
+    let tooLarge = false;
+    let shownStep = -1;
     try {
-      const file = await File.downloadFileAsync(url, partial, { idempotent: true });
+      const file = await File.downloadFileAsync(url, partial, {
+        idempotent: true,
+        signal: abort?.signal,
+        onProgress: ({ bytesWritten, totalBytes }) => {
+          if (abort && options.maxBytes && totalBytes > options.maxBytes) {
+            tooLarge = true;
+            abort.abort();
+            return;
+          }
+          if (totalBytes <= 0) return;
+          const ratio = Math.min(1, bytesWritten / totalBytes);
+          progress.set(name, ratio);
+          // Her pakette değil, %5 adımlarla yeniden çizilir.
+          const step = Math.floor(ratio * 20);
+          if (step !== shownStep) {
+            shownStep = step;
+            emit();
+          }
+        },
+      });
+      if (startedIn !== generation) {
+        // İndirme sürerken önbellek temizlendi (çıkış): dosya kaydedilmez.
+        file.delete();
+        throw new Error("Medya önbelleği temizlendi");
+      }
       const target = new File(folder, name);
       if (target.exists) target.delete();
       file.move(target);
@@ -202,12 +254,26 @@ export function ensureMedia(url: string, kind: MediaKind): Promise<string> {
       } catch {
         /* yok say */
       }
+      if (tooLarge) throw new PermanentDownloadError("Dosya otomatik indirme sınırını aşıyor");
       throw err;
     }
-  }).finally(() => inflight.delete(name));
+  };
+  const promise = (options.background ? task() : slot(task)).finally(() => {
+    inflight.delete(name);
+    progress.delete(name);
+    emit();
+  });
   inflight.set(name, promise);
   emit();
   return promise;
+}
+
+/**
+ * Dosyayı cihaza indirir (varsa hemen döner) ve yerel adresini verir.
+ * Aynı adres için eşzamanlı çağrılar (arka plan kuyruğu dahil) tek indirmeyi paylaşır.
+ */
+export function ensureMedia(url: string, kind: MediaKind): Promise<string> {
+  return download(url, kind);
 }
 
 /** Kendi gönderdiğimiz dosya: yüklemeden sonra yerel kopya önbelleğe alınır, bir daha inmez. */
@@ -229,14 +295,58 @@ export function isDownloading(url: string, kind: MediaKind): boolean {
   return inflight.has(mediaFileName(url, kind));
 }
 
-/** Otomatik indirme kuralı: ağ türü × ayar × medya türü. */
+/**
+ * Otomatik indirme kuralı. Sesli mesaj her ağda iner (WhatsApp; ayar:
+ * "Sesli mesajlar", varsayılan açık); video ve dosyalar ağ türüne göre.
+ */
 export function autoDownloadAllowed(kind: MediaKind): boolean {
   const net = networkKind();
   if (net === "none") return false;
   const prefs = usePreferences.getState();
-  const policy: AutoDownload = net === "wifi" ? prefs.autoDownloadWifi : prefs.autoDownloadCellular;
-  if (policy === "none") return false;
-  return kind === "voice" || policy === "all";
+  if (kind === "voice") return prefs.autoDownloadVoice;
+  return net === "wifi" ? prefs.autoDownloadMediaWifi : prefs.autoDownloadMediaCellular;
+}
+
+// ── Arka plan kuyruğu (sesli mesaj) ──────────────────────────────────
+
+const voiceQueue = createPrefetchQueue<ReturnType<typeof setTimeout>>({
+  concurrency: PREFETCH_PARALLEL,
+  maxJobs: PREFETCH_MAX_JOBS,
+  maxAttempts: PREFETCH_MAX_ATTEMPTS,
+  run: (url) => download(url, "voice", { background: true, maxBytes: PREFETCH_MAX_BYTES }),
+  isDone: (url) => peekLocalMedia(url, "voice") !== null,
+  canRun: () => autoDownloadAllowed("voice"),
+  now: () => Date.now(),
+  random: () => Math.random(),
+  setTimer: (fn, ms) => setTimeout(fn, ms),
+  clearTimer: (timer) => clearTimeout(timer),
+});
+
+let prefetchWired = false;
+function wirePrefetch() {
+  if (prefetchWired) return;
+  prefetchWired = true;
+  // Bağlantı geldi, uygulama öne döndü ya da ayar açıldı: beklemeler sıfırlanır.
+  onNetworkChange((online) => {
+    if (online) voiceQueue.resume();
+  });
+  AppState.addEventListener("change", (next) => {
+    if (next === "active") voiceQueue.resume();
+  });
+  usePreferences.subscribe((state, previous) => {
+    if (state.autoDownloadVoice && !previous.autoDownloadVoice) voiceQueue.resume();
+  });
+}
+
+/**
+ * Sesli mesajları arka plan kuyruğuna ekler (tekilleştirilir; cihazda
+ * olanlar atlanır). En yeni (büyük öncelik) önce iner; ağ yokken ya da
+ * ayar kapalıyken bekler.
+ */
+export function prefetchVoice(items: readonly PrefetchItem[]): void {
+  if (Platform.OS === "web" || items.length === 0) return;
+  wirePrefetch();
+  voiceQueue.add(items);
 }
 
 function subscribe(listener: () => void) {
@@ -248,19 +358,21 @@ function subscribe(listener: () => void) {
 
 /**
  * Bir ekin yerel durumu. `auto` true ise ve kural izin veriyorsa arka planda
- * indirmeye başlar. `uri`: yerel kopya (yoksa null).
+ * indirmeye başlar. `uri`: yerel kopya (yoksa null); `progress`: süren
+ * indirmenin oranı (0–1; boyut henüz bilinmiyorsa null).
  */
 export function useLocalMedia(url: string | null | undefined, kind: MediaKind, auto = true) {
   useSyncExternalStore(subscribe, () => version);
   const uri = url ? peekLocalMedia(url, kind) : null;
   const downloading = url ? isDownloading(url, kind) : false;
+  const ratio = url && downloading ? (progress.get(mediaFileName(url, kind)) ?? null) : null;
   useEffect(() => {
     if (uri && url) localMediaUri(url, kind);
     if (!url || !auto || uri || Platform.OS === "web") return;
     if (!/^https?:/i.test(url) || !autoDownloadAllowed(kind)) return;
     void ensureMedia(url, kind).catch(() => {});
   }, [url, kind, auto, uri]);
-  return { uri, downloading };
+  return { uri, downloading, progress: ratio };
 }
 
 export function mediaUsage(): { bytes: number; count: number } {
@@ -272,6 +384,8 @@ export function mediaUsage(): { bytes: number; count: number } {
 
 /** "Önbelleği temizle" ve çıkış: bütün yerel medya silinir. */
 export async function clearMedia(): Promise<void> {
+  generation += 1;
+  voiceQueue.clear();
   ensureIndex();
   try {
     if (folder?.exists) folder.delete();

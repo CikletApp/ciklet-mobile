@@ -135,9 +135,22 @@ da oturum korunur.
   tablosundadır; toplam 1 GB aşılınca en eski erişilenler silinir. İndirme
   önce `.part` dosyasına yapılır, bitince yerine taşınır.
 - Görseller expo-image disk önbelleğindedir (`cachePolicy="memory-disk"`).
-- **Otomatik indirme:** Ayarlar › Sohbet altında Wi-Fi ve mobil veri için
-  ayrı ayrı "Hepsi / Sesli mesaj / Hiçbiri" seçilir. Varsayılan Wi-Fi'da
-  hepsi, mobil veride yalnızca sesli mesajdır. Ağ türü NetInfo'dan okunur.
+- **Otomatik indirme:** Ayarlar › Sohbet altında üç anahtar var:
+  "Sesli mesajlar" (her ağda, varsayılan açık), "Video ve dosyalar: Wi-Fi
+  ile" (varsayılan açık) ve "… mobil veri ile" (varsayılan kapalı). Ağ türü
+  NetInfo'dan okunur.
+- **Sesli mesaj arka plan kuyruğu** (`features/chat/voice-prefetch.ts` →
+  `prefetchVoice`, saf kurallar `lib/media-prefetch-logic.ts`): bir sohbet
+  önbelleği dolduğunda ya da değiştiğinde (diskten ilk sayfa, sunucu
+  sayfası, sayfalama, canlı gelen mesaj) en yeni 600 mesaj taranır, en yeni
+  50 sesli mesaj kuyruğa girer. Kuyruk tekilleştirir, cihazdakini atlar, en
+  yeniyi önce indirir, aynı anda en çok 2 indirme yapar ve en çok 300 iş
+  tutar. Çevrimdışıyken bekler; hata 2 sn'den 5 dk'ya üstel beklemeyle 5 kez
+  denenir. Bağlantı gelince ve ön plana dönünce beklemeler sıfırlanır.
+  Sunucunun bildirdiği boyut 15 MB'ı aşarsa indirme kesilir. Kuyruğun kendi
+  yuvaları var; kullanıcının dokunduğu indirme onun arkasında beklemez.
+  Oynatıcı yerel dosyayı kullanır. Dosya henüz inmemişse düğmede ilerleme
+  halkası görünür.
 - Dosya kartındaki "İndir" ve video oynatma yerel kopya varsa ağa çıkmaz.
 - Aynı ekranda depolama kullanımı, "Medya önbelleğini temizle" ve "Yerel
   mesajları sil" seçenekleri var.

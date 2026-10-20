@@ -11,7 +11,7 @@ import { formatFileSize } from "@/lib/attachments";
 import { messageStorageBytes } from "@/lib/local-db";
 import { clearMedia, mediaUsage } from "@/lib/media-cache";
 import { pickFromGallery } from "@/lib/uploads";
-import { usePreferences, type AutoDownload, type ChatDensity } from "@/stores/preferences";
+import { usePreferences, type ChatDensity } from "@/stores/preferences";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -213,21 +213,17 @@ function ChatBackgroundSection() {
   );
 }
 
-const AUTO_DOWNLOAD: { id: AutoDownload; label: string }[] = [
-  { id: "all", label: "Hepsi" },
-  { id: "voice", label: "Sesli mesaj" },
-  { id: "none", label: "Hiçbiri" },
-];
-
 /**
  * Depolama ve veriler (WhatsApp: Depolama ve veriler) — medya otomatik
  * indirme kuralları ve cihazdaki kopyanın boyutu. Görseller her zaman
- * görüntülendiklerinde iner ve görsel önbelleğinde kalır; kural sesli mesaj,
- * video ve dosyaların cihaza önceden inmesini belirler.
+ * görüntülendiklerinde iner ve görsel önbelleğinde kalır. Sesli mesajlar
+ * (varsayılan açık) her ağda arka plan kuyruğuyla iner; video ve dosyalar
+ * görününce, ağ türüne göre.
  */
 function StorageSection() {
-  const wifi = usePreferences((state) => state.autoDownloadWifi);
-  const cellular = usePreferences((state) => state.autoDownloadCellular);
+  const voice = usePreferences((state) => state.autoDownloadVoice);
+  const wifi = usePreferences((state) => state.autoDownloadMediaWifi);
+  const cellular = usePreferences((state) => state.autoDownloadMediaCellular);
   const setPreference = usePreferences((state) => state.setPreference);
   const [usage, setUsage] = useState<{ media: number; messages: number } | null>(null);
   const [revision, setRevision] = useState(0);
@@ -276,18 +272,28 @@ function StorageSection() {
     <>
       <SectionHeader title="MEDYA OTOMATİK İNDİRME" />
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
-        <View style={{ gap: spacing.xs }}>
-          <Text style={{ ...typography.overline, color: colors.muted }}>WI-FI İLE</Text>
-          <SegmentedTabs items={AUTO_DOWNLOAD} value={wifi} onChange={(value) => setPreference("autoDownloadWifi", value)} />
-        </View>
-        <View style={{ gap: spacing.xs }}>
-          <Text style={{ ...typography.overline, color: colors.muted }}>MOBİL VERİ İLE</Text>
-          <SegmentedTabs
-            items={AUTO_DOWNLOAD}
-            value={cellular}
-            onChange={(value) => setPreference("autoDownloadCellular", value)}
+        <ListGroup>
+          <ToggleRow
+            title="Sesli mesajlar"
+            description="Her ağda arka planda iner; dokununca beklemeden, internetsiz de çalar."
+            value={voice}
+            onChange={(value) => setPreference("autoDownloadVoice", value)}
           />
-        </View>
+          <Divider inset={16} />
+          <ToggleRow
+            title="Video ve dosyalar: Wi-Fi ile"
+            description="Wi-Fi’dayken görünen video ve dosyalar cihaza iner."
+            value={wifi}
+            onChange={(value) => setPreference("autoDownloadMediaWifi", value)}
+          />
+          <Divider inset={16} />
+          <ToggleRow
+            title="Video ve dosyalar: mobil veri ile"
+            description="Mobil verideyken de indirilir; kotanı kullanır."
+            value={cellular}
+            onChange={(value) => setPreference("autoDownloadMediaCellular", value)}
+          />
+        </ListGroup>
         <Text style={{ ...typography.caption, color: colors.muted }}>
           İnen sesli mesajlar ve dosyalar bu cihazda saklanır; sonraki açılışlarda internetsiz de açılır.
         </Text>

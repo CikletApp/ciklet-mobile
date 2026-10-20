@@ -1,4 +1,4 @@
-// Yerel depo ve gönderim kuyruğunun saf kurallarını doğrular.
+// Yerel depo, gönderim kuyruğu ve medya ön indirme kuyruğunun saf kurallarını doğrular.
 // Çalıştırma: node scripts/verify-local-store.mjs   (Node 22.18+: .ts tip ayıklama)
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -10,6 +10,7 @@ import {
   snapshotSegment,
 } from "../src/features/chat/message-db-logic.ts";
 import { backoffMs, nextSendable, nextWakeAt, queueHeads } from "../src/stores/outbox-logic.ts";
+import { createPrefetchQueue, pickVoiceTargets, prefetchBackoffMs } from "../src/lib/media-prefetch-logic.ts";
 
 const msg = (id, minute, extra = {}) => ({
   id,
@@ -126,4 +127,162 @@ test("üstel bekleme 60 sn ile sınırlı", () => {
   assert.equal(backoffMs(3, 0.5), 8000);
   assert.equal(backoffMs(20, 0.5), 60_000);
   assert.ok(backoffMs(2, 0) < backoffMs(2, 1));
+});
+
+// ── Sesli mesaj arka plan indirme kuyruğu (src/lib/media-prefetch-logic.ts) ──
+
+function fakeQueue(overrides = {}) {
+  const state = { now: 0, online: true, done: new Set(), calls: [], pending: new Map(), timers: [] };
+  const queue = createPrefetchQueue({
+    concurrency: 2,
+    maxJobs: 4,
+    maxAttempts: 3,
+    run: (url) => {
+      state.calls.push(url);
+      return new Promise((resolve, reject) => state.pending.set(url, { resolve, reject }));
+    },
+    isDone: (url) => state.done.has(url),
+    canRun: () => state.online,
+    now: () => state.now,
+    random: () => 0.5,
+    setTimer: (fn, ms) => {
+      const timer = { fn, at: state.now + ms, cleared: false };
+      state.timers.push(timer);
+      return timer;
+    },
+    clearTimer: (timer) => {
+      timer.cleared = true;
+    },
+    ...overrides,
+  });
+  const settle = async (url, ok = true, err = new Error("ağ")) => {
+    const entry = state.pending.get(url);
+    state.pending.delete(url);
+    if (ok) {
+      state.done.add(url);
+      entry.resolve();
+    } else entry.reject(err);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+  const tick = (ms) => {
+    state.now += ms;
+    for (const timer of state.timers.splice(0)) {
+      if (!timer.cleared && timer.at <= state.now) timer.fn();
+      else if (!timer.cleared) state.timers.push(timer);
+    }
+  };
+  return { queue, state, settle, tick };
+}
+
+test("ön indirme: en yeni önce, en çok 2 eşzamanlı, tekrar eklenen tekilleşir", async () => {
+  const { queue, state, settle } = fakeQueue();
+  queue.add([
+    { url: "a", priority: 1 },
+    { url: "b", priority: 3 },
+    { url: "c", priority: 2 },
+    { url: "b", priority: 3 },
+  ]);
+  assert.deepEqual(state.calls, ["b", "c"]);
+  queue.add([{ url: "b", priority: 9 }]);
+  assert.equal(queue.stats().waiting, 1);
+  await settle("b");
+  assert.deepEqual(state.calls, ["b", "c", "a"]);
+});
+
+test("ön indirme: cihazdaki atlanır, kuyruk sınırında en eskiler düşer", () => {
+  const { queue, state } = fakeQueue({ concurrency: 0 });
+  state.done.add("x");
+  queue.add([{ url: "x", priority: 10 }]);
+  assert.equal(queue.stats().waiting, 0);
+  queue.add([1, 2, 3, 4, 5, 6].map((n) => ({ url: `m${n}`, priority: n })));
+  assert.equal(queue.stats().waiting, 4);
+  assert.equal(state.calls.length, 0);
+});
+
+test("ön indirme: çevrimdışı bekler, bağlantı gelince sürer; ağsız hata deneme sayılmaz", async () => {
+  const { queue, state, settle } = fakeQueue();
+  state.online = false;
+  queue.add([{ url: "a", priority: 1 }]);
+  assert.equal(state.calls.length, 0);
+  state.online = true;
+  queue.resume();
+  assert.deepEqual(state.calls, ["a"]);
+  state.online = false;
+  await settle("a", false);
+  assert.equal(queue.stats().waiting, 1);
+  state.online = true;
+  queue.resume();
+  assert.deepEqual(state.calls, ["a", "a"]);
+});
+
+test("ön indirme: hata üstel beklemeyle denenir, sınırda bırakılır; kalıcı hata hemen", async () => {
+  const { queue, state, settle, tick } = fakeQueue();
+  queue.add([{ url: "a", priority: 1 }]);
+  await settle("a", false);
+  assert.equal(state.calls.length, 1);
+  tick(prefetchBackoffMs(0, 0.5) - 1);
+  assert.equal(state.calls.length, 1);
+  tick(1);
+  assert.equal(state.calls.length, 2);
+  await settle("a", false);
+  tick(prefetchBackoffMs(1, 0.5));
+  await settle("a", false);
+  assert.deepEqual(queue.stats(), { waiting: 0, running: 0, gaveUp: 1 });
+  // Bırakılan, bağlantı/ön plan gelene kadar yeniden eklenmez.
+  queue.add([{ url: "a", priority: 1 }]);
+  assert.equal(state.calls.length, 3);
+
+  queue.add([{ url: "big", priority: 2 }]);
+  await settle("big", false, Object.assign(new Error("büyük"), { permanent: true }));
+  assert.equal(queue.stats().gaveUp, 2);
+  // Bağlantı/ön plan: bırakılanlar yeniden eklenebilir.
+  queue.resume();
+  queue.add([{ url: "a", priority: 1 }]);
+  assert.equal(state.calls.length, 5);
+});
+
+test("ön indirme: temizlikten sonra uçuştaki sonucu yok sayılır", async () => {
+  const { queue, state, settle } = fakeQueue();
+  queue.add([{ url: "a", priority: 1 }, { url: "b", priority: 0 }, { url: "c", priority: -1 }]);
+  queue.clear();
+  await settle("a", false);
+  assert.deepEqual(queue.stats(), { waiting: 0, running: 0, gaveUp: 0 });
+  assert.equal(state.calls.length, 2);
+});
+
+test("üstel bekleme (indirme) 5 dk ile sınırlı", () => {
+  assert.equal(prefetchBackoffMs(0, 0.5), 2000);
+  assert.equal(prefetchBackoffMs(2, 0.5), 8000);
+  assert.equal(prefetchBackoffMs(30, 0.5), 300_000);
+});
+
+test("sesli mesaj seçimi: en yeniler, silinen/süresi dolan/büyük/ses olmayan atlanır", () => {
+  const voice = (id, minute, extra = {}) =>
+    msg(id, minute, { fileUrl: `https://cdn/${id}.m4a`, metadata: { voice: { durationMs: 1000 } }, ...extra });
+  const pages = [
+    {
+      items: [
+        voice("9", 9),
+        msg("8", 8, { fileUrl: "https://cdn/8.png", metadata: {} }),
+        voice("7", 7, { deleted: true }),
+        voice("6", 6, { expiresAt: "2026-10-20T12:00:30.000Z" }),
+        voice("5", 5, { metadata: { voice: { durationMs: 1 }, attachment: { size: 20 * 1024 * 1024 } } }),
+        voice("4", 4, { fileUrl: "file:///yerel.m4a" }),
+      ],
+    },
+    { items: [voice("3", 3), voice("2", 2), voice("1", 1)] },
+  ];
+  const options = {
+    maxTargets: 3,
+    maxScan: 100,
+    maxBytes: 15 * 1024 * 1024,
+    isVoice: (m) => Boolean(m.metadata?.voice),
+    now: Date.UTC(2026, 9, 20, 13, 0),
+  };
+  const picked = pickVoiceTargets(pages, options);
+  assert.deepEqual(picked.map((t) => t.url), ["https://cdn/9.m4a", "https://cdn/3.m4a", "https://cdn/2.m4a"]);
+  assert.equal(picked[0].priority, Date.UTC(2026, 9, 20, 12, 9));
+  // Tarama sınırı: dev geçmişin tamamına bakılmaz.
+  assert.deepEqual(pickVoiceTargets(pages, { ...options, maxScan: 6 }).map((t) => t.url), ["https://cdn/9.m4a"]);
+  assert.deepEqual(pickVoiceTargets(undefined, options), []);
 });

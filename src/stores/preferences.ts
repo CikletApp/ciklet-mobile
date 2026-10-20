@@ -8,8 +8,6 @@ const STORAGE_KEY = "ciklet.preferences";
 
 export type InputMode = "vad" | "ptt";
 export type ChatDensity = "comfortable" | "compact";
-/** Medya otomatik indirme: her şey / yalnızca sesli mesaj / hiçbiri (bkz. lib/media-cache). */
-export type AutoDownload = "all" | "voice" | "none";
 
 interface PreferenceValues {
   linkPreviews: boolean;
@@ -36,10 +34,15 @@ interface PreferenceValues {
   reduceMotion: ReducedMotionPreference;
   /** Arayüz dili; "system" cihaz dilini izler (bkz. lib/i18n). */
   locale: LocalePreference;
-  /** Wi-Fi'da cihaza otomatik indirilen medya (WhatsApp: Depolama ve veriler). */
-  autoDownloadWifi: AutoDownload;
-  /** Mobil veride otomatik indirilen medya. */
-  autoDownloadCellular: AutoDownload;
+  /**
+   * Sesli mesajlar her ağda arka planda cihaza iner (WhatsApp: Depolama ve
+   * veriler; bkz. lib/media-cache). Dokununca beklemeden, ağsız da çalar.
+   */
+  autoDownloadVoice: boolean;
+  /** Video ve dosyalar Wi-Fi'da otomatik iner. */
+  autoDownloadMediaWifi: boolean;
+  /** Video ve dosyalar mobil veride otomatik iner. */
+  autoDownloadMediaCellular: boolean;
 }
 
 interface PreferenceState extends PreferenceValues {
@@ -65,8 +68,9 @@ const defaults: PreferenceValues = {
   chatBackgroundDim: 0.35,
   reduceMotion: "system",
   locale: "system",
-  autoDownloadWifi: "all",
-  autoDownloadCellular: "voice",
+  autoDownloadVoice: true,
+  autoDownloadMediaWifi: true,
+  autoDownloadMediaCellular: false,
 };
 
 function persistedValues(state: PreferenceState): PreferenceValues {
@@ -87,8 +91,9 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     chatBackgroundDim: state.chatBackgroundDim,
     reduceMotion: state.reduceMotion,
     locale: state.locale,
-    autoDownloadWifi: state.autoDownloadWifi,
-    autoDownloadCellular: state.autoDownloadCellular,
+    autoDownloadVoice: state.autoDownloadVoice,
+    autoDownloadMediaWifi: state.autoDownloadMediaWifi,
+    autoDownloadMediaCellular: state.autoDownloadMediaCellular,
   };
 }
 

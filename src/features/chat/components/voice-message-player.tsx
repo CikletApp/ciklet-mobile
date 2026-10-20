@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text, View, type GestureResponderEvent } from "react-native";
 import { createAudioPlayer, type AudioPlayer, type AudioStatus } from "expo-audio";
-import Svg, { Path, Rect } from "react-native-svg";
+import Svg, { Circle, Path, Rect } from "react-native-svg";
 
 import { Pressable, showToast } from "@/components/ui";
 import { ensureMedia, useLocalMedia } from "@/lib/media-cache";
@@ -18,8 +18,11 @@ import { claimPlayback, preparePlaybackMode, releasePlayback } from "../voice-me
  * Yerel oynatıcı İLK dokunuşta kurulur: listedeki her sesli mesaj için
  * oynatıcı açmak, kullanıcı dinlemese de belleği ve veriyi harcardı.
  *
- * Ses dosyası CİHAZDAN çalar (lib/media-cache): otomatik indirme kuralı
- * izin veriyorsa mesaj görününce arkada iner; değilse ilk dokunuşta iner.
+ * Ses dosyası CİHAZDAN çalar (lib/media-cache): "Sesli mesajlar" otomatik
+ * indirmesi açıksa (varsayılan) mesaj sohbet önbelleğine düşer düşmez arka
+ * plan kuyruğuyla iner (features/chat/voice-prefetch); değilse ilk dokunuşta.
+ * Dosya henüz inmemişse düğmede indirme halkası görünür; dokunuş süren
+ * indirmeyi bekler, yeniden başlatmaz.
  * Eskiden `play()` oynatıcı kaynağı yüklemeden çağrılıyor ve ilk dokunuş
  * sessizce yutuluyordu (biraz bekleyip ikinci dokunuşta çalıyordu). Artık
  * oynatıcı "yüklendi" diyene kadar düğmede gösterge döner, sonra kendiliğinden
@@ -174,6 +177,9 @@ export function VoiceMessagePlayer({
   };
 
   const started = playing || progress > 0;
+  // İndirme göstergesi yalnızca dosya henüz cihazda değilken (arka plan
+  // kuyruğu ya da dokunuşla iniyor); yerel kopya varsa doğrudan oynat düğmesi.
+  const fetching = !local.uri && local.downloading && !playing && progress === 0;
   const shown = started ? progress * meta.durationMs : meta.durationMs;
 
   return (
@@ -198,7 +204,7 @@ export function VoiceMessagePlayer({
         delayLongPress={280}
         haptic="light"
         accessibilityRole="button"
-        accessibilityLabel={playing ? "Duraklat" : loading ? "Sesli mesaj yükleniyor" : "Sesli mesajı oynat"}
+        accessibilityLabel={playing ? "Duraklat" : loading || fetching ? "Sesli mesaj yükleniyor" : "Sesli mesajı oynat"}
         style={({ pressed }) => ({
           width: 36,
           height: 36,
@@ -209,7 +215,9 @@ export function VoiceMessagePlayer({
           opacity: pressed ? 0.85 : 1,
         })}
       >
-        {loading || (local.downloading && !playing && progress === 0) ? (
+        {fetching && local.progress !== null ? (
+          <DownloadRing ratio={local.progress} color={colors.onBrand} />
+        ) : loading || fetching ? (
           <ActivityIndicator size="small" color={colors.onBrand} />
         ) : (
           <PlayPauseGlyph playing={playing} color={colors.onBrand} />
@@ -262,6 +270,36 @@ export function VoiceMessagePlayer({
       >
         <Text style={{ fontSize: 11, lineHeight: 15, ...fw(700), color: colors.muted }}>{rate}×</Text>
       </Pressable>
+    </View>
+  );
+}
+
+/** İndirme ilerlemesi: düğmenin içinde dolan halka, ortada oynat üçgeni. */
+function DownloadRing({ ratio, color }: { ratio: number; color: string }) {
+  const size = 30;
+  const stroke = 2.5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeOpacity={0.3} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={circumference * (1 - Math.min(1, Math.max(0, ratio)))}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      <Svg width={10} height={10} viewBox="0 0 24 24">
+        <Path d="M8 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 8 4.5z" fill={color} />
+      </Svg>
     </View>
   );
 }
