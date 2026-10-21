@@ -22,6 +22,7 @@ import {
   presentIncomingCallNotification,
   setPendingCallAction,
 } from "@/features/call/incoming-call";
+import { isStaleRinging, localRingRemainingMs } from "@/features/call/ring-sync";
 import { resolveMediaUrl } from "@/lib/config";
 import { registerPushToken } from "@/lib/notifications";
 import type { CallKitActionEvent, NativeIncomingCall, StartCallRequest } from "../../modules/ciklet-calls";
@@ -96,6 +97,13 @@ interface PendingInvite {
 export function pollPendingInvites(): void {
   void api<{ invites?: PendingInvite[] }>(endpoints.callsPending)
     .then(({ invites }) => {
+      // Kopukken başka cihazda yanıtlanan/reddedilen ya da iptal edilen
+      // davet: olay kaçtı, sunucuda artık çalmıyor — burada da sustur.
+      // (İstek başarısızsa buraya gelinmez; geçici hata zili susturmaz.)
+      if (isStaleRinging(useCall.getState().session, (invites ?? []).map((pending) => pending.id))) {
+        setCallKitEndReason("remote");
+        stopCallLocally();
+      }
       const invite = invites?.[0];
       if (!invite) return;
       ring({
@@ -224,6 +232,32 @@ function expireOutgoingCall() {
     }
   }, NO_ANSWER_HOLD_MS);
 }
+
+/**
+ * Gelen aramanın yerel süresi (features/call/ring-sync). Kabul edilen davet
+ * sunucuda süpürülmüyor; `call.handled_elsewhere` kaçarsa (soket kopuk) zili
+ * susturacak başka olay yoktu ve uygulama içi zil sonsuza dek çalıyordu.
+ */
+let incomingTimer: ReturnType<typeof setTimeout> | null = null;
+let incomingTimerCallId: string | null = null;
+
+useCall.subscribe((state) => {
+  const session = state.session;
+  const ringingId =
+    session?.direction === "incoming" && session.status === "ringing" && session.callId ? session.callId : null;
+  if (ringingId === incomingTimerCallId) return;
+  if (incomingTimer) clearTimeout(incomingTimer);
+  incomingTimer = null;
+  incomingTimerCallId = ringingId;
+  if (!ringingId) return;
+  incomingTimer = setTimeout(() => {
+    incomingTimer = null;
+    const current = useCall.getState().session;
+    if (current?.callId !== ringingId || current.status !== "ringing") return;
+    setCallKitEndReason("unanswered");
+    stopCallLocally();
+  }, localRingRemainingMs(session?.expiresAt, Date.now()));
+});
 
 /** Reddedilen giden aramada "Meşgul" ekranının kalma süresi (meşgul sesi 3 sn). */
 const BUSY_HOLD_MS = 3_000;
