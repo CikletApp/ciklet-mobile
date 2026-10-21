@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AppState, Modal, Platform, StyleSheet } from "react-native";
+import { AppState, Keyboard, Modal, Platform, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { SlideInDown } from "react-native-reanimated";
 import { FullWindowOverlay } from "react-native-screens";
@@ -31,6 +31,11 @@ export function CallSurface({
   onRequestClose: () => void;
   children: ReactNode;
 }) {
+  // Çağrı ekranı açılırken sohbetin klavyesi kapanır: iOS'ta yüzey pencerenin
+  // üstüne biner ama klavye ondan da üstte kalıp ekranın yarısını kaplıyordu.
+  useEffect(() => {
+    if (visible) Keyboard.dismiss();
+  }, [visible]);
   if (Platform.OS === "ios") {
     return visible ? <IosCallSurface>{children}</IosCallSurface> : null;
   }

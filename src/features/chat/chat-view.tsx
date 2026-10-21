@@ -799,6 +799,11 @@ export function ChatView({
               }, 120);
             }}
             keyboardDismissMode="interactive"
+            // "handled": balondaki düğmeye (sesli mesaj oynat, tepki, bağlantı)
+            // dokunmak klavyeyi KAPATMAZ, dokunuş düğmeye gider; boş alana
+            // dokunmak eskisi gibi kapatır. Varsayılan ("never") her dokunuşta
+            // klavyeyi kapatıyor ve ilk dokunuşu yutuyordu.
+            keyboardShouldPersistTaps="handled"
             onScroll={onScroll}
             onScrollBeginDrag={onScrollBeginDrag}
             onScrollEndDrag={onScrollEndDrag}
