@@ -813,6 +813,8 @@ export interface ServerMemberListItem {
     name: string | null;
     imageUrl: string | null;
     isBot: boolean;
+    /** Mağaza isim plakası (lib/profile-effects NAMEPLATES). */
+    nameplateId?: string | null;
     /** Özel durum (lib/custom-status); eski sunucuda alan yok. */
     customStatusText?: string | null;
     customStatusEmoji?: string | null;

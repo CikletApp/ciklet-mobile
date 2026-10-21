@@ -31,6 +31,7 @@ import {
   showToast,
   type ActionSheetItem,
 } from "@/components/ui";
+import { NameplateBackground } from "@/features/profile/nameplate";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
 import { formatActivity } from "@/lib/format";
@@ -225,9 +226,12 @@ export default function ServerMembersScreen() {
                   gap: spacing.md,
                   paddingHorizontal: spacing.lg,
                   paddingVertical: spacing.sm,
+                  overflow: "hidden",
                   backgroundColor: pressed ? colors.raised : "transparent",
                 })}
               >
+                {/* İsim plakası (web üye satırı): sağa yaslı sahne + isme doğru sönen renk. */}
+                <NameplateBackground id={item.profile.nameplateId} />
                 <Avatar
                   profileId={item.profileId}
                   imageUrl={item.serverImageUrl ?? item.profile.imageUrl}

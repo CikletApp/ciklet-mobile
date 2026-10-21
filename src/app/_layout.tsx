@@ -217,6 +217,7 @@ export default function RootLayout() {
                   <Stack.Screen name="store" />
                   <Stack.Screen name="profile/connections" />
                   <Stack.Screen name="profile/decoration" />
+                  <Stack.Screen name="profile/effect" />
                   <Stack.Screen name="profile/status" />
                   <Stack.Screen name="profile/server/[memberId]" />
                   <Stack.Screen name="servers/[serverId]/channels/[channelId]" />

@@ -8,7 +8,7 @@ import { API_BASE_URL } from "@/lib/config";
 import { usePresenceStatus } from "@/stores/presence";
 import { colors, radii } from "@/theme/tokens";
 import { PresenceDot } from "./icon";
-import { AvatarDecorationRing } from "./avatar-decoration";
+import { AvatarDecorationLayer } from "./avatar-decoration";
 import { useDecorationOf } from "@/stores/decorations";
 import { fw } from "@/theme/fonts";
 
@@ -52,6 +52,11 @@ interface AvatarProps {
    * (ör. seçicideki "Süs yok" önizlemesi).
    */
   decorationId?: string | null;
+  /**
+   * Süs hareketli çizilsin mi? Verilmezse yalnızca büyük avatarlarda
+   * (≥ 64 px: profil başlığı, önizlemeler); listelerde durağan.
+   */
+  animateDecoration?: boolean;
 }
 
 export function Avatar({
@@ -66,16 +71,18 @@ export function Avatar({
   radius,
   presenceSize,
   decorationId,
+  animateDecoration,
 }: AvatarProps) {
   // Hook koşulsuz çağrılmalı; kimlik yoksa depo OFFLINE döner.
   const livePresence = usePresenceStatus(profileId);
   const status = presence ?? livePresence;
-  // Önbellekten yalnızca yuvarlak kişi avatarlarında okunur: halka bir
-  // çember, köşeli (sunucu / grup) kutuya oturmaz.
+  // Önbellekten yalnızca yuvarlak kişi avatarlarında okunur: süs çizimi
+  // bir daireye göre çizildi, köşeli (sunucu / grup) kutuya oturmaz.
   const cachedDecoration = useDecorationOf(
     decorationId === undefined && shape === "circle" && radius === undefined ? profileId : undefined
   );
   const decoration = decorationId === undefined ? cachedDecoration : decorationId;
+  const liveDecoration = animateDecoration ?? size >= 64;
 
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
@@ -95,6 +102,8 @@ export function Avatar({
 
   return (
     <View style={{ width: size, height: size }}>
+      {/* Süsün arka katmanı (kulak tabanı, kuyruk) avatarın altında kalır. */}
+      {decoration ? <AvatarDecorationLayer id={decoration} size={size} layer="back" animate={liveDecoration} /> : null}
       {showFallback ? (
         <View
           style={{
@@ -135,7 +144,7 @@ export function Avatar({
         />
       )}
 
-      {decoration ? <AvatarDecorationRing id={decoration} size={size} /> : null}
+      {decoration ? <AvatarDecorationLayer id={decoration} size={size} layer="front" animate={liveDecoration} /> : null}
 
       {showPresence && profileId ? (
         <View style={{ position: "absolute", right: -1, bottom: -1 }}>

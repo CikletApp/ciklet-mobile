@@ -19,6 +19,7 @@ import { showDialog } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { Divider, ListGroup, ListRow } from "@/components/ui/list";
 import { findDecoration } from "@/lib/avatar-decorations";
+import { findProfileEffect } from "@/lib/profile-effects";
 import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { GAMES_VISIBILITY_OPTIONS } from "@/lib/profile-extras";
 import { UserFacingUploadError, pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
@@ -342,6 +343,13 @@ export default function EditProfileScreen() {
                 title="Avatar Süsü"
                 detail={findDecoration(profile.avatarDecorationId)?.name ?? "Yok"}
                 onPress={() => router.push("/profile/decoration")}
+              />
+              <Divider inset={52} />
+              <ListRow
+                icon="palette"
+                title="Profil Efekti"
+                detail={findProfileEffect(profile.profileEffectId)?.name ?? "Yok"}
+                onPress={() => router.push("/profile/effect")}
               />
               <Divider inset={52} />
               <ListRow icon="link" title="Bağlantılar" onPress={() => router.push("/profile/connections")} />
