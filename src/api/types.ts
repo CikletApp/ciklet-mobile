@@ -813,6 +813,10 @@ export interface ServerMemberListItem {
     name: string | null;
     imageUrl: string | null;
     isBot: boolean;
+    /** Özel durum (lib/custom-status); eski sunucuda alan yok. */
+    customStatusText?: string | null;
+    customStatusEmoji?: string | null;
+    customStatusUntil?: string | null;
   };
   roles: { id: string; name: string; color: string | null; hoist: boolean; position: number }[];
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Text, TextInput, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
+import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
 import {
@@ -30,8 +31,12 @@ import {
   showToast,
   type ActionSheetItem,
 } from "@/components/ui";
+import { isMobileActivity } from "@/features/presence/media-activity";
+import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
+import { formatActivity } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { useAuth } from "@/stores/auth";
+import { usePresence } from "@/stores/presence";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -237,11 +242,13 @@ export default function ServerMembersScreen() {
                   >
                     {nameOf(item)}
                   </Text>
-                  <Text style={{ ...typography.caption, color: timedOut ? colors.danger : colors.muted }} numberOfLines={1}>
-                    {timedOut
-                      ? `Zaman aşımında · ${timeoutRemainingLabel(item.timedOutUntil!, now)}`
-                      : `@${item.profile.username}`}
-                  </Text>
+                  {timedOut ? (
+                    <Text style={{ ...typography.caption, color: colors.danger }} numberOfLines={1}>
+                      {`Zaman aşımında · ${timeoutRemainingLabel(item.timedOutUntil!, now)}`}
+                    </Text>
+                  ) : (
+                    <MemberStatusLine profile={item.profile} />
+                  )}
                 </View>
                 {item.profileId === ownerId ? (
                   <Tag label="Sahip" />
@@ -283,5 +290,42 @@ export default function ServerMembersScreen() {
         items={durationItems}
       />
     </Screen>
+  );
+}
+
+const VISIBLE_STATUSES: readonly PresenceStatus[] = [PresenceStatus.ONLINE, PresenceStatus.IDLE, PresenceStatus.DND];
+
+/**
+ * Adın altındaki tek satır (web server-member `MemberStatusLine`): şu anki
+ * etkinlik (tanınan oyun/uygulama, telefon işareti), yoksa özel durum, o da
+ * yoksa kullanıcı adı. Çevrimdışı/görünmez kişide etkinlik ve durum
+ * gösterilmez. Yalnızca depo okuması — satır başına ağ isteği yok; seçici
+ * kişinin kendi kaydını döndürür, başkasının değişimi satırı yeniden çizdirmez.
+ */
+function MemberStatusLine({ profile }: { profile: ServerMemberListItem["profile"] }) {
+  const presence = usePresence(profile.id);
+  const visible = VISIBLE_STATUSES.includes(presence.status);
+  const activity = visible ? presence.activity : null;
+  const activityText = formatActivity(activity);
+  const custom = visible && !activityText ? customStatusOf(profile) : null;
+
+  if (activity && activityText) {
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+        {isMobileActivity(activity) ? (
+          <View accessible accessibilityLabel="Telefondan">
+            <Icon name="smartphone" size={11} color={colors.accent} />
+          </View>
+        ) : null}
+        <Text style={{ flexShrink: 1, ...typography.caption, color: colors.accent }} numberOfLines={1}>
+          {activityText}
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
+      {custom ? formatCustomStatus(custom) : `@${profile.username}`}
+    </Text>
   );
 }
