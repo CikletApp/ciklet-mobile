@@ -1,5 +1,7 @@
 import { cookieHeaderFor, getSession, refreshSession } from "@/api/client";
 import { GATEWAY_URL, HEARTBEAT_INTERVAL_MS } from "@/lib/config";
+import * as Application from "expo-application";
+import { CLIENT_TYPE, CLIENT_VERSION } from "@/lib/device";
 import { clearNativeCookies } from "@/lib/cookies";
 
 /**
@@ -224,7 +226,14 @@ class GatewayConnection {
     let socket: WebSocket;
     try {
       socket = new NativeWebSocket(GATEWAY_URL, undefined, {
-        headers: { Cookie: cookieHeaderFor(session) },
+        headers: {
+          Cookie: cookieHeaderFor(session),
+          // Root paneldeki istemci/sürüm kaydı (ciklet-web lib/clients):
+          // platform ve sürüm el sıkışmada bildirilir.
+          "X-Ciklet-Client": CLIENT_TYPE,
+          "X-Ciklet-Client-Version": CLIENT_VERSION,
+          ...(Application.nativeBuildVersion ? { "X-Ciklet-Client-Build": Application.nativeBuildVersion } : {}),
+        },
       });
     } catch {
       this.opening = false;
