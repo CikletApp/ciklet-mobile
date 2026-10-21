@@ -26,6 +26,7 @@ import {
   ListSkeleton,
   Pressable,
   Screen,
+  StyledName,
   Tag,
   showDialog,
   showToast,
@@ -240,12 +241,13 @@ export default function ServerMembersScreen() {
                   showPresence
                 />
                 <View style={{ flex: 1, gap: 1 }}>
-                  <Text
-                    style={{ ...typography.body, ...fw(600), color: topRole?.color || colors.bright }}
+                  <StyledName
+                    profileId={item.profileId}
+                    name={nameOf(item)}
+                    textStyle={{ ...typography.body, ...fw(600), color: topRole?.color || colors.bright }}
+                    containerStyle={{ alignSelf: "flex-start" }}
                     numberOfLines={1}
-                  >
-                    {nameOf(item)}
-                  </Text>
+                  />
                   {timedOut ? (
                     <Text style={{ ...typography.caption, color: colors.danger }} numberOfLines={1}>
                       {`Zaman aşımında · ${timeoutRemainingLabel(item.timedOutUntil!, now)}`}

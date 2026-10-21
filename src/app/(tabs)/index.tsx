@@ -36,6 +36,7 @@ import {
   Pressable,
   Screen,
   SegmentedTabs,
+  StyledName,
   TabHeader,
   UnreadBadge,
   type TabItem,
@@ -559,12 +560,14 @@ function ConversationRow({
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text
-                style={{ ...typography.title, fontSize: 16.5, color: colors.bright, flexShrink: 1 }}
+              {/* Birebirde ad stili (web direct-user); takma ad gösteriliyorsa çizilmez. */}
+              <StyledName
+                profileId={display.isGroup ? undefined : display.peer?.id}
+                name={display.title}
+                enabled={!display.isGroup && !!display.peer && !nicknames[display.peer.id]}
+                textStyle={{ ...typography.title, fontSize: 16.5, color: colors.bright, flexShrink: 1 }}
                 numberOfLines={1}
-              >
-                {display.title}
-              </Text>
+              />
               {isOfficial ? (
                 <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
                   <Text style={{ fontSize: 9, lineHeight: 12, ...fw(800), color: colors.onBrand }}>RESMÎ</Text>

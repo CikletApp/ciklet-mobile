@@ -6,6 +6,7 @@
  */
 export { Avatar } from "./avatar";
 export { GroupAvatar } from "./group-avatar";
+export { StyledName, NameStyleText, type StyledNameProps } from "./styled-name";
 
 export { CikletLogo } from "./ciklet-logo";
 export { ModernRefreshIndicator } from "./refresh-indicator";

@@ -21,6 +21,7 @@ import { playMessageTone, primeSounds } from "@/lib/sounds";
 import { activeChatId } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
 import { rememberDecorations } from "@/stores/decorations";
+import { publishNameStyle } from "@/stores/name-styles";
 import { usePreferences } from "@/stores/preferences";
 import { usePresenceStore } from "@/stores/presence";
 import { ServerEvent } from "./events";
@@ -188,6 +189,7 @@ export function useSocialEvents() {
         const visual = frame.profile as { id?: unknown } | undefined;
         if (typeof visual?.id !== "string") return;
         rememberDecorations([visual]);
+        if ("nameStyle" in visual) publishNameStyle(visual.id, (visual as { nameStyle?: unknown }).nameStyle);
         invalidate(qk.directs, qk.friends, qk.profileCard(visual.id), ["members"]);
         if (visual.id === useAuth.getState().profile?.id) invalidate(qk.currentProfile);
       }),

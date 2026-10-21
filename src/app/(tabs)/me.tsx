@@ -16,6 +16,7 @@ import {
   Pressable,
   Screen,
   SectionHeader,
+  StyledName,
   TabHeader,
   type IconName,
 } from "@/components/ui";
@@ -116,9 +117,14 @@ export default function MeScreen() {
                 <Text style={{ ...typography.caption, fontSize: 14, ...fw(700), color: colors.onBrand }}>Düzenle</Text>
               </Pressable>
             </View>
-            <Text style={{ ...typography.display, color: colors.bright, marginTop: spacing.sm }} numberOfLines={1}>
-              {me?.name?.trim() || me?.username || "—"}
-            </Text>
+            <StyledName
+              profileId={me?.id}
+              name={me?.name?.trim() || me?.username || "—"}
+              animate
+              textStyle={{ ...typography.display, color: colors.bright }}
+              containerStyle={{ marginTop: spacing.sm, alignSelf: "flex-start" }}
+              numberOfLines={1}
+            />
             <Text style={{ ...typography.body, color: colors.muted }} numberOfLines={1}>
               {me?.username ? `@${me.username}` : ""}
               {me?.pronouns ? ` · ${me.pronouns}` : ""}

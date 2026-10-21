@@ -3,6 +3,7 @@ import type { OwnProfile } from "@ciklet/embedded-activities-sdk/types";
 
 import { useAuth } from "@/stores/auth";
 import { rememberDecorations } from "@/stores/decorations";
+import { publishNameStyle, rememberNameStyles } from "@/stores/name-styles";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
@@ -22,6 +23,7 @@ export function useCurrentProfile() {
     queryFn: async () => {
       const profile = await api<CurrentProfile>(endpoints.currentProfile);
       rememberDecorations([profile]);
+      rememberNameStyles([profile]);
       return profile;
     },
   });
@@ -45,6 +47,8 @@ export function useUpdateProfile() {
       queryClient.setQueryData(qk.currentProfile, updated);
       setProfile(updated as unknown as OwnProfile);
       rememberDecorations([updated]);
+      // Kendi kaydı canlı değerdir: önbellekteki eski stil hemen değişsin.
+      if ("nameStyle" in updated) publishNameStyle(updated.id, updated.nameStyle);
     },
   });
 }
@@ -62,6 +66,7 @@ export function useProfileCard(profileId: string | undefined) {
     queryFn: async () => {
       const card = await api<ProfileCardResponse>(endpoints.profileCard(profileId!));
       rememberDecorations([card.profile]);
+      rememberNameStyles([card.profile]);
       return card;
     },
     staleTime: 60_000,

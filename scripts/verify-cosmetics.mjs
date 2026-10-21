@@ -1,5 +1,5 @@
-// Kozmetik kataloğu (süs/plaka/efekt), takma ad çözümü ve çizim metinlerinin
-// (SVG) saf mantığını doğrular — web ile aynı kurallar.
+// Kozmetik kataloğu (süs/plaka/efekt), takma ad çözümü, ad stili ayrıştırma ve
+// çizim metinlerinin (SVG) saf mantığını doğrular — web ile aynı kurallar.
 // Çalıştırma: node scripts/verify-cosmetics.mjs   (Node 22.18+: .ts tip ayıklama)
 //
 // lib/cosmetics/art web'den DEĞİŞTİRİLMEDEN kopyalandı; içindeki göreli
@@ -32,6 +32,16 @@ const { DECORATION_ART, NAMEPLATE_ART, EFFECT_ART, decorationSvg, effectLayout }
 const { getCosmeticShowcase } = await import("../src/lib/cosmetics/showcase.ts");
 const { cssGradientSvg, parseCssGradients, parseCssColor } = await import("../src/lib/cosmetics/css-gradient.ts");
 const { stripCssAttributes, withLeftFade } = await import("../src/lib/cosmetics/native-svg.ts");
+const {
+  NAME_EFFECTS,
+  NAME_FONTS,
+  changedNameStyleIds,
+  nameStyleHalo,
+  nameStyleItemAccess,
+  nameStylePresentation,
+  parseNameStyle,
+  sameNameStyle,
+} = await import("../src/lib/name-style.ts");
 
 // ── Katalog: web ile aynı kimlikler ve sıra ─────────────────────────────
 
@@ -172,4 +182,85 @@ test("plaka gradyanı web oranlarıyla", () => {
     { offset: 0.45, color: "rgb(227,10,23)", opacity: 0.18 },
     { offset: 1, color: "rgb(227,10,23)", opacity: 0.4 },
   ]);
+});
+
+// ── Ad stili ────────────────────────────────────────────────────────────
+
+test("ad stili kataloğu web ile aynı", () => {
+  assert.deepEqual(
+    NAME_FONTS.map((f) => f.id),
+    ["nf_bungee", "nf_pacifico", "nf_terminal", "nf_orbit", "nf_comic", "nf_royal", "nf_lobster", "nf_pixel", "nf_arcade", "nf_nightmare", "nf_glitch", "nf_neonsign", "nf_wetpaint", "nf_gothic"]
+  );
+  assert.deepEqual(NAME_EFFECTS.map((e) => e.id), ["ne_solid", "ne_gradient", "ne_shimmer", "ne_neon", "ne_rainbow"]);
+});
+
+test("parseNameStyle: bilinmeyen atılır, renkler süzülür ve efekte uydurulur", () => {
+  assert.equal(parseNameStyle(null), null);
+  assert.equal(parseNameStyle([]), null);
+  assert.equal(parseNameStyle("nf_bungee"), null);
+  assert.equal(parseNameStyle({ font: "nf_yok", effect: "ne_yok" }), null);
+  assert.deepEqual(parseNameStyle({ font: "nf_bungee" }), { font: "nf_bungee", effect: null, colors: [] });
+  // Büyük harf küçülür, geçersiz renk atılır, fazlası kırpılır.
+  assert.deepEqual(parseNameStyle({ effect: "ne_solid", colors: ["#FF0000", "red", "#00ff00"] }), {
+    font: null,
+    effect: "ne_solid",
+    colors: ["#ff0000"],
+  });
+  // Eksik renk varsayılandan tamamlanır.
+  assert.deepEqual(parseNameStyle({ effect: "ne_gradient", colors: ["#111111"] }), {
+    font: null,
+    effect: "ne_gradient",
+    colors: ["#111111", "#9b5cff"],
+  });
+  // Gökkuşağı renk almaz; yazı tipi bilinmiyorsa yalnızca efekt kalır.
+  assert.deepEqual(parseNameStyle({ font: 3, effect: "ne_rainbow", colors: ["#ffffff"] }), {
+    font: null,
+    effect: "ne_rainbow",
+    colors: [],
+  });
+  assert.deepEqual(parseNameStyle({ font: "nf_gothic", effect: "ne_neon", colors: "x" }), {
+    font: "nf_gothic",
+    effect: "ne_neon",
+    colors: ["#ff40ec"],
+  });
+});
+
+test("sameNameStyle ve değişen kimlikler (kilit yalnızca değişende)", () => {
+  const a = { font: "nf_pixel", effect: "ne_gradient", colors: ["#111111", "#222222"] };
+  assert.ok(sameNameStyle(a, { ...a, colors: [...a.colors] }));
+  assert.ok(!sameNameStyle(a, { ...a, colors: ["#111111", "#333333"] }));
+  assert.ok(sameNameStyle(null, null));
+  assert.ok(!sameNameStyle(a, null));
+  assert.deepEqual(changedNameStyleIds(a, a), []);
+  assert.deepEqual(changedNameStyleIds({ ...a, font: "nf_arcade" }, a), ["nf_arcade"]);
+  assert.deepEqual(changedNameStyleIds(a, null), ["nf_pixel", "ne_gradient"]);
+  assert.deepEqual(changedNameStyleIds(null, a), []);
+});
+
+test("ad stili erişimi ve sunum", () => {
+  assert.equal(nameStyleItemAccess("nf_bungee", { mentol: false, owned: false }), "ok");
+  assert.equal(nameStyleItemAccess("ne_gradient", { mentol: false, owned: false }), "mentol_required");
+  assert.equal(nameStyleItemAccess("nf_arcade", { mentol: true, owned: false }), "not_owned");
+  assert.equal(nameStyleItemAccess("nf_yok", { mentol: true, owned: true }), "unknown");
+
+  // Yalnızca yazı tipi: renk yok (rol rengi kalır), ölçek yazı tipinden.
+  const fontOnly = nameStylePresentation({ font: "nf_arcade", effect: null, colors: [] });
+  assert.equal(fontOnly.color, null);
+  assert.equal(fontOnly.gradient, null);
+  assert.equal(fontOnly.scale, 0.68);
+  // Düz renk rol rengini ezer.
+  assert.equal(nameStylePresentation({ font: null, effect: "ne_solid", colors: ["#123456"] }).color, "#123456");
+  // Parıltı: ilk renk sona eklenir (dikişsiz döngü).
+  assert.deepEqual(nameStylePresentation({ font: null, effect: "ne_shimmer", colors: ["#aaaaaa", "#bbbbbb"] }).gradient, [
+    "#aaaaaa",
+    "#bbbbbb",
+    "#aaaaaa",
+  ]);
+  assert.equal(nameStylePresentation({ font: null, effect: "ne_rainbow", colors: [] }).gradient.length, 8);
+  assert.equal(nameStylePresentation(null).font, null);
+  // Okunurluk halesi: çok koyu → açık, çok açık → koyu.
+  assert.equal(nameStyleHalo(["#000000"]), "light");
+  assert.equal(nameStyleHalo(["#ffffff"]), "dark");
+  assert.equal(nameStyleHalo(["#ff5c5c"]), null);
+  assert.equal(nameStyleHalo([]), null);
 });

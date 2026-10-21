@@ -203,6 +203,8 @@ export const endpoints = {
   /** Üye kartı — sohbette avatara dokununca açılan zengin profil. */
   profileCard: (profileId: string) =>
     `/api/profile/${encodeURIComponent(profileId)}/card`,
+  /** Profillerin ad stilleri, toplu (en fazla 100 kimlik; stores/name-styles). */
+  profileNameStyles: (ids: readonly string[]) => `/api/profile/name-styles${qs({ ids: ids.join(",") })}`,
   /** Başkaları hakkında tutulan kayıtlar (not, takma ad, yok say). */
   profileAnnotations: "/api/profile-annotations",
   profileAnnotation: (profileId: string) =>

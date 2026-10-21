@@ -13,7 +13,7 @@ import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useActivities } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
-import { Avatar, Icon, emojify, type IconName } from "@/components/ui";
+import { Avatar, Icon, StyledName, emojify, type IconName } from "@/components/ui";
 import { classifyAttachment, readAttachmentInfo } from "@/lib/attachments";
 import { isEmojiOnly } from "@/lib/emoji";
 import { formatTime } from "@/lib/format";
@@ -248,13 +248,14 @@ export function MessageItem({
 
   const header = showHeader ? (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-      <Text
+      {/* Ad stili (web StyledName): renk efekti rol rengini ezer; listede durağan. */}
+      <StyledName
+        profileId={profile.id}
+        name={name}
         onPress={() => router.push(`/profile/${profile.id}`)}
-        style={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
+        textStyle={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
         numberOfLines={1}
-      >
-        {name}
-      </Text>
+      />
       {isOfficial || profile.isBot ? (
         <View
           style={{
@@ -850,7 +851,7 @@ function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
       <Avatar profileId={profile.id} imageUrl={profile.imageUrl} fallbackText={profile.username} size={40} />
       <View style={{ flex: 1, gap: spacing.xs }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}>
-          <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>{name}</Text>
+          <StyledName profileId={profile.id} name={name} textStyle={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1} />
           <Text style={{ fontSize: 10, color: colors.muted }}>{formatTime(message.createdAt)}</Text>
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
