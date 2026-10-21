@@ -20,7 +20,7 @@ export interface AvatarDecoration {
   store?: boolean;
   /** Gradyan renkleri, sırayla. */
   colors: string[];
-  /** Radyal süs (Çiklet Balonu) merkezden dışa boyanır. */
+  /** Radyal süs (Ciklet Balonu) merkezden dışa boyanır. */
   radial?: boolean;
   /** Köşeye oturan küçük rozet (emoji). */
   badge?: string;
@@ -44,7 +44,7 @@ export const AVATAR_DECORATIONS: readonly AvatarDecoration[] = [
   { id: "galaxy", name: "Galaksi", mentol: false, store: true, colors: ["#311b92", "#7c4dff", "#18ffff", "#311b92"], badge: "🪐", spin: true },
   { id: "sakura", name: "Sakura", mentol: false, store: true, colors: ["#ffc1e3", "#ff80ab", "#fce4ec"], badge: "🌸" },
   { id: "pixel", name: "Piksel", mentol: false, store: true, colors: ["#ff1744", "#ffea00", "#00e676", "#2979ff"], badge: "👾" },
-  { id: "bubble", name: "Çiklet Balonu", mentol: false, store: true, colors: ["#ffd6ec", "#ff6fb5", "#e0408f"], radial: true, badge: "🫧" },
+  { id: "bubble", name: "Ciklet Balonu", mentol: false, store: true, colors: ["#ffd6ec", "#ff6fb5", "#e0408f"], radial: true, badge: "🫧" },
 ];
 
 export function findDecoration(id: string | null | undefined): AvatarDecoration | null {
