@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { Image } from "expo-image";
 
 import type {
+  FavoriteGameView,
   ProfileActivitySession,
   ProfileBadge,
   ProfileConnectionView,
@@ -24,7 +25,7 @@ import { fw } from "@/theme/fonts";
  * sekmelerinin mobil parçaları. Ekran düzeni `app/profile/[profileId].tsx`.
  */
 
-export function Card({ title, children }: { title: string; children: React.ReactNode }) {
+export function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <View
       style={{
@@ -34,7 +35,14 @@ export function Card({ title, children }: { title: string; children: React.React
         gap: spacing.sm,
       }}
     >
-      <Text style={{ ...typography.overline, color: colors.muted }}>{title}</Text>
+      {action ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <Text style={{ ...typography.overline, color: colors.muted, flex: 1 }}>{title}</Text>
+          {action}
+        </View>
+      ) : (
+        <Text style={{ ...typography.overline, color: colors.muted }}>{title}</Text>
+      )}
       {children}
     </View>
   );
@@ -147,6 +155,72 @@ export function CollectionGrid({ items }: { items: ProfileGameView[] }) {
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+// ── Favori oyun ─────────────────────────────────────────────────────
+
+/**
+ * "Favori Oyun" satırı (web profile/favorite-game-card): 2:3 kapak, ad,
+ * süre ve varsa oyuncu etiketi çipi. Etiket metni sunucudan gelir.
+ */
+export function FavoriteGameCard({ game }: { game: Pick<FavoriteGameView, "name" | "playtimeMs" | "coverUrl" | "iconUrl" | "tagLabel"> }) {
+  const cover = resolveMediaUrl(game.coverUrl);
+  const icon = resolveMediaUrl(game.iconUrl);
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${game.name}, ${playtimeLabel(game.playtimeMs)}${game.tagLabel ? `, ${game.tagLabel}` : ""}`}
+      style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}
+    >
+      <View
+        style={{
+          width: 56,
+          height: 84,
+          borderRadius: radii.md,
+          overflow: "hidden",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.raised,
+        }}
+      >
+        {cover ? (
+          <Image source={{ uri: cover }} style={{ width: "100%", height: "100%" }} contentFit="cover" transition={120} />
+        ) : icon ? (
+          <Image source={{ uri: icon }} style={{ width: "70%", height: "70%", borderRadius: radii.sm }} contentFit="contain" />
+        ) : (
+          <Text style={{ ...typography.caption, ...fw(700), color: colors.muted }}>{game.name.slice(0, 2).toUpperCase()}</Text>
+        )}
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
+          {game.name}
+        </Text>
+        <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
+          {playtimeLabel(game.playtimeMs)}
+        </Text>
+        {game.tagLabel ? (
+          <View
+            style={{
+              alignSelf: "flex-start",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              marginTop: 4,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 2,
+              borderRadius: radii.full,
+              backgroundColor: colors.brandSoft,
+            }}
+          >
+            <Text style={{ fontSize: 11, lineHeight: 15, color: colors.brand }}>★</Text>
+            <Text style={{ fontSize: 11, lineHeight: 15, ...fw(600), color: colors.brand }} numberOfLines={1}>
+              {game.tagLabel}
+            </Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }

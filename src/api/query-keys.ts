@@ -58,6 +58,8 @@ export const qk = {
 
   /** Üye kartı — profil başına. */
   profileCard: (profileId: string) => ["profile-card", profileId] as const,
+  /** Kendi oyun koleksiyonun (favori seçici). */
+  profileGames: ["profile-games"] as const,
 
   /** Kullanıcının başkaları hakkında tuttuğu kayıtlar (tek liste). */
   annotations: ["profile-annotations"] as const,

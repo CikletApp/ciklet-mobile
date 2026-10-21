@@ -13,7 +13,7 @@ import { Image } from "expo-image";
 
 import { STORE_TITLE } from "@/lib/purchases";
 import { ApiError } from "@/api/client";
-import { useCurrentProfile, useMyMemberships, useUpdateProfile } from "@/api/hooks";
+import { useCurrentProfile, useMyGames, useMyMemberships, useUpdateProfile } from "@/api/hooks";
 import { Avatar } from "@/components/ui/avatar";
 import { showDialog } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
@@ -22,7 +22,9 @@ import { findDecoration } from "@/lib/avatar-decorations";
 import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { GAMES_VISIBILITY_OPTIONS } from "@/lib/profile-extras";
 import { UserFacingUploadError, pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
+import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
+import { favoriteCandidates, favoriteGameTagLabel } from "@/lib/favorite-game";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -58,6 +60,9 @@ export default function EditProfileScreen() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [bannerBusy, setBannerBusy] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [favoritePicker, setFavoritePicker] = useState(false);
+  const myGames = useMyGames();
+  const favoriteGame = favoriteCandidates(myGames.data ?? []).find((g) => g.favorite) ?? null;
 
   // Sunucudan gelen değerlerle formu bir kez doldur. Kullanıcı yazmaya
   // başladıktan sonra gelen bir refetch yazdıklarını EZMEMELİ; bu yüzden
@@ -377,7 +382,18 @@ export default function EditProfileScreen() {
                 );
               })}
             </View>
+            {/* Favori oyun (web lib/favorite-game): koleksiyondan tek oyun + etiket. */}
+            <ListGroup>
+              <ListRow
+                icon="gamepad"
+                title="Favori Oyun"
+                subtitle={favoriteGame ? favoriteGameTagLabel(favoriteGame.favoriteTag) ?? undefined : undefined}
+                detail={favoriteGame?.name ?? "Yok"}
+                onPress={() => setFavoritePicker(true)}
+              />
+            </ListGroup>
           </View>
+          <FavoriteGameSheet visible={favoritePicker} onClose={() => setFavoritePicker(false)} />
 
           {updateProfile.isError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>

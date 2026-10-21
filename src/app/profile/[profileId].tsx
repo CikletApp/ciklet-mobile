@@ -27,6 +27,7 @@ import {
 } from "@/components/ui";
 import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presence/activity-reply-sheet";
 import { isMobileActivity } from "@/features/presence/media-activity";
+import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import {
   ActivityList,
@@ -34,6 +35,7 @@ import {
   Card,
   CollectionGrid,
   ConnectionList,
+  FavoriteGameCard,
   PeopleList,
 } from "@/features/profile/profile-sections";
 import { ListenAlongBar, SpotifyCard } from "@/features/spotify/spotify-card";
@@ -102,6 +104,7 @@ export default function ProfileScreen() {
   const [tab, setTab] = useState<CardTab>("pano");
   const [replyTarget, setReplyTarget] = useState<ActivityReplyTarget | null>(null);
   const myId = useAuth((s) => s.profile?.id);
+  const [favoritePicker, setFavoritePicker] = useState(false);
 
   const cached = useMemo<ProfileView | undefined>(() => {
     const friend = accepted.find((f) => f.profile.id === profileId)?.profile;
@@ -156,6 +159,7 @@ export default function ProfileScreen() {
   const games = data?.collection?.games ?? [];
   const programs = data?.collection?.programs ?? [];
   const connections = data?.connections ?? [];
+  const favoriteGame = data?.favoriteGame ?? null;
   const customStatus = activeCustomStatus(profile);
   const title = annotation?.nickname?.trim() || displayNameOf(profile);
   const friendship = data?.friendship;
@@ -427,6 +431,49 @@ export default function ProfileScreen() {
 
               {showSpotify ? <SpotifyCard profileId={profile.id} name={title} isSelf={isSelf} /> : null}
 
+              {/* Favori oyun (web lib/favorite-game): koleksiyonun üstünde. Kendi
+                  profilinde boşsa seçme kutusu, doluysa kalemle değiştirilir. */}
+              {favoriteGame ? (
+                <Card
+                  title={isSelf ? "FAVORİ OYUNUN" : "FAVORİ OYUN"}
+                  action={
+                    isSelf ? (
+                      <Pressable
+                        onPress={() => setFavoritePicker(true)}
+                        haptic="light"
+                        accessibilityRole="button"
+                        accessibilityLabel="Favori oyunu değiştir"
+                      >
+                        <Icon name="pencil" size={16} color={colors.muted} />
+                      </Pressable>
+                    ) : undefined
+                  }
+                >
+                  <FavoriteGameCard game={favoriteGame} />
+                </Card>
+              ) : isSelf ? (
+                <Pressable
+                  onPress={() => setFavoritePicker(true)}
+                  haptic="light"
+                  noHitSlop
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: spacing.sm,
+                    paddingVertical: spacing.lg,
+                    borderRadius: radii.lg,
+                    borderWidth: 1,
+                    borderStyle: "dashed",
+                    borderColor: colors.brand,
+                    backgroundColor: pressed ? colors.brandSoft : "transparent",
+                  })}
+                >
+                  <Text style={{ ...typography.bodyStrong, color: colors.brand }}>★ Favori oyun seç</Text>
+                </Pressable>
+              ) : null}
+
               {games.length > 0 ? (
                 <Card title={isSelf ? "OYUNLARIN" : "SEVDİĞİ OYUNLAR"}>
                   <CollectionGrid items={games} />
@@ -454,6 +501,7 @@ export default function ProfileScreen() {
       </ScrollView>
       <ListenAlongBar />
       <ActivityReplySheet target={replyTarget} onClose={() => setReplyTarget(null)} />
+      {isSelf ? <FavoriteGameSheet visible={favoritePicker} onClose={() => setFavoritePicker(false)} /> : null}
     </Screen>
   );
 }

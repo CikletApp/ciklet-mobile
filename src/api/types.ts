@@ -443,6 +443,11 @@ export interface ProfileCardResponse {
   collection?: { games: ProfileGameView[]; programs: ProfileGameView[] };
   /** Görünür bağlantılar (kendi kartında hepsi). */
   connections?: ProfileConnectionView[];
+  /**
+   * Favori oyun (ciklet-web lib/favorite-game): koleksiyonla aynı süzgeçten
+   * geçmiş satır + etiket; yoksa / gizliyse null. Eski sunucuda alan yok.
+   */
+  favoriteGame?: FavoriteGameView | null;
 }
 
 export type ProfileBadgeId =
@@ -485,6 +490,23 @@ export interface ProfileGameView {
   coverUrl: string | null;
   iconUrl: string | null;
   hidden: boolean;
+}
+
+/** Kart yanıtındaki `favoriteGame` (web `FavoriteGameView`). */
+export interface FavoriteGameView extends ProfileGameView {
+  /** `FAVORITE_GAME_TAGS` kimliği ya da null. */
+  tag: string | null;
+  /** Etiketin Türkçe metni — sunucu verir, istemci sözlük taşımaz. */
+  tagLabel: string | null;
+}
+
+/** `GET /api/profile/games` satırı — kendi koleksiyonun (gizliler dahil). */
+export interface OwnProfileGame extends ProfileGameView {
+  /** Ciklet tanıyor mu; tanınmayan oyun profilde görünmez. */
+  recognized?: boolean;
+  /** Favori satırda true; etiket de onunla gelir. */
+  favorite?: boolean;
+  favoriteTag?: string | null;
 }
 
 export type ConnectionType =

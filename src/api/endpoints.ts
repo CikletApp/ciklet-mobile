@@ -254,6 +254,10 @@ export const endpoints = {
   // ── Profil genişlemesi, sosyal ve para ────────────────────────────
   /** GET liste, PUT `{ type, handle, visible? }`, DELETE `{ type }`. */
   profileConnections: "/api/profile/connections",
+  /** Kendi oyun koleksiyonun (gizli + tanınmayan dahil, favori işaretli). */
+  profileGames: "/api/profile/games",
+  /** PUT `{ name, type, tag? }` favori yapar; DELETE kaldırır. */
+  profileFavoriteGame: "/api/profile/games/favorite",
   /** GET bağlantı durumu, DELETE bağlantıyı kaldır. Bağlama OAuth ile webde. */
   /** Rich presence kapağı yükleme (ham JPEG/PNG gövde) → `{ url }` (web lib/presence-covers). */
   presenceCovers: "/api/presence/covers",
