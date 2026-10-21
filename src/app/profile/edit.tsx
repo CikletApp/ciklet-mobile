@@ -21,7 +21,8 @@ import { Divider, ListGroup, ListRow } from "@/components/ui/list";
 import { findDecoration } from "@/lib/avatar-decorations";
 import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { GAMES_VISIBILITY_OPTIONS } from "@/lib/profile-extras";
-import { pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
+import { UserFacingUploadError, pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
+import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -34,6 +35,15 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * satırından açılan ayrı ekranda düzenlenir.
  */
 type Tab = "user" | "servers";
+
+/**
+ * Ekrana yalnızca bizim yazdığımız Türkçe iletiler çıkar (yükleme hatası ya
+ * da sunucu yanıtı); kütüphane/yerel modül iletileri genel cümleye döner.
+ */
+function friendlyError(reason: unknown, fallback: string): string {
+  if (reason instanceof UserFacingUploadError || reason instanceof ApiError) return reason.message;
+  return fallback;
+}
 
 export default function EditProfileScreen() {
   const [tab, setTab] = useState<Tab>("user");
@@ -102,7 +112,7 @@ export default function EditProfileScreen() {
       if (!bannerUrl) return;
       await updateProfile.mutateAsync({ bannerUrl });
     } catch (reason) {
-      setBannerError(reason instanceof Error ? reason.message : "Afiş değiştirilemedi.");
+      setBannerError(friendlyError(reason, "Afiş değiştirilemedi. Tekrar dene."));
     } finally {
       setBannerBusy(false);
     }
@@ -136,7 +146,7 @@ export default function EditProfileScreen() {
       if (!imageUrl) return;
       await updateProfile.mutateAsync({ imageUrl });
     } catch (reason) {
-      setAvatarError(reason instanceof Error ? reason.message : "Avatar değiştirilemedi.");
+      setAvatarError(friendlyError(reason, "Avatar değiştirilemedi. Tekrar dene."));
     } finally {
       setAvatarBusy(false);
     }
@@ -197,6 +207,8 @@ export default function EditProfileScreen() {
                   style={{ width: "100%", height: "100%" }}
                 />
               ) : null}
+              {/* Önizleme: takılı profil efekti afişin üstünde (web ile aynı). */}
+              <ProfileEffectOverlay id={profile.profileEffectId} height={88} />
               <View
                 style={{
                   position: "absolute",

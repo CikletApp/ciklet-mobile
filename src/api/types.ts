@@ -41,6 +41,9 @@ export interface CurrentProfile extends PublicProfile {
   customStatusUntil?: string | null;
   gamesVisibility?: GamesVisibility;
   avatarDecorationId?: string | null;
+  /** Mağaza kozmetikleri (web `toClientProfile`); kimlikler lib/profile-effects. */
+  nameplateId?: string | null;
+  profileEffectId?: string | null;
 }
 
 /** `PATCH /api/current-profile` gövdesi — yalnızca gönderilen alanlar yazılır. */

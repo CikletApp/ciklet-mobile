@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Image } from "expo-image";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
+import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import { useCurrentProfile, useFriends, useMentolPlan } from "@/api/hooks";
 import {
   Avatar,
@@ -88,6 +89,7 @@ export default function MeScreen() {
             {bannerUrl ? (
               <Image source={{ uri: bannerUrl }} contentFit="cover" transition={150} style={{ width: "100%", height: "100%" }} />
             ) : null}
+            <ProfileEffectOverlay id={profile?.profileEffectId} height={84} />
           </View>
           <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>
             <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -38 }}>

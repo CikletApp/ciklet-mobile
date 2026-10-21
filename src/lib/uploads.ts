@@ -7,6 +7,9 @@ import { cookieHeaderFor, getSession } from "@/api/client";
 import type { MentolPlan } from "@/api/hooks";
 import { queryClient } from "@/api/query-client";
 import { API_BASE_URL } from "@/lib/config";
+import { UserFacingUploadError, uploadErrorMessage, uploadRouteUrl } from "@/lib/upload-logic";
+
+export { UserFacingUploadError } from "@/lib/upload-logic";
 
 /** Plan bilgisi gelmeden önce EN DAR sınır uygulanır (web `FREE_FALLBACK` ile aynı). */
 const FREE_UPLOAD_LIMIT_MB = 8;
@@ -50,25 +53,30 @@ interface UploadOptions {
 
 type UploadFiles = (endpoint: string, options: UploadOptions) => Promise<UploadedFile[]>;
 
+type GenUploader = (options: { url: URL; package: string }) => { uploadFiles: UploadFiles };
+
 /**
  * Sunucu uploadthing v7 çalıştırıyor. v6 istemcisi (önceki sürüm) sunucunun
  * yanıtını çözemiyordu: v6 S3 çok parçalı alanları ve `pollingUrl`
  * bekliyor, v7 ise doğrudan UploadThing'in ingest adreslerini veriyor.
- * Mobilden yükleme bu yüzden hiç çalışmıyordu. v7'de `genUploader` bir
- * fonksiyon değil, `{ uploadFiles }` nesnesi döndürüyor; `skipPolling`
- * de sunucu rotasına (`awaitServerData`) taşındı.
+ * v7'de `genUploader` bir fonksiyon değil, `{ uploadFiles }` nesnesi
+ * döndürüyor; `skipPolling` de sunucu rotasına (`awaitServerData`) taşındı.
+ *
+ * Yükleyici ÇAĞRI ANINDA kurulur (ucuz: yalnızca kapanış nesnesi). Modül
+ * düzeyinde kurulan `URL`, LiveKit'in `setupURLPolyfill()`'i global `URL`'i
+ * değiştirdikten sonra `instanceof URL` denetimini geçemiyor ve UploadThing
+ * `window.location.origin`'e düşüp çöküyordu — bkz. `upload-logic.ts`
+ * `uploadRouteUrl`.
  *
  * Sunucunun dosya yönlendirici tipi bu repoda yok; istemci yalnızca uç adı
  * ve dönüş adresiyle çalıştığı için yerel tiplerle daraltılıyor.
  */
-const { uploadFiles } = (
-  genUploader as unknown as (options: { url: URL; package: string }) => {
-    uploadFiles: UploadFiles;
-  }
-)({
-  url: new URL("/api/uploadthing", API_BASE_URL),
-  package: "ciklet-mobile",
-});
+function createUploadFiles(): UploadFiles {
+  return (genUploader as unknown as GenUploader)({
+    url: uploadRouteUrl(API_BASE_URL),
+    package: "ciklet-mobile",
+  }).uploadFiles;
+}
 
 export interface MessageAttachment {
   url: string;
@@ -155,7 +163,7 @@ export async function pickFromGallery(options: {
 export async function captureFromCamera(): Promise<PickedAsset | null> {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) {
-    throw new Error("Kamera izni verilmedi. Sistem ayarlarından Ciklet için kamerayı açabilirsin.");
+    throw new UserFacingUploadError("Kamera izni verilmedi. Sistem ayarlarından Ciklet için kamerayı açabilirsin.");
   }
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: ["images"],
@@ -186,41 +194,43 @@ async function uploadPickedFile(
   const size = asset.size ?? local.size ?? 0;
   const limit = uploadLimitBytes();
   if (size > limit) {
-    throw new Error(`Bu plan için tek dosya üst sınırı ${Math.round(limit / (1024 * 1024))} MB.`);
+    throw new UserFacingUploadError(`Bu plan için tek dosya üst sınırı ${Math.round(limit / (1024 * 1024))} MB.`);
   }
   const mimeType = asset.mimeType ?? (local.type || "application/octet-stream");
 
-  const uploaded = await uploadFiles(endpoint, {
-    files: [
-      {
-        uri: asset.uri,
-        name: asset.name,
-        type: mimeType,
-        size,
-        lastModified: asset.lastModified ?? Date.now(),
+  let uploaded: UploadedFile[];
+  try {
+    // `await` içinde: istemci bazı hataları (adres çözümü gibi) Promise
+    // yerine EŞZAMANLI fırlatıyor; `.catch` onları yakalamıyordu ve ham
+    // İngilizce ileti ekrana çıkıyordu.
+    uploaded = await createUploadFiles()(endpoint, {
+      files: [
+        {
+          uri: asset.uri,
+          name: asset.name,
+          type: mimeType,
+          size,
+          lastModified: asset.lastModified ?? Date.now(),
+        },
+      ],
+      headers: async () => {
+        const session = await getSession();
+        const headers = new Headers();
+        if (session) headers.set("Cookie", cookieHeaderFor(session));
+        return headers;
       },
-    ],
-    headers: async () => {
-      const session = await getSession();
-      const headers = new Headers();
-      if (session) headers.set("Cookie", cookieHeaderFor(session));
-      return headers;
-    },
-    onUploadProgress: ({ progress }) => onProgress?.(progress),
-  }).catch((err: unknown) => {
+      onUploadProgress: ({ progress }) => onProgress?.(progress),
+    });
+  } catch (err: unknown) {
     // UploadThing hataları ham gelir ("XHR failed 400 undefined"); ayrıntı
     // geliştirici günlüğüne, kullanıcıya anlaşılır bir cümle.
     const detail = err as { code?: string; message?: string; data?: unknown };
-    if (__DEV__) console.warn("[yükleme]", detail.code, detail.message, detail.data);
-    throw new Error(
-      detail.code === "TOO_LARGE" || detail.code === "FILE_LIMIT_EXCEEDED"
-        ? "Dosya bu plan için çok büyük."
-        : "Dosya yüklenemedi. Bağlantını kontrol edip tekrar dene."
-    );
-  });
+    if (__DEV__) console.warn("[yükleme]", detail?.code, detail?.message, detail?.data);
+    throw new UserFacingUploadError(uploadErrorMessage(err));
+  }
 
   const file = uploaded[0];
-  if (!file?.ufsUrl) throw new Error("Dosya yüklendi ancak adres alınamadı.");
+  if (!file?.ufsUrl) throw new UserFacingUploadError("Dosya yüklendi ancak adres alınamadı. Tekrar dene.");
   return { url: file.ufsUrl, mimeType, size };
 }
 

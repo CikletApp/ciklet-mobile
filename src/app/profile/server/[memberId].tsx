@@ -5,7 +5,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ApiError } from "@/api/client";
 import { useMyMemberships, useUpdateMemberProfile } from "@/api/hooks";
 import { Avatar, EmptyState, Icon, ScreenLoader } from "@/components/ui";
-import { pickAndUploadProfileImage } from "@/lib/uploads";
+import { UserFacingUploadError, pickAndUploadProfileImage } from "@/lib/uploads";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export default function ServerProfileEditScreen() {
@@ -71,7 +71,11 @@ export default function ServerProfileEditScreen() {
       const serverImageUrl = await pickAndUploadProfileImage(setAvatarProgress);
       if (serverImageUrl) await update.mutateAsync({ serverImageUrl });
     } catch (reason) {
-      setAvatarError(reason instanceof Error ? reason.message : "Sunucu avatarı değiştirilemedi.");
+      setAvatarError(
+        reason instanceof UserFacingUploadError || reason instanceof ApiError
+          ? reason.message
+          : "Sunucu avatarı değiştirilemedi. Tekrar dene."
+      );
     } finally {
       setAvatarBusy(false);
     }
