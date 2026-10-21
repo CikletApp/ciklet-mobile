@@ -722,6 +722,11 @@ export interface StoreCatalogResponse {
   discountPercent: number;
   /** Ödeme sağlayıcısı yapılandırılmamışsa satın alma kapalı. */
   purchasable: boolean;
+  /**
+   * Ücretsiz mağaza modu (web STORE_FREE_MODE): her ürün `POST /api/store/claim`
+   * ile ücretsiz alınır; `finalPrice` 0, `price` liste fiyatı. Eski sunucuda yok.
+   */
+  free?: boolean;
   items: {
     id: string;
     kind: StoreItemKind;
@@ -730,6 +735,7 @@ export interface StoreCatalogResponse {
     price: number;
     finalPrice: number;
     owned: boolean;
+    free?: boolean;
   }[];
   equipped: {
     decoration: string | null;

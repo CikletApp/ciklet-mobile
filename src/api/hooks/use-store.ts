@@ -26,6 +26,21 @@ export function useStoreCatalog() {
   });
 }
 
+/**
+ * Ücretsiz mağaza modunda ürünü alır (`free: true` katalog). Para yok, ödeme
+ * sayfası yok: hak sunucuda doğrudan yazılır, katalog tazelenir.
+ */
+export function useClaimStoreItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) =>
+      api<{ ok: true; owned: true; itemId: string; alreadyOwned: boolean }>(endpoints.storeClaim, { method: "POST", body: { itemId } }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.store });
+    },
+  });
+}
+
 export function useServerTiers(serverId: string | undefined) {
   return useQuery({
     queryKey: qk.serverTiers(serverId ?? "yok"),

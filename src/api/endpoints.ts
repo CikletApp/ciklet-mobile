@@ -276,6 +276,8 @@ export const endpoints = {
   store: "/api/store",
   /** POST `{ itemId, giftTo? }` → `{ paymentId }`. */
   storeCheckout: "/api/store/checkout",
+  /** POST { itemId } — ücretsiz mağaza modunda ürünü al (idempotent). */
+  storeClaim: "/api/store/claim",
   /** POST `{ plan, period, giftTo? }` → `{ paymentId, … }`. */
   mentolCheckout: "/api/mentol/checkout",
   serverTiers: (serverId: string) =>
