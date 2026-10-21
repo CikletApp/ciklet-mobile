@@ -8,6 +8,7 @@ import { qk } from "@/api/query-keys";
 import type { PinFields } from "@/api/types";
 import { showToast } from "@/components/ui";
 import { classifyAttachment, readAttachmentInfo, type AttachmentKind } from "@/lib/attachments";
+import { activityReplyPreview } from "@/lib/activity-reply";
 import { formatMessagePreview } from "@/lib/message-preview";
 import type { ChatMessagePayload } from "@/realtime/events";
 import type { MessageCache } from "./reaction-cache";
@@ -187,6 +188,7 @@ export function pinAttachment(message: ChatMessagePayload): { url: string; kind:
 /** Çubuk ve liste için tek satırlık önizleme metni. */
 export function pinPreview(message: ChatMessagePayload): string {
   if (message.type === "ACTIVITY_INVITE") return message.content.trim() || "Aktivite daveti";
+  if ((message.type as string) === "ACTIVITY_REPLY") return activityReplyPreview(message.content);
   // Ek adresi görünmez; türün etiketi ("🎤 Sesli mesaj") — lib/message-preview.
   return formatMessagePreview(message, { fallback: "Mesaj" });
 }

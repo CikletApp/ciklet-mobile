@@ -6,6 +6,7 @@
  * düzeyinde bir kez kurulur, her çağrıda yeniden yaratılmaz.
  */
 
+import { activityReplyPreview } from "./activity-reply";
 import { formatMessagePreview } from "./message-preview";
 
 const timeFormat = new Intl.DateTimeFormat("tr-TR", {
@@ -188,6 +189,10 @@ export function formatDirectPreview(
       break;
     case "ACTIVITY_INVITE":
       preview = content || "Aktivite daveti";
+      break;
+    case "ACTIVITY_REPLY":
+      // Tepki tek emoji: neye verildiği eklenir ("👍 Etkinliğe tepki verdi").
+      preview = activityReplyPreview(content);
       break;
     case "MESSAGE_PINNED":
       // Sistem satırı; öznesi sabitleyen kişi (içerik "bir mesajı sabitledi.").

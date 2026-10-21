@@ -18,6 +18,7 @@ import { classifyAttachment, readAttachmentInfo } from "@/lib/attachments";
 import { isEmojiOnly } from "@/lib/emoji";
 import { formatTime } from "@/lib/format";
 import { formatMessagePreview } from "@/lib/message-preview";
+import { readActivityReply } from "@/lib/activity-reply";
 import { isOfficialProfile } from "@/lib/official";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useAuth } from "@/stores/auth";
@@ -32,6 +33,7 @@ import { FLASH_DURATION, useMessageFlash } from "./message-flash";
 import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 import { PollCard } from "./poll-message";
+import { MessageActivityReply } from "./message-activity-reply";
 import {
   extraAttachments,
   isSilent,
@@ -185,9 +187,12 @@ export function MessageItem({
   // Anket (ciklet-web POLL): normal balon yolundan geçer (uzun basma menüsü,
   // tepkiler, silinmiş görünümü); gövdesi oy verilebilir kart.
   const isPoll = (message.type as string) === "POLL";
+  // Etkinliğe yanıt/tepki (web ACTIVITY_REPLY): normal balon + etkinlik kartı.
+  // Özet bozuksa kart çizilmez, mesaj düz balon kalır.
+  const isActivityReply = (message.type as string) === "ACTIVITY_REPLY";
 
   // Sistem mesajları (çağrı, aktivite daveti) tarafsızdır — ortada çizilir.
-  if (message.type !== MessageType.DEFAULT && !isPoll) {
+  if (message.type !== MessageType.DEFAULT && !isPoll && !isActivityReply) {
     return message.type === MessageType.ACTIVITY_INVITE
       ? <ActivityInviteMessage message={message} />
       : <SystemMessage message={message} />;
@@ -360,6 +365,8 @@ export function MessageItem({
   // Silinmiş anket çizilmez ("Bu mesaj silindi." kalır); içerik soru metni,
   // kart zaten gösteriyor.
   const poll = isPoll && !message.deleted ? readPoll(message.metadata) : null;
+  const activityReply =
+    isActivityReply && !message.deleted ? readActivityReply({ type: "ACTIVITY_REPLY", metadata: message.metadata }) : null;
 
   // Çıkartma mesajının içeriği çıkartmanın adı; görsel zaten ad taşıyor (web gibi).
   const caption = poll ? (
@@ -468,6 +475,10 @@ export function MessageItem({
           ) : null}
 
           {!inviteCode && !hideAttachmentUrl && !message.deleted ? caption : null}
+
+          {activityReply ? (
+            <MessageActivityReply activity={activityReply} content={message.content} isMine={isMine} />
+          ) : null}
 
           {message.fileUrl && !message.deleted ? (
             <MessageAttachment

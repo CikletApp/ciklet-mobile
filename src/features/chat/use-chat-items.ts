@@ -44,7 +44,8 @@ export function authorIdOf(message: ChatMessagePayload): string {
  * görünüyordu.
  */
 function isSystemMessage(message: ChatMessagePayload): boolean {
-  return message.type !== MessageType.DEFAULT;
+  // Etkinliğe yanıt normal bir mesajdır (balon + kart), gruplanır (web gibi).
+  return message.type !== MessageType.DEFAULT && (message.type as string) !== "ACTIVITY_REPLY";
 }
 
 export function useChatItems(
