@@ -5,6 +5,8 @@ import type {
   PublicProfile,
 } from "@ciklet/embedded-activities-sdk/types";
 
+import type { NameStyle } from "@/lib/name-style";
+
 /**
  * SDK sözleşmesinde HENÜZ karşılığı olmayan yanıt tipleri.
  *
@@ -44,6 +46,8 @@ export interface CurrentProfile extends PublicProfile {
   /** Mağaza kozmetikleri (web `toClientProfile`); kimlikler lib/profile-effects. */
   nameplateId?: string | null;
   profileEffectId?: string | null;
+  /** Ad stili (lib/name-style; okuyan taraf `parseNameStyle`'dan geçirir). */
+  nameStyle?: NameStyle | null;
 }
 
 /** `PATCH /api/current-profile` gövdesi — yalnızca gönderilen alanlar yazılır. */
@@ -72,6 +76,8 @@ export interface UpdateProfileInput {
   /** Mağaza kozmetikleri — yalnızca sahip olunan ürün takılır. */
   nameplateId?: string | null;
   profileEffectId?: string | null;
+  /** Ad stili; `null` kaldırır. Mentol/mağaza denetimi yalnızca DEĞİŞEN kimliklerde, sunucuda. */
+  nameStyle?: NameStyle | null;
 }
 
 /**
@@ -415,6 +421,7 @@ export interface ProfileCardResponse {
     customStatusUntil?: string | null;
     nameplateId?: string | null;
     profileEffectId?: string | null;
+    nameStyle?: NameStyle | null;
   };
   isSelf: boolean;
   /** Mentol planı — rozet metni istemcide eşlenir. */
@@ -819,6 +826,8 @@ export interface ServerMemberListItem {
     name: string | null;
     imageUrl: string | null;
     isBot: boolean;
+    /** Mağaza isim plakası (lib/profile-effects NAMEPLATES). */
+    nameplateId?: string | null;
     /** Özel durum (lib/custom-status); eski sunucuda alan yok. */
     customStatusText?: string | null;
     customStatusEmoji?: string | null;

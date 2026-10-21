@@ -12,6 +12,7 @@ import { kvGet, kvSet } from "@/lib/local-db";
 import { unregisterPushToken } from "@/lib/notifications";
 import { clearNsfwAcknowledgements } from "@/lib/nsfw-ack";
 import { clearDecorations } from "@/stores/decorations";
+import { clearNameStyles } from "@/stores/name-styles";
 
 /**
  * Oturum durumu — uygulamanın tek kimlik kaynağı.
@@ -241,6 +242,7 @@ useAuth.subscribe((state, prev) => {
   const wasSignedOut = prev.status === "signedOut" || prev.status === "banned";
   if (signedOut && !wasSignedOut) {
     clearDecorations();
+    clearNameStyles();
     resetInteractionModal();
     void clearNsfwAcknowledgements().catch(() => {});
   }

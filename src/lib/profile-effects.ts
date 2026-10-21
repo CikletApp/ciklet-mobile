@@ -1,99 +1,109 @@
+import { resolveCosmeticId } from "./cosmetics/aliases";
+import type { CosmeticTags } from "./cosmetics/taxonomy";
+
 /**
- * Profil efektleri kataloğu — ciklet-web `src/lib/store-catalog.ts`
- * `PROFILE_EFFECTS` ile BİREBİR (kimlik, ad, katman, hareket, parçacıklar).
- * Web'e yeni efekt eklenince buraya da eklenmeli; sunucu `profileEffectId`
- * olarak bu kimlikleri döner. Çizim: `features/profile/profile-effect.tsx`
- * (web `components/store/profile-effect.tsx` + globals.css `.profile-fx-*`).
+ * Profil efektleri ve isim plakaları kataloğu — ciklet-web
+ * `src/lib/store-catalog.ts` `PROFILE_EFFECTS` / `NAMEPLATES` ile BİREBİR
+ * (kimlik, ad, kademe, koleksiyon). Web'e yeni ürün eklenince buraya da
+ * eklenmeli; sunucu `profileEffectId` / `nameplateId` olarak bu kimlikleri
+ * döner. Kaldırılan eski kimlikler (fx_confetti, np_dusk…)
+ * lib/cosmetics/aliases ile en yakın yeni ürüne çözülür.
  *
- * Saf modül (RN içe aktarmaz) — scripts/verify-uploads.mjs doğrular.
+ * Çizim (web ile ortak SVG, lib/cosmetics/art):
+ *  - efekt  → features/profile/profile-effect.tsx (EFFECT_ART + effectLayout);
+ *  - plaka  → features/profile/nameplate.tsx (NAMEPLATE_ART sahnesi + renk).
+ *
+ * Saf modül (RN içe aktarmaz) — scripts/verify-cosmetics.mjs doğrular.
  */
 
+/** Efekt kademesi: kim takabilir (sunucu PATCH'te denetler). */
 export type ProfileEffectTier = "free" | "mentol" | "store";
-/** fall: yukarıdan yağar · rise: aşağıdan yükselir · twinkle: yerinde parlar. */
-export type ProfileEffectMotion = "fall" | "rise" | "twinkle";
 
-export interface ProfileEffect {
+export interface ProfileEffect extends CosmeticTags {
   id: string;
   name: string;
   tier: ProfileEffectTier;
-  motion: ProfileEffectMotion;
-  particles: readonly string[];
-  /** Parçacık yerine özel çizim. */
-  art?: "turkiye";
 }
 
 export const PROFILE_EFFECTS: readonly ProfileEffect[] = [
   // Ücretsiz.
-  { id: "fx_bubbles", name: "Baloncuk", tier: "free", motion: "rise", particles: ["🫧", "○", "◦"] },
-  { id: "fx_leaves", name: "Yapraklar", tier: "free", motion: "fall", particles: ["🍃", "🍂", "🍁"] },
-  // Al Bayrak: dalgalanan kırmızı ipek, parlayan ay-yıldız, beyaz yıldızlar.
-  { id: "fx_turkiye", name: "Al Bayrak", tier: "free", motion: "twinkle", particles: ["✦"], art: "turkiye" },
+  { id: "fx_leaves", name: "Sonbahar Yaprakları", tier: "free", collection: "bahar-bahcesi", themes: ["doga", "mevsimsel"] },
+  { id: "fx_turkiye", name: "Al Bayrak", tier: "free", collection: "turkiye", themes: ["turkiye"] },
   // Mentol (Plus+).
-  { id: "fx_mint", name: "Mentol", tier: "mentol", motion: "rise", particles: ["🌿", "💚", "✦"] },
-  { id: "fx_sparkle", name: "Işıltı", tier: "mentol", motion: "twinkle", particles: ["✨", "✦", "⋆"] },
-  { id: "fx_sakura", name: "Sakura", tier: "mentol", motion: "fall", particles: ["🌸", "🌸", "·"] },
-  { id: "fx_fireflies", name: "Ateş Böcekleri", tier: "mentol", motion: "twinkle", particles: ["•", "·", "✧"] },
+  { id: "fx_sakura", name: "Sakura Yağmuru", tier: "mentol", collection: "bahar-bahcesi", themes: ["doga", "mevsimsel"] },
+  { id: "fx_fireflies", name: "Ateş Böcekleri", tier: "mentol", collection: "bahar-bahcesi", themes: ["doga", "fantezi"] },
+  { id: "fx_isilti", name: "Yıldız Işıltısı", tier: "mentol", collection: "gece-gokyuzu", themes: ["fantezi"] },
+  { id: "fx_korlar", name: "Yükselen Korlar", tier: "mentol", collection: "ates-ve-buz", themes: ["fantezi"] },
   // Mağaza.
-  { id: "fx_confetti", name: "Konfeti", tier: "store", motion: "fall", particles: ["🎉", "🎊", "✨"] },
-  { id: "fx_snow", name: "Kar", tier: "store", motion: "fall", particles: ["❄️", "❄", "·"] },
-  { id: "fx_hearts", name: "Kalpler", tier: "store", motion: "rise", particles: ["💖", "💕", "💗"] },
-  { id: "fx_stars", name: "Yıldızlar", tier: "store", motion: "twinkle", particles: ["⭐", "🌟", "✦"] },
+  { id: "fx_mezarlik", name: "Sisli Mezarlık", tier: "store", collection: "cadilar-bayrami", themes: ["korku", "sevimli", "mevsimsel"] },
+  { id: "fx_orumcek", name: "Örümcek Ağları", tier: "store", collection: "cadilar-bayrami", themes: ["korku", "mevsimsel"] },
+  { id: "fx_snow", name: "Kar Yağışı", tier: "store", collection: "ates-ve-buz", themes: ["doga", "mevsimsel"] },
+  { id: "fx_yildiz_kaymasi", name: "Yıldız Kayması", tier: "store", collection: "gece-gokyuzu", themes: ["fantezi", "bilim-kurgu"] },
 ];
 
 export function findProfileEffect(id: string | null | undefined): ProfileEffect | null {
   if (!id) return null;
-  return PROFILE_EFFECTS.find((effect) => effect.id === id) ?? null;
-}
-
-/** Yatay yuvalar (% sol) — web `SLOTS`; konumlar her açılışta aynı. */
-export const EFFECT_SLOTS = [8, 22, 37, 51, 64, 78, 91] as const;
-/** Parlayan efektte dikey konumlar (% üst) — web `TWINKLE_TOPS`. */
-export const TWINKLE_TOPS = [18, 62, 34, 76, 22, 55, 40] as const;
-
-export interface EffectParticle {
-  glyph: string;
-  /** % sol */
-  left: number;
-  /** Yalnızca twinkle: % üst. */
-  top: number | null;
-  delayMs: number;
-  durationMs: number;
-}
-
-/** Web'deki `animationDelay` / `animationDuration` formülünün aynısı. */
-export function effectParticles(effect: ProfileEffect): EffectParticle[] {
-  return EFFECT_SLOTS.map((left, i) => ({
-    glyph: effect.particles[i % effect.particles.length] ?? "✦",
-    left,
-    top: effect.motion === "twinkle" ? TWINKLE_TOPS[i] : null,
-    delayMs: Math.round(((i * 0.61) % 4.2) * 1000),
-    durationMs: Math.round((3.6 + (i % 3) * 0.5) * 1000),
-  }));
+  const resolved = resolveCosmeticId(id);
+  return PROFILE_EFFECTS.find((effect) => effect.id === resolved) ?? null;
 }
 
 /**
- * Bir hareket karesi (t ∈ [0,1]) — web keyframe'lerinin karşılığı.
- * `travel`: afiş yüksekliği; çeviri piksel cinsinden.
- *  - fall : -%20 → +%520 parçacık boyu; burada üstten alta afiş boyu kadar.
- *  - rise : alttan üste; ease-out, 0.8 → 1.1 ölçek.
- *  - twinkle: 0.6 ↔ 1.15 ölçek, 0.15 ↔ 1 opaklık (ease-in-out, ileri-geri).
- * Worklet içinde de çalışabilmesi için yalın aritmetik.
+ * Efekti takabilir mi? Bilinmeyen kimlik `unknown`; mağaza efekti sahiplik,
+ * Mentol efekti Plus+ ister (asıl denetim sunucuda).
  */
-export function effectFrame(
-  motion: ProfileEffectMotion,
-  t: number,
-  travel: number
-): { translateY: number; opacity: number; scale: number; rotate: number } {
-  "worklet";
-  if (motion === "twinkle") {
-    // 0 → 1 → 0 (ileri-geri), yumuşak.
-    const wave = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
-    return { translateY: 0, opacity: 0.15 + wave * 0.85, scale: 0.6 + wave * 0.55, rotate: 0 };
-  }
-  const fade = t < 0.15 ? t / 0.15 : t > 0.85 ? (1 - t) / 0.15 : 1;
-  if (motion === "fall") {
-    return { translateY: -20 + t * (travel + 40), opacity: fade, scale: 1, rotate: t * 200 };
-  }
-  const eased = 1 - (1 - t) * (1 - t);
-  return { translateY: travel + 10 - eased * (travel + 30), opacity: fade, scale: 0.8 + eased * 0.3, rotate: 0 };
+export function profileEffectAccess(
+  id: string,
+  viewer: { mentol: boolean; owned: boolean }
+): "ok" | "unknown" | "mentol_required" | "not_owned" {
+  const effect = findProfileEffect(id);
+  if (!effect) return "unknown";
+  if (effect.tier === "mentol" && !viewer.mentol) return "mentol_required";
+  if (effect.tier === "store" && !viewer.owned) return "not_owned";
+  return "ok";
+}
+
+// ── İsim plakaları ──────────────────────────────────────────────────
+
+/**
+ * İsim plakası: satırın arka planı (sağdan sola saydamlaşan renk; web
+ * `background: linear-gradient(90deg, rgba(rgb,0) 0%, rgba(rgb,a·.45) 45%,
+ * rgba(rgb,a) 100%)`) + sağa yaslı çizimli sahne (NAMEPLATE_ART, kimlikle
+ * eşleşir). Web CSS metni yerine renk ve opaklık saklanır; gradyan
+ * `nameplateStops` ile kurulur.
+ */
+export interface Nameplate extends CosmeticTags {
+  id: string;
+  /** Mağaza adı (web STORE_ITEMS). */
+  name: string;
+  rgb: readonly [number, number, number];
+  alpha: number;
+}
+
+export const NAMEPLATES: readonly Nameplate[] = [
+  { id: "np_iskelet_dansi", name: "İskelet Dansı", rgb: [88, 52, 140], alpha: 0.34, collection: "cadilar-bayrami", themes: ["korku", "sevimli", "mevsimsel"] },
+  { id: "np_perili_orman", name: "Perili Orman", rgb: [31, 53, 96], alpha: 0.34, collection: "cadilar-bayrami", themes: ["korku", "doga"] },
+  { id: "np_uyuyan_kedi", name: "Uyuyan Kedi", rgb: [200, 160, 255], alpha: 0.3, collection: "sevimli-dostlar", themes: ["sevimli"] },
+  { id: "np_kizilgerdan", name: "Kızılgerdan", rgb: [120, 190, 255], alpha: 0.3, collection: "bahar-bahcesi", themes: ["doga", "sevimli", "mevsimsel"] },
+  { id: "np_mantar_bahcesi", name: "Mantar Bahçesi", rgb: [31, 110, 80], alpha: 0.34, collection: "bahar-bahcesi", themes: ["doga", "fantezi"] },
+  { id: "np_kuzey_isiklari", name: "Kuzey Işıkları", rgb: [20, 70, 110], alpha: 0.34, collection: "gece-gokyuzu", themes: ["doga", "fantezi"] },
+  { id: "np_kor", name: "Kor Kıvılcımları", rgb: [150, 40, 10], alpha: 0.34, collection: "ates-ve-buz", themes: ["fantezi"] },
+  { id: "np_sakura", name: "Sakura Rüzgârı", rgb: [255, 150, 195], alpha: 0.32, collection: "bahar-bahcesi", themes: ["doga", "mevsimsel"] },
+  { id: "np_al_bayrak", name: "Al Bayrak", rgb: [227, 10, 23], alpha: 0.4, collection: "turkiye", themes: ["turkiye"] },
+  { id: "np_yildiz_yolu", name: "Yıldız Yolu", rgb: [70, 40, 160], alpha: 0.34, collection: "gece-gokyuzu", themes: ["bilim-kurgu", "fantezi"] },
+];
+
+export function findNameplate(id: string | null | undefined): Nameplate | null {
+  if (!id) return null;
+  const resolved = resolveCosmeticId(id);
+  return NAMEPLATES.find((n) => n.id === resolved) ?? null;
+}
+
+/** Plaka arka planının gradyan durakları (soldan sağa; web ile aynı oranlar). */
+export function nameplateStops(plate: Nameplate): { offset: number; color: string; opacity: number }[] {
+  const color = `rgb(${plate.rgb.join(",")})`;
+  return [
+    { offset: 0, color, opacity: 0 },
+    { offset: 0.45, color, opacity: Math.round(plate.alpha * 0.45 * 1000) / 1000 },
+    { offset: 1, color, opacity: plate.alpha },
+  ];
 }

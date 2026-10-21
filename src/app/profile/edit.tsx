@@ -15,10 +15,13 @@ import { STORE_TITLE } from "@/lib/purchases";
 import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMyGames, useMyMemberships, useUpdateProfile } from "@/api/hooks";
 import { Avatar } from "@/components/ui/avatar";
+import { StyledName } from "@/components/ui/styled-name";
 import { showDialog } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { Divider, ListGroup, ListRow } from "@/components/ui/list";
 import { findDecoration } from "@/lib/avatar-decorations";
+import { findNameEffect, findNameFont, parseNameStyle } from "@/lib/name-style";
+import { findProfileEffect } from "@/lib/profile-effects";
 import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { GAMES_VISIBILITY_OPTIONS } from "@/lib/profile-extras";
 import { UserFacingUploadError, pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
@@ -45,6 +48,13 @@ type Tab = "user" | "servers";
 function friendlyError(reason: unknown, fallback: string): string {
   if (reason instanceof UserFacingUploadError || reason instanceof ApiError) return reason.message;
   return fallback;
+}
+
+/** "Gotik · Gradyan" — profil öğeleri satırının özeti. */
+function nameStyleSummary(raw: unknown): string {
+  const style = parseNameStyle(raw);
+  const parts = [findNameFont(style?.font)?.name, findNameEffect(style?.effect)?.name].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "Yok";
 }
 
 export default function EditProfileScreen() {
@@ -292,9 +302,13 @@ export default function EditProfileScreen() {
           ) : null}
 
           <View style={{ gap: spacing.xs }}>
-            <Text style={{ ...typography.display, color: colors.bright }}>
-              {profile.name?.trim() || profile.username}
-            </Text>
+            <StyledName
+              profileId={profile.id}
+              name={profile.name?.trim() || profile.username}
+              animate
+              textStyle={{ ...typography.display, color: colors.bright }}
+              containerStyle={{ alignSelf: "flex-start" }}
+            />
             <Text style={{ ...typography.body, color: colors.muted }}>
               @{profile.username}
             </Text>
@@ -342,6 +356,20 @@ export default function EditProfileScreen() {
                 title="Avatar Süsü"
                 detail={findDecoration(profile.avatarDecorationId)?.name ?? "Yok"}
                 onPress={() => router.push("/profile/decoration")}
+              />
+              <Divider inset={52} />
+              <ListRow
+                icon="pencil"
+                title="Ad Stili"
+                detail={nameStyleSummary(profile.nameStyle)}
+                onPress={() => router.push("/profile/name-style")}
+              />
+              <Divider inset={52} />
+              <ListRow
+                icon="palette"
+                title="Profil Efekti"
+                detail={findProfileEffect(profile.profileEffectId)?.name ?? "Yok"}
+                onPress={() => router.push("/profile/effect")}
               />
               <Divider inset={52} />
               <ListRow icon="link" title="Bağlantılar" onPress={() => router.push("/profile/connections")} />

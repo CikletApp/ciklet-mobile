@@ -14,8 +14,9 @@ import { fw } from "@/theme/fonts";
  *
  * Mentol süsleri FREE planda kilitli (dokununca açıklama), mağaza süsleri
  * yalnızca sahip olunduğunda listelenir. Izgara sütunları ekran
- * genişliğinden hesaplanır: halka ve rozet avatarın dışına taşdığı için
- * her hücre önizlemeden geniş tutulur ve dar ekranda üst üste binmez.
+ * genişliğinden hesaplanır: süs çizimi avatarın 4/3'ü boyutunda dışa
+ * taştığı için her hücre önizlemeden geniş tutulur ve dar ekranda üst üste
+ * binmez. Yalnızca seçili süs hareketli (onlarca döngü aynı anda oynamasın).
  */
 const PREVIEW = 56;
 
@@ -33,7 +34,7 @@ export default function DecorationPickerScreen() {
   const current = profile.avatarDecorationId ?? null;
   const list = AVATAR_DECORATIONS.filter((d) => !d.store || owned.has(d.id));
 
-  // Hücre en az önizleme + iki yanda halka/rozet payı (≈ 96 px).
+  // Hücre en az önizleme + iki yanda süs payı (≈ 96 px).
   const inner = width - spacing.lg * 2;
   const columns = Math.max(3, Math.min(5, Math.floor(inner / 96)));
   const gap = spacing.sm;
@@ -86,6 +87,7 @@ export default function DecorationPickerScreen() {
           fallbackText={profile.username}
           size={PREVIEW}
           decorationId={id}
+          animateDecoration={selected}
           backgroundColor={colors.panel}
         />
         <Text style={{ fontSize: 12, ...fw(600), color: colors.text, textAlign: "center" }} numberOfLines={1}>

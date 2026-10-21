@@ -26,11 +26,13 @@ import {
   ListSkeleton,
   Pressable,
   Screen,
+  StyledName,
   Tag,
   showDialog,
   showToast,
   type ActionSheetItem,
 } from "@/components/ui";
+import { NameplateBackground } from "@/features/profile/nameplate";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
 import { formatActivity } from "@/lib/format";
@@ -225,9 +227,12 @@ export default function ServerMembersScreen() {
                   gap: spacing.md,
                   paddingHorizontal: spacing.lg,
                   paddingVertical: spacing.sm,
+                  overflow: "hidden",
                   backgroundColor: pressed ? colors.raised : "transparent",
                 })}
               >
+                {/* İsim plakası (web üye satırı): sağa yaslı sahne + isme doğru sönen renk. */}
+                <NameplateBackground id={item.profile.nameplateId} />
                 <Avatar
                   profileId={item.profileId}
                   imageUrl={item.serverImageUrl ?? item.profile.imageUrl}
@@ -236,12 +241,13 @@ export default function ServerMembersScreen() {
                   showPresence
                 />
                 <View style={{ flex: 1, gap: 1 }}>
-                  <Text
-                    style={{ ...typography.body, ...fw(600), color: topRole?.color || colors.bright }}
+                  <StyledName
+                    profileId={item.profileId}
+                    name={nameOf(item)}
+                    textStyle={{ ...typography.body, ...fw(600), color: topRole?.color || colors.bright }}
+                    containerStyle={{ alignSelf: "flex-start" }}
                     numberOfLines={1}
-                  >
-                    {nameOf(item)}
-                  </Text>
+                  />
                   {timedOut ? (
                     <Text style={{ ...typography.caption, color: colors.danger }} numberOfLines={1}>
                       {`Zaman aşımında · ${timeoutRemainingLabel(item.timedOutUntil!, now)}`}

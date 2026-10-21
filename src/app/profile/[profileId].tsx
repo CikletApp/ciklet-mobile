@@ -14,6 +14,7 @@ import {
 } from "@/api/hooks";
 import {
   Avatar,
+  StyledName,
   Button,
   EmptyState,
   Icon,
@@ -41,6 +42,7 @@ import {
 import { ListenAlongBar, SpotifyCard } from "@/features/spotify/spotify-card";
 import { activeCustomStatus } from "@/lib/custom-status";
 import { displayNameOf, formatDate } from "@/lib/format";
+import { parseNameStyle } from "@/lib/name-style";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
 import { useAuth } from "@/stores/auth";
@@ -223,10 +225,16 @@ export default function ProfileScreen() {
 
           <View style={{ gap: spacing.xs }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
-              <Text style={{ ...typography.displayLg, color: colors.bright, flexShrink: 1 }}>
-                {/* Takma ad her yerde olduğu gibi burada da gerçek adın önünde. */}
-                {title}
-              </Text>
+              {/* Takma ad her yerde olduğu gibi burada da gerçek adın önünde;
+                  takma ad gösteriliyorsa ad stili çizilmez (web ile aynı). */}
+              <StyledName
+                profileId={profile.id}
+                name={title}
+                style={data ? parseNameStyle(data.profile.nameStyle) : undefined}
+                enabled={!annotation?.nickname?.trim()}
+                animate
+                textStyle={{ ...typography.displayLg, color: colors.bright, flexShrink: 1 }}
+              />
               {!badges && isOfficial ? (
                 <Tag label="RESMÎ" tint={colors.onBrand} background={colors.brand} />
               ) : !badges && profile.isBot ? (

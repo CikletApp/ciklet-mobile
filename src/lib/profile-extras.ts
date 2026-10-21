@@ -83,31 +83,7 @@ export function sessionDurationLabel(startedAt: string, lastSeenAt: string): str
 
 // ── Mağaza kozmetikleri ─────────────────────────────────────────────
 
-/**
- * İsim plakası: web'de üye satırının arkasındaki yatay gradyan. Mobilde
- * aynı renkler soldan sağa sönen bir SVG gradyanla çizilir.
- */
-export interface Nameplate {
-  id: string;
-  /** Başlangıç rengi ve opaklığı; sağa doğru saydamlaşır. */
-  color: string;
-  opacity: number;
-}
-
-export const NAMEPLATES: readonly Nameplate[] = [
-  { id: "np_dusk", color: "#ff7a59", opacity: 0.28 },
-  { id: "np_matrix", color: "#00e676", opacity: 0.26 },
-  { id: "np_galaxy", color: "#7c4dff", opacity: 0.32 },
-  { id: "np_gold", color: "#ffd700", opacity: 0.3 },
-  { id: "np_ice", color: "#56ccf2", opacity: 0.3 },
-];
-
-export function findNameplate(id: string | null | undefined): Nameplate | null {
-  if (!id) return null;
-  return NAMEPLATES.find((n) => n.id === id) ?? null;
-}
-
-// Profil efektleri: lib/profile-effects.ts (web store-catalog ile birebir).
+// Profil efektleri ve isim plakaları: lib/profile-effects.ts (web store-catalog ile birebir).
 
 export const STORE_KIND_LABEL = {
   decoration: "Avatar Süsleri",

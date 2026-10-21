@@ -24,6 +24,7 @@ import {
   TextField,
   showToast,
 } from "@/components/ui";
+import { CosmeticBackdrop } from "@/components/cosmetics/cosmetic-backdrop";
 import { NameplateBackground } from "@/features/profile/nameplate";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import { displayNameOf } from "@/lib/format";
@@ -272,6 +273,7 @@ function Preview({
   if (item.kind === "effect") {
     return (
       <View style={{ height: 96, backgroundColor: colors.brandSoft }}>
+        <CosmeticBackdrop id={item.id} />
         <ProfileEffectOverlay id={item.id} height={96} />
       </View>
     );
@@ -279,7 +281,8 @@ function Preview({
   if (item.kind === "nameplate") {
     return (
       <View style={{ height: 96, justifyContent: "center", paddingHorizontal: spacing.lg, backgroundColor: colors.bg }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.sm, borderRadius: radii.md }}>
+        <CosmeticBackdrop id={item.id} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.sm, borderRadius: radii.md, backgroundColor: colors.bg }}>
           <NameplateBackground id={item.id} radius={radii.md} />
           <Avatar imageUrl={profile?.imageUrl} fallbackText={profile?.username} size={36} decorationId={null} />
           <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
@@ -291,6 +294,7 @@ function Preview({
   }
   return (
     <View style={{ height: 112, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
+      <CosmeticBackdrop id={item.id} />
       <Avatar imageUrl={profile?.imageUrl} fallbackText={profile?.username} size={64} decorationId={item.id} />
     </View>
   );
