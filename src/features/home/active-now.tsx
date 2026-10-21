@@ -7,6 +7,7 @@ import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 import { useFriends, useOpenDirect } from "@/api/hooks";
 import type { RichPresence } from "@/api/types";
 import { Avatar, Icon, Pressable } from "@/components/ui";
+import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presence/activity-reply-sheet";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { resolveMediaUrl } from "@/lib/config";
 import { displayNameOf, formatActivity } from "@/lib/format";
@@ -30,6 +31,8 @@ export function ActiveNow() {
   const recognized = useRecognizedGames();
   const openDirect = useOpenDirect();
   const scheme = useTheme((s) => s.scheme);
+  // Karta dokununca etkinliğe yanıt/tepki sayfası (web sunucu ETKİNLİK kartı gibi).
+  const [replyTarget, setReplyTarget] = useState<ActivityReplyTarget | null>(null);
   // Yalnızca bir şey YAPANLAR (oyun, müzik, yayın…): web'deki "Şimdi Aktif"
   // gibi. Aktivitesiz çevrimiçi arkadaş burada gösterilmez; çevrimiçi
   // olduğu sohbet listesindeki durum noktasından zaten görünüyor. Ciklet'in
@@ -67,11 +70,14 @@ export function ActiveNow() {
           return (
             <Pressable
               key={friend.id}
-              onPress={() => openDirect.mutate(friend.profile.id, { onSuccess: (direct) => router.push(`/chat/direct/${direct.id}`) })}
+              onPress={() => setReplyTarget({ profile: friend.profile, activity })}
+              // Basılı tutunca doğrudan sohbet (eski davranış).
+              onLongPress={() => openDirect.mutate(friend.profile.id, { onSuccess: (direct) => router.push(`/chat/direct/${direct.id}`) })}
               haptic="light"
               noHitSlop
               accessibilityRole="button"
-              accessibilityLabel={`${displayNameOf(friend.profile)} ile sohbet`}
+              accessibilityLabel={`${displayNameOf(friend.profile)}: ${label ?? activity.name}`}
+              accessibilityHint="Etkinliğe yanıt vermek için dokun, sohbet için basılı tut"
               style={({ pressed }) => ({
                 width: ACTIVITY_CARD_WIDTH,
                 minHeight: 124,
@@ -150,6 +156,7 @@ export function ActiveNow() {
           );
         })}
       </ScrollView>
+      <ActivityReplySheet target={replyTarget} onClose={() => setReplyTarget(null)} />
     </View>
   );
 }

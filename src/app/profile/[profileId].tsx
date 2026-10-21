@@ -17,6 +17,7 @@ import {
   Button,
   EmptyState,
   Icon,
+  Pressable,
   Screen,
   ScreenLoader,
   SegmentedTabs,
@@ -24,6 +25,7 @@ import {
   Tag,
   type TabItem,
 } from "@/components/ui";
+import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presence/activity-reply-sheet";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import {
@@ -39,6 +41,7 @@ import { activeCustomStatus } from "@/lib/custom-status";
 import { displayNameOf, formatDate } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
+import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -97,6 +100,8 @@ export default function ProfileScreen() {
   const { placeCall } = useCallActions();
   const presence = usePresence(profileId);
   const [tab, setTab] = useState<CardTab>("pano");
+  const [replyTarget, setReplyTarget] = useState<ActivityReplyTarget | null>(null);
+  const myId = useAuth((s) => s.profile?.id);
 
   const cached = useMemo<ProfileView | undefined>(() => {
     const friend = accepted.find((f) => f.profile.id === profileId)?.profile;
@@ -158,6 +163,8 @@ export default function ProfileScreen() {
     friendship?.status === "ACCEPTED" && (friendship.acceptedAt || friendship.createdAt)
       ? formatDate((friendship.acceptedAt || friendship.createdAt)!)
       : null;
+  // Kendi etkinliğine ya da bota yanıt verilmez (kart gelmeden de bilinsin).
+  const canReplyToActivity = !isSelf && profile.id !== myId && profile.isBot !== true;
   const showSpotify = connections.some((c) => c.type === "spotify" && c.verified);
 
   const tabs: TabItem<CardTab>[] = [
@@ -383,22 +390,39 @@ export default function ProfileScreen() {
               ) : null}
 
               {!isOfficial && presence.activity?.name ? (
-                <Card title="ŞU AN">
-                  <Text style={{ ...typography.body, color: colors.text }}>
-                    {presence.activity.name}
-                  </Text>
-                  {presence.activity.details ? (
-                    <Text style={{ ...typography.caption, color: colors.muted }}>
-                      {presence.activity.details}
+                // Başkasının etkinliğine dokununca yanıt/tepki sayfası.
+                <Pressable
+                  disabled={!canReplyToActivity}
+                  onPress={() => presence.activity && setReplyTarget({ profile, activity: presence.activity })}
+                  haptic="light"
+                  noHitSlop
+                  accessibilityRole={canReplyToActivity ? "button" : undefined}
+                  accessibilityHint={canReplyToActivity ? "Etkinliğe yanıt ver" : undefined}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+                >
+                  <Card title="ŞU AN">
+                    <Text style={{ ...typography.body, color: colors.text }}>
+                      {presence.activity.name}
                     </Text>
-                  ) : null}
-                  {isMobileActivity(presence.activity) ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                      <Icon name="smartphone" size={12} color={colors.muted} />
-                      <Text style={{ ...typography.caption, color: colors.muted }}>Telefondan</Text>
-                    </View>
-                  ) : null}
-                </Card>
+                    {presence.activity.details ? (
+                      <Text style={{ ...typography.caption, color: colors.muted }}>
+                        {presence.activity.details}
+                      </Text>
+                    ) : null}
+                    {isMobileActivity(presence.activity) ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <Icon name="smartphone" size={12} color={colors.muted} />
+                        <Text style={{ ...typography.caption, color: colors.muted }}>Telefondan</Text>
+                      </View>
+                    ) : null}
+                    {canReplyToActivity ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <Icon name="reply" size={12} color={colors.brand} />
+                        <Text style={{ ...typography.caption, color: colors.brand }}>Yanıt ver ya da tepki gönder</Text>
+                      </View>
+                    ) : null}
+                  </Card>
+                </Pressable>
               ) : null}
 
               {showSpotify ? <SpotifyCard profileId={profile.id} name={title} isSelf={isSelf} /> : null}
@@ -429,6 +453,7 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
       <ListenAlongBar />
+      <ActivityReplySheet target={replyTarget} onClose={() => setReplyTarget(null)} />
     </Screen>
   );
 }
