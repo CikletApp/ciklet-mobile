@@ -229,6 +229,7 @@ export default function RootLayout() {
                   <Stack.Screen name="servers/[serverId]/subscriptions" />
                   <Stack.Screen name="servers/[serverId]/threads/[channelId]" />
                   <Stack.Screen name="settings/account" />
+                  <Stack.Screen name="settings/activity" />
                   <Stack.Screen name="settings/authorized-apps" />
                   <Stack.Screen name="settings/chat" />
                   <Stack.Screen name="settings/mentol" />

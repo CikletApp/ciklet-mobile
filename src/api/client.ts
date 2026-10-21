@@ -203,6 +203,9 @@ async function rawRequest(path: string, options: RequestOptions): Promise<RawRes
   if (body !== undefined) {
     if (typeof FormData !== "undefined" && body instanceof FormData) {
       payload = body; // Content-Type'ı fetch kendi sınır dizesiyle koyar.
+    } else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+      // Ham bayt (ör. rich presence kapağı); Content-Type'ı çağıran verir.
+      payload = body as BodyInit;
     } else if (typeof body === "string") {
       payload = body;
       if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");

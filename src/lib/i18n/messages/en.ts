@@ -47,6 +47,7 @@ export const en = {
       appearance: "Appearance",
       chat: "Chat",
       notifications: "Notifications",
+      activity: "Activity Status",
       help: "Help",
       helpSubtitle: "Support, feedback, terms",
     },

@@ -43,6 +43,17 @@ interface PreferenceValues {
   autoDownloadMediaWifi: boolean;
   /** Video ve dosyalar mobil veride otomatik iner. */
   autoDownloadMediaCellular: boolean;
+  /**
+   * "Dinlediğimi paylaş" — telefonda çalan müzik/video rich presence olarak
+   * arkadaşlara gider (Android, Bildirim erişimi gerekir; bkz.
+   * features/presence/media-presence). Varsayılan kapalı: izin akışı
+   * kullanıcı açınca başlar.
+   */
+  shareMediaActivity: boolean;
+  /** Müzik uygulamaları (Spotify, YouTube Music…) — web "Müzik" kategorisi. */
+  shareMusicActivity: boolean;
+  /** Video (YouTube) — web "Video" kategorisi. */
+  shareVideoActivity: boolean;
 }
 
 interface PreferenceState extends PreferenceValues {
@@ -71,6 +82,9 @@ const defaults: PreferenceValues = {
   autoDownloadVoice: true,
   autoDownloadMediaWifi: true,
   autoDownloadMediaCellular: false,
+  shareMediaActivity: false,
+  shareMusicActivity: true,
+  shareVideoActivity: true,
 };
 
 function persistedValues(state: PreferenceState): PreferenceValues {
@@ -94,6 +108,9 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     autoDownloadVoice: state.autoDownloadVoice,
     autoDownloadMediaWifi: state.autoDownloadMediaWifi,
     autoDownloadMediaCellular: state.autoDownloadMediaCellular,
+    shareMediaActivity: state.shareMediaActivity,
+    shareMusicActivity: state.shareMusicActivity,
+    shareVideoActivity: state.shareVideoActivity,
   };
 }
 

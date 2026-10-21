@@ -366,6 +366,11 @@ export interface RichPresence {
   smallImageUrl?: string;
   appIconUrl?: string;
   timestamps?: { start: number; end: number };
+  /**
+   * Etkinliğin kaynağı telefon ise `"mobile"` (bkz. features/presence/
+   * media-activity). Masaüstü ve web göndermiyor; yoksa masaüstü/web sayılır.
+   */
+  device?: string;
 }
 
 /** Üye listesi ekranlarında profil + presence birleştirilmiş görünüm. */

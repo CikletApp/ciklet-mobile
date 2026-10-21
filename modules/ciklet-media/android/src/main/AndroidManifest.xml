@@ -1,0 +1,42 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    Android 11+ paket görünürlüğü: çalan uygulamanın adını (PackageManager
+    etiketi) okuyabilmek için. Geniş QUERY_ALL_PACKAGES YERİNE yalnızca
+    medya oturumu sunan uygulamalar (MediaBrowserService) ve bilinen müzik /
+    video uygulamaları görünür kılınır.
+  -->
+  <queries>
+    <intent>
+      <action android:name="android.media.browse.MediaBrowserService" />
+    </intent>
+    <package android:name="com.spotify.music" />
+    <package android:name="com.google.android.apps.youtube.music" />
+    <package android:name="com.google.android.youtube" />
+    <package android:name="com.apple.android.music" />
+    <package android:name="com.soundcloud.android" />
+    <package android:name="deezer.android.app" />
+    <package android:name="com.aspiro.tidal" />
+    <package android:name="com.amazon.mp3" />
+    <package android:name="com.vanced.android.youtube" />
+    <package android:name="app.revanced.android.youtube" />
+    <package android:name="app.revanced.android.apps.youtube.music" />
+  </queries>
+
+  <application>
+    <!--
+      "Bildirim erişimi" yalnızca MediaSessionManager.getActiveSessions için
+      gerekli: sistem, başka uygulamaların medya oturumlarını yalnızca etkin
+      bir bildirim dinleyicisi bileşeni olan uygulamaya verir. Hizmet hiçbir
+      bildirimi OKUMAZ (onNotificationPosted yok). Bkz. CikletMediaModule.
+    -->
+    <service
+      android:name="expo.modules.cikletmedia.CikletMediaListenerService"
+      android:label="Ciklet etkinlik durumu"
+      android:exported="true"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

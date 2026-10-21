@@ -16,6 +16,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  Icon,
   Screen,
   ScreenLoader,
   SegmentedTabs,
@@ -23,6 +24,7 @@ import {
   Tag,
   type TabItem,
 } from "@/components/ui";
+import { isMobileActivity } from "@/features/presence/media-activity";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import {
   ActivityList,
@@ -389,6 +391,12 @@ export default function ProfileScreen() {
                     <Text style={{ ...typography.caption, color: colors.muted }}>
                       {presence.activity.details}
                     </Text>
+                  ) : null}
+                  {isMobileActivity(presence.activity) ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      <Icon name="smartphone" size={12} color={colors.muted} />
+                      <Text style={{ ...typography.caption, color: colors.muted }}>Telefondan</Text>
+                    </View>
                   ) : null}
                 </Card>
               ) : null}

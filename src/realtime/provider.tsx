@@ -3,6 +3,8 @@ import { AppState, type AppStateStatus } from "react-native";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import type { RichPresence } from "@/api/types";
+import { startMediaPresence } from "@/features/presence/media-presence";
+import { usePreferences } from "@/stores/preferences";
 import { usePresenceStore } from "@/stores/presence";
 import { useAuth } from "@/stores/auth";
 import { useTypingStore } from "@/stores/typing";
@@ -111,6 +113,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (status !== "signedIn") return;
     return startRecognizedGamesSync();
   }, [status]);
+
+  // "Dinlediğimi paylaş" (Android): telefonda çalan müzik/video etkinlik
+  // olarak arkadaşlara gider (features/presence/media-presence).
+  const shareMedia = usePreferences((s) => s.hydrated && s.shareMediaActivity);
+  useEffect(() => {
+    if (status !== "signedIn" || !shareMedia) return;
+    return startMediaPresence();
+  }, [status, shareMedia]);
 
   // ── Ön plan / arka plan ───────────────────────────────────────────
   const appState = useRef<AppStateStatus>(AppState.currentState);

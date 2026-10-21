@@ -7,6 +7,7 @@ import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 import { useFriends, useOpenDirect } from "@/api/hooks";
 import type { RichPresence } from "@/api/types";
 import { Avatar, Icon, Pressable } from "@/components/ui";
+import { isMobileActivity } from "@/features/presence/media-activity";
 import { resolveMediaUrl } from "@/lib/config";
 import { displayNameOf, formatActivity } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
@@ -98,7 +99,15 @@ export function ActiveNow() {
                 <Avatar profileId={friend.profile.id} imageUrl={friend.profile.imageUrl} fallbackText={friend.profile.username} size={38} showPresence backgroundColor={colors.panel} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>{displayNameOf(friend.profile)}</Text>
-                  <Text style={{ fontSize: 11, lineHeight: 14, color: colors.accent }} numberOfLines={1}>{label}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                    {/* Telefondan gelen etkinlik (features/presence/media-activity). */}
+                    {isMobileActivity(activity) ? (
+                      <View accessible accessibilityLabel="Telefondan">
+                        <Icon name="smartphone" size={11} color={colors.accent} />
+                      </View>
+                    ) : null}
+                    <Text style={{ flexShrink: 1, fontSize: 11, lineHeight: 14, color: colors.accent }} numberOfLines={1}>{label}</Text>
+                  </View>
                 </View>
               </View>
               {/* Aktivite kutusu: web'deki gibi yarı saydam koyu zemin; arkadaki

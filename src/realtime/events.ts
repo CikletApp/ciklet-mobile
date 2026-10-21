@@ -44,6 +44,11 @@ export const ClientEvent = {
   /** `{ channel_id }` — kanaldakileri iste (`voice.update` döner). */
   VOICE_MEMBERS: "voice.members",
   VOICE_ACTIVE_CHANNELS: "voice.active_channels",
+  /**
+   * `{ activity }` — kendi etkinliğin (telefonda çalan medya;
+   * features/presence/media-presence). `null` = etkinlik bitti.
+   */
+  RICH_PRESENCE_UPDATE: "rich_presence.update",
 } as const;
 
 // ── Ağ geçidi → istemci (`eventType`) ───────────────────────────────

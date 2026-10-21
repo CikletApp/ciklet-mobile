@@ -12,6 +12,7 @@ import {
   SectionHeader,
   showDialog,
 } from "@/components/ui";
+import { mediaPresenceSupported } from "@/features/presence/media-presence";
 import { displayNameOf, formatDate } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { stopGateway } from "@/realtime/gateway";
@@ -138,6 +139,16 @@ export default function SettingsScreen() {
               title={t("settings.rows.notifications")}
               onPress={() => router.push("/settings/notifications")}
             />
+            {mediaPresenceSupported ? (
+              <>
+                <Divider inset={52} />
+                <ListRow
+                  icon="headphones"
+                  title={t("settings.rows.activity")}
+                  onPress={() => router.push("/settings/activity")}
+                />
+              </>
+            ) : null}
           </ListGroup>
         </View>
 

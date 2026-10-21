@@ -255,6 +255,8 @@ export const endpoints = {
   /** GET liste, PUT `{ type, handle, visible? }`, DELETE `{ type }`. */
   profileConnections: "/api/profile/connections",
   /** GET bağlantı durumu, DELETE bağlantıyı kaldır. Bağlama OAuth ile webde. */
+  /** Rich presence kapağı yükleme (ham JPEG/PNG gövde) → `{ url }` (web lib/presence-covers). */
+  presenceCovers: "/api/presence/covers",
   spotifyConnection: "/api/connections/spotify",
   spotifyNowPlaying: (profileId: string) =>
     `/api/spotify/now-playing/${encodeURIComponent(profileId)}`,

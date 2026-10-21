@@ -104,7 +104,9 @@ export type IconName =
   | "trending-up"
   // Arama geçmişi: gelen / giden yönü
   | "arrow-down-left"
-  | "arrow-up-right";
+  | "arrow-up-right"
+  // Telefondan gelen etkinlik rozeti
+  | "smartphone";
 
 interface IconProps {
   name: IconName;
@@ -316,6 +318,7 @@ const PATHS: Record<IconName, string[]> = {
   "trending-up": ["M22 7 13.5 15.5 8.5 10.5 2 17", "M16 7h6v6"],
   "arrow-down-left": ["M17 7 7 17", "M17 17H7V7"],
   "arrow-up-right": ["M7 7h10v10", "M7 17 17 7"],
+  smartphone: ["M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M12 18h.01"],
 };
 
 /** Nokta/daire tabanlı ikonlar yol yerine ilkel şekil kullanır. */

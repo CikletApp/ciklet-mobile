@@ -53,6 +53,7 @@ export const tr = {
       appearance: "Görünüm",
       chat: "Sohbet",
       notifications: "Bildirimler",
+      activity: "Etkinlik Durumu",
       help: "Yardım",
       helpSubtitle: "Destek, geri bildirim, koşullar",
     },
