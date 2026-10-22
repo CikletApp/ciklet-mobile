@@ -1,40 +1,48 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 
+import { SOUNDS, VOLUME_SCALE, type SoundId } from "@/lib/sound-catalog";
 import { useCall } from "@/stores/call";
 import { usePreferences } from "@/stores/preferences";
+import { usePresenceStore } from "@/stores/presence";
+import { useSoundSettings } from "@/stores/sound-settings";
 import { useVoice } from "@/stores/voice";
 
 /**
- * Uygulama sesleri — zil ve mesaj tonu (web: `lib/sounds/engine.ts`).
+ * Uygulama sesleri — web `lib/sounds/engine.ts` karşılığı.
+ *
+ * Sesler kataloğdan (lib/sound-catalog) adıyla istenir: `playSound("mention")`.
+ * Dosyalar web'in sentez tariflerinden üretildi (scripts/generate-sounds.mjs).
  *
  * Oynatıcılar ilk kullanımda kurulur ve yaşatılır: her çalışta yeniden
  * yüklemek, gelen aramada zilin yarım saniye geç başlamasına yol açıyordu.
- * Ses dosyaları `assets/sounds` altında; aynı dosyalar Android bildirim
- * kanalının (`ciklet-calls-v2`) zil sesi olarak da kullanılıyor.
+ * `ringtone.wav` ve `message.wav` aynı zamanda Android bildirim kanallarının
+ * sesi (app.json → expo-notifications `sounds`).
  */
 
 let ringtone: AudioPlayer | null = null;
-let messageTone: AudioPlayer | null = null;
 let ringback: AudioPlayer | null = null;
 let busyTone: AudioPlayer | null = null;
 let busyTimer: ReturnType<typeof setTimeout> | null = null;
+/** Tek seferlik sesler; canlı ses oturumundakiler ayrı anahtarla (`id:live`). */
+const players = new Map<string, AudioPlayer>();
+/** Aynı sesin en son ne zaman çalındığı (kısıtlama için). */
+const lastPlayedAt = new Map<SoundId, number>();
+/** Geçici olarak bastırılan sesler (referans sayımlı, bkz. suppressSounds). */
+const suppressed = new Map<SoundId, number>();
 
 /**
  * Ses kipi türe göre ayrı. Zil ses odağını TAMAMEN alır ("doNotMix");
- * kısa mesaj tonu ise "mixWithOthers" — Android'de odak istemez, yani
- * kullanıcının müziğini durdurmaz ve odağı elinde tutmaz. Tek ortak
- * "doNotMix" kipi her mesajda müziği kesiyordu.
+ * kısa tonlar "mixWithOthers" — Android'de odak istemez, kullanıcının
+ * müziğini durdurmaz. Tonlar telefonun sessiz kipine uyar (iOS sessiz
+ * anahtarı; Android'de zil kipi normal değilse çalmaz).
  */
 type SoundMode = "ring" | "tone";
 let currentMode: SoundMode | null = null;
-let lastToneAt = 0;
-/** Web ile aynı (`lib/sounds/registry.ts` message.throttleMs). */
-const TONE_THROTTLE_MS = 350;
 
 /**
- * Sesli kanalda ya da bağlı aramada LiveKit ses oturumu açık. iOS'ta kipi
- * değiştirmek oturumu `.playback`'e çevirip mikrofonu keser; o sırada kipe
- * dokunulmaz.
+ * Sesli kanalda ya da bağlı aramada LiveKit ses oturumu açık. Kipi
+ * değiştirmek iOS'ta oturumu `.playback`'e çevirip mikrofonu keser, Android'de
+ * ses yönlendirmesini (hoparlör/kulaklık) sıfırlar; o sırada kipe dokunulmaz.
  */
 const inLiveAudio = () =>
   Boolean(useVoice.getState().active) || useCall.getState().session?.status === "connected";
@@ -67,9 +75,6 @@ async function applyMode(kind: SoundMode): Promise<void> {
             interruptionMode: "doNotMix",
           }
         : {
-            // Mesaj tonu telefonun sessiz kipine uyar: iOS'ta sessiz anahtarı
-            // (`.ambient`), Android'de zil kipi normal değilse (titreşim/sessiz)
-            // çalınmaz.
             playsInSilentMode: false,
             shouldPlayInBackground: false,
             interruptionMode: "mixWithOthers",
@@ -82,22 +87,135 @@ async function applyMode(kind: SoundMode): Promise<void> {
   }
 }
 
+/* ── Kapılar (web engine.ts isAllowed / passesThrottle) ────────────────── */
+
+function isAllowed(id: SoundId): boolean {
+  const def = SOUNDS[id];
+  const settings = useSoundSettings.getState();
+  if ((suppressed.get(id) ?? 0) > 0) return false;
+  if (!settings.enabled) return false;
+  if (settings.mutedCategories.includes(def.category)) return false;
+  if (def.category === "notification" && usePresenceStore.getState().selfStatus === "DND") return false;
+  return true;
+}
+
+function passesThrottle(id: SoundId): boolean {
+  const throttleMs = SOUNDS[id].throttleMs;
+  if (throttleMs <= 0) return true;
+  const now = Date.now();
+  const last = lastPlayedAt.get(id);
+  if (last !== undefined && now - last < throttleMs) return false;
+  lastPlayedAt.set(id, now);
+  return true;
+}
+
+function resolveVolume(id: SoundId, scale = 1): number {
+  return Math.min(1, SOUNDS[id].volume * useSoundSettings.getState().masterVolume * VOLUME_SCALE * scale);
+}
+
+function playerFor(id: SoundId, live: boolean): AudioPlayer {
+  const key = live ? `${id}:live` : id;
+  let player = players.get(key);
+  if (!player) {
+    // Canlı ses oturumunda oynatıcı bitince iOS oturumunu KAPATMAMALI
+    // (keepAudioSessionActive): kapatmak görüşmenin sesini keserdi.
+    player = createAudioPlayer(SOUNDS[id].source, { keepAudioSessionActive: live });
+    players.set(key, player);
+  }
+  return player;
+}
+
+export interface PlayOptions {
+  /** Kataloğdaki seviyeyi ölçekler (0..1). */
+  volume?: number;
+  /** Kapıları atlar (ayarlar kapalı, DND, kısıtlama) — ayarlardaki "dinle". */
+  force?: boolean;
+}
+
+/**
+ * Tek seferlik ses. Hiçbir zaman fırlatmaz ve beklenmesi gerekmez.
+ *
+ * Bildirim sesleri (mesaj, etiketlenme, istek) sesli kanalda / aramada ve
+ * zil çalarken çalınmaz — kart yine görünür. Ses/aktivite geri bildirimleri
+ * görüşme sürerken de çalar; o sırada ses kipine dokunulmaz.
+ */
+export async function playSound(id: SoundId, options: PlayOptions = {}): Promise<void> {
+  const def = SOUNDS[id];
+  if (!def || def.loop) return;
+  if (!options.force && !isAllowed(id)) return;
+  const live = inLiveAudio();
+  if (def.category === "notification" && !options.force) {
+    // Bildirim sesleri ayrıca bildirim ayarındaki "Sesler" anahtarına uyar.
+    if (!usePreferences.getState().notificationSounds) return;
+    // Zil çalarken kip değiştirmek zili bozar; arama zaten dikkat çekiyor.
+    if (live || useCall.getState().session?.status === "ringing") return;
+  }
+  if (!options.force && !passesThrottle(id)) return;
+  const volume = resolveVolume(id, options.volume);
+  if (volume <= 0) return;
+
+  try {
+    if (!live) await applyMode("tone");
+    const player = playerFor(id, live);
+    player.volume = volume;
+    await player.seekTo(0);
+    player.play();
+  } catch (error) {
+    // Bozulan oynatıcı bir sonraki çalışta yeniden kurulur.
+    const key = live ? `${id}:live` : id;
+    try {
+      players.get(key)?.remove();
+    } catch {
+      /* zaten serbest */
+    }
+    players.delete(key);
+    if (__DEV__) console.warn(`[ses] ${id} çalınamadı`, error);
+  }
+}
+
+/** Ayarlar ekranı: kapıları atlayarak sesi dinletir. */
+export function previewSound(id: SoundId): void {
+  void playSound(id, { force: true });
+}
+
+/**
+ * Verilen sesleri geçici olarak susturur; dönen fonksiyon bastırmayı kaldırır
+ * (referans sayımlı — web `suppressSounds`).
+ */
+export function suppressSounds(ids: SoundId[]): () => void {
+  for (const id of ids) suppressed.set(id, (suppressed.get(id) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    for (const id of ids) {
+      const next = (suppressed.get(id) ?? 1) - 1;
+      if (next > 0) suppressed.set(id, next);
+      else suppressed.delete(id);
+    }
+  };
+}
+
 /** Oynatıcıları önceden kur — ilk mesajın tonu hazırlık sırasında kaybolmasın. */
 export function primeSounds(): void {
+  void useSoundSettings.getState().hydrate();
   try {
-    messageTone ??= createAudioPlayer(require("../../assets/sounds/message.wav"));
+    playerFor("message", false);
   } catch (error) {
     if (__DEV__) console.warn("[ses] mesaj tonu yüklenemedi", error);
   }
 }
 
-/** Gelen arama zili — kapatılana kadar döner. */
+/* ── Ziller ────────────────────────────────────────────────────────────── */
+
+/** Gelen arama zili (web ringIncoming) — kapatılana kadar döner. */
 export async function startRingtone(): Promise<void> {
+  if (!isAllowed("ringIncoming")) return;
   try {
     if (!inLiveAudio()) await applyMode("ring");
-    ringtone ??= createAudioPlayer(require("../../assets/sounds/ringtone.wav"));
+    ringtone ??= createAudioPlayer(SOUNDS.ringIncoming.source);
     ringtone.loop = true;
-    ringtone.volume = 1;
+    ringtone.volume = resolveVolume("ringIncoming");
     await ringtone.seekTo(0);
     ringtone.play();
   } catch (error) {
@@ -116,17 +234,16 @@ export function stopRingtone(): void {
 }
 
 /**
- * Giden aramada çalma sesi ("dıt… dıt…"): karşı taraf açana, reddedene ya
- * da arama düşene kadar döner. Türkiye çalma tonu: 450 Hz, 1 sn açık, 4 sn
- * kapalı (assets/sounds/ringback.wav). Eskiden arayan hiçbir şey duymuyor,
- * aramanın gerçekten çalıp çalmadığını anlamıyordu.
+ * Giden aramada çalma tonu (web ringOutgoing): karşı taraf açana, reddedene
+ * ya da arama düşene kadar döner.
  */
 export async function startRingback(): Promise<void> {
+  if (!isAllowed("ringOutgoing")) return;
   try {
     if (!inLiveAudio()) await applyMode("ring");
-    ringback ??= createAudioPlayer(require("../../assets/sounds/ringback.wav"));
+    ringback ??= createAudioPlayer(SOUNDS.ringOutgoing.source);
     ringback.loop = true;
-    ringback.volume = 0.8;
+    ringback.volume = resolveVolume("ringOutgoing");
     await ringback.seekTo(0);
     ringback.play();
   } catch (error) {
@@ -143,14 +260,15 @@ export function stopRingback(): void {
   }
 }
 
-/** Meşgul sesi (karşı taraf reddetti): 450 Hz, 0,5 sn açık/kapalı, 3 kez. */
+/** Meşgul sesi (karşı taraf reddetti): 450 Hz, 0,5 sn açık/kapalı, 3 kez. Web'de karşılığı yok. */
 export async function playBusyTone(): Promise<void> {
   stopRingback();
+  if (!useSoundSettings.getState().enabled) return;
   try {
     if (!inLiveAudio()) await applyMode("ring");
     busyTone ??= createAudioPlayer(require("../../assets/sounds/busy.wav"));
     busyTone.loop = false;
-    busyTone.volume = 0.8;
+    busyTone.volume = 0.8 * useSoundSettings.getState().masterVolume;
     await busyTone.seekTo(0);
     busyTone.play();
     if (busyTimer) clearTimeout(busyTimer);
@@ -170,34 +288,9 @@ export function stopBusyTone(): void {
   }
 }
 
-/**
- * Kısa mesaj tonu — yalnızca tercih açıksa. Aynı mesaj için iki olay
- * (kanal mesajı + etiketlenme) iki kez çalmasın diye kısıtlanır. Sesli
- * kanalda / aramada çalınmaz (bkz. `inLiveAudio`); kart yine görünür.
- */
-export async function playMessageTone(): Promise<void> {
-  if (!usePreferences.getState().notificationSounds) return;
-  // Zil çalarken kip değiştirmek zili bozar; arama zaten dikkat çekiyor.
-  if (inLiveAudio() || useCall.getState().session?.status === "ringing") return;
-  const now = Date.now();
-  if (now - lastToneAt < TONE_THROTTLE_MS) return;
-  lastToneAt = now;
-  try {
-    await applyMode("tone");
-    messageTone ??= createAudioPlayer(require("../../assets/sounds/message.wav"));
-    messageTone.volume = 0.9;
-    await messageTone.seekTo(0);
-    messageTone.play();
-  } catch (error) {
-    // Bozulan oynatıcı bir sonraki tonda yeniden kurulur.
-    try {
-      messageTone?.remove();
-    } catch {
-      /* zaten serbest */
-    }
-    messageTone = null;
-    if (__DEV__) console.warn("[ses] mesaj tonu çalınamadı", error);
-  }
+/** Gelen mesaj tonu — `playSound("message")` kısayolu (bildirim görevi kullanıyor). */
+export function playMessageTone(): Promise<void> {
+  return playSound("message");
 }
 
 /**

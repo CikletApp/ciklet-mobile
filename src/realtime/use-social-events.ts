@@ -17,7 +17,7 @@ import {
   type NotificationSettingRecord,
 } from "@/lib/notification-settings";
 import { formatMessagePreview } from "@/lib/message-preview";
-import { playMessageTone, primeSounds } from "@/lib/sounds";
+import { playSound, primeSounds } from "@/lib/sounds";
 import { activeChatId } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
 import { rememberDecorations } from "@/stores/decorations";
@@ -92,7 +92,7 @@ export function useSocialEvents() {
         invalidate(qk.friends);
         const sender = frame.sender as { id?: string; username?: string; name?: string | null; imageUrl?: string | null } | undefined;
         if (!sender?.username || !noticeAllowed(null, "friend")) return;
-        void playMessageTone();
+        void playSound("friendRequest");
         showInAppNotice({
           title: sender.name?.trim() || sender.username,
           body: "Sana arkadaşlık isteği gönderdi",
@@ -125,7 +125,7 @@ export function useSocialEvents() {
         if (!noticeAllowed(directId)) return;
         if (directId && !directAllows(directId)) return;
 
-        void playMessageTone();
+        void playSound("message");
         showInAppNotice({
           title: sender.name?.trim() || sender.username,
           // Ek adresi kartta görünmez; türün etiketi (lib/message-preview).
@@ -146,7 +146,7 @@ export function useSocialEvents() {
         if (!channelId || !noticeAllowed(channelId)) return;
         if (!channelAllows(serverId || null, channelId, true)) return;
 
-        void playMessageTone();
+        void playSound("mention");
         showInAppNotice({
           title: senderName,
           body: `${channelName ? `#${channelName} kanalında` : "Bir kanalda"} seni etiketledi${content ? `: ${content}` : ""}`,
@@ -171,7 +171,7 @@ export function useSocialEvents() {
         if (senderId === useAuth.getState().profile?.id || ignoring(senderId)) return;
         if (isHiddenChannel(queryClient, serverId, channelId) || !noticeAllowed(channelId)) return;
         if (!channelAllows(serverId, channelId, false)) return;
-        void playMessageTone();
+        void playSound("message");
       }),
       onGatewayEvent(ServerEvent.SERVERS_REMOVED, () => invalidate(qk.memberships, qk.unreadCounts)),
       onGatewayEvent(ServerEvent.SERVER_DELETED, () => invalidate(qk.memberships, qk.unreadCounts)),

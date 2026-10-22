@@ -10,6 +10,7 @@ import {
   openFullScreenCallSettings,
 } from "@/features/call/incoming-call";
 import { openNotificationSettings } from "@/features/notifications/notification-sheet";
+import { SoundSettingsSection } from "@/features/notifications/sound-settings-section";
 import { LEVEL_LABELS, muteRemainingLabel, settingKey, type NotificationSettingRecord } from "@/lib/notification-settings";
 import { useNow } from "@/lib/use-now";
 import { registerPushToken, setupNotifications, unregisterPushToken } from "@/lib/notifications";
@@ -73,6 +74,8 @@ export default function NotificationSettingsScreen() {
             <ToggleRow title={t("settings.notifications.sounds")} value={preferences.notificationSounds} disabled={!preferences.notificationsEnabled} onChange={(value) => { preferences.setPreference("notificationSounds", value); void registerPushToken(); }} />
           </ListGroup>
         </View>
+
+        <SoundSettingsSection />
 
         <NotificationOverrides />
 

@@ -4,6 +4,7 @@ import { useLocalParticipant } from "@livekit/react-native";
 import { Track, type LocalVideoTrack } from "livekit-client";
 
 import { Icon, Pressable, showToast, type HapticKind, type IconName } from "@/components/ui";
+import { playSound } from "@/lib/sounds";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { showSystemRoutePicker, useAudioRoute, type AudioRoute } from "./audio-route";
@@ -86,7 +87,10 @@ export function CallControls({
     if (!localParticipant || busy) return;
     setBusy(true);
     try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
+      const next = !isMicrophoneEnabled;
+      await localParticipant.setMicrophoneEnabled(next);
+      // Kendi eyleminin geri bildirimi (web sound-bus micOn / micOff).
+      void playSound(next ? "micOn" : "micOff");
     } finally {
       setBusy(false);
     }
