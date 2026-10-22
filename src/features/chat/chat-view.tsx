@@ -719,6 +719,7 @@ export function ChatView({
           oneToOne={oneToOne}
           message={item.message}
           grouped={item.grouped}
+          lastInGroup={item.lastInGroup}
           onLongPress={readOnlyOfficial ? undefined : onLongPressMessage}
           onReply={readOnlyOfficial || item.message.deleted ? undefined : onSwipeReply}
           onReactionPress={(message, emoji) => {

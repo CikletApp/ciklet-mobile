@@ -168,6 +168,11 @@ function EmbedText({ value, color }: { value: string; color: string }) {
   return <MessageMarkdown value={value} compact style={{ ...typography.caption, color }} />;
 }
 
+/** Mesajda çizilecek embed var mı (balon saatinin yerleşimi için). */
+export function hasEmbeds(metadata: unknown): boolean {
+  return readEmbeds(metadata).length > 0;
+}
+
 function readEmbeds(metadata: unknown): RichEmbed[] {
   if (!metadata || typeof metadata !== "object") return [];
   const raw = (metadata as { embeds?: unknown }).embeds;

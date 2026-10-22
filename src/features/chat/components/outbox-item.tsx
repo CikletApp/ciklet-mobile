@@ -2,7 +2,8 @@ import { Text, View } from "react-native";
 
 import { Icon, Pressable } from "@/components/ui";
 import { useOutbox, type OutboxMessage } from "@/stores/outbox";
-import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { colors, spacing, typography } from "@/theme/tokens";
+import { BUBBLE_RADIUS, BUBBLE_TAIL_RADIUS } from "./message-item";
 import { fw } from "@/theme/fonts";
 
 /**
@@ -39,9 +40,11 @@ export function OutboxItem({
         style={{
           maxWidth: "78%",
           paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
-          borderRadius: radii.lg,
-          borderBottomRightRadius: radii.sm,
+          paddingTop: 7,
+          paddingBottom: 7,
+          borderRadius: BUBBLE_RADIUS,
+          borderBottomRightRadius: BUBBLE_TAIL_RADIUS,
+          borderCurve: "continuous",
           backgroundColor: colors.bubbleOwn,
           borderWidth: failed ? 1 : 0,
           borderColor: colors.danger,
@@ -49,7 +52,7 @@ export function OutboxItem({
           gap: spacing.xs,
         }}
       >
-        <Text style={{ ...typography.body, color: colors.text }}>
+        <Text style={{ ...typography.body, lineHeight: 22, color: colors.bubbleOwnText }}>
           {message.label ?? message.content}
         </Text>
 
@@ -95,9 +98,9 @@ export function OutboxItem({
             accessibilityLabel={progress !== undefined ? `Yükleniyor, yüzde ${progress}` : "Gönderilmeyi bekliyor"}
           >
             {progress !== undefined ? (
-              <Text style={{ ...typography.caption, color: colors.muted }}>%{progress}</Text>
+              <Text style={{ ...typography.caption, color: colors.bubbleOwnMuted }}>%{progress}</Text>
             ) : null}
-            <Icon name="clock" size={12} color={colors.muted} />
+            <Icon name="clock" size={12} color={colors.bubbleOwnMuted} />
           </View>
         )}
       </View>

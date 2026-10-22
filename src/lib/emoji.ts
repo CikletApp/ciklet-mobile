@@ -173,17 +173,3 @@ export function emojiUrl(native: string): string | null {
   const segment = splitEmoji(native).find((part) => part.kind === "emoji");
   return segment && segment.kind === "emoji" ? segment.url : null;
 }
-
-/**
- * Yalnızca emojiden oluşan kısa mesaj mı (büyük çizilir)? Web'le aynı sınır:
- * 1–8 emoji, arada yalnızca boşluk.
- */
-export function isEmojiOnly(text: string): boolean {
-  const segments = splitEmoji(text.trim());
-  const emojis = segments.filter((part) => part.kind === "emoji").length;
-  return (
-    emojis >= 1 &&
-    emojis <= 8 &&
-    segments.every((part) => part.kind === "emoji" || part.text.trim() === "")
-  );
-}

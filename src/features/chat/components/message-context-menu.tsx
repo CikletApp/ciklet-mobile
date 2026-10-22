@@ -577,7 +577,7 @@ function FocusGroup({
         }}
       >
         <View style={{ transform: [{ translateY: -place.clip }] }}>
-          <MessageItem preview message={message} grouped={anchor.grouped} oneToOne={oneToOne} />
+          <MessageItem preview message={message} grouped={anchor.grouped} lastInGroup={anchor.lastInGroup} oneToOne={oneToOne} />
         </View>
       </View>
 

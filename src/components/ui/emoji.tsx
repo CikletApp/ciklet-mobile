@@ -79,9 +79,24 @@ export function dokimorjiInputProps(
   };
 }
 
-/** Yazı boyutuna göre emoji boyutu — satır yüksekliğini bozmayacak kadar. */
+/** Uygulama yazı tiplerinin en derin inişi (Poppins) — emoji payı buna göre. */
+export const DESCENT_RATIO = 0.36;
+
+/**
+ * Yazı boyutuna göre emoji boyutu — satır yüksekliğini aşmayacak kadar.
+ *
+ * Satır içi görsel taban çizgisine oturur ve yukarı doğru uzanır; altında
+ * yazı tipinin inişi (descent) kalır — Inter'de boyutun ~%24'ü, Poppins'te
+ * ~%35'i. Görsel + iniş `lineHeight`'ı aşarsa Android satırı keser (iOS'ta
+ * ilk satırın üstü kırpılır) — emojiler tepeden "kesik" görünüyordu. Bu
+ * yüzden satır yüksekliği verildiyse boyut ona göre sınırlanır.
+ */
 export function emojiSizeFor(style: TextStyle | undefined, fallback = 15): number {
-  return Math.round((style?.fontSize ?? fallback) * 1.25);
+  const fontSize = style?.fontSize ?? fallback;
+  const natural = Math.round(fontSize * 1.25);
+  const lineHeight = style?.lineHeight;
+  if (!lineHeight) return natural;
+  return Math.max(Math.round(fontSize), Math.min(natural, Math.floor(lineHeight - fontSize * DESCENT_RATIO)));
 }
 
 /** Emoji içerebilen tek satırlık/kısa metinler için (ad, önizleme, durum). */

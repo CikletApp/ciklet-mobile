@@ -11,7 +11,7 @@ import { formatFileSize } from "@/lib/attachments";
 import { messageStorageBytes } from "@/lib/local-db";
 import { clearMedia, mediaUsage } from "@/lib/media-cache";
 import { pickFromGallery } from "@/lib/uploads";
-import { usePreferences, type ChatDensity } from "@/stores/preferences";
+import { usePreferences } from "@/stores/preferences";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -28,23 +28,12 @@ const DIM_LEVELS: { id: DimLevel; label: string; value: number }[] = [
 export default function ChatSettingsScreen() {
   const linkPreviews = usePreferences((state) => state.linkPreviews);
   const bigEmoji = usePreferences((state) => state.bigEmoji);
-  const chatDensity = usePreferences((state) => state.chatDensity);
   const setPreference = usePreferences((state) => state.setPreference);
 
   return (
     <Screen>
       <Stack.Screen options={{ title: "Sohbet" }} />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
-        <SectionHeader title="GÖRÜNÜM YOĞUNLUĞU" />
-        <SegmentedTabs
-          items={[
-            { id: "comfortable" as ChatDensity, label: "Rahat" },
-            { id: "compact" as ChatDensity, label: "Kompakt" },
-          ]}
-          value={chatDensity}
-          onChange={(value) => setPreference("chatDensity", value)}
-        />
-
         <SectionHeader title="MESAJ İÇERİĞİ" />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
@@ -59,7 +48,6 @@ export default function ChatSettingsScreen() {
               title="Büyük emoji"
               description="Yalnızca emoji içeren mesajları daha büyük göster."
               value={bigEmoji}
-              disabled={chatDensity === "compact"}
               onChange={(value) => setPreference("bigEmoji", value)}
             />
           </ListGroup>

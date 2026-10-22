@@ -6,6 +6,8 @@
  * mesajı iki farklı şekilde görür.
  */
 
+import { splitEmoji } from "@/lib/emoji";
+
 // ── Zaman damgası `<t:unix:stil>` ─────────────────────────────────────
 
 export type TimestampStyle = "t" | "T" | "d" | "D" | "f" | "F" | "R";
@@ -103,13 +105,20 @@ export function parseCustomEmojiToken(text: string): CustomEmojiRef | null {
   return match ? { name: match[1], id: match[2] } : null;
 }
 
-/** Yalnızca sunucu emojilerinden (ve boşluktan) oluşan mesaj — büyük çizim; en çok 8. */
-export function isCustomEmojiOnly(text: string): boolean {
+/**
+ * Mesaj yalnızca emojiden (Twemoji/Dokimorji ve `<:ad:id>` sunucu emojisi,
+ * arada boşluk) oluşuyorsa emoji sayısı; başka bir şey varsa 0. Web'le aynı
+ * sınır: 1–8 emoji büyük çizilir (bkz. message-item: 1–3 dev, 4–8 büyük).
+ */
+export function emojiOnlyCount(text: string): number {
   const trimmed = text.trim();
-  if (!trimmed) return false;
+  if (!trimmed) return 0;
   const pattern = new RegExp(CUSTOM_EMOJI_SOURCE, "g");
-  if (trimmed.replace(pattern, "").replace(/\s+/g, "").length > 0) return false;
-  return (trimmed.match(pattern) ?? []).length <= 8;
+  const custom = (trimmed.match(pattern) ?? []).length;
+  const rest = trimmed.replace(pattern, " ");
+  const segments = splitEmoji(rest);
+  if (!segments.every((part) => part.kind === "emoji" || part.text.trim() === "")) return 0;
+  return custom + segments.filter((part) => part.kind === "emoji").length;
 }
 
 // ── Toplu bahsetmeler ve roller ───────────────────────────────────────

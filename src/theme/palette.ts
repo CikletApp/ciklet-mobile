@@ -172,6 +172,13 @@ export interface ThemePalette {
   bubbleOwn: string;
   /** Karşı tarafın baloncuğu. */
   bubbleOther: string;
+  /** Balon içi metin ve ikincil metin (saat, "İletildi") — kendi balonunda okunur. */
+  bubbleOwnText: string;
+  bubbleOwnMuted: string;
+  bubbleOtherText: string;
+  bubbleOtherMuted: string;
+  /** Balon içindeki gömülü kutu (alıntı) — iki balon renginde de hafif ton. */
+  bubbleInset: string;
   /** İkincil vurgu — zengin durum ("… Oynuyor"), bağlantılar. */
   accent: string;
   /** Bento kartlarının yüzeyi (web: --bento-item). */
@@ -208,6 +215,12 @@ export function buildPalette(source: ThemeSource): ThemePalette {
   const muted = readable(readable(mix(panel, foreground, 0.64), panel), menu);
   const brand = readable(readable(accent, panel), menu);
   const danger = light ? hsl(0, 70, 44) : hsl(0, 80, 68);
+  // Balonlar sohbet zemininden türer; metinleri panele değil balonun kendisine
+  // göre okunur kılınır (açık panel + koyu sohbet temasında da okunur kalsın).
+  const bubbleOwn = mix(chat, accent, light ? 0.14 : 0.2);
+  const bubbleOther = mix(chat, ink(chat), light ? 0.05 : 0.07);
+  const bubbleText = (bubble: string) => readable(mix(bubble, ink(bubble), 0.88), bubble);
+  const bubbleMuted = (bubble: string) => readable(mix(bubble, ink(bubble), 0.55), bubble);
   const success = light ? hsl(145, 60, 30) : hsl(145, 57, 57);
   const warning = light ? hsl(37, 90, 32) : hsl(42, 88, 63);
 
@@ -235,8 +248,13 @@ export function buildPalette(source: ThemeSource): ThemePalette {
     idle: warning,
     dnd: danger,
     offline: mix(panel, foreground, 0.42),
-    bubbleOwn: mix(chat, accent, light ? 0.14 : 0.2),
-    bubbleOther: mix(chat, foreground, light ? 0.05 : 0.07),
+    bubbleOwn,
+    bubbleOther,
+    bubbleOwnText: bubbleText(bubbleOwn),
+    bubbleOwnMuted: bubbleMuted(bubbleOwn),
+    bubbleOtherText: bubbleText(bubbleOther),
+    bubbleOtherMuted: bubbleMuted(bubbleOther),
+    bubbleInset: withAlpha(ink(chat), ink(chat) === INK_DARK ? 0.06 : 0.08),
     accent: readable(CYAN, panel),
     bento: panel,
     bentoShell: canvas,

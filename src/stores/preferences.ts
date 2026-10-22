@@ -7,12 +7,10 @@ import type { LocalePreference } from "@/lib/i18n";
 const STORAGE_KEY = "ciklet.preferences";
 
 export type InputMode = "vad" | "ptt";
-export type ChatDensity = "comfortable" | "compact";
 
 interface PreferenceValues {
   linkPreviews: boolean;
   bigEmoji: boolean;
-  chatDensity: ChatDensity;
   inputMode: InputMode;
   inputVolume: number;
   outputVolume: number;
@@ -65,7 +63,6 @@ interface PreferenceState extends PreferenceValues {
 const defaults: PreferenceValues = {
   linkPreviews: true,
   bigEmoji: true,
-  chatDensity: "comfortable",
   inputMode: "vad",
   inputVolume: 100,
   outputVolume: 100,
@@ -91,7 +88,6 @@ function persistedValues(state: PreferenceState): PreferenceValues {
   return {
     linkPreviews: state.linkPreviews,
     bigEmoji: state.bigEmoji,
-    chatDensity: state.chatDensity,
     inputMode: state.inputMode,
     inputVolume: state.inputVolume,
     outputVolume: state.outputVolume,
@@ -122,6 +118,9 @@ export const usePreferences = create<PreferenceState>((set, get) => ({
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       const saved = raw ? (JSON.parse(raw) as Partial<PreferenceValues>) : {};
+      // Kaldırılan "Rahat / Kompakt" yoğunluk ayarı eski kayıtlarda kalmış
+      // olabilir; duruma taşınmasın (bir sonraki kayıtta zaten düşer).
+      delete (saved as Record<string, unknown>).chatDensity;
       set({ ...defaults, ...saved, hydrated: true });
     } catch {
       set({ hydrated: true });

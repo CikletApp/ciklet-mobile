@@ -6,7 +6,7 @@ import { typingLabel } from "@/realtime/use-typing";
 import type { Typer } from "@/stores/typing";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
-import { AVATAR_SIZE } from "./message-item";
+import { AVATAR_SIZE, BUBBLE_RADIUS, BUBBLE_TAIL_RADIUS } from "./message-item";
 
 /** Birden çok kişi yazarken üst üste binen küçük avatarlar. */
 const STACK_SIZE = 22;
@@ -81,18 +81,18 @@ export function TypingBubble({ typers, group }: { typers: Typer[]; group: boolea
           gap: 4,
           paddingHorizontal: spacing.md,
           paddingVertical: 10,
-          borderRadius: radii.lg,
-          borderBottomLeftRadius: radii.sm,
+          borderRadius: BUBBLE_RADIUS,
+          borderBottomLeftRadius: BUBBLE_TAIL_RADIUS,
           borderCurve: "continuous",
           backgroundColor: colors.bubbleOther,
         }}
       >
         {group && label ? (
-          <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }} numberOfLines={1}>
+          <Text style={{ ...typography.caption, ...fw(600), color: colors.bubbleOtherMuted }} numberOfLines={1}>
             {label}
           </Text>
         ) : null}
-        <TypingDots color={colors.muted} />
+        <TypingDots color={colors.bubbleOtherMuted} />
       </View>
     </Animated.View>
   );

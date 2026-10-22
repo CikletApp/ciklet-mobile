@@ -15,7 +15,6 @@ import { useActivities } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { Avatar, Icon, StyledName, emojify, type IconName } from "@/components/ui";
 import { classifyAttachment, readAttachmentInfo } from "@/lib/attachments";
-import { isEmojiOnly } from "@/lib/emoji";
 import { formatTime } from "@/lib/format";
 import { formatMessagePreview } from "@/lib/message-preview";
 import { readActivityReply } from "@/lib/activity-reply";
@@ -27,10 +26,10 @@ import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { isForwardedMessage } from "../forward";
 import { pinnedAtOf } from "../pins";
-import { MessageEmbeds } from "./message-embeds";
+import { MessageEmbeds, hasEmbeds } from "./message-embeds";
 import { MEDIA_BUBBLE_WIDTH, MessageAttachment } from "./message-attachment";
 import { FLASH_DURATION, useMessageFlash } from "./message-flash";
-import { MessageMarkdown } from "./message-markdown";
+import { InvisibleSpacer, MessageMarkdown, type EmojiScale } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 import { PollCard } from "./poll-message";
 import { MessageActivityReply } from "./message-activity-reply";
@@ -46,17 +45,19 @@ import {
 import { InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
 import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
-import { isCustomEmojiOnly, parseCustomEmojiToken } from "../message-markup";
+import { emojiOnlyCount, parseCustomEmojiToken } from "../message-markup";
 import { useServerEmojis } from "../server-assets";
 import { fw } from "@/theme/fonts";
 import { readable, senderColor } from "@/theme/palette";
 
 /**
- * Tek mesaj satırı — baloncuk düzeni.
+ * Tek mesaj satırı — baloncuk düzeni (DM, grup ve sunucu kanalında aynı;
+ * ayrı bir "kompakt" görünüm yok).
  *
- * Gönderdiğin mesajlar sağda ve marka tonlu, gelenler solda avatarıyla.
- * Bu ayrım okumayı hızlandırır: kimin yazdığını anlamak için ada bakmak
- * gerekmez.
+ * Gönderdiğin mesajlar sağda ve marka tonlu, gelenler solda. Aynı kişinin
+ * 5 dakika içindeki ardışık mesajları tek grup olur: ad ilk balonda,
+ * avatar, saat ve kuyruk köşesi son balonda. Bu ayrım okumayı hızlandırır:
+ * kimin yazdığını anlamak için ada bakmak gerekmez.
  *
  * Kanal ve DM mesajları farklı şekle sahip: kanalda gönderen `member`
  * (sunucuya özel takma adıyla), DM'de doğrudan `profile`. Ayrım burada bir
@@ -66,6 +67,14 @@ import { readable, senderColor } from "@/theme/palette";
 /** Gelen mesaj avatarı — "yazıyor" balonu da aynı sütunu kullanır. */
 export const AVATAR_SIZE = 32;
 const MAX_BUBBLE_WIDTH = "78%";
+/**
+ * Balon köşeleri (Telegram/WhatsApp): dışa bakan köşeler yuvarlak; gönderen
+ * tarafında grup içi balonlar birbirine küçük köşeyle yaslanır, grubun son
+ * balonu sivri "kuyruk" köşesini alır.
+ */
+export const BUBBLE_RADIUS = 18;
+export const BUBBLE_JOINT_RADIUS = 6;
+export const BUBBLE_TAIL_RADIUS = 4;
 /** Sola çekerek yanıtlama: satırın en çok kayacağı mesafe ve tetikleme eşiği. */
 const SWIPE_MAX = 76;
 const SWIPE_TRIGGER = 56;
@@ -88,8 +97,8 @@ const FLASH = new Keyframe({
 
 /**
  * Basılı tutulan balonun pencere koordinatları (`measureInWindow`). Bağlam
- * menüsü balonun kopyasını tam bu dikdörtgene çizer; `grouped` kopyanın
- * köşeleri asıl balonla aynı olsun diye taşınır.
+ * menüsü balonun kopyasını tam bu dikdörtgene çizer; `grouped` ve
+ * `lastInGroup` kopyanın köşeleri ve saati asıl balonla aynı olsun diye taşınır.
  */
 export interface MessageAnchor {
   x: number;
@@ -97,11 +106,13 @@ export interface MessageAnchor {
   width: number;
   height: number;
   grouped: boolean;
+  lastInGroup: boolean;
 }
 
 export function MessageItem({
   message,
   grouped = false,
+  lastInGroup = true,
   oneToOne = false,
   preview = false,
   onLongPress,
@@ -110,7 +121,10 @@ export function MessageItem({
   onReply,
 }: {
   message: ChatMessagePayload;
+  /** Üstteki (daha eski) mesajla aynı grupta: ad tekrarlanmaz, araları sıkı. */
   grouped?: boolean;
+  /** Grubun son mesajı: kuyruk köşesi, saat ve (gelen mesajda) avatar. */
+  lastInGroup?: boolean;
   /** Birebir sohbet: gelen mesajlarda ad ve avatar gösterilmez. */
   oneToOne?: boolean;
   /**
@@ -126,13 +140,11 @@ export function MessageItem({
   onReply?: (message: ChatMessagePayload) => void;
 }) {
   const myId = useAuth((s) => s.profile?.id);
-  const density = usePreferences((state) => state.chatDensity);
   const bigEmoji = usePreferences((state) => state.bigEmoji);
   const linkPreviews = usePreferences((state) => state.linkPreviews);
   const flash = useMessageFlash(message.id);
   const scope = useChatScope();
   const bubbleRef = useRef<View>(null);
-  const compact = density === "compact";
 
   // ── Sola çekerek yanıtla ──────────────────────────────────────────
   // Yatay çekiş satırı parmakla taşır; eşiği geçince dokunsal geri bildirim
@@ -174,9 +186,6 @@ export function MessageItem({
     const progress = Math.min(1, -swipeX.get() / SWIPE_TRIGGER);
     return { opacity: progress, transform: [{ scale: 0.6 + 0.4 * progress }] };
   });
-  const largeEmoji = bigEmoji && !compact && isEmojiOnly(message.content);
-  // Yalnızca sunucu emojilerinden oluşan mesaj: emojiler büyük (web `bigCustom`).
-  const bigCustomEmoji = bigEmoji && !compact && !message.fileUrl && isCustomEmojiOnly(message.content);
 
   // "X bir mesajı sabitledi." — içerik ham gösterilmez, satır kurulur.
   // (SDK'nın tür listesinde henüz yok; bu yüzden düz metinle karşılaştırılır.)
@@ -205,8 +214,11 @@ export function MessageItem({
     : profile.name?.trim() || profile.username;
 
   const isMine = profile.id === myId;
+  // Grupta (sunucu kanalı, DM grubu) gelen mesaj: ad grubun ilk balonunda,
+  // avatar son balonun yanında (Telegram/WhatsApp). Ara satırlarda avatar
+  // sütunu boş kalır ki balonlar hizalı dursun.
   const showHeader = !grouped && !isMine && !oneToOne;
-  const showAvatar = !isMine && !oneToOne;
+  const avatarColumn = !isMine && !oneToOne;
   const isOfficial = isOfficialProfile(profile);
   const inviteCode = !message.fileUrl && !message.deleted && !isPoll
     ? extractInviteCode(message.content)
@@ -225,15 +237,45 @@ export function MessageItem({
   const hasQuote = Boolean(message.replyTo && !message.replyTo.deleted);
   const sticker = readSticker(message.metadata);
   const forwarded = isForwardedMessage(message) && !message.deleted;
+
+  // Komut yanıtı ve sessiz mesaj işaretleri — web'de mesajın üstünde.
+  // Etiket ve bileşenler yalnızca bot yazarlı mesajda: kullanıcının mesajına
+  // eklenmiş sahte metadata "X /komut kullandı" ya da buton çizdirmesin.
+  const fromBot = profile.isBot === true;
+  const interaction = fromBot ? readInteraction(message.metadata) : null;
+  const silent = isSilent(message.metadata) && !message.deleted;
+
+  // Yalnızca emojiden oluşan mesaj (web gibi 1–8 emoji): 1–3 emoji dev ve
+  // balonsuz (Telegram), 4–8 emoji balon içinde büyük.
+  const emojiCount =
+    bigEmoji && !message.deleted && !message.fileUrl && !sticker && !isPoll && !isActivityReply
+      ? emojiOnlyCount(message.content)
+      : 0;
+  const emojiScale: EmojiScale | undefined =
+    emojiCount >= 1 && emojiCount <= 3 ? "jumbo" : emojiCount >= 4 && emojiCount <= 8 ? "large" : undefined;
+
   // WhatsApp gibi: altyazısız görsel/video balonsuz çizilir, saat medyanın
   // üstüne biner. Gönderen adı, alıntı ya da "İletildi" varsa balon kalır —
-  // o bilgilerin duracağı bir zemin gerekiyor.
-  const bareMedia = visualMedia && hideAttachmentUrl && !showHeader && !hasQuote && !forwarded;
+  // o bilgilerin duracağı bir zemin gerekiyor. Dev emoji de aynı kuralla.
+  const needsSurface = showHeader || hasQuote || forwarded || Boolean(interaction) || silent;
+  const bareMedia = visualMedia && hideAttachmentUrl && !needsSurface;
+  const bareEmoji = emojiScale === "jumbo" && !needsSurface;
   // Telegram gibi: altyazılı görsel/video TEK balondur. Medya balonun üst ve
   // yan kenarlarına yaslanır (köşeyi balon kırpar); altyazı ve saat altında
   // normal boşlukla durur. Balonun genişliği medyanınki, altyazı ona sarar.
   const captionedMedia = visualMedia && !hideAttachmentUrl;
-  const flat = Boolean(inviteCode) || bareMedia;
+  const flat = Boolean(inviteCode) || bareMedia || bareEmoji;
+
+  // Balonun kendi renkleri: metin ve soluk metin balona göre okunur.
+  const bubbleColor = isMine ? colors.bubbleOwn : colors.bubbleOther;
+  const textColor = isMine ? colors.bubbleOwnText : colors.bubbleOtherText;
+  const mutedColor = isMine ? colors.bubbleOwnMuted : colors.bubbleOtherMuted;
+
+  // Saat yalnızca grubun son balonunda; düzenlenmiş ya da sabitlenmiş ara
+  // mesaj işaretini yine taşır (saatiyle birlikte).
+  const edited = message.createdAt !== message.updatedAt && !message.deleted;
+  const pinned = Boolean(pinnedAtOf(message)) && !message.deleted;
+  const showMeta = lastInGroup || edited || pinned;
 
   // Konum satırdan değil balonun kendisinden ölçülür: bağlam menüsü
   // kopyayı tam üstüne çizer. Ters (inverted) listede de pencere
@@ -241,13 +283,13 @@ export function MessageItem({
   const handleLongPress = onLongPress
     ? () => {
         bubbleRef.current?.measureInWindow((x, y, width, height) => {
-          onLongPress(message, { x, y, width, height, grouped });
+          onLongPress(message, { x, y, width, height, grouped, lastInGroup });
         });
       }
     : undefined;
 
   const header = showHeader ? (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: 1 }}>
       {/* Ad stili (web StyledName): renk efekti rol rengini ezer; listede durağan. */}
       <StyledName
         profileId={profile.id}
@@ -265,7 +307,7 @@ export function MessageItem({
             backgroundColor: colors.brand,
           }}
         >
-          <Text style={{ fontSize: 9, ...fw(700), color: colors.onBrand }}>
+          <Text style={{ fontSize: 9, lineHeight: 12, ...fw(700), color: colors.onBrand }}>
             {isOfficial ? "RESMÎ" : "UYG"}
           </Text>
         </View>
@@ -277,19 +319,13 @@ export function MessageItem({
     // İletilen mesaj kaynağını taşımaz (Discord kuralı); yalnızca
     // iletilmiş olduğu işaretlenir.
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-      <Icon name="forward" size={12} color={colors.muted} />
-      <Text style={{ fontSize: 11, lineHeight: 15, fontStyle: "italic", color: colors.muted }}>
+      <Icon name="forward" size={12} color={mutedColor} />
+      <Text style={{ fontSize: 12, lineHeight: 16, fontStyle: "italic", color: mutedColor }}>
         İletildi
       </Text>
     </View>
   ) : null;
 
-  // Komut yanıtı ve sessiz mesaj işaretleri — web'de mesajın üstünde.
-  // Etiket ve bileşenler yalnızca bot yazarlı mesajda: kullanıcının mesajına
-  // eklenmiş sahte metadata "X /komut kullandı" ya da buton çizdirmesin.
-  const fromBot = profile.isBot === true;
-  const interaction = fromBot ? readInteraction(message.metadata) : null;
-  const silent = isSilent(message.metadata) && !message.deleted;
   const metaLabels = interaction || silent ? (
     <>
       {interaction ? <InteractionLabel interaction={interaction.interaction} pending={interaction.pending} /> : null}
@@ -300,12 +336,13 @@ export function MessageItem({
   const thread = !message.deleted && scope?.serverId ? readThread(message.metadata) : null;
   const components =
     fromBot && !message.deleted && scope?.kind === "channel" ? readComponents(message.metadata) : [];
+  const extras = message.deleted ? [] : extraAttachments(message.metadata, message.fileUrl);
+  const embeds = !message.deleted && hasEmbeds(message.metadata);
 
   const replyTarget = message.replyTo && !message.replyTo.deleted ? message.replyTo : null;
   const quote = replyTarget ? (
-    // Alıntı: tonlu kutu + vurgu çizgisi + yazarın adı. Yalnızca çizgi
-    // ve soluk metin, alıntının mesajın parçası mı ayrı bir şey mi
-    // olduğunu ayırt ettirmiyordu. Dokununca alıntılanan mesaja gidilir.
+    // Alıntı: balonun içinde hafif tonlu kutu + vurgu çizgisi + yazarın adı.
+    // Dokununca alıntılanan mesaja gidilir.
     <Pressable
       onPress={onJumpToMessage ? () => onJumpToMessage(replyTarget.id) : undefined}
       onLongPress={handleLongPress}
@@ -315,49 +352,61 @@ export function MessageItem({
       accessibilityLabel="Alıntılanan mesaja git"
       style={{
         borderRadius: radii.md,
+        borderCurve: "continuous",
         borderLeftWidth: 3,
         borderLeftColor: colors.brand,
-        backgroundColor: isMine ? colors.bubbleOther : colors.deep,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: 6,
+        backgroundColor: colors.bubbleInset,
+        paddingLeft: spacing.sm,
+        paddingRight: spacing.md,
+        paddingVertical: 5,
         gap: 1,
         marginTop: 2,
-        marginBottom: spacing.xs,
+        marginBottom: 3,
       }}
     >
       {replyAuthor(replyTarget) ? (
-        <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }} numberOfLines={1}>
+        <Text style={{ ...typography.caption, ...fw(700), color: readable(colors.brand, bubbleColor) }} numberOfLines={1}>
           {replyAuthor(replyTarget)}
         </Text>
       ) : null}
-      <Text style={{ ...typography.caption, color: colors.text }} numberOfLines={2}>
+      <Text style={{ ...typography.caption, color: textColor, opacity: 0.85 }} numberOfLines={2}>
         {formatMessagePreview(replyTarget)}
       </Text>
     </Pressable>
   ) : null;
 
   const reactions = message.reactions?.length ? (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-      {groupReactions(message.reactions).map(({ emoji, count }) => (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: isMine ? "flex-end" : "flex-start",
+        gap: spacing.xs,
+        marginTop: 3,
+        marginLeft: avatarColumn ? AVATAR_SIZE + spacing.sm : 0,
+      }}
+    >
+      {groupReactions(message.reactions, myId).map(({ emoji, count, mine }) => (
         <Pressable
           key={emoji}
           onPress={() => onReactionPress?.(message, emoji)}
           accessibilityRole="button"
+          accessibilityState={{ selected: mine }}
           accessibilityLabel={`${parseCustomEmojiToken(emoji) ? `:${parseCustomEmojiToken(emoji)?.name}:` : emoji} tepkisi, ${count}`}
           style={({ pressed }) => ({
             flexDirection: "row",
             alignItems: "center",
             gap: 4,
+            height: 26,
             paddingHorizontal: spacing.sm,
-            paddingVertical: 3,
             borderRadius: radii.full,
             borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: pressed ? colors.raised : colors.panel,
+            borderColor: mine ? colors.brand : colors.border,
+            backgroundColor: pressed ? colors.raised : mine ? colors.brandSoft : colors.panel,
           })}
         >
-          <ReactionGlyph emoji={emoji} size={17} />
-          <Text style={{ fontSize: 11, color: colors.muted }}>{count}</Text>
+          <ReactionGlyph emoji={emoji} size={16} />
+          <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: mine ? colors.brand : colors.muted }}>{count}</Text>
         </Pressable>
       ))}
     </View>
@@ -369,17 +418,37 @@ export function MessageItem({
   const activityReply =
     isActivityReply && !message.deleted ? readActivityReply({ type: "ACTIVITY_REPLY", metadata: message.metadata }) : null;
 
+  // Metinden sonra balonda başka bir şey var mı. Yoksa saat metnin son
+  // satırına, sağ alta biner (WhatsApp/Telegram); varsa kendi satırında durur.
+  const contentAfterText = captionedMedia
+    ? embeds || Boolean(thread) || components.length > 0
+    : Boolean(activityReply) ||
+      Boolean(message.fileUrl && !message.deleted) ||
+      extras.length > 0 ||
+      Boolean(sticker && !message.deleted) ||
+      Boolean(inviteCode) ||
+      Boolean(linkPreviews && linkUrl) ||
+      embeds ||
+      Boolean(thread) ||
+      components.length > 0;
+  const textCaption = !poll && !sticker && Boolean(message.content) && !inviteCode && !hideAttachmentUrl;
+  const inlineMeta =
+    showMeta && !flat && !contentAfterText && (message.deleted ? !inviteCode && !hideAttachmentUrl : textCaption);
+  const metaInfo = { message, edited, pinned };
+  const spacerText = inlineMeta ? metaSpacerText(metaInfo) : undefined;
+  const metaRow = showMeta && !inlineMeta ? <MessageMeta {...metaInfo} tint={mutedColor} /> : null;
+
   // Çıkartma mesajının içeriği çıkartmanın adı; görsel zaten ad taşıyor (web gibi).
   const caption = poll ? (
     <PollCard message={message} poll={poll} />
   ) : message.content && !sticker ? (
-    <MessageMarkdown
-      value={message.content}
-      compact={compact}
-      bigCustomEmoji={bigCustomEmoji}
-      style={largeEmoji ? { fontSize: 28, lineHeight: 34 } : undefined}
-    />
+    <MessageMarkdown value={message.content} color={textColor} emojiScale={emojiScale} trailing={spacerText} />
   ) : null;
+
+  // Köşeler: grubun dışa bakan köşeleri yuvarlak; gönderen tarafında balonlar
+  // birbirine yaslanır (küçük köşe), grubun son balonu "kuyruk" köşesini alır.
+  const sideTop = grouped ? BUBBLE_JOINT_RADIUS : BUBBLE_RADIUS;
+  const sideBottom = lastInGroup ? BUBBLE_TAIL_RADIUS : BUBBLE_JOINT_RADIUS;
 
   const bubble = (
     <View
@@ -388,18 +457,16 @@ export function MessageItem({
       style={{
         width: captionedMedia ? MEDIA_BUBBLE_WIDTH : undefined,
         maxWidth: preview || inviteCode ? "100%" : MAX_BUBBLE_WIDTH,
+        minWidth: flat || captionedMedia ? undefined : 44,
         paddingHorizontal: flat || captionedMedia ? 0 : spacing.md,
-        paddingVertical: flat || captionedMedia ? 0 : spacing.sm,
-        borderRadius: radii.lg,
-        // Baloncuğun "kuyruk" tarafı köşesi küçültülür; grup içindeki
-        // ardışık mesajlarda düz kalır ki blok tek parça görünsün.
-        borderBottomRightRadius: isMine && !grouped ? radii.sm : radii.lg,
-        borderBottomLeftRadius: !isMine && !grouped ? radii.sm : radii.lg,
-        backgroundColor: flat
-          ? "transparent"
-          : isMine
-            ? colors.bubbleOwn
-            : colors.bubbleOther,
+        paddingTop: flat || captionedMedia ? 0 : 7,
+        paddingBottom: flat || captionedMedia ? 0 : 7,
+        borderCurve: "continuous",
+        borderTopLeftRadius: isMine ? BUBBLE_RADIUS : sideTop,
+        borderTopRightRadius: isMine ? sideTop : BUBBLE_RADIUS,
+        borderBottomLeftRadius: isMine ? BUBBLE_RADIUS : sideBottom,
+        borderBottomRightRadius: isMine ? sideBottom : BUBBLE_RADIUS,
+        backgroundColor: flat ? "transparent" : bubbleColor,
         // Altyazılı medyada köşeleri balon belirler; medyanın kendi köşesi yok.
         overflow: captionedMedia ? "hidden" : undefined,
         gap: captionedMedia ? 0 : 2,
@@ -429,7 +496,7 @@ export function MessageItem({
             variant="bubble"
             onLongPress={handleLongPress}
           />
-          {extraAttachments(message.metadata, message.fileUrl).map((a) => (
+          {extras.map((a) => (
             <View key={a.url} style={{ marginTop: 2 }}>
               <MessageAttachment
                 url={a.url}
@@ -444,17 +511,17 @@ export function MessageItem({
             style={{
               paddingHorizontal: spacing.md,
               paddingTop: 6,
-              paddingBottom: spacing.sm,
+              paddingBottom: 7,
               gap: 2,
             }}
           >
             {caption}
-            <MessageEmbeds metadata={message.metadata} />
+            {embeds ? <MessageEmbeds metadata={message.metadata} /> : null}
             {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} parentId={scope.chatId} thread={thread} /> : null}
             {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
-            <MessageTime message={message} />
-            {reactions}
+            {metaRow}
           </View>
+          {inlineMeta ? <MessageMeta {...metaInfo} tint={mutedColor} inline /> : null}
         </>
       ) : (
         <>
@@ -464,14 +531,9 @@ export function MessageItem({
           {quote}
 
           {!inviteCode && !hideAttachmentUrl && message.deleted ? (
-            <Text
-              style={{
-                ...typography.body,
-                color: colors.muted,
-                fontStyle: "italic",
-              }}
-            >
+            <Text style={{ ...typography.body, lineHeight: 22, color: mutedColor, fontStyle: "italic" }}>
               Bu mesaj silindi.
+              {spacerText ? <InvisibleSpacer text={spacerText} /> : null}
             </Text>
           ) : null}
 
@@ -485,22 +547,20 @@ export function MessageItem({
             <MessageAttachment
               url={message.fileUrl}
               metadata={message.metadata}
-              overlay={bareMedia ? <MessageTime message={message} onMedia /> : undefined}
+              overlay={bareMedia && showMeta ? <MessageMeta {...metaInfo} tint={colors.mediaText} /> : undefined}
               onLongPress={handleLongPress}
             />
           ) : null}
 
           {/* Çoklu ek (ciklet-web metadata.attachments): ilki yukarıda. */}
-          {!message.deleted
-            ? extraAttachments(message.metadata, message.fileUrl).map((a) => (
-                <MessageAttachment
-                  key={a.url}
-                  url={a.url}
-                  metadata={{ attachment: { name: a.name, type: a.type, size: a.size }, sensitive: (message.metadata as { sensitive?: unknown } | null)?.sensitive }}
-                  onLongPress={handleLongPress}
-                />
-              ))
-            : null}
+          {extras.map((a) => (
+            <MessageAttachment
+              key={a.url}
+              url={a.url}
+              metadata={{ attachment: { name: a.name, type: a.type, size: a.size }, sensitive: (message.metadata as { sensitive?: unknown } | null)?.sensitive }}
+              onLongPress={handleLongPress}
+            />
+          ))}
 
           {/* Çıkartma (ciklet-web metadata.sticker). */}
           {sticker && !message.deleted ? (
@@ -513,14 +573,17 @@ export function MessageItem({
 
           {linkPreviews && linkUrl ? <LinkPreviewCard url={linkUrl} /> : null}
 
-          {!message.deleted ? <MessageEmbeds metadata={message.metadata} /> : null}
+          {embeds ? <MessageEmbeds metadata={message.metadata} /> : null}
 
           {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} parentId={scope.chatId} thread={thread} /> : null}
           {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
 
-          {bareMedia ? null : <MessageTime message={message} />}
-
-          {reactions}
+          {bareMedia ? null : bareEmoji && showMeta ? (
+            <MessageMeta {...metaInfo} tint={mutedColor} pill={bubbleColor} />
+          ) : (
+            metaRow
+          )}
+          {inlineMeta ? <MessageMeta {...metaInfo} tint={mutedColor} inline /> : null}
         </>
       )}
     </View>
@@ -533,13 +596,9 @@ export function MessageItem({
       onLongPress={handleLongPress}
       delayLongPress={280}
       style={{
-        flexDirection: "row",
-        justifyContent: isMine ? "flex-end" : "flex-start",
-        alignItems: "flex-end",
-        gap: spacing.sm,
         paddingHorizontal: spacing.md,
-        paddingTop: compact ? 1 : grouped ? 2 : spacing.sm,
-        paddingBottom: compact ? 1 : 2,
+        paddingTop: grouped ? 2 : spacing.sm,
+        paddingBottom: 1,
       }}
       accessibilityRole="button"
       accessibilityHint={canSwipe ? "Mesaj eylemleri için basılı tut, yanıtlamak için sola çek" : "Mesaj eylemlerini açmak için basılı tut"}
@@ -556,29 +615,41 @@ export function MessageItem({
         />
       ) : null}
 
-      {/* Gelen mesajlarda avatar; gruplananlarda sütun hizası korunur.
-          Dokunma üye kartına (profil ekranı) gider — web'deki üye kartının
-          mobil karşılığı. */}
-      {showAvatar ? (
-        grouped ? (
-          <View style={{ width: AVATAR_SIZE }} />
-        ) : (
-          <Pressable
-            onPress={() => router.push(`/profile/${profile.id}`)}
-            accessibilityRole="button"
-            accessibilityLabel={`${name} profilini görüntüle`}
-          >
-            <Avatar
-              profileId={profile.id}
-              imageUrl={profile.imageUrl}
-              fallbackText={profile.username}
-              size={AVATAR_SIZE}
-            />
-          </Pressable>
-        )
-      ) : null}
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: isMine ? "flex-end" : "flex-start",
+          alignItems: "flex-end",
+          gap: spacing.sm,
+        }}
+      >
+        {/* Gelen mesajlarda avatar grubun son balonunun yanında; diğerlerinde
+            sütun hizası korunur. Dokunma üye kartına (profil ekranı) gider —
+            web'deki üye kartının mobil karşılığı. */}
+        {avatarColumn ? (
+          lastInGroup ? (
+            <Pressable
+              onPress={() => router.push(`/profile/${profile.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`${name} profilini görüntüle`}
+            >
+              <Avatar
+                profileId={profile.id}
+                imageUrl={profile.imageUrl}
+                fallbackText={profile.username}
+                size={AVATAR_SIZE}
+              />
+            </Pressable>
+          ) : (
+            <View style={{ width: AVATAR_SIZE }} />
+          )
+        ) : null}
 
-      {bubble}
+        {bubble}
+      </View>
+
+      {/* Tepkiler balonun altında, balonla aynı kenarda. */}
+      {reactions}
     </Pressable>
   );
 
@@ -627,28 +698,62 @@ export function copyableText(message: ChatMessagePayload): string | null {
   return message.content;
 }
 
-/** Saat ve "düzenlendi" — balonun altında ya da medyanın üstünde. */
-function MessageTime({ message, onMedia = false }: { message: ChatMessagePayload; onMedia?: boolean }) {
-  const tint = onMedia ? "rgba(255,255,255,0.92)" : colors.muted;
+interface MetaInfo {
+  message: ChatMessagePayload;
+  edited: boolean;
+  pinned: boolean;
+}
+
+const META_TEXT = { fontSize: 11, lineHeight: 14 } as const;
+
+/**
+ * Saat, "düzenlendi" ve sabit raptiyesi.
+ *
+ * - `inline`: balonun sağ alt köşesine biner; metnin son satırında ona yer
+ *   açan `MetaSpacer` durur (WhatsApp/Telegram).
+ * - `pill`: balonsuz dev emojinin altında küçük zeminli rozet.
+ * - varsayılan: kendi satırında sağa yaslı (kartlardan sonra, medya üstü).
+ */
+function MessageMeta({
+  message,
+  edited,
+  pinned,
+  tint,
+  inline = false,
+  pill,
+}: MetaInfo & { tint: string; inline?: boolean; pill?: string }) {
   return (
     <View
+      pointerEvents="none"
       style={{
         flexDirection: "row",
         alignItems: "center",
-        alignSelf: "flex-end",
-        gap: spacing.xs,
+        gap: 3,
+        ...(inline
+          ? { position: "absolute", right: 10, bottom: 5 }
+          : { alignSelf: "flex-end", marginTop: pill ? 2 : 1 }),
+        ...(pill ? { paddingHorizontal: 7, paddingVertical: 2, borderRadius: radii.full, backgroundColor: pill } : null),
       }}
     >
       {/* Telegram gibi: sabit mesajın saatinin yanında küçük raptiye. */}
-      {pinnedAtOf(message) && !message.deleted ? <Icon name="pin" size={11} color={tint} /> : null}
-      {message.createdAt !== message.updatedAt && !message.deleted ? (
-        <Text style={{ fontSize: 10, color: tint }}>düzenlendi</Text>
-      ) : null}
-      <Text style={{ fontSize: 10, lineHeight: 14, color: tint }}>
-        {formatTime(message.createdAt)}
-      </Text>
+      {pinned ? <Icon name="pin" size={11} color={tint} /> : null}
+      {edited ? <Text style={{ ...META_TEXT, color: tint }}>düzenlendi</Text> : null}
+      <Text style={{ ...META_TEXT, color: tint }}>{formatTime(message.createdAt)}</Text>
     </View>
   );
+}
+
+/**
+ * Metnin son satırına eklenen görünmez yer tutucunun metni — `MessageMeta
+ * inline` ile aynı içerik ve yazı boyu (bkz. `InvisibleSpacer`), böylece
+ * genişlikleri örtüşür. Kısa son satırda saat metnin yanına oturur; satır
+ * doluysa yer tutucu alta kayar ve balon bir satır uzar. Bölünmez
+ * boşluklarla tek parça kalır; baştaki düz boşluk satır kırılabilsin diye.
+ */
+function metaSpacerText({ message, edited, pinned }: MetaInfo): string {
+  const pin = pinned ? "\u00A0\u00A0\u00A0\u00A0\u00A0" : "";
+  const edit = edited ? "düzenlendi\u00A0" : "";
+  return ` \u00A0${pin}${edit}${formatTime(message.createdAt)}\u00A0\u00A0`;
 }
 
 /**
@@ -770,12 +875,15 @@ function ReactionGlyph({ emoji, size }: { emoji: string; size: number }) {
   return <Image source={{ uri: found.imageUrl }} style={{ width: size, height: size }} contentFit="contain" accessibilityLabel={`:${found.name}:`} />;
 }
 
-function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>) {
-  const counts = new Map<string, number>();
+function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>, myId: string | undefined) {
+  const groups = new Map<string, { count: number; mine: boolean }>();
   for (const reaction of reactions) {
-    counts.set(reaction.emoji, (counts.get(reaction.emoji) ?? 0) + 1);
+    const group = groups.get(reaction.emoji) ?? { count: 0, mine: false };
+    group.count += 1;
+    if (myId && reaction.profileId === myId) group.mine = true;
+    groups.set(reaction.emoji, group);
   }
-  return [...counts].map(([emoji, count]) => ({ emoji, count }));
+  return [...groups].map(([emoji, group]) => ({ emoji, ...group }));
 }
 
 /**

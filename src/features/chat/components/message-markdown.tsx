@@ -23,12 +23,39 @@ import {
 import { useServerEmojis, useServerRoles, type ServerEmojiLite, type ServerRoleLite } from "../server-assets";
 import { CodeBlock } from "./code-block";
 
+/**
+ * Yalnızca emojiden oluşan mesajın boyu: `jumbo` 1–3 emoji (balonsuz),
+ * `large` 4–8 emoji. Satır yüksekliği emojiye göre seçilir ki görsel
+ * satıra sığsın (bkz. `emojiSizeFor`); yazı boyu küçük kalır, yalnızca
+ * emojiler arasındaki boşluk ona göre ölçülür.
+ */
+export type EmojiScale = "jumbo" | "large";
+
+const EMOJI_SCALES: Record<EmojiScale, { emoji: number; text: TextStyle }> = {
+  jumbo: { emoji: 48, text: { fontSize: 16, lineHeight: 56 } },
+  large: { emoji: 30, text: { fontSize: 15, lineHeight: 38 } },
+};
+
+/**
+ * Mesaj metni: gövde yazısından bir tık ferah satır (15/22). 22'lik satırda
+ * 16'lık emoji iniş payıyla birlikte sığar; 21'de Android'de tepeden kesiliyordu.
+ */
+const MESSAGE_TEXT: TextStyle = { fontSize: typography.body.fontSize, lineHeight: 22 };
+
 interface MessageMarkdownProps {
   value: string;
   style?: TextStyle;
   compact?: boolean;
-  /** Mesaj yalnızca sunucu emojilerinden oluşuyor: emojiler büyük çizilir. */
-  bigCustomEmoji?: boolean;
+  /** Metin rengi (balonun kendi okunur rengi); verilmezse gövde rengi. */
+  color?: string;
+  emojiScale?: EmojiScale;
+  /**
+   * Son satırın sonuna eklenen görünmez yer tutucu metni (bkz. message-item
+   * `metaSpacerText`) — balonun sağ alt köşesine binen saat metnin üstüne
+   * gelmesin (WhatsApp/Telegram). Son blok kod bloğuysa yer tutucu kendi
+   * satırında durur. Düz metin: ezberlenen çizimi her seferinde bozmasın.
+   */
+  trailing?: string;
 }
 
 type InlineStyle = Pick<TextStyle, "fontFamily" | "fontWeight" | "fontStyle" | "textDecorationLine">;
@@ -64,16 +91,18 @@ interface InlineContext {
  * küçük işaretleri de burada: `<t:unix:stil>` zaman damgası, `-# ` alt
  * metin, `@herkes`/`@burada`/`<@&rol>` pilleri, `<:ad:id>` sunucu emojisi.
  */
-export function MessageMarkdown({ value, style, compact = false, bigCustomEmoji = false }: MessageMarkdownProps) {
+export function MessageMarkdown({ value, style, compact = false, color, emojiScale, trailing }: MessageMarkdownProps) {
   const [revealed, setRevealed] = useState<Set<string>>(() => new Set());
   const blocks = useMemo(() => splitBlocks(value), [value]);
   const scope = useChatScope();
   const roles = useServerRoles(scope?.serverId);
   const emojis = useServerEmojis(scope?.serverId);
   const myUsername = useAuth((s) => s.profile?.username);
-  // Emojiler Twemoji görseli (lib/emoji.ts); boyut metinle birlikte büyür —
-  // yalnızca emojiden oluşan mesajlarda `style.fontSize` büyük geliyor.
-  const emojiSize = emojiSizeFor(style, typography.body.fontSize);
+  const scale = emojiScale ? EMOJI_SCALES[emojiScale] : null;
+  // Emojiler Twemoji görseli (lib/emoji.ts). Boyut satır yüksekliğine göre
+  // sınırlanır; sunucu emojisi de aynı boyda (eskiden 1.25 katıydı ve
+  // satırdan taşıp kesiliyordu).
+  const emojiSize = scale ? scale.emoji : emojiSizeFor({ ...MESSAGE_TEXT, ...style }, typography.body.fontSize);
 
   const toggleSpoiler = useCallback((key: string) => {
     setRevealed((current) => {
@@ -84,7 +113,6 @@ export function MessageMarkdown({ value, style, compact = false, bigCustomEmoji 
     });
   }, []);
 
-  const customEmojiSize = bigCustomEmoji ? 40 : Math.round(emojiSize * 1.25);
   // Satır içi ayrıştırma pahalı (her belirteç için düzenli ifade taraması);
   // yalnızca girdiler değişince yeniden kurulur — sohbet ekranının başka
   // nedenlerle (yazma, imleç) yeniden çizilmesi bunu tetiklemez.
@@ -93,31 +121,56 @@ export function MessageMarkdown({ value, style, compact = false, bigCustomEmoji 
       revealed,
       toggleSpoiler,
       emojiSize,
-      customEmojiSize,
+      customEmojiSize: emojiSize,
       roles,
       emojis,
       myUsername,
     };
-    return blocks.map((block, index) =>
+    const textColor = color ?? colors.text;
+    const last = blocks.length - 1;
+    const spacer = trailing ? <InvisibleSpacer text={trailing} /> : null;
+    const nodes = blocks.map((block, index) =>
         block.kind === "code" ? (
           <CodeBlock key={`code-${index}`} code={block.value} language={block.language} />
         ) : block.kind === "subtext" ? (
           // `-# ` alt metin: küçük ve soluk (web `md-subtext`).
-          <Text key={`sub-${index}`} style={{ fontSize: 12, lineHeight: 16, color: colors.muted }}>
+          <Text key={`sub-${index}`} style={{ fontSize: 12, lineHeight: 17, color: colors.muted }}>
             {renderInline(block.value, `s${index}`, ctx)}
+            {index === last ? spacer : null}
           </Text>
         ) : (
           // Seçilebilir DEĞİL: Android'de metin seçimi uzun basmayı yutuyor ve
           // mesaj eylemleri (yanıtla, tepki, kopyala) hiç açılmıyordu. Kopyalama
           // eylem sayfasında.
-          <Text key={`text-${index}`} style={{ ...typography.body, color: colors.text, ...style }}>
+          <Text key={`text-${index}`} style={{ ...typography.body, ...MESSAGE_TEXT, color: textColor, ...style, ...scale?.text }}>
             {renderInline(block.value, `b${index}`, ctx)}
+            {index === last ? spacer : null}
           </Text>
         )
     );
-  }, [blocks, revealed, toggleSpoiler, emojiSize, customEmojiSize, roles, emojis, myUsername, style]);
+    if (trailing && blocks[last]?.kind === "code") {
+      nodes.push(
+        <Text key="trailing" style={{ ...typography.body, ...MESSAGE_TEXT, textAlign: "right" }}>
+          {spacer}
+        </Text>
+      );
+    }
+    return nodes;
+  }, [blocks, revealed, toggleSpoiler, emojiSize, roles, emojis, myUsername, style, color, scale, trailing]);
 
   return <View style={{ gap: compact ? 2 : spacing.xs }}>{rendered}</View>;
+}
+
+/**
+ * Görünmez yer tutucu: saat rozetinin genişliğini metnin son satırında
+ * ayırır. Saatle aynı yazı boyunda (11) çizilir ki genişlikler örtüşsün.
+ */
+export function InvisibleSpacer({ text }: { text: string }) {
+  return (
+    <Text style={{ fontSize: 11, color: "transparent" }} accessible={false} importantForAccessibility="no">
+      {text}
+    </Text>
+  );
 }
 
 type Block =

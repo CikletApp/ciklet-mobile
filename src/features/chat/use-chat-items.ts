@@ -21,8 +21,13 @@ export type ChatItem =
       kind: "message";
       key: string;
       message: ChatMessagePayload;
-      /** Üstündeki mesajla aynı gruba ait — avatar ve ad tekrarlanmaz. */
+      /** Üstündeki (daha eski) mesajla aynı gruba ait — ad tekrarlanmaz. */
       grouped: boolean;
+      /**
+       * Grubun son (en yeni) mesajı: altındaki mesaj bu gruba ait değil.
+       * Balonun kuyruk köşesi, saati ve gelen mesajın avatarı burada durur.
+       */
+      lastInGroup: boolean;
     }
   | { kind: "day"; key: string; iso: string }
   /** "Yeni mesajlar" ayracı — ilk okunmamış mesajın üstünde (web ile aynı). */
@@ -57,6 +62,8 @@ export function useChatItems(
 ): ChatItem[] {
   return useMemo(() => {
     const items: ChatItem[] = [];
+    // Bir önceki turdaki (ekranda ALTTAKİ, daha yeni) mesaj bununla gruplandı mı.
+    let newerGrouped = false;
 
     for (let i = 0; i < messages.length; i += 1) {
       const message = messages[i];
@@ -66,22 +73,29 @@ export function useChatItems(
         ? !isSameDay(new Date(message.createdAt), new Date(older.createdAt))
         : reachedStart;
 
+      const grouped =
+        !dayChanged &&
+        Boolean(older) &&
+        // "Yeni mesajlar" ayracı grubu böler: ayracın altındaki ilk mesaj
+        // adıyla başlasın, üstteki grup kendi saatiyle kapansın.
+        message.id !== unreadMarkerId &&
+        !isSystemMessage(message) &&
+        !isSystemMessage(older!) &&
+        shouldGroupMessages(
+          older ? authorIdOf(older) : undefined,
+          older?.createdAt,
+          authorIdOf(message),
+          message.createdAt
+        );
+
       items.push({
         kind: "message",
         key: message.id,
         message,
-        grouped:
-          !dayChanged &&
-          Boolean(older) &&
-          !isSystemMessage(message) &&
-          !isSystemMessage(older!) &&
-          shouldGroupMessages(
-            older ? authorIdOf(older) : undefined,
-            older?.createdAt,
-            authorIdOf(message),
-            message.createdAt
-          ),
+        grouped,
+        lastInGroup: !newerGrouped,
       });
+      newerGrouped = grouped;
 
       // Dizide mesajdan SONRA = ekranda mesajın ÜSTÜNDE; gün ayracı ondan da
       // üstte kalsın diye önce okunmamış ayracı, sonra gün ayracı eklenir.
