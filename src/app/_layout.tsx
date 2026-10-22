@@ -13,6 +13,7 @@ import { ConnectionBanner } from "@/components/connection-banner";
 import { InAppNoticeHost } from "@/components/in-app-notice";
 import { DialogHost, ToastHost } from "@/components/ui";
 import { ImageViewerHost } from "@/components/ui/image-viewer";
+import { ActivityHost } from "@/features/activities/activity-host";
 import { BrandSplash } from "@/features/auth/auth-shell";
 import { CallOverlay } from "@/features/call/call-overlay";
 import { InteractionModalHost } from "@/features/chat/interaction-modal";
@@ -265,6 +266,10 @@ export default function RootLayout() {
                 <Stack.Screen name="call/incoming" options={{ headerShown: false, animation: "none" }} />
               </Stack>
             </ThemeProvider>
+            {/* Aktivite katmanı yığının DIŞINDA: tam ekran ya da sohbetin üstünde
+                yüzen mini pencere. Tema anahtarı VERİLMEZ — anahtar değişince
+                WebView sökülür ve aktivite baştan yüklenirdi. */}
+            <ActivityHost />
             {/* Çağrı katmanı yığının DIŞINDA: gelen arama hangi ekranda
                 olursan ol görünmeli. */}
             <CallOverlay key={`call-${themeRevision}`} />

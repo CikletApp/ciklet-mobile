@@ -120,6 +120,8 @@ export const ServerEvent = {
   ACTIVITY_SYNC: "activity.sync",
   /** `{ chatId }` */
   ACTIVITY_ENDED: "activity.ended",
+  /** `activity.request_state` yanıtı — `activity.update` ile aynı şekil. */
+  ACTIVITY_CURRENT_STATE: "activity.current_state",
 } as const;
 
 // ── Yük tipleri ─────────────────────────────────────────────────────

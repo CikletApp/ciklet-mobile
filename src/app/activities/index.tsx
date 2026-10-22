@@ -2,6 +2,7 @@ import { FlatList, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { useActivities } from "@/api/hooks";
+import { launchActivity } from "@/features/activities/launch";
 import {
   Avatar,
   EmptyState,
@@ -73,11 +74,12 @@ export default function ActivitiesScreen() {
                   <Tag label="DOĞRULANMIŞ" tint={colors.onBrand} background={colors.brand} />
                 ) : undefined
               }
-              onPress={() =>
-                router.push(
-                  `/activities/${item.id}?chatId=${chatId ?? ""}&serverId=${serverId ?? ""}`
-                )
-              }
+              onPress={() => {
+                // Seçici kapanır; aktivite kalıcı katmanda açılır ve sohbete
+                // davet kartı yazılır (features/activities/launch).
+                router.back();
+                void launchActivity(item, { chatId, serverId });
+              }}
             />
           )}
           ItemSeparatorComponent={() => (

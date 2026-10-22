@@ -19,6 +19,7 @@ import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 import { ApiError } from "@/api/client";
 import { useChatMessages, useMentolPlan, useMyMembership, type ChatKind } from "@/api/hooks";
 import { EmptyState, ErrorState, ListSkeleton, showDialog, showToast } from "@/components/ui";
+import { launchActivityById } from "@/features/activities/launch";
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
 import { useTyping } from "@/realtime/use-typing";
@@ -591,11 +592,9 @@ export function ChatView({
     send("", { url, name: "GIF", mimeType: "image/gif" });
   }, [send, stopTyping]);
 
+  // Sohbete davet kartı yazar, aktiviteyi kalıcı katmanda açar (features/activities/launch).
   const onSelectActivity = useCallback((activityId: string) => {
-    router.push({
-      pathname: "/activities/[clientId]",
-      params: { clientId: activityId, chatId, ...(serverId ? { serverId } : {}) },
-    });
+    void launchActivityById(activityId, { chatId, serverId });
   }, [chatId, serverId]);
 
   /**

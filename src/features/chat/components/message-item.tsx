@@ -11,7 +11,6 @@ import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
-import { useActivities } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { Avatar, Icon, StyledName, emojify, type IconName } from "@/components/ui";
 import { classifyAttachment, readAttachmentInfo } from "@/lib/attachments";
@@ -34,6 +33,7 @@ import { MessageMarkdown } from "./message-markdown";
 import { LinkPreviewCard } from "./link-preview-card";
 import { PollCard } from "./poll-message";
 import { MessageActivityReply } from "./message-activity-reply";
+import { ActivityInviteMessage } from "@/features/activities/activity-invite-message";
 import {
   extraAttachments,
   isSilent,
@@ -814,129 +814,6 @@ function systemStyle(type: MessageType): { icon: IconName; tint: string } {
   if (type === MessageType.ACTIVITY_INVITE) return { icon: "compass", tint: colors.brand };
   if (type === MessageType.ACTIVITY_REPLY) return { icon: "compass", tint: colors.muted };
   return { icon: "message", tint: colors.muted };
-}
-
-function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
-  const metadata = message.metadata ?? {};
-  const [contentName, contentDescription] = message.content.split("|");
-  const activityName = String(metadata.activityName || contentName?.trim() || "Aktivite");
-  const description = String(metadata.activityDescription || contentDescription?.trim() || "Arkadaşlarınla birlikte katıl!");
-  const activityIcon = typeof metadata.activityIcon === "string" ? metadata.activityIcon : undefined;
-  const activityColor = typeof metadata.activityColor === "string" ? metadata.activityColor : undefined;
-  const activityId = typeof metadata.activityId === "string" ? metadata.activityId : undefined;
-  const chatId = isChannelMessage(message) ? message.channelId : message.directId;
-  const profile = isChannelMessage(message) ? message.member.profile : message.profile;
-  const name = profile.name?.trim() || profile.username;
-  const scheme = useTheme((s) => s.scheme);
-  const hasRemoteIcon = Boolean(activityIcon?.startsWith("http") || activityIcon?.startsWith("data:image/"));
-  const isActive = Boolean(message.fileUrl) && !description.includes("Aktivite sona erdi");
-  const accent = safeActivityColor(activityColor) ?? colors.brand;
-  const { data: activities } = useActivities();
-  const isAvailable = Boolean(activities?.some((activity) => activity.id === activityId));
-
-  const openActivity = () => {
-    if (activityId && isAvailable) {
-      router.push({
-        pathname: "/activities/[clientId]",
-        params: { clientId: activityId, chatId },
-      });
-      return;
-    }
-
-    router.push({ pathname: "/activities", params: { chatId } });
-  };
-
-  return (
-    <View style={{ flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
-      <Avatar profileId={profile.id} imageUrl={profile.imageUrl} fallbackText={profile.username} size={40} />
-      <View style={{ flex: 1, gap: spacing.xs }}>
-        <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}>
-          <StyledName profileId={profile.id} name={name} textStyle={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1} />
-          <Text style={{ fontSize: 10, color: colors.muted }}>{formatTime(message.createdAt)}</Text>
-        </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.sm, backgroundColor: colors.bubbleOwn }}>
-            <Icon name="compass" size={14} color={colors.brand} />
-            <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>Aktivite</Text>
-          </View>
-          <Text style={{ ...typography.caption, color: colors.muted }}>kullanıldı,</Text>
-          <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.brand }}>
-            <Text style={{ fontSize: 9, lineHeight: 13, ...fw(700), color: colors.onBrand }}>UYG</Text>
-          </View>
-          <Text style={{ ...typography.caption, ...fw(700), color: colors.bright }}>• {activityName}</Text>
-        </View>
-        <View
-          style={{
-            width: 320,
-            maxWidth: "100%",
-            padding: spacing.md,
-            gap: spacing.md,
-            borderRadius: radii.bento,
-            borderCurve: "continuous",
-            backgroundColor: hasRemoteIcon ? colors.deep : accent,
-            overflow: "hidden",
-            shadowColor: colors.shadow,
-            shadowOpacity: 1,
-            shadowRadius: 16,
-            shadowOffset: { width: 0, height: 8 },
-            elevation: 8,
-          }}
-        >
-          {hasRemoteIcon ? (
-            <>
-              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -64, opacity: 0.9, transform: [{ scale: 1.6 }] }} />
-              <BlurView
-                intensity={80}
-                tint={scheme}
-                blurMethod="dimezisBlurViewSdk31Plus"
-                style={{ position: "absolute", inset: 0 }}
-              />
-              <View style={{ position: "absolute", inset: 0, backgroundColor: colors.mediaScrim }} />
-            </>
-          ) : null}
-          <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: colors.mediaMuted }}>
-            Etkinlik Daveti
-          </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-            {hasRemoteIcon ? (
-              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ width: 56, height: 56, borderRadius: radii.bento, backgroundColor: colors.mediaText }} />
-            ) : (
-              <View style={{ width: 56, height: 56, borderRadius: radii.bento, alignItems: "center", justifyContent: "center", backgroundColor: colors.mediaText }}>
-                <Icon name="compass" size={28} color={accent} />
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, lineHeight: 20, ...fw(800), color: colors.mediaText }} numberOfLines={1}>{activityName}</Text>
-              <Text style={{ fontSize: isActive ? 13 : 11, lineHeight: 16, ...fw(600), color: colors.mediaMuted }} numberOfLines={2}>
-                {isActive ? "1 Katıldı" : description}
-              </Text>
-            </View>
-          </View>
-          <Pressable
-            onPress={openActivity}
-            accessibilityRole="button"
-            accessibilityLabel={isActive ? "Etkinliğe Katıl" : "Aktiviteyi başlat"}
-            style={({ pressed }) => ({
-              height: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: radii.md,
-              backgroundColor: colors.mediaText,
-              opacity: pressed ? 0.88 : 1,
-            })}
-          >
-            <Text style={{ fontSize: 14, lineHeight: 18, ...fw(700), color: colors.mediaButtonText }}>
-              {isActive ? "Etkinliğe Katıl" : "Başlat"}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function safeActivityColor(value: string | undefined): string | undefined {
-  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : undefined;
 }
 
 interface InvitePreview {
