@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Text, View } from "react-native";
 import { Stack, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
@@ -119,7 +119,13 @@ export default function ScanLoginScreen() {
         <Icon name="camera" size={40} color={colors.muted} />
         <Text style={{ ...typography.title, color: colors.text }}>{t("settings.scanLogin.permissionTitle")}</Text>
         <Text style={{ ...typography.body, color: colors.muted }}>{t("settings.scanLogin.permissionBody")}</Text>
-        <Button label={t("settings.scanLogin.permissionAction")} onPress={() => void requestPermission()} />
+        {/* Bir kez "izin verme" denince sistem bir daha sormuyor; o zaman
+            istek boşa düşer, kullanıcıyı uygulama ayarlarına göndeririz. */}
+        {permission.canAskAgain ? (
+          <Button label={t("settings.scanLogin.permissionAction")} onPress={() => void requestPermission()} />
+        ) : (
+          <Button label={t("settings.scanLogin.openSettings")} onPress={() => void Linking.openSettings()} />
+        )}
       </Screen>
     );
   }
@@ -184,6 +190,8 @@ function ConfirmCard({
     ? [
         [t("settings.scanLogin.device"), `${request.device.osInfo} · ${request.device.deviceName}`],
         [t("settings.scanLogin.location"), request.device.countryName ?? t("settings.scanLogin.unknownLocation")],
+        // Maskeli IP: aynı ağdaysan tanıdık gelir; yabancıysa reddetmek için ikinci ipucu.
+        [t("settings.scanLogin.ip"), request.device.ipMasked],
         [t("settings.scanLogin.time"), t("settings.scanLogin.justNow")],
       ]
     : [];

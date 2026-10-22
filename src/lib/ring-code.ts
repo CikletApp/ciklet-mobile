@@ -285,23 +285,28 @@ export function decodeRingCode(img: DecodeInput): DecodeResult | null {
     return [data[i], data[i + 1], data[i + 2]] as const;
   };
   let best: { cx: number; cy: number; Rx: number; Ry: number; score: number } | null = null;
-  for (const seed of candidates) {
+  // `upright` false: görüntü 90° dönmüş, ikon yatay değil DİKEY. Telefon
+  // kareyi sensör yönünde (EXIF döndürmesi uygulanmadan) verince olur;
+  // halkalar dönmeye zaten dayanıklı, yalnızca ikonun en/boyu yer değiştirir.
+  for (const seed of candidates) for (const upright of [true, false]) {
     let { minX, maxX, minY, maxY } = seed;
     const size = Math.max(maxX - minX, maxY - minY) + 1;
+    const [mergeX, mergeY] = upright ? [0.9, 0.6] : [0.6, 0.9];
     for (const o of candidates) {
       if (o === seed) continue;
       const ocx = (o.minX + o.maxX) / 2, ocy = (o.minY + o.maxY) / 2;
-      if (Math.abs(ocx - (minX + maxX) / 2) < size * 0.9 && Math.abs(ocy - (minY + maxY) / 2) < size * 0.6) {
+      if (Math.abs(ocx - (minX + maxX) / 2) < size * mergeX && Math.abs(ocy - (minY + maxY) / 2) < size * mergeY) {
         minX = Math.min(minX, o.minX); maxX = Math.max(maxX, o.maxX); minY = Math.min(minY, o.minY); maxY = Math.max(maxY, o.maxY);
       }
     }
     const bw = maxX - minX + 1, bh = maxY - minY + 1;
-    const aspect = bw / bh;
+    const aspect = upright ? bw / bh : bh / bw;
     if (aspect < 1.05 || aspect > 1.8) continue;
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     // Yatay ve dikey ölçek AYRI: telefon hafif eğik tutulunca halkalar elips
     // olur; tek bir yarıçap dış halkayı ıskalardı.
-    const Rx = bw / ICON_W, Ry = bh / (ICON_W * ICON_ASPECT);
+    const iconLong = ICON_W, iconShort = ICON_W * ICON_ASPECT;
+    const Rx = bw / (upright ? iconLong : iconShort), Ry = bh / (upright ? iconShort : iconLong);
     if (Rx / Ry < 0.75 || Rx / Ry > 1.33) continue;
     if (cx - Rx < -Rx * 0.1 || cy - Ry < -Ry * 0.1 || cx + Rx > w + Rx * 0.1 || cy + Ry > h + Ry * 0.1) continue;
     // Çevresinde halka var mı: her halkada en az bir lime nokta ve parlaklık çeşitliliği.

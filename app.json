@@ -102,7 +102,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Masaüstündeki giriş kodunu okuyabilmek için kameraya erişim gerekir."
+          "cameraPermission": "Görüntülü görüşmelerde ve masaüstü giriş kodunu okurken kamera erişimi gerekir.",
+          "barcodeScannerEnabled": false
         }
       ]
     ],
