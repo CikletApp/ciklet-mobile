@@ -23,6 +23,12 @@ export const endpoints = {
     login: "/api/mobile/auth",
     refresh: "/api/mobile/auth/refresh",
   },
+  /** Telefonla giriş: masaüstündeki halka kodunu bu oturum onaylar (features/auth/device-login). */
+  deviceLogin: {
+    inspect: "/api/auth/device-login/inspect",
+    approve: "/api/auth/device-login/approve",
+    reject: "/api/auth/device-login/reject",
+  },
 
   /** Expo push cihaz kaydı ve tercih güncellemesi. */
   pushRegister: "/api/push/register",

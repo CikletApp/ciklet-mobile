@@ -13,7 +13,7 @@
       "bundleIdentifier": "com.ciklet.mobile",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Sesli kanallarda konuşabilmek için mikrofon erişimi gerekir.",
-        "NSCameraUsageDescription": "Görüntülü görüşmelerde kamera erişimi gerekir.",
+        "NSCameraUsageDescription": "Görüntülü görüşmelerde ve masaüstü giriş kodunu okurken kamera erişimi gerekir.",
         "UIBackgroundModes": [
           "audio",
           "voip"
@@ -98,7 +98,13 @@
         }
       ],
       "expo-audio",
-      "expo-iap"
+      "expo-iap",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Masaüstündeki giriş kodunu okuyabilmek için kameraya erişim gerekir."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

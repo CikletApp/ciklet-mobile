@@ -105,6 +105,12 @@ export default function SettingsScreen() {
             />
             <Divider inset={52} />
             <ListRow
+              icon="camera"
+              title={t("settings.rows.scanLogin")}
+              subtitle={t("settings.rows.scanLoginSubtitle")}
+              onPress={() => router.push("/settings/scan-login")}
+            />
+            <ListRow
               icon="link"
               title={t("settings.rows.authorizedApps")}
               onPress={() => router.push("/settings/authorized-apps")}
