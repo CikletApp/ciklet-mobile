@@ -21,16 +21,17 @@
  *   [9..16]  sır (8 bayt)
  *   [17]     CRC-8 (poly 0x07), 0..16 üzerinde
  *
- * ── Geometri (birim: beyaz diskin yarıçapı R = 1) ─────────────────────
- *   • Ortada mor disk (r = LOGO_R), üstünde beyaz Ciklet ikonu. Çözücü
- *     merkezi ve ölçeği BU diskten bulur: görüntüdeki en dairesel mor leke.
- *   • 3 veri halkası, her biri SEGMENTS parça. Bit 1 = mor yay, bit 0 =
- *     soluk lavanta yay (halka görsel olarak kesintisiz kalsın).
- *   • Lime (yeşil) işaret noktası: 0. parçanın açısında, halkaların dışında.
- *     Çözücü yönü buradan alır; disk dönerken de okunur.
- *   • Bitler MSB'den başlar; halka 0 (en iç) parça 0..47, halka 1 48..95,
- *     halka 2 96..143. Parça i'nin merkez açısı = i · 2π/48 (ekran
- *     koordinatı: x = cx + r·cosθ, y = cy + r·sinθ; yani saat yönünde).
+ * ── Geometri (birim: en dış halkanın dış yarıçapı R = 1) ────────────
+ *   • Arka plan YOK: kod koyu zemin (giriş kartı) üstünde durur.
+ *   • Ortada beyaz Ciklet ikonu, serbest (dolu disk yok). Çözücü merkezi
+ *     ve ölçeği BU ikondan bulur: en/boy oranı 1,35 olan beyaz leke.
+ *   • 3 ince halka, her biri SEGMENTS yuvarlak uçlu parça. Parça 0 LİME:
+ *     o halkanın yön işareti. Kalan 49 parça veri — bit 1 parlak lavanta,
+ *     bit 0 koyu mor. Halkalar BİRBİRİNDEN BAĞIMSIZ döner; yön her halka
+ *     için ayrı bulunur, bu yüzden işaret her halkada var.
+ *   • Bitler MSB'den; halka 0 (en iç) veri 0..48, halka 1 49..97, halka 2
+ *     98..146 (144 kullanılır, son 3 bit sıfır). Parça i'nin merkez açısı
+ *     = i · 2π/50 (ekran koordinatı: x = cx + r·cosθ, y = cy + r·sinθ).
  */
 
 export const VERSION = 1;
@@ -38,24 +39,29 @@ export const MAGIC = 0xc1;
 export const ID_BYTES = 8;
 export const SECRET_BYTES = 8;
 export const PAYLOAD_BYTES = 1 + ID_BYTES + SECRET_BYTES + 1; // 18
-export const SEGMENTS = 48;
+export const SEGMENTS = 50;
+export const DATA_PER_RING = SEGMENTS - 1; // 0. parça işaret
 export const RINGS = 3;
-export const BITS = SEGMENTS * RINGS; // 144 = PAYLOAD_BYTES * 8
+export const BITS = PAYLOAD_BYTES * 8; // 144 ≤ 147
 
-export const LOGO_R = 0.3;
+/** İkon genişliği (birim R) ve en/boy oranı (ic-ikon.svg: 93.29 × 68.89). */
+export const ICON_W = 0.5;
+export const ICON_ASPECT = 68.89 / 93.29;
 /** Halka merkez yarıçapları (iç → dış). */
-export const RING_R = [0.455, 0.585, 0.715] as const;
+export const RING_R = [0.64, 0.78, 0.92] as const;
 /** Halka kalınlığı (radyal). */
-export const RING_W = 0.095;
+export const RING_W = 0.075;
 /** Parçalar arası açısal boşluk — parça genişliğinin oranı. */
-export const SEGMENT_GAP = 0.18;
-export const MARKER_R = 0.86;
-export const MARKER_DOT = 0.045;
+export const SEGMENT_GAP = 0.3;
 
 export const COLORS = {
-  purple: "#6010c9",
-  pale: "#ece6f8",
+  /** bit 1 */
+  bright: "#cdb6ff",
+  /** bit 0 */
+  dim: "#3a1f6b",
+  /** yön işareti */
   lime: "#a8e000",
+  /** ikon */
   white: "#ffffff",
 } as const;
 
@@ -96,6 +102,11 @@ export function payloadToBits(bytes: Uint8Array): Uint8Array {
   const bits = new Uint8Array(bytes.length * 8);
   for (let i = 0; i < bytes.length; i++) for (let b = 0; b < 8; b++) bits[i * 8 + b] = (bytes[i] >> (7 - b)) & 1;
   return bits;
+}
+
+/** Veri biti k hangi halkanın hangi parçasında (parça 0 işaret, veri 1'den başlar). */
+export function bitSlot(k: number): { ring: number; index: number } {
+  return { ring: Math.floor(k / DATA_PER_RING), index: 1 + (k % DATA_PER_RING) };
 }
 
 export function bitsToPayload(bits: Uint8Array): Uint8Array {
@@ -152,10 +163,12 @@ export function parseCode(text: unknown): RingPayload | null {
 
 // ── Geometri (çizim için) ──────────────────────────────────────────────
 
+export type SegmentKind = "marker" | 1 | 0;
+
 export interface Arc {
   ring: number;
   index: number;
-  bit: 0 | 1;
+  kind: SegmentKind;
   /** Radyan, ekran koordinatı (saat yönü). */
   start: number;
   end: number;
@@ -168,27 +181,28 @@ export function layoutArcs(bits: Uint8Array): Arc[] {
   if (bits.length !== BITS) throw new Error("ring-code: bit sayısı");
   const step = (Math.PI * 2) / SEGMENTS;
   const gap = step * SEGMENT_GAP;
+  const slots = new Map<string, 0 | 1>();
+  for (let k = 0; k < BITS; k++) {
+    const s = bitSlot(k);
+    slots.set(`${s.ring}:${s.index}`, bits[k] as 0 | 1);
+  }
   const arcs: Arc[] = [];
   for (let ring = 0; ring < RINGS; ring++) {
     for (let i = 0; i < SEGMENTS; i++) {
       const center = i * step;
-      arcs.push({
-        ring, index: i, bit: bits[ring * SEGMENTS + i] as 0 | 1,
-        start: center - step / 2 + gap / 2,
-        end: center + step / 2 - gap / 2,
-        r: RING_R[ring],
-      });
+      const kind: SegmentKind = i === 0 ? "marker" : (slots.get(`${ring}:${i}`) ?? 0);
+      arcs.push({ ring, index: i, kind, start: center - step / 2 + gap / 2, end: center + step / 2 - gap / 2, r: RING_R[ring] });
     }
   }
   return arcs;
 }
 
-/** SVG yay yolu; `cx,cy,scale` piksel. Yay `r` ortalı, `RING_W` kalın. */
+/** SVG yay yolu (yalnızca orta çizgi; `stroke-width` = RING_W·scale, yuvarlak uçlu). */
 export function arcPath(a: Arc, cx: number, cy: number, scale: number): string {
-  const ro = (a.r + RING_W / 2) * scale, ri = (a.r - RING_W / 2) * scale;
-  const p = (r: number, t: number) => `${(cx + r * Math.cos(t)).toFixed(2)} ${(cy + r * Math.sin(t)).toFixed(2)}`;
+  const r = a.r * scale;
+  const p = (t: number) => `${(cx + r * Math.cos(t)).toFixed(2)} ${(cy + r * Math.sin(t)).toFixed(2)}`;
   const large = a.end - a.start > Math.PI ? 1 : 0;
-  return `M${p(ro, a.start)} A${ro.toFixed(2)} ${ro.toFixed(2)} 0 ${large} 1 ${p(ro, a.end)} L${p(ri, a.end)} A${ri.toFixed(2)} ${ri.toFixed(2)} 0 ${large} 0 ${p(ri, a.start)} Z`;
+  return `M${p(a.start)} A${r.toFixed(2)} ${r.toFixed(2)} 0 ${large} 1 ${p(a.end)}`;
 }
 
 // ── Çözücü ─────────────────────────────────────────────────────────────
@@ -202,139 +216,193 @@ export interface DecodeInput {
 
 export interface DecodeResult extends RingPayload {
   center: { x: number; y: number };
-  /** Beyaz diskin yarıçapı (piksel). */
+  /** En dış halkanın dış yarıçapı (piksel). */
   radius: number;
 }
 
-function isPurple(r: number, g: number, b: number): boolean {
-  // #6010c9 ve kameradaki soluk/koyu halleri: mavi baskın, yeşil düşük.
-  return b > 70 && b > r * 1.15 && b > g * 1.7 && r > g * 0.9;
+function isWhite(r: number, g: number, b: number): boolean {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  return mn > 150 && mx - mn < 60;
 }
-function isLime(r: number, g: number, b: number): boolean {
-  // #a8e000: yeşil baskın, mavi çok düşük.
-  return g > 100 && g > b * 1.8 && g >= r * 0.95 && r > b;
+/** Lime'lık: yeşil, kırmızı ve mavinin üstünde ne kadar. */
+function limeness(r: number, g: number, b: number): number {
+  return (g - Math.max(r, b)) / 255;
 }
+/**
+ * İşaret sayılacak en düşük lime'lık. Sıcak ışıkta lime sarıya kayıp
+ * kırmızıya yaklaşıyor (ölçüldü: sepia .25'te 0,08); lavanta ve mor hep
+ * negatif, beyaz ve koyu zemin ~0 — 0,05 güvenli bir ayraç.
+ */
+const LIME_MIN = 0.05;
 
 /**
- * RGBA görüntüden kodu çözer. Kod görüntünün herhangi bir yerinde, herhangi
- * bir açıda olabilir; yalnızca kabaca cepheden çekilmiş olmalı (perspektif
- * düzeltmesi yok — kullanıcı zaten ekrana doğru tutuyor).
+ * RGBA görüntüden kodu çözer. Kod görüntünün herhangi bir yerinde olabilir;
+ * halkalar herhangi bir açıda, birbirinden bağımsız. Yalnızca kabaca
+ * cepheden çekilmiş olmalı (perspektif düzeltmesi yok).
  *
- * Adımlar: (1) mor piksel maskesi → bağlı bileşenler → en dairesel ve en az
- * belli büyüklükteki leke = orta disk; merkez ve ölçek buradan. (2) lime
- * işaret → yön; bulunamazsa 48 dönüş denenir, CRC seçer. (3) her parçanın
- * merkezinde küçük bir yama örneklenip "morluk" ölçülür; eşik örneklerin
+ * Adımlar: (1) beyaz piksel maskesi → bağlı bileşenler → ikona benzeyen
+ * (en/boy ≈ 1,35) leke; yakın beyaz parçalar (balon) birleştirilir; merkez
+ * ve ölçek kutudan. Aday birden fazlaysa çevresinde halka bulunan kazanır.
+ * (2) Her halkada ince açısal taramayla en lime nokta = o halkanın 0.
+ * parçası. (3) Parça merkezlerinde parlaklık örneklenir; eşik örneklerin
  * kendi dağılımından (iki küme arasındaki en büyük boşluk).
  */
 export function decodeRingCode(img: DecodeInput): DecodeResult | null {
   const { data, width: w, height: h } = img;
   if (w < 40 || h < 40) return null;
 
-  // 1) mor maske + bileşenler (4 komşuluk, yığınla).
-  const purple = new Uint8Array(w * h);
-  const limeXs: number[] = [], limeYs: number[] = [];
-  for (let y = 0, i = 0; y < h; y++) {
-    for (let x = 0; x < w; x++, i++) {
-      const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-      if (isPurple(r, g, b)) purple[i] = 1;
-      else if (isLime(r, g, b)) { limeXs.push(x); limeYs.push(y); }
-    }
-  }
+  const white = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) if (isWhite(data[i * 4], data[i * 4 + 1], data[i * 4 + 2])) white[i] = 1;
 
+  // Bileşenler.
+  interface Blob { area: number; minX: number; maxX: number; minY: number; maxY: number }
   const label = new Int32Array(w * h).fill(-1);
+  const blobs: Blob[] = [];
   const stack: number[] = [];
-  let best: { cx: number; cy: number; r: number; score: number } | null = null;
-  let nextLabel = 0;
-  const minArea = Math.max(60, (Math.min(w, h) * 0.04) ** 2);
+  const minArea = Math.max(25, (Math.min(w, h) * 0.02) ** 2);
   for (let seed = 0; seed < w * h; seed++) {
-    if (!purple[seed] || label[seed] >= 0) continue;
-    const id = nextLabel++;
-    let area = 0, sx = 0, sy = 0, minX = w, maxX = 0, minY = h, maxY = 0;
+    if (!white[seed] || label[seed] >= 0) continue;
+    const id = blobs.length;
+    const b: Blob = { area: 0, minX: w, maxX: 0, minY: h, maxY: 0 };
     stack.push(seed); label[seed] = id;
     while (stack.length) {
       const p = stack.pop() as number;
       const x = p % w, y = (p - x) / w;
-      area++; sx += x; sy += y;
-      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
-      const nb = [p - 1, p + 1, p - w, p + w];
-      if (x === 0) nb[0] = -1; if (x === w - 1) nb[1] = -1;
-      for (const q of nb) if (q >= 0 && q < w * h && purple[q] && label[q] < 0) { label[q] = id; stack.push(q); }
+      b.area++;
+      if (x < b.minX) b.minX = x; if (x > b.maxX) b.maxX = x; if (y < b.minY) b.minY = y; if (y > b.maxY) b.maxY = y;
+      const nb = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p - w, p + w];
+      for (const q of nb) if (q >= 0 && q < w * h && white[q] && label[q] < 0) { label[q] = id; stack.push(q); }
     }
-    if (area < minArea) continue;
-    const bw = maxX - minX + 1, bh = maxY - minY + 1;
-    const aspect = Math.min(bw, bh) / Math.max(bw, bh);
-    // Dolu daire ≈ π/4 = 0.785; ortadaki beyaz ikon bunu ~0.55'e indirir.
-    // Halka yayı (ince, uzun) çok daha düşük kalır ve elenir.
-    const fill = area / (bw * bh);
-    if (aspect < 0.7 || fill < 0.42) continue;
-    const score = area * aspect * fill;
-    // Yarıçap alandan DEĞİL kutudan: ikon diskin içinden alan götürüyor.
-    if (!best || score > best.score) best = { cx: sx / area, cy: sy / area, r: (bw + bh) / 4, score };
-  }
-  if (!best) return null;
-
-  const R = best.r / LOGO_R;
-  const { cx, cy } = best;
-  if (cx - R * 0.8 < 0 || cy - R * 0.8 < 0 || cx + R * 0.8 > w || cy + R * 0.8 > h) return null;
-
-  // Lime işaretin açısı — yalnızca diskin yakınındaki lime pikseller (arka
-  // plandaki yeşil nesneler sayılmasın).
-  let theta0: number | null = null;
-  {
-    let n = 0, sx = 0, sy = 0;
-    for (let k = 0; k < limeXs.length; k++) {
-      const dx = limeXs[k] - cx, dy = limeYs[k] - cy;
-      const d = Math.hypot(dx, dy) / R;
-      if (d > 0.74 && d < 0.98) { n++; sx += dx; sy += dy; }
-    }
-    if (n >= 3) theta0 = Math.atan2(sy, sx);
+    blobs.push(b);
   }
 
-  // 3) örnekleme: parça merkezinde (radyal ±RING_W/4, açısal ±%12) yama.
-  const step = (Math.PI * 2) / SEGMENTS;
-  const sample = (ring: number, theta: number): number => {
-    let sum = 0, n = 0;
-    for (let dr = -1; dr <= 1; dr++) {
-      const rr = (RING_R[ring] + dr * RING_W * 0.22) * R;
-      for (let dt = -1; dt <= 1; dt++) {
-        const t = theta + dt * step * 0.12;
-        const x = Math.round(cx + rr * Math.cos(t)), y = Math.round(cy + rr * Math.sin(t));
-        if (x < 0 || y < 0 || x >= w || y >= h) continue;
-        const i = (y * w + x) * 4;
-        // "Morluk": mavi kanala göre kırmızı+yeşil düşüklüğü. Soluk lavanta
-        // ile mor arasındaki ayrım beyaz dengesinden bağımsız kalsın diye
-        // doğrudan parlaklık yerine oran.
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        sum += 1 - (r + g) / (2 * Math.max(b, 1));
-        n++;
+  // İkon adayı: yeterince büyük lekeler, yakın komşularıyla birleştirilmiş.
+  const candidates = blobs.filter((b) => b.area >= minArea).sort((a, b) => b.area - a.area).slice(0, 12);
+  const sample = (x: number, y: number) => {
+    const xi = Math.round(x), yi = Math.round(y);
+    if (xi < 0 || yi < 0 || xi >= w || yi >= h) return null;
+    const i = (yi * w + xi) * 4;
+    return [data[i], data[i + 1], data[i + 2]] as const;
+  };
+  let best: { cx: number; cy: number; Rx: number; Ry: number; score: number } | null = null;
+  for (const seed of candidates) {
+    let { minX, maxX, minY, maxY } = seed;
+    const size = Math.max(maxX - minX, maxY - minY) + 1;
+    for (const o of candidates) {
+      if (o === seed) continue;
+      const ocx = (o.minX + o.maxX) / 2, ocy = (o.minY + o.maxY) / 2;
+      if (Math.abs(ocx - (minX + maxX) / 2) < size * 0.9 && Math.abs(ocy - (minY + maxY) / 2) < size * 0.6) {
+        minX = Math.min(minX, o.minX); maxX = Math.max(maxX, o.maxX); minY = Math.min(minY, o.minY); maxY = Math.max(maxY, o.maxY);
       }
     }
-    return n ? sum / n : 0;
+    const bw = maxX - minX + 1, bh = maxY - minY + 1;
+    const aspect = bw / bh;
+    if (aspect < 1.05 || aspect > 1.8) continue;
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    // Yatay ve dikey ölçek AYRI: telefon hafif eğik tutulunca halkalar elips
+    // olur; tek bir yarıçap dış halkayı ıskalardı.
+    const Rx = bw / ICON_W, Ry = bh / (ICON_W * ICON_ASPECT);
+    if (Rx / Ry < 0.75 || Rx / Ry > 1.33) continue;
+    if (cx - Rx < -Rx * 0.1 || cy - Ry < -Ry * 0.1 || cx + Rx > w + Rx * 0.1 || cy + Ry > h + Ry * 0.1) continue;
+    // Çevresinde halka var mı: her halkada en az bir lime nokta ve parlaklık çeşitliliği.
+    let score = 0;
+    for (const rr of RING_R) {
+      let maxLime = -1;
+      for (let k = 0; k < 120; k++) {
+        const t = (k / 120) * Math.PI * 2;
+        const px = sample(cx + rr * Rx * Math.cos(t), cy + rr * Ry * Math.sin(t));
+        if (px) maxLime = Math.max(maxLime, limeness(px[0], px[1], px[2]));
+      }
+      if (maxLime > LIME_MIN) score += 1;
+    }
+    if (score === 0) continue;
+    score = score * 1e6 + bw * bh;
+    if (!best || score > best.score) best = { cx, cy, Rx, Ry, score };
+  }
+  if (!best) return null;
+  const { cx, cy, Rx, Ry } = best;
+  const at = (r: number, t: number) => sample(cx + r * Rx * Math.cos(t), cy + r * Ry * Math.sin(t));
+
+  const step = (Math.PI * 2) / SEGMENTS;
+  // Halkanın yönü: ince taramada en lime açı; radyal ortalama.
+  // Radyal tolerans: halka, eğik çekimde (perspektif) beklenen yarıçaptan
+  // birkaç piksel kayabilir. Her ölçüm halka kalınlığı boyunca beş radyal
+  // noktaya bakar ve EN YÜKSEĞİNİ alır: parlak parça bir noktada bile
+  // görünüyorsa parlak sayılır; koyu parça ve boşluk her noktada koyu.
+  const RADIAL = [-0.6, -0.3, 0, 0.3, 0.6].map((k) => k * RING_W);
+  const probe = (ring: number, t: number, metric: (r: number, g: number, b: number) => number): number => {
+    let best = -1;
+    for (const dr of RADIAL) {
+      const px = at(RING_R[ring] + dr, t);
+      if (px) best = Math.max(best, metric(px[0], px[1], px[2]));
+    }
+    return best;
+  };
+  const lum = (r: number, g: number, b: number) => (r + g + b) / 765;
+
+  // Halkanın yönü: ince açısal taramada lime'lık; işaret parçasının
+  // MERKEZİ alınır (tepe değerin %70'ini aşan açıların dairesel ortalaması).
+  // Yalnızca en yüksek değer alınsaydı parçanın kenarına denk gelir, sonraki
+  // örnekler parça aralarındaki boşluklara düşerdi.
+  const markerAngle = (ring: number): number | null => {
+    const N = SEGMENTS * 8;
+    const vals = new Float32Array(N);
+    let max = -1;
+    for (let k = 0; k < N; k++) {
+      vals[k] = probe(ring, (k / N) * Math.PI * 2, limeness);
+      if (vals[k] > max) max = vals[k];
+    }
+    if (max <= LIME_MIN) return null;
+    let sx = 0, sy = 0;
+    for (let k = 0; k < N; k++) {
+      if (vals[k] < max * 0.7) continue;
+      const t = (k / N) * Math.PI * 2;
+      sx += Math.cos(t); sy += Math.sin(t);
+    }
+    return Math.atan2(sy, sx);
+  };
+  // Parça parlaklığı: açısal küçük yama, radyal en yüksek.
+  const brightness = (ring: number, theta: number): number => {
+    let sum = 0;
+    for (let dt = -1; dt <= 1; dt++) sum += probe(ring, theta + dt * step * 0.1, lum);
+    return sum / 3;
+  };
+  // Açı inceltme: işaret merkezi küçük kodda bir-iki piksel sapabiliyor; 50
+  // parçada bu, örnekleri boşluğa düşürmeye yetiyor. Veri parçalarının
+  // kendisi hakem: parlaklıkların varyansı, örnekler parça merkezlerine
+  // oturduğunda tepe yapar, boşluklara kaydıkça düşer.
+  const ringValues = (ring: number, t0: number): Float32Array => {
+    let bestVals: Float32Array | null = null, bestVar = -1;
+    for (let j = -4; j <= 4; j++) {
+      const d = t0 + j * step * 0.08;
+      const vals = new Float32Array(DATA_PER_RING);
+      let mean = 0;
+      for (let i = 1; i < SEGMENTS; i++) { vals[i - 1] = brightness(ring, d + i * step); mean += vals[i - 1]; }
+      mean /= DATA_PER_RING;
+      let v = 0;
+      for (const x of vals) v += (x - mean) ** 2;
+      if (v > bestVar) { bestVar = v; bestVals = vals; }
+    }
+    return bestVals as Float32Array;
   };
 
-  const tryOffset = (base: number): RingPayload | null => {
-    const values = new Float32Array(BITS);
-    for (let ring = 0; ring < RINGS; ring++)
-      for (let i = 0; i < SEGMENTS; i++) values[ring * SEGMENTS + i] = sample(ring, base + i * step);
-    // Eşik: sıralı değerlerde en büyük boşluğun ortası.
-    const sorted = Array.from(values).sort((a, b) => a - b);
-    let gapAt = 0, gap = -1;
-    for (let k = 1; k < sorted.length; k++) if (sorted[k] - sorted[k - 1] > gap) { gap = sorted[k] - sorted[k - 1]; gapAt = k; }
-    if (gap < 0.08) return null; // iki küme yok — bu kod değil ya da bulanık
-    const thr = (sorted[gapAt] + sorted[gapAt - 1]) / 2;
-    const bits = new Uint8Array(BITS);
-    for (let k = 0; k < BITS; k++) bits[k] = values[k] > thr ? 1 : 0;
-    return unpackPayload(bitsToPayload(bits));
-  };
-
-  if (theta0 !== null) {
-    const p = tryOffset(theta0);
-    if (p) return { ...p, center: { x: cx, y: cy }, radius: R };
+  const values = new Float32Array(BITS);
+  for (let ring = 0; ring < RINGS; ring++) {
+    const t0 = markerAngle(ring);
+    if (t0 === null) return null;
+    const vals = ringValues(ring, t0);
+    for (let i = 0; i < DATA_PER_RING; i++) {
+      const k = ring * DATA_PER_RING + i;
+      if (k < BITS) values[k] = vals[i];
+    }
   }
-  // İşaret görülmediyse (parlama, kırpılma): tüm dönüşler, CRC karar verir.
-  for (let i = 0; i < SEGMENTS; i++) {
-    const p = tryOffset(i * step);
-    if (p) return { ...p, center: { x: cx, y: cy }, radius: R };
-  }
-  return null;
+  const sorted = Array.from(values).sort((a, b) => a - b);
+  let gapAt = 0, gap = -1;
+  for (let k = 1; k < sorted.length; k++) if (sorted[k] - sorted[k - 1] > gap) { gap = sorted[k] - sorted[k - 1]; gapAt = k; }
+  if (gap < 0.06) return null;
+  const thr = (sorted[gapAt] + sorted[gapAt - 1]) / 2;
+  const bits = new Uint8Array(BITS);
+  for (let k = 0; k < BITS; k++) bits[k] = values[k] > thr ? 1 : 0;
+  const payload = unpackPayload(bitsToPayload(bits));
+  return payload ? { ...payload, center: { x: cx, y: cy }, radius: (Rx + Ry) / 2 } : null;
 }
