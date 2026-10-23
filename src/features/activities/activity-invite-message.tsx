@@ -13,6 +13,7 @@ import { useTheme } from "@/stores/theme";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { watchActivityRoom } from "./activity-room";
+import { joinFromInvite, readActivityInviteOrigin } from "./invite";
 import { joinActivity, launchActivity } from "./launch";
 
 /**
@@ -58,18 +59,32 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
   const isActive = Boolean(message.fileUrl) && !ended;
   const accent = safeActivityColor(activityColor) ?? colors.brand;
 
+  // "Arkadaşları Davet Et" kartı: oturum BAŞKA bir sohbette (köken). Sunucu
+  // yazar; kullanıcı metadata'sı taklit edemez (web lib/activity/invite-origin).
+  const origin = readActivityInviteOrigin(metadata);
+
   const session = useActivitySession((s) => s.session);
   const participants = useActivitySession((s) => s.channelParticipants[chatId]) ?? [];
-  const isJoined = isInActivity(session, chatId, { id: activityId, url: activityUrl });
+  const isJoined = origin
+    ? Boolean(session && session.chatId === origin.chatId && session.activity.id === activityId)
+    : isInActivity(session, chatId, { id: activityId, url: activityUrl });
   const [joining, setJoining] = useState(false);
 
   // Kart görünürken sohbetin aktivite odası izlenir (katılımcı sayısı/avatarlar).
-  useEffect(() => watchActivityRoom(chatId), [chatId]);
+  // Köken kartında bu sohbetin odası kartla ilgisiz.
+  const crossChat = origin !== null;
+  useEffect(() => (crossChat ? undefined : watchActivityRoom(chatId)), [chatId, crossChat]);
 
   const startTs = isActive && status.startsWith("TS:") ? Number.parseInt(status.slice(3), 10) : NaN;
   const elapsed = useElapsed(Number.isFinite(startTs) ? startTs : null);
 
   const onPress = () => {
+    if (origin) {
+      if (isJoined || joining) return;
+      setJoining(true);
+      void joinFromInvite(origin.chatId).finally(() => setJoining(false));
+      return;
+    }
     if (isJoined || joining || !activityUrl) return;
     const descriptor: ActivityDescriptor = {
       id: activityId || activityUrl,
@@ -161,7 +176,7 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
             )}
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 16, lineHeight: 20, ...fw(800), color: colors.mediaText }} numberOfLines={1}>{activityName}</Text>
-              {isActive ? (
+              {isActive && !origin ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.sm, rowGap: 2, marginTop: 2 }}>
                   {elapsed ? (
                     <>
@@ -202,10 +217,10 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
           </View>
           <Pressable
             onPress={onPress}
-            disabled={isJoined || joining || !activityUrl}
+            disabled={isJoined || joining || (!activityUrl && !origin)}
             accessibilityRole="button"
             accessibilityState={{ disabled: isJoined || joining }}
-            accessibilityLabel={isJoined ? "Katıldın" : isActive ? "Etkinliğe Katıl" : "Aktiviteyi başlat"}
+            accessibilityLabel={isJoined ? "Katıldın" : isActive || origin ? "Etkinliğe Katıl" : "Aktiviteyi başlat"}
             style={({ pressed }) => ({
               height: 40,
               alignItems: "center",
@@ -219,7 +234,7 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
               <ActivityIndicator size="small" color={colors.onBrand} />
             ) : (
               <Text style={{ fontSize: 14, lineHeight: 18, ...fw(700), color: isJoined ? "rgba(255,255,255,0.7)" : colors.onBrand }}>
-                {isJoined ? "Katıldın" : isActive ? "Etkinliğe Katıl" : "Başlat"}
+                {isJoined ? "Katıldın" : isActive || origin ? "Etkinliğe Katıl" : "Başlat"}
               </Text>
             )}
           </Pressable>

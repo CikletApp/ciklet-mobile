@@ -18,7 +18,7 @@ import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useActivities } from "@/api/hooks";
 import type { ActivitySummary } from "@/api/types";
-import { Avatar, Button, Icon, Pressable } from "@/components/ui";
+import { ActionSheet, Avatar, Button, Icon, Pressable } from "@/components/ui";
 import {
   ACTIVITY_BASE_URL,
   FETCH_EXTERNAL_MAX_BODY,
@@ -34,6 +34,8 @@ import {
   validateExternalFetchUrl,
   type RPCMessage,
 } from "@/features/activities/bridge";
+import { ActivityInviteSheet } from "@/features/activities/invite-sheet";
+import { openActivityHelp } from "@/features/activities/invite";
 import { API_BASE_URL, resolveMediaUrl } from "@/lib/config";
 import { fw } from "@/theme/fonts";
 import { ServerEvent } from "@/realtime/events";
@@ -158,6 +160,11 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
   const participantsRef = useRef<RoomParticipant[]>([]);
   const frameReadyRef = useRef(false);
   const fetchTimesRef = useRef<number[]>([]);
+  /** OPEN_INVITE_DIALOG açılışları (host tarafı hız sınırı). */
+  const inviteOpensRef = useRef<number[]>([]);
+  /** "Arkadaşları Davet Et" sayfası ve "⋯" menüsü. */
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Aynı sohbetteki katılımcılar aynı örneği paylaşır (web: i-<id>-<chat>).
   const instanceId = `i-${clientId}-${chatId || "solo"}`;
@@ -269,6 +276,19 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
     }
     recent.push(now);
     fetchTimesRef.current = recent;
+    return true;
+  };
+
+  /** 10 saniyede en fazla 5 davet penceresi; doluysa false. */
+  const takeInviteSlot = () => {
+    const now = Date.now();
+    const recent = inviteOpensRef.current.filter((at) => now - at < 10_000);
+    if (recent.length >= 5) {
+      inviteOpensRef.current = recent;
+      return false;
+    }
+    recent.push(now);
+    inviteOpensRef.current = recent;
     return true;
   };
 
@@ -425,6 +445,29 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
           return;
         }
 
+        case "OPEN_INVITE_DIALOG": {
+          // Discord `openInviteDialog()`: "Arkadaşları Davet Et" sayfası açılır,
+          // komut HEMEN `{}` ile yanıtlanır; kimin davet edildiği aktiviteye
+          // söylenmez. Kodlar web host ile aynı (1002 / 4005 / 4029); asıl
+          // yetki kontrolü sunucuda (web lib/activity/invite).
+          if (!chatId) {
+            send(rpcError(cmd, nonce, 1002, "Invites need a chat-bound activity session"));
+            return;
+          }
+          // Mini pencere etkileşimsiz: komut bir kullanıcı hareketinden gelemez.
+          if (!consented || useActivitySession.getState().mode === "mini") {
+            send(rpcError(cmd, nonce, 4005, "The user is not in this activity session"));
+            return;
+          }
+          if (!takeInviteSlot()) {
+            send(rpcError(cmd, nonce, 4029, "Too many invite dialog requests"));
+            return;
+          }
+          setInviteOpen(true);
+          send(rpcResponse(cmd, nonce, {}));
+          return;
+        }
+
         case "SET_ACTIVITY":
         case "CAPTURE_LOG":
         case "SUBSCRIBE":
@@ -457,7 +500,7 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
           send(rpcError(cmd, nonce, 1001, `Unknown command: ${cmd}`));
       }
     },
-    [chatId, serverId, profile, deepColor, requestAuthCode, send, leave]
+    [chatId, serverId, consented, profile, deepColor, requestAuthCode, send, leave]
   );
 
   const onMessage = useCallback(
@@ -710,6 +753,24 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
                 <Icon name="maximize" size={20} color={colors.bright} />
               </Pressable>
             ) : null}
+            {running ? (
+              <Pressable
+                haptic="light"
+                onPress={() => setMenuOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Aktivite menüsü"
+                style={({ pressed }) => ({
+                  width: 40,
+                  height: 40,
+                  borderRadius: radii.full,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: pressed ? colors.raised : "transparent",
+                })}
+              >
+                <Icon name="more" size={22} color={colors.bright} />
+              </Pressable>
+            ) : null}
             <Pressable
               haptic="warning"
               onPress={leave}
@@ -810,6 +871,30 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
             <Icon name="chevron-down" size={26} color="#ffffff" />
           </Pressable>
         ) : null}
+
+        {/* Discord'un aktivite menüsü: Arkadaşları Davet Et + Yardım Merkezi.
+            Modal'lar kök pencerede açılır; kabın konumundan etkilenmez. */}
+        <ActionSheet
+          visible={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          header={
+            <Text numberOfLines={1} style={{ ...typography.bodyStrong, color: colors.bright }}>
+              {descriptor.name}
+            </Text>
+          }
+          items={[
+            ...(chatId
+              ? [{ key: "invite", label: "Arkadaşları Davet Et", icon: "user-plus" as const, onPress: () => setInviteOpen(true) }]
+              : []),
+            {
+              key: "help",
+              label: "Yardım Merkezi",
+              icon: "help" as const,
+              onPress: () => openActivityHelp(activity, deepColor),
+            },
+          ]}
+        />
+        {inviteOpen && chatId ? <ActivityInviteSheet chatId={chatId} onClose={() => setInviteOpen(false)} /> : null}
       </Animated.View>
     </GestureDetector>
   );

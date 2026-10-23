@@ -338,6 +338,57 @@ export interface ActivitySummary {
    * yapılandırıldıysa gelir. Bkz. features/activities/bridge.ts.
    */
   fetchAllowlist?: string[] | null;
+  /**
+   * Aktivite menüsündeki "Yardım Merkezi": uygulamanın https destek adresi,
+   * yoksa Ciklet'in GÖRELİ yardım yolu (`/docs/apps`) — API köküne eklenir.
+   * Eski sunucu göndermez.
+   */
+  helpUrl?: string;
+}
+
+/** `GET /api/activities/invite` — "Arkadaşları Davet Et" hedefi (web lib/activity/invite). */
+export interface ActivityInviteTarget {
+  /** `direct:<id>` ya da `friend:<profileId>`. */
+  key: string;
+  kind: "direct" | "friend";
+  directId: string | null;
+  profileId: string | null;
+  isGroup: boolean;
+  name: string;
+  username: string | null;
+  imageUrl: string | null;
+  members: { id: string; username: string; name: string | null; imageUrl: string | null }[];
+  memberCount: number;
+  /** false → alıcılardan biri oturumun sohbetine erişemiyor; seçilemez. */
+  eligible: boolean;
+}
+
+export type ActivityInviteOriginKind = "channel" | "group" | "direct";
+
+export interface ActivityInviteListResponse {
+  activity: { id: string; name: string; icon: string };
+  origin: { kind: ActivityInviteOriginKind; label: string | null };
+  maxTargets: number;
+  targets: ActivityInviteTarget[];
+}
+
+export interface ActivityInviteSendResponse {
+  sent: number;
+  results: { key: string; directId?: string; messageId?: string; error?: string }[];
+}
+
+/** `GET /api/activities/session?chatId=` — davet kartından katılma. */
+export interface ActivitySessionResponse {
+  activity: { id: string; name: string; url: string; icon: string; helpUrl: string };
+  chat: {
+    id: string;
+    type: "channel" | "direct";
+    serverId: string | null;
+    isGroup: boolean;
+    peerId: string | null;
+    label: string | null;
+    path: string;
+  };
 }
 
 /** Presence deposu için normalize edilmiş kayıt. */

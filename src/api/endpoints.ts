@@ -242,6 +242,11 @@ export const endpoints = {
     `/api/livekit${qs({ room, username })}`,
   activities: "/api/activities",
   activityAuthorize: "/api/activities/authorize",
+  /** GET `?chatId=` hedefler · POST `{ chatId, targets }` — "Arkadaşları Davet Et". */
+  activityInvite: "/api/activities/invite",
+  activityInviteTargets: (chatId: string) => `/api/activities/invite${qs({ chatId })}`,
+  /** GET — başka sohbete düşen davet kartından katılma (erişim yeniden doğrulanır). */
+  activitySession: (chatId: string) => `/api/activities/session${qs({ chatId })}`,
   /**
    * GET `{ keys: string[] }` — Ciklet'in tanıdığı oyun/program ad anahtarları
    * (oturum gerekir). Canlı oyun etkinliği bu kümeye göre süzülür (lib/recognized-games).
