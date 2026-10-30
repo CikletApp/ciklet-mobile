@@ -133,6 +133,14 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
   const leave = useActivitySession((s) => s.leave);
   const setLandscape = useActivitySession((s) => s.setLandscape);
 
+  // Aktivite tam ekran açılınca (ilk açılış ya da mini pencereden büyütme)
+  // sohbetin yazma çubuğundaki klavye kapanır; yoksa aktivitenin üstünde
+  // açık kalıp ekranın yarısını kaplıyordu. Mini pencerede sohbete yazmaya
+  // devam edilebilsin diye kapatılmaz.
+  useEffect(() => {
+    if (mode !== "mini") Keyboard.dismiss();
+  }, [mode]);
+
   const profile = useAuth((s) => s.profile);
   const deepColor = useTheme((s) => s.palette.deep);
   const insets = useSafeAreaInsets();
