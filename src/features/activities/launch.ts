@@ -22,6 +22,11 @@ import { useActivitySession, type ActivityDescriptor } from "@/stores/activity";
  * Sohbette ZATEN süren bir oturum varsa yeni kart basılmaz, ona katılınır:
  * istemci odayı biliyorsa hızlı yoldan, bilmiyorsa sunucunun 409
  * `activity_already_active` yanıtından.
+ *
+ * Kartın içeriğine sunucu karar verir (web lib/activity/start-card): ad,
+ * ikon ve adres onaylı uygulama kaydından kurulur; tek kişilik aktivite
+ * (katılımcı sınırı 1, ör. Slow Roads) kart basmaz — yanıt 200
+ * `{ posted: false, reason: "solo_activity" }`, oturum yine açılır.
  */
 
 export interface ActivityChatContext {
@@ -164,8 +169,11 @@ export async function launchActivity(
   });
 }
 
-/** Katalog kimliğiyle başlat (sohbet çubuğu, aktivite listesi, derin bağlantı). */
-export async function launchActivityById(activityId: string, context: ActivityChatContext): Promise<boolean> {
+/**
+ * Güvenilir aktivite kataloğu (`/api/activities`, onaylı kayıtlar) —
+ * önbellekten, gerekirse sunucudan. Hata durumunda elde olan (ya da boş).
+ */
+export async function loadActivityCatalog(): Promise<ActivitySummary[]> {
   const list = await queryClient
     .fetchQuery({
       queryKey: qk.activities,
@@ -176,7 +184,12 @@ export async function launchActivityById(activityId: string, context: ActivityCh
       staleTime: 5 * 60_000,
     })
     .catch(() => queryClient.getQueryData<ActivitySummary[]>(qk.activities) ?? []);
-  const activity = Array.isArray(list) ? list.find((item) => item.id === activityId) : undefined;
+  return Array.isArray(list) ? list : [];
+}
+
+/** Katalog kimliğiyle başlat (sohbet çubuğu, aktivite listesi, derin bağlantı). */
+export async function launchActivityById(activityId: string, context: ActivityChatContext): Promise<boolean> {
+  const activity = (await loadActivityCatalog()).find((item) => item.id === activityId);
   if (!activity) return false;
   await launchActivity(activity, context);
   return true;

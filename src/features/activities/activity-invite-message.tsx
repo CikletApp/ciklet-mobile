@@ -2,113 +2,127 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Image } from "expo-image";
-import { BlurView } from "expo-blur";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
-import { Avatar, Icon, StyledName } from "@/components/ui";
+import { useActivities } from "@/api/hooks";
+import { Avatar, Icon, StyledName, showToast } from "@/components/ui";
 import { formatTime } from "@/lib/format";
 import { useChatScope } from "@/features/chat/chat-scope";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
-import { isInActivity, useActivitySession, type ActivityDescriptor } from "@/stores/activity";
-import { useTheme } from "@/stores/theme";
+import { useActivitySession } from "@/stores/activity";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { watchActivityRoom } from "./activity-room";
+import { INVITE_CARD_ENDED_TEXT, cardSession, cardTapAction, resolveCardActivity } from "./card-state";
 import { joinFromInvite, readActivityInviteOrigin } from "./invite";
-import { joinActivity, launchActivity } from "./launch";
+import { joinActivity, launchActivity, loadActivityCatalog, toDescriptor } from "./launch";
 
 /**
- * ACTIVITY_INVITE mesajı — "Etkinlik Daveti" kartı (web
- * chat/v2/message-activity-invite + activity-invite-card).
+ * ACTIVITY_INVITE mesajı — "Etkinlik Daveti" kartı. Web
+ * `chat/v2/message-activity-invite` + `activity-invite-card` ile AYNI
+ * durumlar, metinler, düğmeler ve görünüm.
  *
- * İçerik `ad|durum` biçiminde: başlatılınca `ad|Katılmak için tıkla`,
- * ağ geçidi "başladı" deyince sunucu `ad|TS:<başlangıç>` yapar (kart süre
- * sayar), aktivite bitince `ad|Aktivite sona erdi…` (kart "Başlat" olur).
- * Katılımcılar sohbetin aktivite odasından (activity-room) gelir.
+ * Durum sohbetin aktivite ODASINDAN gelir (card-state; web
+ * lib/activity/invite-card-state ile aynı kural): kartın uygulamasının
+ * canlı oturumu varsa katılımcılar + süre ve "Etkinliğe Katıl"; yoksa
+ * "sona erdi" metni ve "Başlat". Kartın kendi metni (`ad|TS:…`) canlılık
+ * için okunmaz — eskiden okunuyordu ve başka bir uygulamanın oturumu
+ * (Slow Roads) eski Birlikte İzle kartını süre saydırıyordu.
  *
- * Düğme: içindeysen pasif "Katıldın"; aktifse "Etkinliğe Katıl" (kart
- * basmadan oturuma katılır); bittiyse "Başlat" (yeni davet kartı yazar).
+ * Dokununca: süren oturum varsa ona katılır; yoksa taze başlatır (çok
+ * oyunculuysa sunucu yeni kart yazar, tek kişilikse yazmaz). Aktivite DAİMA
+ * katalogdaki güncel kimlik/adresle açılır — kartın eskimiş kimliği
+ * AUTHORIZE'ı "Yetkilendirme kodu alınamadı"ya düşürüyordu.
  */
 
-const ENDED_MARKER = "Aktivite sona erdi";
 /** Web kartı katılmadan önce noktalı yükleme gösteriyor (1,8 sn). */
 const JOIN_DELAY_MS = 1_800;
 
+/** Web kartındaki metin opaklıkları (`text-theme-bright/70`, `/80`, `/60`). */
+const BRIGHT_70 = "rgba(255,255,255,0.7)";
+const BRIGHT_80 = "rgba(255,255,255,0.8)";
+const BRIGHT_60 = "rgba(255,255,255,0.6)";
+
 export function ActivityInviteMessage({ message }: { message: ChatMessagePayload }) {
   const metadata = message.metadata ?? {};
-  const [contentName, contentDescription] = message.content.split("|");
+  const [contentName, contentStatus] = message.content.split("|");
   const activityName = String(metadata.activityName || contentName?.trim() || "Aktivite");
-  // Sunucunun yazdığı durum (TS:/sona erdi) içerikte; metadata'daki açıklama
-  // başlatıldığı andaki tanıtım metni. Web ile aynı öncelik.
-  const description = String(
-    metadata.activityDescription || contentDescription?.trim() || "Arkadaşlarınla birlikte katıl!"
-  );
-  const status = contentDescription?.trim() ?? "";
   const activityIcon = typeof metadata.activityIcon === "string" ? metadata.activityIcon : undefined;
   const activityColor = typeof metadata.activityColor === "string" ? metadata.activityColor : undefined;
   const activityUrl = message.fileUrl || (typeof metadata.activityUrl === "string" ? metadata.activityUrl : undefined);
-  const activityId = typeof metadata.activityId === "string" ? metadata.activityId : activityUrl;
+  const activityId = typeof metadata.activityId === "string" ? metadata.activityId : null;
   const channel = isChannelMessage(message);
   const chatId = channel ? message.channelId : message.directId;
   const scope = useChatScope();
   const serverId = channel ? scope?.serverId || message.member.serverId || null : null;
   const profile = channel ? message.member.profile : message.profile;
   const name = profile.name?.trim() || profile.username;
-  const scheme = useTheme((s) => s.scheme);
   const hasRemoteIcon = Boolean(activityIcon?.startsWith("http") || activityIcon?.startsWith("data:image/"));
-  const ended = status.includes(ENDED_MARKER) || description.includes(ENDED_MARKER);
-  const isActive = Boolean(message.fileUrl) && !ended;
   const accent = safeActivityColor(activityColor) ?? colors.brand;
 
   // "Arkadaşları Davet Et" kartı: oturum BAŞKA bir sohbette (köken). Sunucu
   // yazar; kullanıcı metadata'sı taklit edemez (web lib/activity/invite-origin).
   const origin = readActivityInviteOrigin(metadata);
+  const crossChat = origin !== null;
 
-  const session = useActivitySession((s) => s.session);
-  const participants = useActivitySession((s) => s.channelParticipants[chatId]) ?? [];
+  const cardRef = { activityId, activityUrl: activityUrl ?? null, activityName };
+  const { data: catalog } = useActivities();
+  const app = catalog ? resolveCardActivity(cardRef, catalog) : null;
+  const room = useActivitySession((s) => s.rooms[chatId]);
+  const session = cardSession(
+    app ?? (activityId ? { id: activityId, url: activityUrl } : null),
+    crossChat ? null : room
+  );
+  const isActive = session.live;
+  const participants = session.participants;
+  const current = useActivitySession((s) => s.session);
   const isJoined = origin
-    ? Boolean(session && session.chatId === origin.chatId && session.activity.id === activityId)
-    : isInActivity(session, chatId, { id: activityId, url: activityUrl });
+    ? Boolean(current && current.chatId === origin.chatId && current.activity.id === activityId)
+    : Boolean(current && current.chatId === chatId && current.activity.id === (app?.id ?? activityId));
   const [joining, setJoining] = useState(false);
 
-  // Kart görünürken sohbetin aktivite odası izlenir (katılımcı sayısı/avatarlar).
-  // Köken kartında bu sohbetin odası kartla ilgisiz.
-  const crossChat = origin !== null;
+  // Kart görünürken sohbetin aktivite odası izlenir (canlılık, katılımcılar,
+  // süre). Köken kartında bu sohbetin odası kartla ilgisiz.
   useEffect(() => (crossChat ? undefined : watchActivityRoom(chatId)), [chatId, crossChat]);
 
-  const startTs = isActive && status.startsWith("TS:") ? Number.parseInt(status.slice(3), 10) : NaN;
-  const elapsed = useElapsed(Number.isFinite(startTs) ? startTs : null);
+  const elapsed = useElapsed(isActive ? session.startTs : null);
+
+  // Web: köken kartında tanıtım metni, bitmiş kartta "sona erdi".
+  const inviteContext = origin
+    ? String(metadata.activityDescription || contentStatus?.trim() || "Arkadaşlarınla birlikte katıl!")
+    : null;
+  const subtitle = inviteContext ?? INVITE_CARD_ENDED_TEXT;
 
   const onPress = () => {
+    if (isJoined || joining) return;
     if (origin) {
-      if (isJoined || joining) return;
       setJoining(true);
       void joinFromInvite(origin.chatId).finally(() => setJoining(false));
       return;
     }
-    if (isJoined || joining || !activityUrl) return;
-    const descriptor: ActivityDescriptor = {
-      id: activityId || activityUrl,
-      name: activityName,
-      url: activityUrl,
-      icon: activityIcon || "gamepad",
-      color: activityColor,
-    };
     setJoining(true);
     setTimeout(() => {
-      setJoining(false);
-      if (isActive) joinActivity(descriptor, { chatId, serverId });
-      else void launchActivity(descriptor, { chatId, serverId });
+      void (async () => {
+        try {
+          const action = cardTapAction(
+            cardRef,
+            await loadActivityCatalog(),
+            useActivitySession.getState().rooms[chatId]
+          );
+          if (action.kind === "unavailable") {
+            showToast("Bu etkinlik artık kullanılamıyor.", "error");
+            return;
+          }
+          if (action.kind === "join") joinActivity(toDescriptor(action.activity), { chatId, serverId });
+          else await launchActivity(action.activity, { chatId, serverId });
+        } finally {
+          setJoining(false);
+        }
+      })();
     }, JOIN_DELAY_MS);
   };
 
-  const playerCount = participants.length > 0 ? participants.length : 1;
-  const subtitle = elapsed
-    ? `${elapsed} süredir oynanıyor`
-    : status.startsWith("TS:")
-      ? "Oynanıyor"
-      : ended && status
-        ? status
-        : description;
+  const buttonLabel = isJoined ? "Katıldın" : isActive || origin ? "Etkinliğe Katıl" : "Başlat";
 
   return (
     <View style={{ flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
@@ -134,110 +148,129 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
           </View>
           <Text style={{ ...typography.caption, ...fw(700), color: colors.bright }}>• {activityName}</Text>
         </View>
+        {/* Kart — web activity-invite-card: sabit 320 genişlik, 16 yarıçap,
+            12 iç boşluk; zemin logodan türeyen canlı bulanıklık (ikon yoksa
+            accent geçişi). Bulanıklık görselin kendisinde (expo-image
+            blurRadius, iOS ve Android): üstüne konan BlurView iOS'ta kartı
+            koyu bir camla örtüyor, logonun renklerini söndürüyordu. */}
         <View
           style={{
             width: 320,
             maxWidth: "100%",
-            padding: spacing.md,
-            gap: spacing.md,
+            marginTop: 2,
             borderRadius: radii.bento,
             borderCurve: "continuous",
             backgroundColor: hasRemoteIcon ? colors.deep : accent,
             overflow: "hidden",
-            shadowColor: colors.shadow,
-            shadowOpacity: 1,
-            shadowRadius: 16,
+            shadowColor: "#000",
+            shadowOpacity: 0.45,
+            shadowRadius: 15,
             shadowOffset: { width: 0, height: 8 },
             elevation: 8,
           }}
         >
           {hasRemoteIcon ? (
             <>
-              <Image source={{ uri: activityIcon }} contentFit="cover" style={{ position: "absolute", inset: -64, opacity: 0.9, transform: [{ scale: 1.6 }] }} />
-              <BlurView
-                intensity={80}
-                tint={scheme}
-                blurMethod="dimezisBlurViewSdk31Plus"
-                style={{ position: "absolute", inset: 0 }}
+              <Image
+                source={{ uri: activityIcon }}
+                contentFit="cover"
+                blurRadius={40}
+                style={{ position: "absolute", inset: 0, opacity: 0.9, transform: [{ scale: 1.6 }] }}
               />
-              <View style={{ position: "absolute", inset: 0, backgroundColor: colors.mediaScrim }} />
+              <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.25)" }} />
             </>
-          ) : null}
-          <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: colors.mediaMuted }}>
-            Etkinlik Daveti
-          </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-            {hasRemoteIcon ? (
-              <Image source={{ uri: activityIcon }} contentFit="contain" style={{ width: 56, height: 56, borderRadius: radii.bento }} />
-            ) : (
-              <View style={{ width: 56, height: 56, borderRadius: radii.bento, alignItems: "center", justifyContent: "center", backgroundColor: colors.mediaText }}>
-                <Icon name="gamepad" size={28} color={accent} />
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, lineHeight: 20, ...fw(800), color: colors.mediaText }} numberOfLines={1}>{activityName}</Text>
-              {isActive && !origin ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.sm, rowGap: 2, marginTop: 2 }}>
-                  {elapsed ? (
-                    <>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Icon name="gamepad" size={14} color={colors.mediaText} />
-                        <Text style={{ fontSize: 13, lineHeight: 16, ...fw(600), color: colors.mediaMuted, fontVariant: ["tabular-nums"] }}>{elapsed}</Text>
-                      </View>
-                      <Text style={{ fontSize: 13, lineHeight: 16, color: "rgba(255,255,255,0.4)" }}>|</Text>
-                    </>
-                  ) : null}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    {participants.length > 0 ? (
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        {participants.slice(0, 5).map((participant, index) => (
-                          <View
-                            key={participant.id}
-                            style={{ marginLeft: index === 0 ? 0 : -5, borderRadius: radii.full, borderWidth: 1.5, borderColor: "rgba(0,0,0,0.4)" }}
-                          >
-                            <Avatar profileId={participant.id} imageUrl={participant.imageUrl} fallbackText={participant.username} size={14} />
-                          </View>
-                        ))}
-                        {participants.length > 5 ? (
-                          <View style={{ marginLeft: -5, width: 17, height: 17, borderRadius: radii.full, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.6)" }}>
-                            <Text style={{ fontSize: 8, ...fw(700), color: colors.mediaText }}>+{participants.length - 5}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    ) : null}
-                    <Text style={{ fontSize: 13, lineHeight: 16, ...fw(600), color: colors.mediaMuted }}>{playerCount} Katıldı</Text>
-                  </View>
-                </View>
+          ) : (
+            <Svg style={{ position: "absolute", inset: 0 }} width="100%" height="100%">
+              <Defs>
+                {/* CSS linear-gradient(160deg, accent, accent bb 60%, siyah %33). */}
+                <LinearGradient id={`activityInviteAccent-${message.id}`} x1="0.33" y1="0" x2="0.67" y2="1">
+                  <Stop offset="0" stopColor={accent} stopOpacity={1} />
+                  <Stop offset="0.6" stopColor={accent} stopOpacity={0.73} />
+                  <Stop offset="1" stopColor="#000000" stopOpacity={0.33} />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill={`url(#activityInviteAccent-${message.id})`} />
+            </Svg>
+          )}
+          <View style={{ padding: 12, gap: 12 }}>
+            <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: BRIGHT_70 }}>Etkinlik Daveti</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              {hasRemoteIcon ? (
+                <Image source={{ uri: activityIcon }} contentFit="contain" style={{ width: 56, height: 56, borderRadius: radii.bento }} />
               ) : (
-                <Text style={{ fontSize: 11, lineHeight: 15, ...fw(500), color: colors.mediaMuted }} numberOfLines={2}>
-                  {subtitle}
-                </Text>
+                <View style={{ width: 56, height: 56, borderRadius: radii.bento, alignItems: "center", justifyContent: "center", backgroundColor: colors.mediaText }}>
+                  <Icon name="gamepad" size={28} color={accent} />
+                </View>
               )}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 16, lineHeight: 20, ...fw(800), color: colors.mediaText }} numberOfLines={1}>
+                  {activityName}
+                </Text>
+                {isActive && !origin ? (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 2, marginTop: 4 }}>
+                    {elapsed ? (
+                      <>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Icon name="gamepad" size={14} color={colors.mediaText} />
+                          <Text style={{ fontSize: 13, lineHeight: 16, ...fw(600), color: BRIGHT_80, fontVariant: ["tabular-nums"], minWidth: 40 }}>{elapsed}</Text>
+                        </View>
+                        <Text style={{ fontSize: 13, lineHeight: 16, color: "rgba(255,255,255,0.4)" }}>|</Text>
+                      </>
+                    ) : null}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {participants.length > 0 ? (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          {participants.slice(0, 5).map((participant, index) => (
+                            <View
+                              key={participant.id}
+                              style={{ marginLeft: index === 0 ? 0 : -6, borderRadius: radii.full, borderWidth: 1.5, borderColor: "rgba(0,0,0,0.4)" }}
+                            >
+                              <Avatar profileId={participant.id} imageUrl={participant.imageUrl} fallbackText={participant.username} size={14} />
+                            </View>
+                          ))}
+                          {participants.length > 5 ? (
+                            <View style={{ marginLeft: -6, width: 17, height: 17, borderRadius: radii.full, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.6)", borderWidth: 1.5, borderColor: "rgba(0,0,0,0.4)" }}>
+                              <Text style={{ fontSize: 8, ...fw(700), color: colors.mediaText }}>+{participants.length - 5}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
+                      <Text style={{ fontSize: 13, lineHeight: 16, ...fw(600), color: BRIGHT_80 }}>{participants.length} Katıldı</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text
+                    style={{ fontSize: 11, lineHeight: 15, marginTop: 4, ...fw(500), color: inviteContext ? BRIGHT_70 : BRIGHT_60 }}
+                    numberOfLines={2}
+                  >
+                    {subtitle}
+                  </Text>
+                )}
+              </View>
             </View>
+            <Pressable
+              onPress={onPress}
+              disabled={isJoined || joining || (!activityUrl && !activityId && !origin)}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isJoined || joining }}
+              accessibilityLabel={buttonLabel}
+              style={({ pressed }) => ({
+                height: 40,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 12,
+                backgroundColor: isJoined ? "rgba(255,255,255,0.2)" : colors.brand,
+                opacity: pressed ? 0.88 : 1,
+                transform: [{ scale: pressed && !isJoined ? 0.98 : 1 }],
+              })}
+            >
+              {joining ? (
+                <ActivityIndicator size="small" color={colors.onBrand} />
+              ) : (
+                <Text style={{ fontSize: 14, lineHeight: 18, ...fw(700), color: isJoined ? BRIGHT_70 : colors.onBrand }}>{buttonLabel}</Text>
+              )}
+            </Pressable>
           </View>
-          <Pressable
-            onPress={onPress}
-            disabled={isJoined || joining || (!activityUrl && !origin)}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isJoined || joining }}
-            accessibilityLabel={isJoined ? "Katıldın" : isActive || origin ? "Etkinliğe Katıl" : "Aktiviteyi başlat"}
-            style={({ pressed }) => ({
-              height: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: radii.md,
-              backgroundColor: isJoined ? "rgba(255,255,255,0.2)" : colors.brand,
-              opacity: pressed ? 0.88 : 1,
-            })}
-          >
-            {joining ? (
-              <ActivityIndicator size="small" color={colors.onBrand} />
-            ) : (
-              <Text style={{ fontSize: 14, lineHeight: 18, ...fw(700), color: isJoined ? "rgba(255,255,255,0.7)" : colors.onBrand }}>
-                {isJoined ? "Katıldın" : isActive || origin ? "Etkinliğe Katıl" : "Başlat"}
-              </Text>
-            )}
-          </Pressable>
         </View>
       </View>
     </View>

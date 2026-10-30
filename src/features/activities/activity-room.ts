@@ -1,10 +1,7 @@
 import { ServerEvent } from "@/realtime/events";
 import { onGatewayEvent, onGatewayOpen, sendGatewayEvent } from "@/realtime/gateway";
-import {
-  useActivitySession,
-  type ActivityDescriptor,
-  type ActivityParticipant,
-} from "@/stores/activity";
+import { useActivitySession, type ActivityDescriptor } from "@/stores/activity";
+import { roomFromFrame } from "./card-state";
 
 /**
  * Sohbetlerin aktivite odası durumu — web `chat-page` "katılınabilir aktivite
@@ -23,14 +20,6 @@ import {
 const watched = new Map<string, number>();
 let attached = false;
 
-function parseParticipants(value: unknown): ActivityParticipant[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (p): p is ActivityParticipant =>
-      typeof p === "object" && p !== null && typeof p.id === "string" && typeof p.username === "string"
-  );
-}
-
 function parseDescriptor(value: unknown): ActivityDescriptor | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
@@ -46,9 +35,9 @@ function parseDescriptor(value: unknown): ActivityDescriptor | null {
 
 function onRoomFrame(frame: Record<string, unknown>) {
   if (typeof frame.chatId !== "string") return;
-  useActivitySession
-    .getState()
-    .setRoom(frame.chatId, parseParticipants(frame.participants), parseDescriptor(frame.activity));
+  // Oda görüntüsü (uygulama, canlı üyeler, başlangıç) davet kartlarının tek
+  // gerçeği — web chat-page ile aynı (card-state).
+  useActivitySession.getState().setRoom(frame.chatId, roomFromFrame(frame), parseDescriptor(frame.activity));
 }
 
 function attach() {

@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { EMPTY_ROOM, type ChatActivityRoom } from "@/features/activities/card-state";
+
 /**
  * Açık aktivite oturumu — web `hooks/use-activities` karşılığı.
  *
@@ -50,13 +52,20 @@ interface ActivityState {
   channelParticipants: Record<string, ActivityParticipant[]>;
   /** Sohbet başına odadaki aktif aktivite (katılımcısı varsa). */
   joinable: Record<string, ActivityDescriptor | null>;
+  /**
+   * Sohbet başına aktivite odası (ağ geçidi `activity.update`): davet
+   * kartlarının canlılığı, katılımcıları ve süresi BURADAN okunur
+   * (features/activities/card-state) — kartın metninden değil. Web
+   * `use-activities` `chatRooms` ile aynı.
+   */
+  rooms: Record<string, ChatActivityRoom>;
 
   start: (data: Omit<ActivitySession, "key">) => void;
   leave: () => void;
   minimize: () => void;
   expand: () => void;
   setLandscape: (landscape: boolean) => void;
-  setRoom: (chatId: string, participants: ActivityParticipant[], activity: ActivityDescriptor | null) => void;
+  setRoom: (chatId: string, room: ChatActivityRoom, activity: ActivityDescriptor | null) => void;
   clearRoom: (chatId: string) => void;
 }
 
@@ -68,21 +77,24 @@ export const useActivitySession = create<ActivityState>((set) => ({
   landscape: false,
   channelParticipants: {},
   joinable: {},
+  rooms: {},
 
   start: (data) => set({ session: { ...data, key: nextKey++ }, mode: "full", landscape: false }),
   leave: () => set({ session: null, mode: "full", landscape: false }),
   minimize: () => set((state) => (state.session ? { mode: "mini", landscape: false } : state)),
   expand: () => set((state) => (state.session ? { mode: "full" } : state)),
   setLandscape: (landscape) => set((state) => (state.session ? { landscape, mode: "full" } : state)),
-  setRoom: (chatId, participants, activity) =>
+  setRoom: (chatId, room, activity) =>
     set((state) => ({
-      channelParticipants: { ...state.channelParticipants, [chatId]: participants },
-      joinable: { ...state.joinable, [chatId]: participants.length > 0 ? activity : null },
+      channelParticipants: { ...state.channelParticipants, [chatId]: room.participants },
+      joinable: { ...state.joinable, [chatId]: room.participants.length > 0 ? activity : null },
+      rooms: { ...state.rooms, [chatId]: room },
     })),
   clearRoom: (chatId) =>
     set((state) => ({
       channelParticipants: { ...state.channelParticipants, [chatId]: [] },
       joinable: { ...state.joinable, [chatId]: null },
+      rooms: { ...state.rooms, [chatId]: EMPTY_ROOM },
     })),
 }));
 

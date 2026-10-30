@@ -18,7 +18,7 @@ import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useActivities } from "@/api/hooks";
 import type { ActivitySummary } from "@/api/types";
-import { ActionSheet, Avatar, Button, Icon, Pressable } from "@/components/ui";
+import { ActionSheet, Avatar, Button, Icon, Pressable, showToast } from "@/components/ui";
 import {
   ACTIVITY_BASE_URL,
   FETCH_EXTERNAL_MAX_BODY,
@@ -36,6 +36,7 @@ import {
 } from "@/features/activities/bridge";
 import { ActivityInviteSheet } from "@/features/activities/invite-sheet";
 import { openActivityHelp } from "@/features/activities/invite";
+import { resolveCardActivity } from "@/features/activities/card-state";
 import { API_BASE_URL, resolveMediaUrl } from "@/lib/config";
 import { fw } from "@/theme/fonts";
 import { ServerEvent } from "@/realtime/events";
@@ -138,22 +139,51 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const { data: catalog } = useActivities();
-  const descriptor = session.activity;
-  const clientId = descriptor.id;
   const chatId = session.chatId ?? undefined;
   const serverId = session.serverId ?? undefined;
-  /** Köprünün beklediği katalog kaydı (izin listesi vb.); yoksa davetteki tanım. */
+  /**
+   * Güvenilir katalog kaydı (web activities-room, RUST_GATEWAY-06): kimlik →
+   * adres → ad. Oturumun kimliği ve WebView adresi BURADAN gelir, davetin
+   * tanımından değil: eski bir davet kartının eskimiş client_id'si
+   * (uygulama yeniden kaydedildi) AUTHORIZE'ı reddettiriyor, aktivite
+   * "Yetkilendirme kodu alınamadı"da kalıyordu. Katalogda yoksa açılmaz.
+   */
+  const trusted = useMemo(
+    () =>
+      catalog
+        ? resolveCardActivity(
+            { activityId: session.activity.id, activityUrl: session.activity.url, activityName: session.activity.name },
+            catalog
+          )
+        : null,
+    [catalog, session.activity]
+  );
+  const descriptor = useMemo(
+    () =>
+      trusted
+        ? { ...session.activity, id: trusted.id, url: trusted.url, name: trusted.name, icon: trusted.icon }
+        : session.activity,
+    [trusted, session.activity]
+  );
+  const clientId = descriptor.id;
+  /** Köprünün beklediği katalog kaydı (izin listesi vb.). */
   const activity: ActivitySummary = useMemo(
     () =>
-      catalog?.find((item) => item.id === clientId) ?? {
+      trusted ?? {
         id: descriptor.id,
         name: descriptor.name,
         url: descriptor.url,
         icon: descriptor.icon,
         description: descriptor.description,
       },
-    [catalog, clientId, descriptor]
+    [trusted, descriptor]
   );
+  const catalogVerified = Boolean(trusted);
+  useEffect(() => {
+    if (!catalog || trusted) return;
+    showToast("Bu aktivite doğrulanamadı, açılmadı.", "error");
+    leave();
+  }, [catalog, trusted, leave]);
 
   const webviewRef = useRef<WebView>(null);
   const [frameError, setFrameError] = useState(false);
@@ -173,7 +203,8 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
     queryKey: ["activity-authorize", clientId],
     queryFn: () =>
       api<AuthorizeStatus>(`${endpoints.activityAuthorize}?clientId=${encodeURIComponent(clientId)}`),
-    enabled: Boolean(clientId),
+    // Katalog doğrulanmadan sorulmaz: eskimiş kimlikle sorulsa 404 döner.
+    enabled: Boolean(clientId) && catalogVerified,
   });
 
   const grant = useMutation({
@@ -688,7 +719,9 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
         }
       : { left: 0, top: 0, width: screenW, height: screenH };
 
-  const consentPending = status.isLoading || (status.data && !status.data.authorized);
+  // Katalog doğrulanana kadar da bekleme ekranı: WebView doğrulanmamış
+  // adresle hiç yüklenmez.
+  const consentPending = !catalogVerified || status.isLoading || (status.data && !status.data.authorized);
 
   return (
     <GestureDetector gesture={pan}>
@@ -804,7 +837,7 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
           ) : consentPending ? (
             mini ? null : (
               <ConsentGate
-                loading={status.isLoading}
+                loading={!catalogVerified || status.isLoading}
                 status={status.data}
                 activity={activity}
                 granting={grant.isPending}
