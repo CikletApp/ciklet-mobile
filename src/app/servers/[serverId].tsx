@@ -49,6 +49,9 @@ import { useAuth } from "@/stores/auth";
 import { effectiveChannelNotification, findSetting, isMutedAt } from "@/lib/notification-settings";
 import { useNow } from "@/lib/use-now";
 import { useServerTagMenuItem } from "@/features/server-tag/use-server-tag-menu-item";
+import { ServerBoostProgress } from "@/features/server-boost/boost-ui";
+import { useT } from "@/lib/i18n";
+import { BOOST_PINK } from "@/lib/server-boost";
 import { usePresenceStore } from "@/stores/presence";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -149,6 +152,7 @@ export default function ServerChannelsScreen() {
     isNewMember && guideData !== undefined && guide === null && hasWelcomeContent(welcomeScreen) ? welcomeScreen : null;
   // Sunucu etiketi (web lib/server-tag): "Etiketi Kullan" / "Etiketi Bırak".
   const serverTagItem = useServerTagMenuItem(serverId, serverMenuOpen);
+  const t = useT();
   const serverMenuItems: ActionSheetItem[] = [
     {
       key: "browse",
@@ -181,6 +185,14 @@ export default function ServerChannelsScreen() {
       icon: "bell-off",
       onPress: () =>
         openNotificationSettings({ target: { serverId }, kind: "server", title: server?.name ?? "Sunucu" }),
+    },
+    // Sunucu Takviyesi (web sunucu menüsü → "Sunucu Takviyesi").
+    {
+      key: "boost",
+      label: t("serverBoost.menuItem"),
+      icon: "gem",
+      iconColor: BOOST_PINK,
+      onPress: () => router.push(`/servers/${serverId}/boost`),
     },
     ...(serverTagItem ? [serverTagItem] : []),
   ];
@@ -442,6 +454,14 @@ function ServerHero({
       <Text style={{ ...typography.display, color: colors.bright, textAlign: "center" }} numberOfLines={2}>
         {name}
       </Text>
+      {/* Takviye ilerleme çubuğu (web kenar çubuğunda sunucu adının altında). */}
+      {details?.premiumProgressBarEnabled ? (
+        <ServerBoostProgress
+          tier={details.premiumTier}
+          count={details.premiumSubscriptionCount}
+          onPress={() => router.push(`/servers/${serverId}/boost`)}
+        />
+      ) : null}
       {memberCount !== undefined ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
           <Text style={{ ...typography.caption, color: colors.muted }}>{memberCount} üye</Text>

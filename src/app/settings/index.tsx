@@ -15,6 +15,7 @@ import {
 import { mediaPresenceSupported } from "@/features/presence/media-presence";
 import { displayNameOf, formatDate } from "@/lib/format";
 import { useT } from "@/lib/i18n";
+import { BOOST_PINK } from "@/lib/server-boost";
 import { stopGateway } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
 import { THEME_LABELS, useTheme } from "@/stores/theme";
@@ -84,6 +85,13 @@ export default function SettingsScreen() {
               icon="sparkles"
               title={t("settings.rows.mentol")}
               onPress={() => router.push("/settings/mentol")}
+            />
+            <Divider inset={52} />
+            <ListRow
+              icon="gem"
+              iconTint={BOOST_PINK}
+              title={t("serverBoost.title")}
+              onPress={() => router.push("/settings/boosts")}
             />
             <Divider inset={52} />
             <ListRow

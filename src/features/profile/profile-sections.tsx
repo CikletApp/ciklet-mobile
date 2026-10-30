@@ -19,6 +19,7 @@ import {
   playtimeLabel,
   sessionDurationLabel,
 } from "@/lib/profile-extras";
+import { BOOST_PINK } from "@/lib/server-boost";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -72,6 +73,8 @@ export function BadgeRow({ badges }: { badges: ProfileBadge[] }) {
       {badges.map((badge) => {
         const strong = badge.id === "official" || badge.id === "bot";
         const mentol = badge.id === "mentol_plus" || badge.id === "mentol_pro";
+        // Takviyeci rozeti: pembe taş (web profile-badge-row `Gem`, #ff73fa).
+        const booster = badge.id === "server_booster";
         return (
           <Pressable
             key={badge.id}
@@ -89,9 +92,13 @@ export function BadgeRow({ badges }: { badges: ProfileBadge[] }) {
               backgroundColor: strong ? colors.brand : mentol ? colors.brandSoft : colors.raised,
             }}
           >
-            <Text style={{ fontSize: 11, ...fw(800), color: strong ? colors.onBrand : mentol ? colors.brand : colors.muted }}>
-              {BADGE_GLYPH[badge.id] ?? "•"}
-            </Text>
+            {booster ? (
+              <Icon name="gem" size={12} color={BOOST_PINK} />
+            ) : (
+              <Text style={{ fontSize: 11, ...fw(800), color: strong ? colors.onBrand : mentol ? colors.brand : colors.muted }}>
+                {BADGE_GLYPH[badge.id] ?? "•"}
+              </Text>
+            )}
             <Text style={{ fontSize: 11, ...fw(700), color: strong ? colors.onBrand : mentol ? colors.brand : colors.text }}>
               {badge.label}
             </Text>

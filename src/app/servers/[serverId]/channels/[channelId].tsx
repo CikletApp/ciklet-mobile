@@ -3,11 +3,12 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
-import { useChannel, useCreateChannel, useDeleteChannel, useUpdateChannel } from "@/api/hooks";
+import { useChannel, useCreateChannel, useDeleteChannel, useServerBoost, useUpdateChannel } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
 import { Button, Divider, KeyboardAvoider, ListGroup, ListRow, SegmentedTabs, TextField, showDialog } from "@/components/ui";
 import {
   VIDEO_QUALITY_OPTIONS,
+  VOICE_BITRATE_MAX,
   VOICE_BITRATE_OPTIONS_KBPS,
   VOICE_USER_LIMIT_MAX,
   bitrateLabel,
@@ -16,6 +17,7 @@ import {
   readVideoQualityMode,
   type VideoQualityMode,
 } from "@/lib/voice-settings";
+import { LEGACY_PERK_FLOOR } from "@/lib/server-boost";
 import { colors, spacing, typography } from "@/theme/tokens";
 import { useEffect, useState } from "react";
 
@@ -34,6 +36,11 @@ export default function ChannelSettingsScreen() {
   const [userLimit, setUserLimit] = useState("0");
   const [bitrate, setBitrate] = useState(readBitrate(undefined));
   const [videoQuality, setVideoQuality] = useState<VideoQualityMode>("auto");
+  // Seçenekler sunucunun Takviye seviyesi tavanına kadar (lib/server-boost,
+  // web ile aynı); seviyesi düşmüş sunucuda kayıtlı daha yüksek değer de listede kalır.
+  const { data: boost } = useServerBoost(serverId, !creating);
+  const maxBitrate = boost?.perks.maxBitrate ?? LEGACY_PERK_FLOOR.maxBitrate;
+  const bitrateChoices = VOICE_BITRATE_OPTIONS_KBPS.filter((kbps) => kbps * 1000 <= maxBitrate || kbps * 1000 === bitrate);
 
   useEffect(() => {
     if (!channel) return;
@@ -101,7 +108,7 @@ export default function ChannelSettingsScreen() {
             <View style={{ gap: spacing.sm }}>
               <Text style={{ ...typography.overline, color: colors.muted }}>BİT HIZI</Text>
               <ListGroup>
-                {VOICE_BITRATE_OPTIONS_KBPS.map((kbps, index) => (
+                {bitrateChoices.map((kbps, index) => (
                   <View key={kbps}>
                     {index > 0 ? <Divider inset={16} /> : null}
                     <ListRow
@@ -115,6 +122,7 @@ export default function ChannelSettingsScreen() {
               </ListGroup>
               <Text style={{ ...typography.caption, color: colors.muted }}>
                 Yüksek bit hızı daha net ses demek ama zayıf bağlantılarda kesintiye yol açabilir.
+                {maxBitrate < VOICE_BITRATE_MAX ? ` ${maxBitrate / 1000} kbps üstü için sunucunun Takviye seviyesi yükselmeli.` : ""}
               </Text>
             </View>
 

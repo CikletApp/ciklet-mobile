@@ -3,6 +3,7 @@ import { safetyEn } from "./safety.en";
 import { voiceE2eeEn } from "./voice-e2ee.en";
 import { serverGuideEn } from "./server-guide.en";
 import { serverTagEn } from "./server-tag.en";
+import { serverBoostEn } from "./server-boost.en";
 import type { Messages } from "./tr";
 
 /** İngilizce sözlük — `tr.ts` ile aynı şekli taşımak zorunda. */
@@ -203,4 +204,5 @@ export const en = {
   streaming: streamingEn,
   serverGuide: serverGuideEn,
   serverTag: serverTagEn,
+  serverBoost: serverBoostEn,
 } satisfies Messages;

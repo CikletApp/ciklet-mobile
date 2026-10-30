@@ -51,6 +51,13 @@ export const endpoints = {
   mentolIap: "/api/mentol/iap",
   /** POST mağaza satın alması doğrulama → güncel plan (`/api/mentol/me` biçimi) + `store`. */
   mentolIapVerify: "/api/mentol/iap/verify",
+  /** Sunucu Takviyesi — "Takviyelerim" (GET), uygula (POST), aktar (POST), iptal (PATCH). */
+  boosts: "/api/boosts",
+  boostsApply: "/api/boosts/apply",
+  boost: (boostId: string) => `/api/boosts/${encodeURIComponent(boostId)}`,
+  boostTransfer: (boostId: string) => `/api/boosts/${encodeURIComponent(boostId)}/transfer`,
+  /** Sunucunun takviye durumu (seviye, ilerleme, takviye edenler; yalnızca üyeler). */
+  serverBoosts: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/boosts`,
   /** Ödüllü reklam durumu (GET) ve tek kullanımlık SSV nonce'u (POST). */
   rewardedAds: "/api/ads/rewarded",
   rewardedAdsSession: "/api/ads/rewarded/session",

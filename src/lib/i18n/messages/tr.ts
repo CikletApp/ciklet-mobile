@@ -3,6 +3,7 @@ import { safetyTr } from "./safety.tr";
 import { voiceE2eeTr } from "./voice-e2ee.tr";
 import { serverGuideTr } from "./server-guide.tr";
 import { serverTagTr } from "./server-tag.tr";
+import { serverBoostTr } from "./server-boost.tr";
 
 /**
  * Türkçe sözlük — KAYNAK. Anahtar yapısı buradan türer; diğer diller
@@ -218,6 +219,8 @@ export const tr = {
   serverGuide: serverGuideTr,
   /** Sunucu etiketi (web ile aynı anahtarlar) — server-tag.tr.ts. */
   serverTag: serverTagTr,
+  /** Sunucu Takviyesi (web ile aynı anahtarlar) — server-boost.tr.ts. */
+  serverBoost: serverBoostTr,
 } as const;
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

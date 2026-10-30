@@ -23,6 +23,9 @@ import type { ChannelExtras } from "@/api/types";
 import { AFK_TIMEOUT_DEFAULT, AFK_TIMEOUT_OPTIONS } from "@/lib/voice-settings";
 import { DefaultNotificationsSection } from "@/features/server/default-notifications-section";
 import { ServerTagSection } from "@/features/server-tag/server-tag-section";
+import { BoostLockedPill } from "@/features/server-boost/boost-ui";
+import { useT } from "@/lib/i18n";
+import { BOOST_PINK, effectiveServerPerks, requiredTier } from "@/lib/server-boost";
 
 export default function ServerSettingsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -34,6 +37,7 @@ export default function ServerSettingsScreen() {
   const update = useUpdateServer(serverId);
   const remove = useDeleteServer(serverId);
   const leave = useLeaveServer(serverId);
+  const t = useT();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -75,6 +79,12 @@ export default function ServerSettingsScreen() {
   ];
   // İfadeler (web Sunucu Ayarları › Emoji): İfade Oluştur ya da İfadeleri Yönet.
   const canSeeEmojis = hasServerPermission(permissions, "MANAGE_EXPRESSIONS") || hasServerPermission(permissions, "CREATE_EXPRESSIONS");
+  // Takviye kapıları (lib/server-boost; uç 403 premium_tier_required): afiş
+  // Seviye 2. Seviyesi düşen sunucunun mevcut afişi kalır — kilit yalnızca
+  // afiş yokken gösterilir (web ile aynı).
+  // Etkin sınır sunucudan (premiumPerks); istemci seviyeden türetmez.
+  const perks = effectiveServerPerks(server);
+  const bannerLocked = !perks.banner && !server.bannerUrl;
   const savedAfkChannelId = server.afkChannelId ?? null;
   const savedAfkTimeout = server.afkTimeout ?? AFK_TIMEOUT_DEFAULT;
   // AFK kanalı olabilecekler: ses/görüntü kanalı; sahne ve alt başlık değil.
@@ -161,14 +171,22 @@ export default function ServerSettingsScreen() {
               <View style={{ alignItems: "flex-start" }}>
                 <Pressable
                   onPress={() => void changeMedia("banner")}
+                  disabled={bannerLocked}
                   accessibilityRole="button"
                   accessibilityLabel="Sunucu afişini değiştir"
+                  accessibilityState={{ disabled: bannerLocked }}
                   style={{ height: 112, alignSelf: "stretch", borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.brand }}
                 >
                   {server.bannerUrl ? <Image source={{ uri: server.bannerUrl }} contentFit="cover" style={{ flex: 1 }} /> : null}
-                  <View style={{ position: "absolute", right: spacing.sm, top: spacing.sm, width: 32, height: 32, borderRadius: radii.full, alignItems: "center", justifyContent: "center", backgroundColor: colors.scrim }}>
-                    {mediaBusy === "banner" ? <ActivityIndicator size="small" color={colors.bright} /> : <Icon name="pencil" size={15} color={colors.bright} />}
-                  </View>
+                  {bannerLocked ? (
+                    <View style={{ position: "absolute", right: spacing.sm, top: spacing.sm }}>
+                      <BoostLockedPill tier={requiredTier("banner")} />
+                    </View>
+                  ) : (
+                    <View style={{ position: "absolute", right: spacing.sm, top: spacing.sm, width: 32, height: 32, borderRadius: radii.full, alignItems: "center", justifyContent: "center", backgroundColor: colors.scrim }}>
+                      {mediaBusy === "banner" ? <ActivityIndicator size="small" color={colors.bright} /> : <Icon name="pencil" size={15} color={colors.bright} />}
+                    </View>
+                  )}
                 </Pressable>
                 <Pressable
                   onPress={() => void changeMedia("image")}
@@ -247,6 +265,22 @@ export default function ServerSettingsScreen() {
 
             {/* Sunucu etiketi (web lib/server-tag): kendi Kaydet düğmesiyle. */}
             <ServerTagSection server={server} />
+
+            {/* Sunucu Takviyesi: ilerleme çubuğu anahtarı hemen kaydedilir. */}
+            <SectionHeader title={t("serverBoost.title").toLocaleUpperCase("tr-TR")} />
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+              <ListGroup>
+                <ToggleRow
+                  title={t("serverBoost.settings.progressBar")}
+                  value={server.premiumProgressBarEnabled === true}
+                  disabled={update.isPending}
+                  onChange={(value) => update.mutate({ premiumProgressBarEnabled: value })}
+                />
+                <Divider inset={16} />
+                <ListRow icon="gem" iconTint={BOOST_PINK} title={t("serverBoost.menuItem")} onPress={() => router.push(`/servers/${serverId}/boost`)} />
+              </ListGroup>
+              <Text style={{ ...typography.caption, color: colors.muted }}>{t("serverBoost.settings.progressBarHint")}</Text>
+            </View>
           </>
         ) : null}
 

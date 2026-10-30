@@ -5,12 +5,27 @@
  */
 
 export const VOICE_USER_LIMIT_MAX = 99;
+/**
+ * Bit hızı sınırları (bps). Mutlak tavan 384 kbps (Takviye Seviye 3);
+ * sunucunun kendi tavanı seviyesine bağlı (lib/server-boost
+ * serverPerks.maxBitrate: 96 / 128 / 256 / 384).
+ */
 export const VOICE_BITRATE_MIN = 8_000;
-export const VOICE_BITRATE_MAX = 96_000;
+export const VOICE_BITRATE_MAX = 384_000;
 export const VOICE_BITRATE_DEFAULT = 64_000;
 
 /** Bit hızı adımları (kbps) — web Kanal Ayarları ile aynı liste. */
-export const VOICE_BITRATE_OPTIONS_KBPS = [8, 16, 24, 32, 48, 64, 80, 96] as const;
+export const VOICE_BITRATE_OPTIONS_KBPS = [8, 16, 24, 32, 48, 64, 80, 96, 128, 256, 384] as const;
+
+/** Seviye tavanına kadar olan adımlar (Kanal Ayarları seçicisi). */
+export function bitrateOptionsUpTo(maxBitrate: number): number[] {
+  return VOICE_BITRATE_OPTIONS_KBPS.filter((kbps) => kbps * 1000 <= maxBitrate);
+}
+
+/** Sunucunun seviye tavanını aşan bit hızı reddi — web ve mobil aynı metin. */
+export function bitrateTooHighMessage(maxBitrate: number): string {
+  return `Bu sunucunun Takviye seviyesinde bit hızı en fazla ${maxBitrate / 1000} kbps olabilir.`;
+}
 
 /** "auto" plana göre, "full" kamera en az 720p ve çözünürlük korunur. */
 export type VideoQualityMode = "auto" | "full";
@@ -48,11 +63,14 @@ export function parseUserLimit(value: unknown): number | null {
   return limit !== null && limit >= 0 && limit <= VOICE_USER_LIMIT_MAX ? limit : null;
 }
 
-/** Kayıtlı bit hızını güvenli aralığa oturtur. */
-export function readBitrate(value: unknown): number {
+/**
+ * Kayıtlı bit hızını güvenli aralığa oturtur. `max` verilirse sunucunun
+ * seviye tavanına da kırpılır (web ile aynı).
+ */
+export function readBitrate(value: unknown, max: number = VOICE_BITRATE_MAX): number {
   const bitrate = asInteger(value);
-  if (bitrate === null) return VOICE_BITRATE_DEFAULT;
-  return Math.min(VOICE_BITRATE_MAX, Math.max(VOICE_BITRATE_MIN, bitrate));
+  if (bitrate === null) return Math.min(VOICE_BITRATE_DEFAULT, max);
+  return Math.min(VOICE_BITRATE_MAX, max, Math.max(VOICE_BITRATE_MIN, bitrate));
 }
 
 export function readVideoQualityMode(value: unknown): VideoQualityMode {

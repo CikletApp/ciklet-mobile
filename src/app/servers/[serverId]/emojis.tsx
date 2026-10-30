@@ -6,9 +6,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
-import { hasServerPermission, useMyPermissions } from "@/api/hooks";
+import { hasServerPermission, useMyPermissions, useServerDetails } from "@/api/hooks";
 import { Divider, EmptyState, ErrorState, ListGroup, ListRow, ListSkeleton, Screen, SectionHeader, showToast } from "@/components/ui";
 import { useServerRoles, type ServerRoleLite } from "@/features/chat/server-assets";
+import { BoostSlotsHint } from "@/features/server-boost/boost-ui";
+import { effectiveServerPerks } from "@/lib/server-boost";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -36,6 +38,9 @@ export default function ServerEmojisScreen() {
   const canManageRoles = hasServerPermission(permissions, "MANAGE_EXPRESSIONS");
   const roles = useServerRoles(serverId);
   const [open, setOpen] = useState<string | null>(null);
+  // Yuva sınırı sunucunun Takviye seviyesine bağlı (lib/server-boost; 50/100/150/250).
+  const { data: server } = useServerDetails(serverId);
+  const emojiMax = effectiveServerPerks(server).emojiSlots;
 
   const emojis = useQuery({
     queryKey: adminKey(serverId ?? "yok"),
@@ -93,8 +98,11 @@ export default function ServerEmojisScreen() {
             <Text style={{ ...typography.caption, color: colors.muted }}>
               Bir emojiyi rollere kısıtlarsan yalnızca o rollere sahip üyeler kullanabilir. Hiç rol seçilmezse herkes kullanabilir.
             </Text>
+            <View style={{ marginTop: spacing.sm }}>
+              <BoostSlotsHint tier={server?.premiumTier} used={(emojis.data ?? []).length} max={emojiMax} />
+            </View>
           </View>
-          <SectionHeader title={`EMOJİ — ${(emojis.data ?? []).length}/50`} />
+          <SectionHeader title={`EMOJİ — ${(emojis.data ?? []).length}/${emojiMax}`} />
           <View style={{ paddingHorizontal: spacing.lg }}>
             <ListGroup>
               {(emojis.data ?? []).map((emoji, index) => (

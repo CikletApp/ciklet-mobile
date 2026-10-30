@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyPermissions,
+  useServerDetails,
   useServerRoleDetails,
   useUpdateRole,
   type RoleUpdate,
@@ -15,6 +16,8 @@ import type { MyServerPermissions } from "@/api/types";
 import { Divider, EmptyState, Icon, ListGroup, Pressable, Screen, ScreenLoader, SectionHeader, TextField, showToast } from "@/components/ui";
 import { EmojiPickerPanel } from "@/features/chat/components/emoji-picker";
 import { RoleIconBadge } from "@/features/server/role-icon-badge";
+import { BoostLockedPill } from "@/features/server-boost/boost-ui";
+import { BOOST_PINK, effectiveServerPerks, requiredTier } from "@/lib/server-boost";
 import { pickAndUploadRoleIcon } from "@/lib/uploads";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -78,6 +81,7 @@ export default function ServerRolesScreen() {
                         {role.name}
                       </Text>
                       <RoleIconBadge icon={iconOf(role)} size={16} />
+                      {role.premiumSubscriber ? <Icon name="gem" size={14} color={BOOST_PINK} /> : null}
                     </View>
                     <Text style={{ ...typography.caption, color: colors.muted }}>{`${role._count?.members ?? 0} üye`}</Text>
                     <Icon name="chevron-right" size={16} color={colors.muted} />
@@ -104,6 +108,10 @@ function RoleEditor({
   onBack: () => void;
 }) {
   const update = useUpdateRole(serverId);
+  // Rol simgesi Takviye Seviye 2 ister (uç 403 premium_tier_required);
+  // seviyesi düşen sunucuda mevcut simge kalır, kaldırmak serbest.
+  const { data: server } = useServerDetails(serverId);
+  const iconsLocked = !effectiveServerPerks(server).roleIcons;
   const [name, setName] = useState(role.name);
   const [iconBusy, setIconBusy] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -151,6 +159,15 @@ function RoleEditor({
           <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
             Bu rol senin en yüksek rolünün üstünde ya da eşit; düzenleyemezsin.
           </Text>
+        ) : null}
+        {/* Yönetilen rol (web role-service metni): atama/silme yok. */}
+        {role.premiumSubscriber ? (
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+            <Icon name="gem" size={14} color={BOOST_PINK} />
+            <Text style={{ ...typography.caption, color: colors.muted, flex: 1 }}>
+              Server Booster rolü takviye edenlere kendiliğinden verilir; elle atanamaz.
+            </Text>
+          </View>
         ) : null}
 
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
@@ -200,9 +217,13 @@ function RoleEditor({
           </ListGroup>
         </View>
 
-        {/* Rol simgesi (Discord "role icon"). Discord'da Takviye seviye 2
-            ister; Server Boost gelince orada kapanacak, şimdilik herkese açık. */}
+        {/* Rol simgesi (Discord "role icon") — Takviye Seviye 2 (lib/server-boost). */}
         <SectionHeader title="ROL SİMGESİ" />
+        {iconsLocked ? (
+          <View style={{ flexDirection: "row", paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}>
+            <BoostLockedPill tier={requiredTier("roleIcons")} />
+          </View>
+        ) : null}
         <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}>
           Üyelerin adının yanında görünür (en yüksek simgeli rolünki). Kare bir görsel (PNG, JPG, GIF ya da WebP; en fazla 256 KB) ya da bir emoji seç.
         </Text>
@@ -219,8 +240,8 @@ function RoleEditor({
           >
             {icon ? <RoleIconBadge icon={icon} size={32} /> : <Text style={{ ...typography.caption, color: colors.muted }}>Yok</Text>}
           </View>
-          <ChipButton label={iconBusy ? "Yükleniyor…" : "Görsel yükle"} disabled={!editable || iconBusy} onPress={() => void uploadIcon()} busy={iconBusy} />
-          <ChipButton label="Emoji seç" disabled={!editable} onPress={() => setEmojiOpen(true)} />
+          <ChipButton label={iconBusy ? "Yükleniyor…" : "Görsel yükle"} disabled={!editable || iconBusy || iconsLocked} onPress={() => void uploadIcon()} busy={iconBusy} />
+          <ChipButton label="Emoji seç" disabled={!editable || iconsLocked} onPress={() => setEmojiOpen(true)} />
           {icon ? (
             <ChipButton
               label="Simgeyi kaldır"

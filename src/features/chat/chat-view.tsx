@@ -723,8 +723,10 @@ export function ChatView({
         setUploadProgress(`${prefix}… %0`);
         let file: Awaited<ReturnType<typeof uploadMessageAttachment>>;
         try {
-          file = await uploadMessageAttachment(picked[index], (progress) =>
-            setUploadProgress(`${prefix}… %${Math.round(progress)}`)
+          file = await uploadMessageAttachment(
+            picked[index],
+            (progress) => setUploadProgress(`${prefix}… %${Math.round(progress)}`),
+            kind === "channel" ? serverId : null
           );
         } catch (reason) {
           if (isOnline()) throw reason;
@@ -745,7 +747,7 @@ export function ChatView({
       uploadingRef.current = false;
       setUploadProgress(null);
     }
-  }, [attachments.length, replyingTo?.id, sendLocalFile]);
+  }, [attachments.length, replyingTo?.id, sendLocalFile, kind, serverId]);
 
   const onLongPressMessage = useCallback((message: ChatMessagePayload, anchor: MessageAnchor) => {
     setSelected({ message, anchor });

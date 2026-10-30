@@ -187,7 +187,8 @@ async function deliver(entry: OutboxMessage): Promise<void> {
           mimeType: current.upload.mimeType,
           size: current.upload.size,
         },
-        (progress) => store.setProgress(entry.id, Math.round(progress))
+        (progress) => store.setProgress(entry.id, Math.round(progress)),
+        current.kind === "channel" ? current.serverId : null
       );
       const metadata = {
         ...current.payload.metadata,

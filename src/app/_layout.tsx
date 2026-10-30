@@ -232,6 +232,7 @@ export default function RootLayout() {
                   <Stack.Screen name="profile/status" />
                   <Stack.Screen name="profile/server/[memberId]" />
                   <Stack.Screen name="servers/[serverId]/audit-log" />
+                  <Stack.Screen name="servers/[serverId]/boost" />
                   <Stack.Screen name="servers/[serverId]/browse-channels" />
                   <Stack.Screen name="servers/[serverId]/channels/[channelId]" />
                   <Stack.Screen name="servers/[serverId]/events" />
@@ -257,6 +258,7 @@ export default function RootLayout() {
                   <Stack.Screen name="settings/account" />
                   <Stack.Screen name="settings/activity" />
                   <Stack.Screen name="settings/authorized-apps" />
+                  <Stack.Screen name="settings/boosts" />
                   <Stack.Screen name="settings/chat" />
                   <Stack.Screen name="settings/mentol" />
                   <Stack.Screen name="settings/notifications" />

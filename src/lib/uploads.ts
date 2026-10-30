@@ -4,9 +4,12 @@ import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { genUploader } from "uploadthing/client";
 
-import { cookieHeaderFor, getSession } from "@/api/client";
+import { api, cookieHeaderFor, getSession } from "@/api/client";
+import { endpoints } from "@/api/endpoints";
 import type { MentolPlan } from "@/api/hooks";
 import { queryClient } from "@/api/query-client";
+import { qk } from "@/api/query-keys";
+import type { ServerDetails } from "@/api/types";
 import { API_BASE_URL } from "@/lib/config";
 import { UserFacingUploadError, uploadErrorMessage, uploadRouteUrl } from "@/lib/upload-logic";
 
@@ -48,6 +51,8 @@ interface NativeUploadFile {
 
 interface UploadOptions {
   files: NativeUploadFile[];
+  /** Rota girdisi (Server Boost rotaları `{ serverId }` ister). */
+  input?: unknown;
   headers: () => Promise<HeadersInit>;
   onUploadProgress?: (event: { progress: number }) => void;
 }
@@ -99,7 +104,41 @@ export interface PickedAsset {
   lastModified?: number | null;
 }
 
-type UploadEndpoint = "messageFile" | "profileImage" | "profileBanner" | "serverImage" | "serverBanner" | "groupImage" | "roleIcon";
+type UploadEndpoint =
+  | "messageFile"
+  | "messageFileBoost2"
+  | "messageFileBoost3"
+  | "profileImage"
+  | "profileBanner"
+  | "serverImage"
+  | "serverBanner"
+  | "groupImage"
+  | "roleIcon";
+
+/**
+ * Server Boost yükleme rotası (web lib/upload-endpoints `BOOST_UPLOAD`):
+ * Seviye 2 → 64 MB, Seviye 3 → 128 MB, o sunucunun kanallarında her üyeye.
+ * Yalnızca dosya planın sınırını aşıyor ve takviye sınırı daha büyükse
+ * kullanılır; sunucu rotada seviyeyi ve üyeliği yeniden doğrular.
+ */
+async function boostUploadRoute(
+  serverId: string | null | undefined,
+  size: number,
+  planBytes: number
+): Promise<{ endpoint: "messageFileBoost2" | "messageFileBoost3"; maxBytes: number } | null> {
+  if (!serverId || size <= planBytes) return null;
+  let server = queryClient.getQueryData<ServerDetails>(qk.server(serverId));
+  if (server?.premiumPerks === undefined) {
+    server = await queryClient
+      .fetchQuery({ queryKey: qk.server(serverId), queryFn: () => api<ServerDetails>(endpoints.server(serverId)) })
+      .catch(() => undefined);
+  }
+  // Etkin sınır sunucudan (premiumPerks); yoksa takviye rotası kullanılmaz.
+  const mb = server?.premiumPerks?.uploadMb ?? 0;
+  const maxBytes = mb * 1024 * 1024;
+  if (maxBytes <= planBytes) return null;
+  return { endpoint: mb >= 128 ? "messageFileBoost3" : "messageFileBoost2", maxBytes };
+}
 
 const EXTENSION_BY_MIME: Readonly<Record<string, string>> = {
   "image/jpeg": "jpg",
@@ -186,14 +225,19 @@ export async function pickDocument(): Promise<PickedAsset | null> {
 }
 
 async function uploadPickedFile(
-  endpoint: UploadEndpoint,
+  requestedEndpoint: UploadEndpoint,
   asset: PickedAsset,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  /** Sunucu kanalına ek: takviyeli sunucuda daha büyük sınır (Server Boost). */
+  serverId?: string | null
 ): Promise<{ url: string; mimeType: string; size: number }> {
   // Seçici boyutu ve türü çoğu zaman veriyor; vermezse dosyanın kendisinden.
   const local = new ExpoFile(asset.uri);
   const size = asset.size ?? local.size ?? 0;
-  const limit = uploadLimitBytes();
+  const planLimit = uploadLimitBytes();
+  const boost = requestedEndpoint === "messageFile" ? await boostUploadRoute(serverId, size, planLimit) : null;
+  const endpoint: UploadEndpoint = boost?.endpoint ?? requestedEndpoint;
+  const limit = boost?.maxBytes ?? planLimit;
   if (size > limit) {
     throw new UserFacingUploadError(`Bu plan için tek dosya üst sınırı ${Math.round(limit / (1024 * 1024))} MB.`);
   }
@@ -214,6 +258,7 @@ async function uploadPickedFile(
           lastModified: asset.lastModified ?? Date.now(),
         },
       ],
+      ...(boost && serverId ? { input: { serverId } } : {}),
       headers: async () => {
         const session = await getSession();
         const headers = new Headers();
@@ -235,12 +280,17 @@ async function uploadPickedFile(
   return { url: file.ufsUrl, mimeType, size };
 }
 
-/** Seçilmiş bir dosyayı webdeki `messageFile` rotasına yükler. */
+/**
+ * Seçilmiş bir dosyayı webdeki `messageFile` rotasına yükler. `serverId`
+ * verilirse (sunucu kanalı) ve dosya plan sınırını aşıyorsa sunucunun
+ * Takviye seviyesine göre `messageFileBoost2/3` rotası kullanılır.
+ */
 export async function uploadMessageAttachment(
   asset: PickedAsset,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  serverId?: string | null
 ): Promise<MessageAttachment> {
-  const { url, mimeType, size } = await uploadPickedFile("messageFile", asset, onProgress);
+  const { url, mimeType, size } = await uploadPickedFile("messageFile", asset, onProgress, serverId);
   return { url, name: asset.name, mimeType, size };
 }
 

@@ -123,4 +123,7 @@ export const qk = {
   serverEvents: (serverId: string) => ["server-events", serverId] as const,
   serverSearch: (serverId: string, query: string) => ["server-search", serverId, query] as const,
   serverSounds: (serverId: string) => ["server-sounds", serverId] as const,
+  /** Sunucu Takviyesi: kullanıcının slotları ve sunucunun takviye durumu. */
+  myBoosts: ["boosts"] as const,
+  serverBoost: (serverId: string) => ["server-boost", serverId] as const,
 } as const;

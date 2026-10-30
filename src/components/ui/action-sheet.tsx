@@ -16,6 +16,8 @@ export interface ActionSheetItem {
   /** Etiketin altındaki açıklama satırı. */
   detail?: string;
   destructive?: boolean;
+  /** Simgenin rengi (ör. Sunucu Takviyesi'nin pembe taşı); varsayılan soluk. */
+  iconColor?: string;
   /** Verilirse simge yerine avatar (ör. "Uygulamalar"daki bot). */
   avatar?: { imageUrl: string | null; fallbackText: string };
   onPress: () => void;
@@ -153,7 +155,7 @@ export function ActionSheet({
                   {item.avatar ? (
                     <Avatar imageUrl={item.avatar.imageUrl} fallbackText={item.avatar.fallbackText} size={24} />
                   ) : (
-                    <Icon name={item.icon} size={21} color={item.destructive ? colors.danger : colors.muted} />
+                    <Icon name={item.icon} size={21} color={item.destructive ? colors.danger : (item.iconColor ?? colors.muted)} />
                   )}
                   <View style={{ flex: 1 }}>
                     <Text style={{ ...typography.body, ...fw(500), color: item.destructive ? colors.danger : colors.bright }}>

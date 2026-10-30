@@ -1,0 +1,96 @@
+/**
+ * Server Boost (Sunucu Takviyesi) — web `ns/server-boost.tr.ts` ile aynı
+ * anahtarlar ve metinler (kopya; biri değişirse diğeri de değişir).
+ */
+export const serverBoostTr = {
+  title: "Sunucu Takviyesi",
+  menuItem: "Sunucu Takviyesi",
+  level: "Seviye {tier}",
+  noLevel: "Seviye yok",
+  boostCount: "{count} Takviye",
+  progress: {
+    toNext: "Seviye {tier} için {count} takviye daha",
+    max: "En yüksek seviye!",
+    grace: "Takviye sayısı düştü; seviye {date} tarihine kadar korunuyor.",
+    barLabel: "Takviye ilerlemesi",
+  },
+  perks: {
+    title: "Seviye Ayrıcalıkları",
+    unlocked: "Açık",
+    current: "Şu anki seviye",
+    needs: "{count} takviye gerekir",
+  },
+  boosters: {
+    title: "Takviye Edenler",
+    empty: "Bu sunucuyu henüz kimse takviye etmedi. İlk sen ol!",
+    since: "{date} tarihinden beri",
+    times: "{count}×",
+  },
+  actions: {
+    boost: "Bu Sunucuyu Takviye Et",
+    boostAvailable: "Takviye Uygula ({count} boşta)",
+    buy: "Takviye Satın Al",
+    buyMore: "Daha Fazla Takviye Al",
+    transfer: "Aktar",
+    cancel: "Takviyeyi İptal Et",
+    uncancel: "İptali Geri Al",
+    renew: "Yenile",
+    applied: "Takviye uygulandı!",
+    transferred: "Takviye aktarıldı.",
+    canceled: "Takviye iptal edildi; dönem sonuna kadar sürer.",
+    uncanceled: "İptal geri alındı.",
+    pickServer: "Hangi sunucuya?",
+    quantity: "Adet",
+    monthly: "Aylık",
+    yearly: "Yıllık",
+    total: "Toplam",
+    comingSoon: "Takviye satın alma yakında açılacak.",
+    failed: "İşlem tamamlanamadı.",
+  },
+  mine: {
+    title: "Takviyelerim",
+    description: "Sunucu takviyelerini buradan yönet. Bir takviyeyi uyguladıktan 7 gün sonra başka bir sunucuya aktarabilirsin.",
+    empty: "Henüz takviyen yok. Mentol Pro 2 takviye içerir; ek takviyeleri ayrıca alabilirsin.",
+    unused: "Boşta",
+    cooldown: "Aktarma bekleme süresi: {date}",
+    expires: "Bitiş: {date}",
+    endsAt: "İptal edildi — {date} tarihinde biter",
+    sourceMentol: "Mentol Pro",
+    sourcePurchase: "Satın alındı",
+    sourceStore: "App Store / Google Play",
+    mentolIncluded: "Mentol Pro aboneliğin {count} takviye içeriyor.",
+    discount: "Mentol Pro ile ek takviyeler %{percent} indirimli.",
+    tenure: "Takviyeci rozetin: {label}",
+  },
+  settings: {
+    progressBar: "Takviye ilerleme çubuğunu göster",
+    progressBarHint: "Kenar çubuğunda sunucunun bir sonraki takviye seviyesine ilerlemesi görünür.",
+    locked: "Seviye {tier} gerekir",
+    overLimit: "Sunucu seviyesi düştüğü için sınırın üstünde: mevcut olanlar kullanılmaya devam eder, yenisi eklenemez.",
+    slots: "Seviye {tier} · {max} yuva",
+  },
+  badge: {
+    booster: "Sunucu Takviyecisi",
+    boosterSince: "{date} tarihinden beri sunucu takviye ediyor",
+  },
+  /**
+   * YALNIZCA MOBİL — mağaza içi satın alma (App Store / Google Play) metinleri.
+   * Web'de karşılığı yok (web PayTR ile satar); bu blok web dosyasına eklenmez.
+   */
+  mobile: {
+    applyToServer: "Sunucuya Uygula",
+    perMonth: "{price} / ay",
+    storeLimit: "Mağaza üzerinden en fazla bir ek takviye alınabilir; zaten bir mağaza takviyen var.",
+    moreOnWeb: "Daha fazla takviyeyi ciklet.xyz üzerinden alabilirsin.",
+    storeCancelHint: "Bu takviyeyi iptal etmek için App Store / Google Play abonelik ayarlarını kullan.",
+    manageStore: "Aboneliği Yönet",
+    pending: "Ödeme onay bekliyor. Onaylandığında takviye kendiliğinden eklenir.",
+    purchased: "Takviye satın alındı.",
+    unavailable: "Mağaza satın alımları şu anda kullanılamıyor.",
+    conflict: "Bu mağaza aboneliği başka bir Ciklet hesabına bağlı.",
+    verifyLater: "Ödemen alındı ama sunucuya şu an ulaşılamadı. Uygulamayı yeniden açtığında otomatik tamamlanır.",
+    verifyFailed: "Satın alma doğrulanamadı. Destekle iletişime geçebilirsin.",
+    noServers: "Takviye uygulanabilecek bir sunucun yok.",
+    loadFailed: "Takviye bilgisi yüklenemedi.",
+  },
+} as const;

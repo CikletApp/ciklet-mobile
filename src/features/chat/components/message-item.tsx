@@ -33,6 +33,7 @@ import { useAuth } from "@/stores/auth";
 import { isEphemeralMessage, removeEphemeralMessage } from "@/stores/ephemeral";
 import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
+import { BOOST_PINK } from "@/lib/server-boost";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { isForwardedMessage } from "../forward";
 import { pinnedAtOf } from "../pins";
@@ -219,6 +220,10 @@ export function MessageItem({
   // (SDK'nın tür listesinde henüz yok; bu yüzden düz metinle karşılaştırılır.)
   if ((message.type as string) === "MESSAGE_PINNED") {
     return <PinnedNotice message={message} onJump={onJumpToMessage} />;
+  }
+  // Sunucu Takviyesi (web SERVER_BOOST): pembe taş + "{Ad} sunucuya takviye yaptı!".
+  if ((message.type as string) === "SERVER_BOOST") {
+    return <BoostNotice message={message} />;
   }
   // Anket sonucu (web POLL_RESULT): "Ali'nin anketi sona erdi: Soru ·
   // Kazanan: … Anketi gör". Özet bozuksa genel sistem satırına düşer.
@@ -822,6 +827,45 @@ function metaSpacerText({ message, edited, pinned }: MetaInfo): string {
  * içerik ham gösterilmez. Dokununca sabitlenen mesaja gidilir. Tepki,
  * yanıt ve bağlam menüsü yok; diğer mesajlarla gruplanmaz.
  */
+/**
+ * "X sunucuya takviye yaptı! Sunucu Seviye 2'ye ulaştı!" — web
+ * chat-message-group SERVER_BOOST satırı: pembe taş + kalın ad + içerik
+ * (metin sunucuda kurulur; metadata.boost yalnızca bilgi).
+ */
+function BoostNotice({ message }: { message: ChatMessagePayload }) {
+  const isChannel = isChannelMessage(message);
+  const profile = (isChannel ? message.member?.profile : message.profile) as
+    | { name?: string | null; username?: string | null }
+    | null
+    | undefined;
+  const name =
+    (isChannel ? message.member?.nickname?.trim() : null) ||
+    profile?.name?.trim() ||
+    profile?.username?.trim() ||
+    "Bir kullanıcı";
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${name} ${message.content}`}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.sm,
+      }}
+    >
+      <Icon name="gem" size={14} color={BOOST_PINK} />
+      <Text style={{ ...typography.caption, color: colors.muted, flexShrink: 1 }} numberOfLines={3}>
+        <Text style={{ ...fw(700), color: colors.text }}>{emojify(name, `boost-${message.id}`, 16)}</Text>
+        {` ${message.content}`}
+      </Text>
+      <Text style={{ fontSize: 10, color: colors.muted }}>{formatTime(message.createdAt)}</Text>
+    </View>
+  );
+}
+
 function PinnedNotice({ message, onJump }: { message: ChatMessagePayload; onJump?: (messageId: string) => void }) {
   const isChannel = isChannelMessage(message);
   // Silinmiş hesapta profil ve adlar boş gelebiliyor.

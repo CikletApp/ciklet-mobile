@@ -44,6 +44,7 @@ import { NameplateBackground } from "@/features/profile/nameplate";
 import { BanSheet, PruneSheet } from "@/features/server/moderation-sheets";
 import { RoleIconBadge, roleIconFromRoles } from "@/features/server/role-icon-badge";
 import { ServerTagPill } from "@/features/server-tag/server-tag-pill";
+import { BoosterGem } from "@/features/server-boost/boost-ui";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { streamWatchUrl } from "@/lib/activity-broadcast";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
@@ -361,6 +362,8 @@ export default function ServerMembersScreen() {
                     />
                     {/* Rol simgesi (web üye satırı): en yüksek simgeli rol. */}
                     <RoleIconBadge icon={roleIconFromRoles(item.roles)} size={16} />
+                    {/* Takviyeci taşı (web BoosterGem). */}
+                    <BoosterGem since={item.premiumSince} />
                     <ServerTagPill guild={item.profile.primaryGuild} size="sm" />
                   </View>
                   {timedOut ? (

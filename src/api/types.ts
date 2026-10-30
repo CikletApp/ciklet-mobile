@@ -179,6 +179,19 @@ export interface ServerDetails {
   tagBadge?: string | null;
   /** Üyeler etiketi kullanabilir mi; kapalıyken etiket hiçbir yerde görünmez. */
   tagEnabled?: boolean;
+  /** Sunucu Takviyesi (lib/server-boost): seviye 0–3, etkin takviye sayısı, ek süre. Eski sunucuda yok. */
+  premiumTier?: number;
+  premiumSubscriptionCount?: number;
+  premiumGraceUntil?: string | null;
+  /** Kenar çubuğunda takviye ilerleme çubuğu (Sunucuyu Yönet). */
+  premiumProgressBarEnabled?: boolean;
+  /**
+   * ETKİN Takviye ayrıcalıkları (sunucu hesaplar: "Takviye sınırlarını uygula"
+   * kapalıyken eski taban dahil). Kilitler/sayaçlar yalnızca bunu okur.
+   */
+  premiumPerks?: import("@/lib/server-boost").ServerPerks;
+  /** Özel davet adresi (Seviye 3). */
+  vanityCode?: string | null;
   isPublic: boolean;
   isDiscoverable: boolean;
   inviteCode: string;
@@ -602,12 +615,15 @@ export type ProfileBadgeId =
   | "developer"
   | "mentol_plus"
   | "mentol_pro"
-  | "early_member";
+  | "early_member"
+  | "server_booster";
 
 export interface ProfileBadge {
   id: ProfileBadgeId;
   label: string;
   description: string;
+  /** Takviyeci rozeti: kıdem basamağı (ay; 0 = ilk ay). */
+  tenureMonths?: number;
 }
 
 /** ciklet-web: `ActivitySession` satırı (kart ucu seçimi). */
@@ -994,6 +1010,8 @@ export interface ServerMemberListItem {
   nickname: string | null;
   /** Etkin zaman aşımı bitişi (ISO) ya da null. */
   timedOutUntil: string | null;
+  /** Bu sunucuyu takviye etmeye başladığı an (ISO, Discord "premium_since"); eski sunucuda yok. */
+  premiumSince?: string | null;
   serverImageUrl: string | null;
   profile: {
     id: string;

@@ -21,6 +21,11 @@ export interface ServerRoleDetails {
   iconEmoji: string | null;
   /** Herkes bahsedebilir mi (Discord "mentionable"). */
   mentionable: boolean;
+  /**
+   * Yönetilen "Server Booster" rolü (lib/server-boost): takviye verir/alır;
+   * elle atanamaz (403 managed_role), silinemez (409). Eski sunucuda yok.
+   */
+  premiumSubscriber?: boolean;
   _count?: { members: number };
 }
 
