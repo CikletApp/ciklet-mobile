@@ -2,7 +2,7 @@
 
 Ciklet'in Android + iOS istemcisi. Expo (SDK 57) + Expo Router + TypeScript.
 
-Fazlı yol haritası ve mimari kararlar: **[docs/ROADMAP.md](docs/ROADMAP.md)**
+Yol haritası: Ciklet kök klasöründeki `YOL-HARITASI.md` (tüm projeler için ortak).
 
 ## Mimari bağlam
 

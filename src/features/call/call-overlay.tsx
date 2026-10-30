@@ -63,7 +63,7 @@ export function CallOverlay() {
    * `/api/livekit` taraflığı ona göre doğruluyor. Bu yüzden aranan taraf
    * kimliği kendi DM listesinden bulur. Karşı tarafla hiç sohbeti yoksa
    * çağrı bağlanamaz. Kalıcı çözüm sunucunun yüke `directChannelId`
-   * eklemesi (bu değeri zaten hesaplıyor) — bkz. docs/ROADMAP.md.
+   * eklemesi (bu değeri zaten hesaplıyor).
    */
   const { data: directs } = useDirects();
   const insets = useSafeAreaInsets();
