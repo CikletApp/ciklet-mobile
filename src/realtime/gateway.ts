@@ -71,6 +71,8 @@ export interface MessageEnvelope {
     imageUrl: string | null;
     nickname: string | null;
     roleColor: string | null;
+    /** Adın yanındaki rol simgesi `{ url, emoji, name }` (web lib/roles); eski sunucuda yok. */
+    roleIcon?: unknown;
   };
   expiresAt: string | null;
   timestamp: string;

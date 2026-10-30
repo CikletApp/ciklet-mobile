@@ -59,6 +59,8 @@ export function isSpoilerName(name: string | null | undefined): boolean {
 export interface PollOption {
   id: string;
   text: string;
+  /** Seçenek emojisi (unicode ya da Dokimorji); yoksa null. */
+  emoji?: string | null;
 }
 
 export interface Poll {
@@ -67,6 +69,8 @@ export interface Poll {
   multiple: boolean;
   expiresAt: string | null;
   votes: Record<string, string[]>;
+  /** "Anketi bitir" ile erken bitirildiyse an (ISO). */
+  endedAt?: string | null;
 }
 
 export function readPoll(metadata: unknown): Poll | null {
@@ -76,8 +80,8 @@ export function readPoll(metadata: unknown): Poll | null {
   const r = p as Record<string, unknown>;
   if (typeof r.question !== "string" || !Array.isArray(r.options)) return null;
   const options = r.options
-    .filter((o): o is { id: string; text: string } => !!o && typeof o === "object" && typeof (o as PollOption).id === "string" && typeof (o as PollOption).text === "string")
-    .map((o) => ({ id: o.id, text: o.text }));
+    .filter((o): o is PollOption => !!o && typeof o === "object" && typeof (o as PollOption).id === "string" && typeof (o as PollOption).text === "string")
+    .map((o) => ({ id: o.id, text: o.text, emoji: typeof o.emoji === "string" && o.emoji ? o.emoji : null }));
   const votes: Record<string, string[]> = {};
   if (r.votes && typeof r.votes === "object") {
     for (const [k, v] of Object.entries(r.votes as Record<string, unknown>)) {
@@ -90,11 +94,84 @@ export function readPoll(metadata: unknown): Poll | null {
     multiple: r.multiple === true,
     expiresAt: typeof r.expiresAt === "string" ? r.expiresAt : null,
     votes,
+    endedAt: typeof r.endedAt === "string" ? r.endedAt : null,
   };
 }
 
 export function pollClosed(poll: Poll, now = Date.now()): boolean {
   return poll.expiresAt !== null && new Date(poll.expiresAt).getTime() <= now;
+}
+
+/** Anket sonucu satırının özeti (web lib/polls `PollResultSummary`). */
+export interface PollResult {
+  pollMessageId: string;
+  question: string;
+  winners: { id: string; text: string; emoji: string | null; count: number }[];
+  totalVotes: number;
+  voters: number;
+}
+
+/** `metadata.pollResult` (web `readPollResult`); bozuksa null. */
+export function readPollResult(metadata: unknown): PollResult | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const raw = (metadata as { pollResult?: unknown }).pollResult;
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.pollMessageId !== "string" || typeof r.question !== "string") return null;
+  const winners = Array.isArray(r.winners)
+    ? r.winners.flatMap((w) => {
+        if (!w || typeof w !== "object") return [];
+        const x = w as Record<string, unknown>;
+        if (typeof x.id !== "string" || typeof x.text !== "string" || typeof x.count !== "number") return [];
+        return [{ id: x.id, text: x.text, emoji: typeof x.emoji === "string" ? x.emoji : null, count: x.count }];
+      })
+    : [];
+  return {
+    pollMessageId: r.pollMessageId,
+    question: r.question,
+    winners,
+    totalVotes: typeof r.totalVotes === "number" ? r.totalVotes : 0,
+    voters: typeof r.voters === "number" ? r.voters : 0,
+  };
+}
+
+/**
+ * Sonucun tek satırı — web `describePollOutcome` ile BİREBİR aynı metin:
+ * "Kazanan: 🍕 Pizza (3 oy, %60)", "Berabere: A, B (her biri 2 oy)",
+ * "Kimse oy vermedi".
+ */
+export function describePollOutcome(result: PollResult): string {
+  if (result.winners.length === 0 || result.totalVotes === 0) return "Kimse oy vermedi";
+  const label = (w: PollResult["winners"][number]) => (w.emoji ? `${w.emoji} ${w.text}` : w.text);
+  const count = result.winners[0].count;
+  const percent = Math.round((count / result.totalVotes) * 100);
+  if (result.winners.length > 1) return `Berabere: ${result.winners.map(label).join(", ")} (her biri ${count} oy)`;
+  return `Kazanan: ${label(result.winners[0])} (${count} oy, %${percent})`;
+}
+
+const TR_VOWEL_SUFFIX: Record<string, string> = {
+  a: "ın", ı: "ın", â: "ın",
+  e: "in", i: "in", î: "in",
+  o: "un", u: "un", û: "un",
+  ö: "ün", ü: "ün",
+};
+
+/**
+ * Adın Türkçe iyelik hâli (web lib/i18n/possessive): "Ali" → "Ali'nin",
+ * "Burak" → "Burak'ın". Son karakter harf değilse ad eksiz döner.
+ */
+export function possessiveName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  const lower = trimmed.toLocaleLowerCase("tr-TR");
+  const last = lower[lower.length - 1];
+  if (!/\p{L}/u.test(last)) return trimmed;
+  for (let i = lower.length - 1; i >= 0; i--) {
+    const suffix = TR_VOWEL_SUFFIX[lower[i]];
+    if (!suffix) continue;
+    return `${trimmed}'${i === lower.length - 1 ? "n" : ""}${suffix}`;
+  }
+  return trimmed;
 }
 
 /** `@silent` / `@sessiz` ile gönderildi: bildirim üretmedi (web lib/silent-message). */

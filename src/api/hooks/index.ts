@@ -22,3 +22,4 @@ export * from "./use-moderation";
 export * from "./use-server-events";
 export * from "./use-threads";
 export * from "./use-voice-features";
+export * from "./use-roles";

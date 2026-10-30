@@ -892,6 +892,10 @@ export interface ChannelExtras {
   videoQualityMode?: string;
   parentChannelId?: string | null;
   archivedAt?: string | null;
+  /** Kilitli alt başlık: yalnızca "Alt Başlıkları Yönet" yazar (web lib/threads). */
+  locked?: boolean;
+  /** Forumun en üstüne sabitli gönderi (web lib/forum). */
+  forumPinned?: boolean;
 }
 
 // ── Sunucu izinleri ve moderasyon ───────────────────────────────────
@@ -930,7 +934,16 @@ export interface ServerMemberListItem {
     customStatusEmoji?: string | null;
     customStatusUntil?: string | null;
   };
-  roles: { id: string; name: string; color: string | null; hoist: boolean; position: number }[];
+  roles: {
+    id: string;
+    name: string;
+    color: string | null;
+    hoist: boolean;
+    position: number;
+    /** Rol simgesi (web Role.iconUrl / iconEmoji); eski sunucuda yok. */
+    iconUrl?: string | null;
+    iconEmoji?: string | null;
+  }[];
 }
 
 export interface ServerMembersPage {
@@ -979,6 +992,10 @@ export interface ThreadSummary {
   name: string;
   createdAt: string;
   archivedAt: string | null;
+  /** Kilitli (web lib/threads); eski sunucuda yok. */
+  locked?: boolean;
+  /** Forum gönderisi forumun en üstüne sabitli; eski sunucuda yok. */
+  forumPinned?: boolean;
   latestMessageId: string | null;
   profileId: string;
   threadStarterMessageId: string | null;
@@ -990,6 +1007,8 @@ export interface ServerThread {
   name: string;
   parentChannelId: string;
   latestMessageId: string | null;
+  /** Kilitli (web lib/threads); eski sunucuda yok. */
+  locked?: boolean;
 }
 
 /** ciklet-web: `GET /api/channels/[id]/forum` gönderisi. */
@@ -1002,6 +1021,10 @@ export interface ForumPost {
   createdAt: string;
   latestMessageId: string | null;
   archivedAt: string | null;
+  /** Forumun en üstüne sabitli (forum başına bir); eski sunucuda yok. */
+  pinned?: boolean;
+  /** Kilitli: yalnızca alt başlıkları yönetebilenler yazar. */
+  locked?: boolean;
   lastActivityMs: number;
   profile: { id: string; username: string; name: string | null; imageUrl: string | null };
 }
@@ -1009,6 +1032,8 @@ export interface ForumPost {
 export interface ForumResponse {
   tags: string[];
   canPost: boolean;
+  /** "Alt Başlıkları Yönet" (sabitle / kilitle / moderasyonlu etiket). */
+  canModerate?: boolean;
   posts: ForumPost[];
 }
 

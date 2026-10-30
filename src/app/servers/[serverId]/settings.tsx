@@ -232,12 +232,18 @@ export default function ServerSettingsScreen() {
           </>
         ) : null}
 
-        {hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? (
+        {hasServerPermission(permissions, "VIEW_AUDIT_LOG") || hasServerPermission(permissions, "MANAGE_ROLES") ? (
           <>
             <SectionHeader title="MODERASYON" />
             <View style={{ paddingHorizontal: spacing.lg }}>
               <ListGroup>
-                <ListRow icon="list" title="Denetim Kaydı" onPress={() => router.push(`/servers/${serverId}/audit-log`)} />
+                {hasServerPermission(permissions, "MANAGE_ROLES") ? (
+                  <ListRow icon="shield" title="Roller" onPress={() => router.push(`/servers/${serverId}/roles`)} />
+                ) : null}
+                {hasServerPermission(permissions, "MANAGE_ROLES") && hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? <Divider inset={16} /> : null}
+                {hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? (
+                  <ListRow icon="list" title="Denetim Kaydı" onPress={() => router.push(`/servers/${serverId}/audit-log`)} />
+                ) : null}
               </ListGroup>
             </View>
           </>

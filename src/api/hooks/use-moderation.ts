@@ -24,6 +24,7 @@ export type ServerPermissionKey =
   | "BAN_MEMBERS"
   | "MANAGE_CHANNELS"
   | "MANAGE_MESSAGES"
+  | "MANAGE_THREADS"
   | "ADMINISTRATOR"
   | "MANAGE_SERVER"
   | "MANAGE_ROLES"

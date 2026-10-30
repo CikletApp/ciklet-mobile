@@ -8,6 +8,7 @@ import { qk } from "@/api/query-keys";
 import type { ProfileAnnotationEntry } from "@/api/types";
 import { showInAppNotice } from "@/components/in-app-notice";
 import { openInteractionModal } from "@/features/chat/interaction-modal-store";
+import { removeEphemeralMessage, upsertEphemeralMessage } from "@/stores/ephemeral";
 import { syncLatestMessages } from "@/features/chat/message-sync";
 import { isHiddenChannel } from "@/features/unread/unread-cache";
 import {
@@ -163,6 +164,15 @@ export function useSocialEvents() {
       onGatewayEvent(ServerEvent.INTERACTION_MODAL, (frame) =>
         openInteractionModal({ interactionId: frame.interactionId, channelId: frame.channelId, modal: frame.modal })
       ),
+      // Geçici bot yanıtı (flags 64): kanal geçmişinde yok, yalnızca bellekte.
+      onGatewayEvent(ServerEvent.MESSAGE_EPHEMERAL, (frame) => {
+        if (typeof frame.chatId === "string") upsertEphemeralMessage(frame.chatId, frame.message);
+      }),
+      onGatewayEvent(ServerEvent.MESSAGE_EPHEMERAL_DELETE, (frame) => {
+        if (typeof frame.chatId === "string" && typeof frame.messageId === "string") {
+          removeEphemeralMessage(frame.chatId, frame.messageId);
+        }
+      }),
       // Kanal mesajı: sayaç `use-unread-sync`'te; burada yalnızca ses (web:
       // navigation-server-list — kendi mesajın ve açık kanal hariç). Kart yok.
       onGatewayEvent(ServerEvent.CHANNEL_MESSAGE, (frame) => {

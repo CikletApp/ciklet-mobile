@@ -98,6 +98,10 @@ export const ServerEvent = {
   VOICE_MODERATED: "voice.moderated",
   /** `{ interactionId, channelId, modal }` — bot etkileşimine modalla yanıt verdi (kullanıcı odası). */
   INTERACTION_MODAL: "interaction.modal",
+  /** `{ chatId, serverId, message }` — botun yalnızca sana görünen (flags 64) yanıtı; yeni ya da güncel hâli. */
+  MESSAGE_EPHEMERAL: "message.ephemeral",
+  /** `{ chatId, messageId }` — geçici yanıt bot tarafından silindi. */
+  MESSAGE_EPHEMERAL_DELETE: "message.ephemeral_delete",
   /** `{ caller, type, callId, expiresAt, directChannelId }` */
   CALL_INCOMING: "call.incoming",
   /** `{ profile, callId }` — karşı taraf kabul etti. */
@@ -229,6 +233,8 @@ export function messageFromEnvelope(event: MessageEnvelope): ChatMessagePayload 
         serverId: event.serverId ?? "",
         nickname: event.author.nickname,
         roleColor: event.author.roleColor,
+        // Rol simgesi (web lib/roles roleIconFromRoles); eski sunucuda yok.
+        roleIcon: event.author.roleIcon ?? null,
         profile,
       },
     } as unknown as MessageWithMember;

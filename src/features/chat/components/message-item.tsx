@@ -20,6 +20,7 @@ import { readActivityReply } from "@/lib/activity-reply";
 import { isOfficialProfile } from "@/lib/official";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useAuth } from "@/stores/auth";
+import { isEphemeralMessage, removeEphemeralMessage } from "@/stores/ephemeral";
 import { usePreferences } from "@/stores/preferences";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -34,19 +35,23 @@ import { PollCard } from "./poll-message";
 import { MessageActivityReply } from "./message-activity-reply";
 import { ActivityInviteMessage } from "@/features/activities/activity-invite-message";
 import {
+  describePollOutcome,
   extraAttachments,
   isSilent,
+  possessiveName,
   readComponents,
   readInteraction,
   readPoll,
+  readPollResult,
   readSticker,
   readThread,
 } from "@/lib/message-extras";
-import { InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
+import { EphemeralFooter, InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
 import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
 import { emojiOnlyCount, parseCustomEmojiToken } from "../message-markup";
 import { useServerEmojis } from "../server-assets";
+import { RoleIconBadge, memberRoleIcon } from "@/features/server/role-icon-badge";
 import { fw } from "@/theme/fonts";
 import { readable, senderColor } from "@/theme/palette";
 
@@ -152,7 +157,10 @@ export function MessageItem({
   // bozulmasın. Geri çağrılar JS'te (drag-dismiss ile aynı desen).
   const swipeX = useSharedValue(0);
   const swipeArmed = useSharedValue(false);
-  const canSwipe = Boolean(onReply) && !preview;
+  // Geçici bot yanıtı (flags 64): yalnızca bu cihazın belleğinde; yanıtlanamaz,
+  // menüsü yok (web'de de hover/sağ tık kapalı).
+  const ephemeral = isEphemeralMessage(message);
+  const canSwipe = Boolean(onReply) && !preview && !ephemeral;
   const swipe = useMemo(
     () =>
       Gesture.Pan()
@@ -191,6 +199,11 @@ export function MessageItem({
   // (SDK'nın tür listesinde henüz yok; bu yüzden düz metinle karşılaştırılır.)
   if ((message.type as string) === "MESSAGE_PINNED") {
     return <PinnedNotice message={message} onJump={onJumpToMessage} />;
+  }
+  // Anket sonucu (web POLL_RESULT): "Ali'nin anketi sona erdi: Soru ·
+  // Kazanan: … Anketi gör". Özet bozuksa genel sistem satırına düşer.
+  if ((message.type as string) === "POLL_RESULT" && readPollResult(message.metadata)) {
+    return <PollResultNotice message={message} onJump={onJumpToMessage} />;
   }
 
   // Anket (ciklet-web POLL): normal balon yolundan geçer (uzun basma menüsü,
@@ -280,7 +293,7 @@ export function MessageItem({
   // Konum satırdan değil balonun kendisinden ölçülür: bağlam menüsü
   // kopyayı tam üstüne çizer. Ters (inverted) listede de pencere
   // koordinatı doğru gelir; dönüşümü Fabric hesaba katıyor.
-  const handleLongPress = onLongPress
+  const handleLongPress = onLongPress && !ephemeral
     ? () => {
         bubbleRef.current?.measureInWindow((x, y, width, height) => {
           onLongPress(message, { x, y, width, height, grouped, lastInGroup });
@@ -298,6 +311,10 @@ export function MessageItem({
         textStyle={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
         numberOfLines={1}
       />
+      {/* Rol simgesi (web RoleIconBadge): en yüksek simgeli rol. */}
+      {isChannel ? (
+        <RoleIconBadge icon={memberRoleIcon((message as { member?: Parameters<typeof memberRoleIcon>[0] }).member)} size={14} />
+      ) : null}
       {isOfficial || profile.isBot ? (
         <View
           style={{
@@ -650,6 +667,12 @@ export function MessageItem({
 
       {/* Tepkiler balonun altında, balonla aynı kenarda. */}
       {reactions}
+      {ephemeral && scope ? (
+        <EphemeralFooter
+          onDismiss={() => removeEphemeralMessage(scope.chatId, message.id)}
+          inset={avatarColumn ? AVATAR_SIZE + spacing.sm : 0}
+        />
+      ) : null}
     </Pressable>
   );
 
@@ -890,6 +913,53 @@ function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>,
  * Sistem mesajı — çağrı kayıtları ve aktivite davetleri.
  * Kimseye ait olmadığı için ortada, baloncuksuz çizilir.
  */
+function PollResultNotice({ message, onJump }: { message: ChatMessagePayload; onJump?: (messageId: string) => void }) {
+  const result = readPollResult(message.metadata);
+  const isChannel = isChannelMessage(message);
+  const profile = (isChannel ? message.member?.profile : message.profile) as
+    | { name?: string | null; username?: string | null }
+    | null
+    | undefined;
+  const name =
+    (isChannel ? message.member?.nickname?.trim() : null) ||
+    profile?.name?.trim() ||
+    profile?.username?.trim() ||
+    "Bir kullanıcı";
+  if (!result) return null;
+  const targetId = result.pollMessageId;
+  const canJump = Boolean(onJump);
+  const outcome = describePollOutcome(result);
+
+  return (
+    <Pressable
+      onPress={onJump ? () => onJump(targetId) : undefined}
+      disabled={!canJump}
+      accessibilityRole="button"
+      accessibilityLabel={`${possessiveName(name)} anketi sona erdi: ${result.question}. ${outcome}. Anketi gör`}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.sm,
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <Icon name="list" size={14} color={colors.brand} />
+      <Text style={{ ...typography.caption, color: colors.muted, flexShrink: 1 }} numberOfLines={3}>
+        <Text style={{ ...fw(700), color: colors.text }}>{emojify(possessiveName(name), `poll-result-${message.id}`, 16)}</Text>
+        {" anketi sona erdi: "}
+        <Text style={{ ...fw(700), color: colors.text }}>{result.question}</Text>
+        {" · "}
+        {emojify(outcome, `poll-outcome-${message.id}`, 14)}
+        {canJump ? <Text style={{ ...fw(600), color: colors.brand }}>{" Anketi gör"}</Text> : null}
+      </Text>
+      <Text style={{ fontSize: 10, color: colors.muted }}>{formatTime(message.createdAt)}</Text>
+    </Pressable>
+  );
+}
+
 function SystemMessage({ message }: { message: ChatMessagePayload }) {
   const { icon, tint } = systemStyle(message.type);
 

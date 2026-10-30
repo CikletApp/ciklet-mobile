@@ -200,6 +200,29 @@ export function useArchiveThread(serverId: string) {
   });
 }
 
+/** Alt başlığı kilitle / kilidi aç (web `POST /api/channels/[id]/lock`). */
+export function useLockThread(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ threadId, locked }: { threadId: string; locked: boolean }) =>
+      api<{ locked: boolean }>(endpoints.threadLock(threadId), { method: "POST", body: { locked } }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.channels(serverId) }),
+  });
+}
+
+/**
+ * Forum gönderisini sabitle / sabitini kaldır (forum başına bir; sunucu
+ * öncekini düşürür). Forum listeleri `["channels", serverId, ...]` altında.
+ */
+export function usePinForumPost(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId, pinned }: { postId: string; pinned: boolean }) =>
+      api<{ pinned: boolean }>(endpoints.forumPin(postId), { method: "POST", body: { pinned } }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.channels(serverId) }),
+  });
+}
+
 /**
  * Alt başlığın durumu: üst kanalın açık listesinde mi, arşivde mi.
  * `undefined` = henüz bilinmiyor (listeler yükleniyor).

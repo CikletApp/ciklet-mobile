@@ -235,6 +235,7 @@ export default function RootLayout() {
                   <Stack.Screen name="servers/[serverId]/events/new" />
                   <Stack.Screen name="servers/[serverId]/forum-post" />
                   <Stack.Screen name="servers/[serverId]/members" />
+                  <Stack.Screen name="servers/[serverId]/roles" />
                   <Stack.Screen name="servers/[serverId]/search" />
                   <Stack.Screen name="servers/[serverId]/settings" />
                   <Stack.Screen name="servers/[serverId]/subscriptions" />

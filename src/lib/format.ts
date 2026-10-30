@@ -10,6 +10,7 @@ import { broadcastPresentation, broadcastText, type BroadcastLabels, type Broadc
 import { activityReplyPreview } from "./activity-reply";
 import { currentTranslator, type Translator } from "./i18n";
 import { formatMessagePreview } from "./message-preview";
+import { describePollOutcome, readPollResult } from "./message-extras";
 
 const timeFormat = new Intl.DateTimeFormat("tr-TR", {
   hour: "2-digit",
@@ -196,6 +197,11 @@ export function formatDirectPreview(
       // Tepki tek emoji: neye verildiği eklenir ("👍 Etkinliğe tepki verdi").
       preview = activityReplyPreview(content);
       break;
+    case "POLL_RESULT": {
+      // Anket sonucu (web lib/message-preview ile aynı): "📊 Soru — Kazanan: …".
+      const result = readPollResult(message.metadata);
+      return result ? `📊 ${result.question} — ${describePollOutcome(result)}` : content || "Anket sona erdi";
+    }
     case "MESSAGE_PINNED":
       // Sistem satırı; öznesi sabitleyen kişi (içerik "bir mesajı sabitledi.").
       if (message.profileId === myId) return "Bir mesajı sabitledin";

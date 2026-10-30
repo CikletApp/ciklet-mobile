@@ -120,19 +120,22 @@ export function useComposerSuggestions(
           insert: `@${label}`,
         });
       }
-      for (const role of roles) {
-        if (role.name === "@everyone" || !fold(role.name).includes(q)) continue;
-        out.push({
-          key: `r-${role.id}`,
-          kind: "role",
-          label: `@${role.name}`,
-          detail: "Rol",
-          color: role.color,
-          insert: `@${role.name}`,
-          roleId: role.id,
-        });
-        if (out.length >= MAX_ITEMS * 2) break;
-      }
+    }
+    // Roller: izinle hepsi, izinsiz yalnızca "bahsedilebilir" olanlar (web
+    // `canMentionRole`, sunucu lib/mentions ile aynı kural).
+    for (const role of roles) {
+      if (!canBroadcast && !role.mentionable) continue;
+      if (role.name === "@everyone" || !fold(role.name).includes(q)) continue;
+      out.push({
+        key: `r-${role.id}`,
+        kind: "role",
+        label: `@${role.name}`,
+        detail: "Rol",
+        color: role.color,
+        insert: `@${role.name}`,
+        roleId: role.id,
+      });
+      if (out.length >= MAX_ITEMS * 2) break;
     }
     return out;
   }, [trigger, serverId, emojis, members.data, canBroadcast, roles]);

@@ -40,6 +40,7 @@ import {
 } from "@/components/ui";
 import { NameplateBackground } from "@/features/profile/nameplate";
 import { BanSheet, PruneSheet } from "@/features/server/moderation-sheets";
+import { RoleIconBadge, roleIconFromRoles } from "@/features/server/role-icon-badge";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { streamWatchUrl } from "@/lib/activity-broadcast";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
@@ -333,13 +334,17 @@ export default function ServerMembersScreen() {
                   showPresence
                 />
                 <View style={{ flex: 1, gap: 1 }}>
-                  <StyledName
-                    profileId={item.profileId}
-                    name={nameOf(item)}
-                    textStyle={{ ...typography.body, ...fw(600), color: topRole?.color || colors.bright }}
-                    containerStyle={{ alignSelf: "flex-start" }}
-                    numberOfLines={1}
-                  />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                    <StyledName
+                      profileId={item.profileId}
+                      name={nameOf(item)}
+                      textStyle={{ ...typography.body, ...fw(600), color: topRole?.color || colors.bright }}
+                      containerStyle={{ alignSelf: "flex-start", flexShrink: 1 }}
+                      numberOfLines={1}
+                    />
+                    {/* Rol simgesi (web üye satırı): en yüksek simgeli rol. */}
+                    <RoleIconBadge icon={roleIconFromRoles(item.roles)} size={16} />
+                  </View>
                   {timedOut ? (
                     <Text style={{ ...typography.caption, color: colors.danger }} numberOfLines={1}>
                       {`Zaman aşımında · ${timeoutRemainingLabel(item.timedOutUntil!, now)}`}

@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
+import { ChannelType, MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
 import {
   useArchiveThread,
   useChannel,
+  useLockThread,
   useMyMembership,
+  useMyPermissions,
+  usePinForumPost,
   useServerChannels,
   useServerSummary,
   useThreadParent,
@@ -91,6 +94,22 @@ export default function ChannelChatScreen() {
 
   const thread = useThreadState(serverId, isThread ? parentId : undefined, channelId);
   const archive = useArchiveThread(serverId ?? "");
+  const lock = useLockThread(serverId ?? "");
+  const pin = usePinForumPost(serverId ?? "");
+  // "Alt Başlıkları Yönet" (web `canManageThreads`: moderatör+ ya da bit).
+  // Yalnızca arayüz ipucu; kanal geçersiz kılmalarını uç denetler.
+  const { data: actor } = useMyPermissions(serverId);
+  const canManageThreads = Boolean(
+    actor &&
+      (actor.isOwner ||
+        actor.memberRole === MemberRole.ADMIN ||
+        actor.memberRole === MemberRole.MODERATOR ||
+        actor.keys.includes("MANAGE_THREADS") ||
+        actor.keys.includes("ADMINISTRATOR"))
+  );
+  const threadLocked = thread.thread?.locked === true;
+  const forumPinned = thread.thread?.forumPinned === true;
+  const isForumPost = isThread && (parent as ChannelExtras | undefined)?.forum === true;
   const [menuOpen, setMenuOpen] = useState(false);
   const title = isThread ? (thread.thread?.name ?? threadName ?? "Alt başlık") : (channel?.name ?? "");
 
@@ -127,6 +146,69 @@ export default function ChannelChatScreen() {
     );
   };
 
+  const setLocked = (locked: boolean) => {
+    if (!serverId) return;
+    lock.mutate(
+      { threadId: channelId, locked },
+      {
+        onSuccess: () => showToast(locked ? "Alt başlık kilitlendi." : "Alt başlığın kilidi açıldı."),
+        onError: (error) =>
+          showToast(error instanceof ApiError ? error.message : "Alt başlık güncellenemedi.", "error"),
+      }
+    );
+  };
+
+  const setPinned = (pinned: boolean) => {
+    if (!serverId) return;
+    pin.mutate(
+      { postId: channelId, pinned },
+      {
+        onSuccess: () => showToast(pinned ? "Gönderi sabitlendi." : "Gönderinin sabiti kaldırıldı."),
+        onError: (error) =>
+          showToast(error instanceof ApiError ? error.message : "Gönderi güncellenemedi.", "error"),
+      }
+    );
+  };
+
+  // Kilitli alt başlığı yalnızca "Alt Başlıkları Yönet" arşivden çıkarır (uç da reddeder).
+  const archiveItem: ActionSheetItem | null = thread.archived
+    ? threadLocked && !canManageThreads
+      ? null
+      : { key: "unarchive", label: "Arşivden çıkar", icon: "rotate-ccw", onPress: () => setArchived(false) }
+    : {
+        key: "archive",
+        label: "Arşivle",
+        detail: "Açan kişi ya da moderatör arşivleyebilir",
+        icon: "folder",
+        onPress: () => setArchived(true),
+      };
+  const moderationItems: ActionSheetItem[] = canManageThreads
+    ? [
+        ...(isForumPost
+          ? [
+              forumPinned
+                ? { key: "unpin", label: "Sabitlemeyi kaldır", icon: "pin-off" as const, onPress: () => setPinned(false) }
+                : {
+                    key: "pin",
+                    label: "Sabitle",
+                    detail: "Forumun en üstünde durur; öncekinin sabiti kalkar",
+                    icon: "pin" as const,
+                    onPress: () => setPinned(true),
+                  },
+            ]
+          : []),
+        threadLocked
+          ? { key: "unlock", label: "Kilidi aç", icon: "unlock", onPress: () => setLocked(false) }
+          : {
+              key: "lock",
+              label: "Kilitle",
+              detail: "Yalnızca alt başlıkları yönetebilenler yazabilir",
+              icon: "lock",
+              onPress: () => setLocked(true),
+            },
+      ]
+    : [];
+
   const menuItems: ActionSheetItem[] = isThread
     ? [
         {
@@ -141,15 +223,8 @@ export default function ChannelChatScreen() {
           icon: "list",
           onPress: () => router.push(`/servers/${serverId}/threads/${parentId}`),
         },
-        thread.archived
-          ? { key: "unarchive", label: "Arşivden çıkar", icon: "rotate-ccw", onPress: () => setArchived(false) }
-          : {
-              key: "archive",
-              label: "Arşivle",
-              detail: "Açan kişi ya da moderatör arşivleyebilir",
-              icon: "folder",
-              onPress: () => setArchived(true),
-            },
+        ...moderationItems,
+        ...(archiveItem ? [archiveItem] : []),
       ]
     : [];
 
@@ -157,7 +232,9 @@ export default function ChannelChatScreen() {
     ? undefined
     : thread.archived
       ? "Bu alt başlık arşivlendi; yazmak için menüden arşivden çıkar."
-      : timeoutNotice;
+      : threadLocked && !canManageThreads
+        ? "Bu alt başlık kilitli; yalnızca alt başlıkları yönetebilenler yazabilir."
+        : timeoutNotice;
 
   const headerIcon: IconName = isThread ? "message" : isForum ? "list" : isMedia ? "image" : "hash";
 
@@ -188,7 +265,7 @@ export default function ChannelChatScreen() {
               subtitle={
                 typing ??
                 (isThread
-                  ? `${thread.archived ? "Arşivde · " : ""}#${parent?.name ?? "kanal"}`
+                  ? `${forumPinned ? "Sabitlendi · " : ""}${threadLocked ? "Kilitli · " : ""}${thread.archived ? "Arşivde · " : ""}#${parent?.name ?? "kanal"}`
                   : topic || server?.name)
               }
               subtitleTone={typing ? "live" : "muted"}

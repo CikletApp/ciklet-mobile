@@ -2,16 +2,20 @@ import { useState } from "react";
 import { Modal, Pressable as RNPressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import Animated, { SlideInDown } from "react-native-reanimated";
 
-import { Icon, KeyboardAvoider, Pressable } from "@/components/ui";
-import type { Poll } from "@/lib/message-extras";
+import { Icon, KeyboardAvoider, Pressable, emojify } from "@/components/ui";
+import type { Poll, PollOption } from "@/lib/message-extras";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+
+import { EmojiPickerPanel } from "./emoji-picker";
 
 /**
  * Anket oluşturma — ciklet-web `poll-composer-dialog.tsx` + `lib/polls`
  * `buildPoll`: soru, 2-10 seçenek, çoklu seçim, süre (1 sa – 1 hafta ya
  * da süresiz). Doğrulama burada da yapılır ki kullanıcı hatayı göndermeden
  * görsün; sunucu yine denetler. Gönderim çağıranın işi (messageType POLL).
+ * Her seçeneğe isteğe bağlı bir emoji eklenir (web ile aynı); emoji
+ * düğmesi sayfanın içinde emoji seçiciyi açar.
  */
 
 export const POLL_MAX_QUESTION = 300;
@@ -30,18 +34,25 @@ const DURATIONS: { id: string; label: string; ms: number | null }[] = [
 export function buildPoll(input: {
   question: string;
   options: string[];
+  /** Seçenekle aynı sıradaki emojiler (yoksa null). */
+  emojis?: (string | null)[];
   multiple: boolean;
   durationMs: number | null;
 }): { poll: Poll } | { error: string } {
   const question = input.question.replace(/\s+/g, " ").trim();
   if (!question) return { error: "Soru boş olamaz." };
   if (question.length > POLL_MAX_QUESTION) return { error: `Soru en fazla ${POLL_MAX_QUESTION} karakter olabilir.` };
-  const texts = input.options.map((option) => option.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const entries = input.options
+    .map((option, index) => ({ text: option.replace(/\s+/g, " ").trim(), emoji: input.emojis?.[index] ?? null }))
+    .filter((entry) => entry.text);
+  const texts = entries.map((entry) => entry.text);
   if (texts.length < 2) return { error: "En az iki seçenek gerekli." };
   if (texts.length > POLL_MAX_OPTIONS) return { error: `En fazla ${POLL_MAX_OPTIONS} seçenek olabilir.` };
   const lowered = texts.map((text) => text.toLocaleLowerCase("tr-TR"));
   if (new Set(lowered).size !== lowered.length) return { error: "Seçenekler birbirinden farklı olmalı." };
-  const options = texts.map((text, index) => ({ id: `o${index + 1}`, text }));
+  const options: PollOption[] = entries.map((entry, index) =>
+    entry.emoji ? { id: `o${index + 1}`, text: entry.text, emoji: entry.emoji } : { id: `o${index + 1}`, text: entry.text }
+  );
   return {
     poll: {
       question,
@@ -64,6 +75,9 @@ export function PollComposer({
 }) {
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState<string[]>(["", ""]);
+  const [emojis, setEmojis] = useState<(string | null)[]>([null, null]);
+  /** Emoji seçilen seçeneğin sırası; null = seçici kapalı. */
+  const [pickingFor, setPickingFor] = useState<number | null>(null);
   const [multiple, setMultiple] = useState(false);
   const [durationId, setDurationId] = useState("24h");
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +85,8 @@ export function PollComposer({
   const reset = () => {
     setQuestion("");
     setOptions(["", ""]);
+    setEmojis([null, null]);
+    setPickingFor(null);
     setMultiple(false);
     setDurationId("24h");
     setError(null);
@@ -78,7 +94,7 @@ export function PollComposer({
 
   const submit = () => {
     const duration = DURATIONS.find((item) => item.id === durationId);
-    const built = buildPoll({ question, options, multiple, durationMs: duration?.ms ?? null });
+    const built = buildPoll({ question, options, emojis, multiple, durationMs: duration?.ms ?? null });
     if ("error" in built) {
       setError(built.error);
       return;
@@ -123,6 +139,23 @@ export function PollComposer({
               overflow: "hidden",
             }}
           >
+            {pickingFor !== null ? (
+              <View style={{ height: 420 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md }}>
+                  <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{`Seçenek ${pickingFor + 1} için emoji`}</Text>
+                  <Pressable onPress={() => setPickingFor(null)} accessibilityRole="button" accessibilityLabel="Kapat" style={{ padding: spacing.xs }}>
+                    <Icon name="close" size={18} color={colors.muted} />
+                  </Pressable>
+                </View>
+                <EmojiPickerPanel
+                  onEmoji={(emoji) => {
+                    const index = pickingFor;
+                    setEmojis((prev) => options.map((_, i) => (i === index ? emoji : prev[i] ?? null)));
+                    setPickingFor(null);
+                  }}
+                />
+              </View>
+            ) : (
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
                 <Icon name="list" size={20} color={colors.brand} />
@@ -145,6 +178,19 @@ export function PollComposer({
               <Text style={{ ...typography.overline, color: colors.muted }}>SEÇENEKLER</Text>
               {options.map((option, index) => (
                 <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                  <Pressable
+                    onPress={() => setPickingFor(index)}
+                    onLongPress={() => setEmojis((prev) => prev.map((item, i) => (i === index ? null : item)))}
+                    accessibilityRole="button"
+                    accessibilityLabel={emojis[index] ? "Emojiyi değiştir (kaldırmak için basılı tut)" : "Emoji ekle"}
+                    style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.md, backgroundColor: colors.deep }}
+                  >
+                    {emojis[index] ? (
+                      <Text>{emojify(emojis[index] ?? "", `poll-new-${index}`, 20)}</Text>
+                    ) : (
+                      <Icon name="emoji" size={18} color={colors.muted} />
+                    )}
+                  </Pressable>
                   <TextInput
                     value={option}
                     onChangeText={(text) =>
@@ -156,7 +202,10 @@ export function PollComposer({
                   />
                   {options.length > 2 ? (
                     <Pressable
-                      onPress={() => setOptions((prev) => prev.filter((_, i) => i !== index))}
+                      onPress={() => {
+                        setOptions((prev) => prev.filter((_, i) => i !== index));
+                        setEmojis((prev) => prev.filter((_, i) => i !== index));
+                      }}
                       accessibilityRole="button"
                       accessibilityLabel={`Seçenek ${index + 1}'i kaldır`}
                       style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
@@ -168,7 +217,10 @@ export function PollComposer({
               ))}
               {options.length < POLL_MAX_OPTIONS ? (
                 <Pressable
-                  onPress={() => setOptions((prev) => [...prev, ""])}
+                  onPress={() => {
+                    setOptions((prev) => [...prev, ""]);
+                    setEmojis((prev) => [...prev, null]);
+                  }}
                   accessibilityRole="button"
                   style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start", paddingVertical: spacing.xs }}
                 >
@@ -243,6 +295,7 @@ export function PollComposer({
                 </Pressable>
               </View>
             </ScrollView>
+            )}
           </Animated.View>
         </RNPressable>
       </KeyboardAvoider>

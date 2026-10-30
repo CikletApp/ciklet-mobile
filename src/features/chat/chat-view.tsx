@@ -27,6 +27,7 @@ import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { useActiveChat } from "@/stores/active-chat";
 import { useAuth } from "@/stores/auth";
 import { useChatOutbox } from "@/stores/outbox";
+import { useChatEphemerals } from "@/stores/ephemeral";
 import { usePreferences } from "@/stores/preferences";
 import {
   captureFromCamera,
@@ -383,7 +384,15 @@ export function ChatView({
     setUnreadMarker(seedUnreadMarker(messages, myId, unreadSeed));
   }
 
-  const items = useChatItems(messages, !hasNextPage && !isLoading, unreadMarker ?? null);
+  // Geçici bot yanıtları (flags 64) sunucu geçmişinde yok: en yeni uca eklenir
+  // (web chat-message-list gibi). Okundu ve "yeni mesajlar" ayracı yalnızca
+  // gerçek mesajlara bakar.
+  const ephemerals = useChatEphemerals(chatId);
+  const listed = useMemo(
+    () => (ephemerals.length > 0 ? [...[...ephemerals].reverse(), ...messages] : messages),
+    [ephemerals, messages]
+  );
+  const items = useChatItems(listed, !hasNextPage && !isLoading, unreadMarker ?? null);
 
   // Okundu bilgisi — listedeki en yeni GERÇEK mesaj (outbox hariç).
   useReadState(chatId, kind, messages[0]?.id);

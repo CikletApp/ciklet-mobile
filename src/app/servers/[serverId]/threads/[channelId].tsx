@@ -99,7 +99,7 @@ export default function ChannelThreadsScreen() {
             <Pressable
               onPress={() => openThread(serverId, channelId, item)}
               accessibilityRole="button"
-              accessibilityLabel={`${item.name} alt başlığı${item.archivedAt ? ", arşivde" : ""}`}
+              accessibilityLabel={`${item.name} alt başlığı${item.locked ? ", kilitli" : ""}${item.archivedAt ? ", arşivde" : ""}`}
               style={({ pressed }) => ({
                 flexDirection: "row",
                 alignItems: "center",
@@ -120,6 +120,7 @@ export default function ChannelThreadsScreen() {
                     : `Açıldı · ${formatChatListTime(item.createdAt)}`}
                 </Text>
               </View>
+              {item.locked ? <Icon name="lock" size={15} color={colors.muted} /> : null}
               <Icon name="chevron-right" size={16} color={colors.muted} />
             </Pressable>
           )}

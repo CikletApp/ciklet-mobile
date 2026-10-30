@@ -19,6 +19,8 @@ export interface ServerRoleLite {
   name: string;
   color: string | null;
   position: number;
+  /** Herkes bahsedebilir mi (web Role.mentionable) — öneriler bunu süzer. */
+  mentionable: boolean;
 }
 
 export interface ServerEmojiLite {
@@ -62,7 +64,13 @@ export function useServerRoles(serverId: string | undefined): ServerRoleLite[] {
         const id = str(r.id);
         const name = str(r.name);
         if (!id || !name) return null;
-        return { id, name, color: str(r.color), position: typeof r.position === "number" ? r.position : 0 };
+        return {
+          id,
+          name,
+          color: str(r.color),
+          position: typeof r.position === "number" ? r.position : 0,
+          mentionable: r.mentionable === true,
+        };
       }),
   });
   return query.data ?? EMPTY;

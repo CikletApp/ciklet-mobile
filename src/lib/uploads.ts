@@ -1,6 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import { File as ExpoFile } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { genUploader } from "uploadthing/client";
 
 import { cookieHeaderFor, getSession } from "@/api/client";
@@ -98,7 +99,7 @@ export interface PickedAsset {
   lastModified?: number | null;
 }
 
-type UploadEndpoint = "messageFile" | "profileImage" | "profileBanner" | "serverImage" | "serverBanner" | "groupImage";
+type UploadEndpoint = "messageFile" | "profileImage" | "profileBanner" | "serverImage" | "serverBanner" | "groupImage" | "roleIcon";
 
 const EXTENSION_BY_MIME: Readonly<Record<string, string>> = {
   "image/jpeg": "jpg",
@@ -279,6 +280,32 @@ export const pickAndUploadProfileBanner = (onProgress?: (progress: number) => vo
 
 export const pickAndUploadServerBanner = (onProgress?: (progress: number) => void) =>
   pickAndUploadImage("serverBanner", [3, 1], onProgress);
+
+/** Rol simgesinin tavanı — web UploadThing `roleIcon` rotası (256 KB). */
+const ROLE_ICON_MAX_BYTES = 256 * 1024;
+/** Simge adın yanında 16-20 px çizilir; 128 px fazlasıyla yeter. */
+const ROLE_ICON_SIZE = 128;
+
+/**
+ * Rol simgesi (web Roller sekmesi "Görsel yükle"): kare kırpılır, 128 px'e
+ * küçültülüp PNG'ye çevrilir — galeriden gelen fotoğraf 256 KB'ı rahat aşar.
+ */
+export async function pickAndUploadRoleIcon(onProgress?: (progress: number) => void): Promise<string | null> {
+  const asset = await pickFromGallery({ aspect: [1, 1] });
+  if (!asset) return null;
+  const context = ImageManipulator.manipulate(asset.uri).resize({ width: ROLE_ICON_SIZE, height: ROLE_ICON_SIZE });
+  const rendered = await context.renderAsync();
+  try {
+    const saved = await rendered.saveAsync({ format: SaveFormat.PNG });
+    const size = new ExpoFile(saved.uri).size ?? 0;
+    if (size > ROLE_ICON_MAX_BYTES) throw new UserFacingUploadError("Rol simgesi en fazla 256 KB olabilir.");
+    const picked: PickedAsset = { uri: saved.uri, name: `rol-simgesi-${Date.now()}.png`, mimeType: "image/png", size };
+    return (await uploadPickedFile("roleIcon", picked, onProgress)).url;
+  } finally {
+    rendered.release();
+    context.release();
+  }
+}
 
 /**
  * Sohbetin çoklu ek seçimi (mesaj başına en çok 10 dosya; web

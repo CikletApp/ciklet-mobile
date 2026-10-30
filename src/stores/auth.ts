@@ -5,6 +5,7 @@ import * as apiClient from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { clearPersistedCache } from "@/api/query-client";
 import { resetInteractionModal } from "@/features/chat/interaction-modal-store";
+import { resetEphemeralMessages } from "@/stores/ephemeral";
 import { setListenAlongProfile, stopListenAlong } from "@/features/spotify/listen-along";
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
 import { clearNativeCookies } from "@/lib/cookies";
@@ -244,6 +245,7 @@ useAuth.subscribe((state, prev) => {
     clearDecorations();
     clearNameStyles();
     resetInteractionModal();
+    resetEphemeralMessages();
     void clearNsfwAcknowledgements().catch(() => {});
   }
 });

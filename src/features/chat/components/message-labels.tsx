@@ -25,6 +25,8 @@ export function InteractionLabel({ interaction, pending }: { interaction: Intera
         <Text style={{ ...fw(600), color: colors.text }}>@{interaction.username}</Text>
         {interaction.kind === "component" ? (
           " bir bileşenle etkileşime girdi"
+        ) : interaction.kind === "modal" ? (
+          " bir form gönderdi"
         ) : (
           <>
             {" "}
@@ -34,6 +36,32 @@ export function InteractionLabel({ interaction, pending }: { interaction: Intera
         )}
         {pending ? " · bot düşünüyor…" : ""}
       </Text>
+    </View>
+  );
+}
+
+/**
+ * Yalnızca bu kullanıcıya görünen mesaj (botun flags 64 yanıtı): sunucuda
+ * geçmişi yok, uygulama yeniden açılınca kaybolur. "Bu mesajları kapat"
+ * mesajı bellekten kaldırır (web `EphemeralFooter`, Discord "Dismiss message").
+ */
+export function EphemeralFooter({ onDismiss, inset = 0 }: { onDismiss: () => void; inset?: number }) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        marginTop: 2,
+        marginLeft: inset,
+      }}
+    >
+      <Icon name="eye" size={12} color={colors.muted} />
+      <Text style={{ fontSize: 12, lineHeight: 16, color: colors.muted }}>Yalnızca sen görebilirsin</Text>
+      <Text style={{ fontSize: 12, lineHeight: 16, color: colors.muted }}>·</Text>
+      <Pressable onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Bu mesajları kapat" hitSlop={8}>
+        <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: colors.brand }}>Bu mesajları kapat</Text>
+      </Pressable>
     </View>
   );
 }

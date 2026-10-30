@@ -157,6 +157,9 @@ export const endpoints = {
   // ── Sohbet zenginleştirmeleri (rol pili, sunucu emojisi, çıkartma) ──
   /** GET: sunucunun rolleri `[{ id, name, color, position, … }]` (üyelik ister). */
   serverRoles: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/roles`,
+  /** PATCH: rolü düzenle (ad, renk, hoist, simge, bahsedilebilir) — "Rolleri Yönet". */
+  serverRole: (serverId: string, roleId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/roles/${encodeURIComponent(roleId)}`,
   /** GET: sunucu emojileri `[{ id, name, imageUrl }]` — `<:ad:id>` belirteci. */
   serverEmojis: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/emojis`,
   /** GET: sunucu çıkartmaları `[{ id, name, description, imageUrl }]`. */
@@ -172,6 +175,8 @@ export const endpoints = {
     `/api/channels/${encodeURIComponent(channelId)}/interactions/${encodeURIComponent(interactionId)}`,
   /** POST `{ chatId, scope, optionIds }` — anket oyu. */
   pollVote: (messageId: string) => `/api/messages/${encodeURIComponent(messageId)}/poll/vote`,
+  /** POST `{ chatId, scope }` — "Anketi bitir" (sahip ya da Mesajları Yönet); yanıt güncel mesaj. */
+  pollEnd: (messageId: string) => `/api/messages/${encodeURIComponent(messageId)}/poll/end`,
 
   // ── Sabitlenen mesajlar ───────────────────────────────────────────
   /**
@@ -359,6 +364,12 @@ export const endpoints = {
   /** POST `{ archived }` — alt başlığı arşivle / arşivden çıkar. */
   threadArchive: (threadId: string) =>
     `/api/channels/${encodeURIComponent(threadId)}/archive`,
+  /** POST `{ locked }` — alt başlığı kilitle / kilidi aç ("Alt Başlıkları Yönet"). */
+  threadLock: (threadId: string) =>
+    `/api/channels/${encodeURIComponent(threadId)}/lock`,
+  /** POST `{ pinned }` — forum gönderisini sabitle / sabitini kaldır (forum başına bir). */
+  forumPin: (postId: string) =>
+    `/api/channels/${encodeURIComponent(postId)}/forum-pin`,
   /** GET `{ tags, canPost, posts }`; POST `{ title, content, tags? }` → `{ id }`. */
   forumPosts: (
     channelId: string,
