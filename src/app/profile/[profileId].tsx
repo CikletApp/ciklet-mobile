@@ -41,7 +41,8 @@ import {
 } from "@/features/profile/profile-sections";
 import { ListenAlongBar, SpotifyCard } from "@/features/spotify/spotify-card";
 import { activeCustomStatus } from "@/lib/custom-status";
-import { displayNameOf, formatDate } from "@/lib/format";
+import { broadcastPresentation } from "@/lib/activity-broadcast";
+import { displayNameOf, formatActivity, formatDate } from "@/lib/format";
 import { parseNameStyle } from "@/lib/name-style";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
@@ -413,8 +414,10 @@ export default function ProfileScreen() {
                   style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
                 >
                   <Card title="ŞU AN">
+                    {/* Yayında: "FC 27 yayını yapıyor" / "Yayında" — yayın
+                        programının adı yazmaz (lib/activity-broadcast). */}
                     <Text style={{ ...typography.body, color: colors.text }}>
-                      {presence.activity.name}
+                      {broadcastPresentation(presence.activity) ? formatActivity(presence.activity) : presence.activity.name}
                     </Text>
                     {presence.activity.details ? (
                       <Text style={{ ...typography.caption, color: colors.muted }}>

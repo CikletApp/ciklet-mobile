@@ -28,6 +28,14 @@ export const en = {
     file: "📎 {name}",
     attachment: "📎 Attachment",
   },
+  activity: {
+    broadcast: {
+      live: "Live",
+      game: "Streaming {game}",
+      liveOn: "Live on {platform}",
+      title: "Live stream",
+    },
+  },
   settings: {
     title: "Settings",
     editProfile: "Edit your profile",

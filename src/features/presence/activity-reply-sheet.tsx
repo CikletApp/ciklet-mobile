@@ -16,7 +16,8 @@ import {
   buildActivityReplyPayload,
 } from "@/lib/activity-reply";
 import { API_BASE_URL, resolveMediaUrl } from "@/lib/config";
-import { displayNameOf } from "@/lib/format";
+import { isStreamingSoftwareActivity } from "@/lib/activity-broadcast";
+import { displayNameOf, formatActivityTitle } from "@/lib/format";
 import { useOutbox } from "@/stores/outbox";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -54,13 +55,17 @@ function SheetBody({ target, onClose }: { target: ActivityReplyTarget; onClose: 
 
   const displayName = displayNameOf(profile);
   const showUsername = displayName.toLocaleLowerCase("tr") !== profile.username.toLocaleLowerCase("tr");
-  const type = activity.type ?? "PLAYING";
+  // Yayın programı (OBS…): adı ve ikonu yok — "Canlı yayın · Yayında" (lib/activity-broadcast).
+  const software = isStreamingSoftwareActivity(activity);
+  const type = software ? "STREAMING" : (activity.type ?? "PLAYING");
   const ref = { type, name: activity.name, details: activity.details, state: activity.state, isLive: true };
-  const { title, subtitle } = activityRefHeadline(ref);
+  const headline = activityRefHeadline(ref);
+  const title = software ? formatActivityTitle(activity) : headline.title;
+  const subtitle = software ? null : headline.subtitle;
   const verb = activityVerbLabel(ref);
   const icon = activityTypeIcon(type);
   // Kapaklar göreli yol olarak gelebilir (/api/presence/covers/…).
-  const artwork = resolveMediaUrl(activity.largeImageUrl) || resolveMediaUrl(activity.appIconUrl) || null;
+  const artwork = software ? null : resolveMediaUrl(activity.largeImageUrl) || resolveMediaUrl(activity.appIconUrl) || null;
   const shownImage = artwork && artwork !== failedSrc ? artwork : null;
 
   const send = async (content: string) => {
@@ -177,7 +182,7 @@ function SheetBody({ target, onClose }: { target: ActivityReplyTarget; onClose: 
                   style={{ flex: 1, fontSize: 10, lineHeight: 14, letterSpacing: 0.8, ...fw(800), color: colors.muted, textTransform: "uppercase" }}
                   numberOfLines={1}
                 >
-                  {activity.name} · {verb}
+                  {software ? verb : `${activity.name} · ${verb}`}
                 </Text>
                 <ElapsedLabel startedAt={activity.startedAt} />
               </View>

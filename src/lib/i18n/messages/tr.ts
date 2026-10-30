@@ -34,6 +34,15 @@ export const tr = {
     file: "📎 {name}",
     attachment: "📎 Ek",
   },
+  /** Etkinlik metinleri. `broadcast`: yayın (lib/activity-broadcast) — yayın programının adı yazmaz. */
+  activity: {
+    broadcast: {
+      live: "Yayında",
+      game: "{game} yayını yapıyor",
+      liveOn: "{platform}'te yayında",
+      title: "Canlı yayın",
+    },
+  },
   settings: {
     title: "Ayarlar",
     editProfile: "Profilini düzenle",

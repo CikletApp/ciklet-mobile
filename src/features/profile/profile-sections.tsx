@@ -10,7 +10,9 @@ import type {
   ProfileGameView,
 } from "@/api/types";
 import { Avatar, Icon, Pressable, showToast } from "@/components/ui";
+import { isStreamingSoftwareActivity } from "@/lib/activity-broadcast";
 import { resolveMediaUrl } from "@/lib/config";
+import { formatActivityTitle } from "@/lib/format";
 import {
   ACTIVITY_VERB,
   connectionMeta,
@@ -274,7 +276,10 @@ export function ActivityList({ items }: { items: ProfileActivitySession[] }) {
     <View style={{ gap: spacing.xs }}>
       {items.map((activity) => {
         const live = !activity.endedAt;
-        const icon = resolveMediaUrl(activity.largeImageUrl || activity.appIconUrl);
+        // Yayın programı (OBS…): adı ve ikonu yok — "Canlı yayın", yayın fiili.
+        const software = isStreamingSoftwareActivity(activity);
+        const icon = software ? null : resolveMediaUrl(activity.largeImageUrl || activity.appIconUrl);
+        const verbType = software ? "STREAMING" : activity.type;
         return (
           <View
             key={activity.id}
@@ -288,17 +293,23 @@ export function ActivityList({ items }: { items: ProfileActivitySession[] }) {
             }}
           >
             <View style={{ width: 40, height: 40, borderRadius: radii.md, overflow: "hidden", backgroundColor: colors.raised }}>
-              {icon ? <Image source={{ uri: icon }} style={{ width: "100%", height: "100%" }} contentFit="cover" /> : null}
+              {icon ? (
+                <Image source={{ uri: icon }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              ) : software ? (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                  <Icon name="video" size={18} color={colors.muted} />
+                </View>
+              ) : null}
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
-                {activity.name}
+                {formatActivityTitle(activity)}
               </Text>
               <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
-                {activity.details ? `${activity.details} · ` : ""}
+                {activity.details && !software ? `${activity.details} · ` : ""}
                 {live
                   ? "şu an"
-                  : `${ACTIVITY_VERB[activity.type] ?? "kullandı"} · ${sessionDurationLabel(activity.startedAt, activity.lastSeenAt)}`}
+                  : `${ACTIVITY_VERB[verbType] ?? "kullandı"} · ${sessionDurationLabel(activity.startedAt, activity.lastSeenAt)}`}
               </Text>
             </View>
             {live ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.online }} /> : null}

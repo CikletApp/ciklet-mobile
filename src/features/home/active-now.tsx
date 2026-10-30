@@ -10,7 +10,8 @@ import { Avatar, Icon, Pressable } from "@/components/ui";
 import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presence/activity-reply-sheet";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { resolveMediaUrl } from "@/lib/config";
-import { displayNameOf, formatActivity } from "@/lib/format";
+import { isStreamingSoftwareActivity } from "@/lib/activity-broadcast";
+import { displayNameOf, formatActivity, formatActivityTitle } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { visibleActivity } from "@/lib/recognized-games";
 import { usePresenceStore, useRecognizedGames } from "@/stores/presence";
@@ -59,12 +60,15 @@ export function ActiveNow() {
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.md }}>
         {active.map(({ friend, activity }) => {
-          // Kapaklar göreli yol olarak gelebilir (/api/presence/covers/…).
-          const largeImage = resolveMediaUrl(activity?.largeImageUrl);
-          const smallImage = resolveMediaUrl(activity?.smallImageUrl);
-          const activityLogo = resolveMediaUrl(activity?.appIconUrl) || largeImage;
-          const backdrop = largeImage || activityLogo;
           if (!activity) return null;
+          // Yayın programının (OBS…) adı ve ikonu gösterilmez: "Yayında" ve
+          // yayın simgesi (lib/activity-broadcast).
+          const software = isStreamingSoftwareActivity(activity);
+          // Kapaklar göreli yol olarak gelebilir (/api/presence/covers/…).
+          const largeImage = software ? null : resolveMediaUrl(activity.largeImageUrl);
+          const smallImage = software ? null : resolveMediaUrl(activity.smallImageUrl);
+          const activityLogo = software ? null : resolveMediaUrl(activity.appIconUrl) || largeImage;
+          const backdrop = largeImage || activityLogo;
           const label = formatActivity(activity);
 
           return (
@@ -133,14 +137,14 @@ export function ActiveNow() {
                     </View>
                   ) : (
                     <View style={{ width: 42, height: 42, borderRadius: radii.md, backgroundColor: colors.raised, alignItems: "center", justifyContent: "center" }}>
-                      <Icon name="compass" size={20} color={colors.accent} />
+                      <Icon name={software ? "video" : "compass"} size={20} color={colors.accent} />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
                     {/* Satırlar web'le aynı: dinleme/izlemede şarkı–sanatçı,
                         diğerlerinde uygulama adı–ayrıntı ve geçen süre. */}
                     <Text style={{ fontSize: 12, lineHeight: 16, ...fw(700), color: colors.bright }} numberOfLines={1}>
-                      {isMedia(activity) ? activity.details || activity.name : activity.name}
+                      {formatActivityTitle(activity)}
                     </Text>
                     {isMedia(activity) ? (
                       <Text style={{ fontSize: 11, lineHeight: 15, color: colors.muted }} numberOfLines={1}>{activity.state || activity.name}</Text>

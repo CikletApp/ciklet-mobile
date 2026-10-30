@@ -6,7 +6,9 @@
  * düzeyinde bir kez kurulur, her çağrıda yeniden yaratılmaz.
  */
 
+import { broadcastPresentation, broadcastText, type BroadcastLabels, type BroadcastSource } from "./activity-broadcast";
 import { activityReplyPreview } from "./activity-reply";
+import { currentTranslator, type Translator } from "./i18n";
 import { formatMessagePreview } from "./message-preview";
 
 const timeFormat = new Intl.DateTimeFormat("tr-TR", {
@@ -236,9 +238,28 @@ export function truncate(text: string, max: number): string {
   return `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Zengin durumun cümlesi — "Minecraft oynuyor", "Spotify dinliyor". */
-export function formatActivity(activity: { name: string; type?: string } | null | undefined): string | null {
+/** Yayın etiketleri (lib/activity-broadcast). `t` yoksa uygulamanın o anki dili. */
+export function broadcastLabels(t: Translator = currentTranslator()): BroadcastLabels {
+  return {
+    live: t("activity.broadcast.live"),
+    game: t("activity.broadcast.game"),
+    liveOn: t("activity.broadcast.liveOn"),
+    title: t("activity.broadcast.title"),
+  };
+}
+
+/**
+ * Zengin durumun cümlesi — "Minecraft oynuyor", "Spotify dinliyor".
+ * Yayında: "FC 27 yayını yapıyor" / "Yayında" — yayın programının (OBS…)
+ * adı yazmaz (lib/activity-broadcast).
+ */
+export function formatActivity(
+  activity: (BroadcastSource & { type?: string }) | null | undefined,
+  t?: Translator,
+): string | null {
   if (!activity?.name) return null;
+  const broadcast = broadcastPresentation(activity);
+  if (broadcast) return broadcastText(broadcast, broadcastLabels(t));
   const verb =
     activity.type === "LISTENING" ? "dinliyor"
       : activity.type === "WATCHING" ? "izliyor"
@@ -246,6 +267,19 @@ export function formatActivity(activity: { name: string; type?: string } | null 
           : activity.type === "STREAMING" ? "yayında"
             : "kullanıyor";
   return `${activity.name} ${verb}`;
+}
+
+/**
+ * Etkinlik kartının başlığı: medyada parça/video adı, oyunsuz yayın
+ * programında "Canlı yayın" (programın adı değil), diğerlerinde ad.
+ */
+export function formatActivityTitle(
+  activity: BroadcastSource & { type?: string | number | null; details?: string | null },
+  t?: Translator,
+): string {
+  if (activity.type === "LISTENING" || activity.type === "WATCHING") return activity.details || activity.name;
+  if (broadcastPresentation(activity)?.software) return broadcastLabels(t).title;
+  return activity.name;
 }
 
 /** Durumun kısa, küçük harfli karşılığı — sohbet başlığının alt satırı. */

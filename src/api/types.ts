@@ -423,6 +423,15 @@ export interface RichPresence {
   smallImageUrl?: string;
   appIconUrl?: string;
   timestamps?: { start: number; end: number };
+  /** Yalnızca `STREAMING`: bağlı hesap yayını (Twitch/Kick); `state` yayının kategorisi. */
+  platform?: "twitch" | "kick" | "youtube";
+  /**
+   * Yalnızca oyun: oyunla aynı anda bir yayın programı (OBS…) açık (web
+   * istemcisi koyar) → "<oyun> yayını yapıyor" (lib/activity-broadcast).
+   */
+  broadcasting?: boolean;
+  /** Bot etkinliği (ağ geçidi basar). */
+  bot?: boolean;
   /**
    * Etkinliğin kaynağı telefon ise `"mobile"` (bkz. features/presence/
    * media-activity). Masaüstü ve web göndermiyor; yoksa masaüstü/web sayılır.

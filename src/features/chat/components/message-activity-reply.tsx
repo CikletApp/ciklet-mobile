@@ -3,6 +3,8 @@ import { Text, View } from "react-native";
 import { Image } from "expo-image";
 
 import { Icon, type IconName } from "@/components/ui";
+import { isStreamingSoftwareActivity } from "@/lib/activity-broadcast";
+import { broadcastLabels } from "@/lib/format";
 import {
   activityRefHeadline,
   activityRefType,
@@ -31,10 +33,15 @@ export function MessageActivityReply({
   isMine: boolean;
 }) {
   const [failed, setFailed] = useState(false);
-  const { title, subtitle } = activityRefHeadline(activity);
-  const verb = activityVerbLabel(activity);
-  const icon = activityTypeIcon(activityRefType(activity));
-  const image = activity.largeImageUrl && !failed ? activity.largeImageUrl : null;
+  // Yayın programı (OBS…): adı ve ikonu yok — "Canlı yayın · Yayında" (lib/activity-broadcast).
+  const software = isStreamingSoftwareActivity({ type: activityRefType(activity), name: activity.name });
+  const shownRef = software ? { ...activity, type: "STREAMING" } : activity;
+  const headline = activityRefHeadline(shownRef);
+  const title = software ? broadcastLabels().title : headline.title;
+  const subtitle = software ? null : headline.subtitle;
+  const verb = activityVerbLabel(shownRef);
+  const icon = activityTypeIcon(activityRefType(shownRef));
+  const image = activity.largeImageUrl && !failed && !software ? activity.largeImageUrl : null;
 
   return (
     // Tepki tek emoji: balon dar kalmasın, kart okunur genişlikte dursun.
@@ -89,7 +96,7 @@ export function MessageActivityReply({
               style={{ flexShrink: 1, fontSize: 10, lineHeight: 14, letterSpacing: 0.8, ...fw(800), color: colors.muted, textTransform: "uppercase" }}
               numberOfLines={1}
             >
-              {activity.name} · {verb}
+              {software ? verb : `${activity.name} · ${verb}`}
             </Text>
           </View>
           <Text style={{ fontSize: 13, lineHeight: 18, ...fw(700), color: colors.bright }} numberOfLines={1}>
