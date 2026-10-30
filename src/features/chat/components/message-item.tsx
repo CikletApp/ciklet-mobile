@@ -150,6 +150,9 @@ export function MessageItem({
   const flash = useMessageFlash(message.id);
   const scope = useChatScope();
   const bubbleRef = useRef<View>(null);
+  // Sohbetten açılan profil, "Uygulamalar" (USER komutları) için sohbeti bilir.
+  const openProfile = (profileId: string) =>
+    router.push(scope ? { pathname: "/profile/[profileId]", params: { profileId, chatId: scope.chatId } } : `/profile/${profileId}`);
 
   // ── Sola çekerek yanıtla ──────────────────────────────────────────
   // Yatay çekiş satırı parmakla taşır; eşiği geçince dokunsal geri bildirim
@@ -307,7 +310,7 @@ export function MessageItem({
       <StyledName
         profileId={profile.id}
         name={name}
-        onPress={() => router.push(`/profile/${profile.id}`)}
+        onPress={() => openProfile(profile.id)}
         textStyle={{ ...typography.caption, ...fw(700), color: nameColor(message, profile.id) }}
         numberOfLines={1}
       />
@@ -646,7 +649,7 @@ export function MessageItem({
         {avatarColumn ? (
           lastInGroup ? (
             <Pressable
-              onPress={() => router.push(`/profile/${profile.id}`)}
+              onPress={() => openProfile(profile.id)}
               accessibilityRole="button"
               accessibilityLabel={`${name} profilini görüntüle`}
             >

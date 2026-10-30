@@ -1,80 +1,51 @@
 import { FlatList, Pressable, Text, View } from "react-native";
-import { useQuery } from "@tanstack/react-query";
 
-import { ApiError, api } from "@/api/client";
-import { endpoints } from "@/api/endpoints";
 import { Avatar } from "@/components/ui";
+import { useLocale, useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { commandPaths, localize, pathOptions } from "../app-commands";
+import { flattenSlashCommands, type SlashBot, type SlashCommandEntry } from "../interactions";
 
 /**
- * Kanalda "/" komut önerileri (Telegram'daki bot komut listesi).
+ * "/" komut listesi (Discord gibi; web ile aynı): bot avatarı, `/ad`
+ * (alt komutlar DÜZLEŞTİRİLMİŞ girişler: `/ad grup alt`), yerelleştirilmiş
+ * açıklama, sağda bot adı. Başlık "Komutlar". Yazdıkça ad başına göre
+ * süzülür (varsayılan ya da yerel ada göre).
  *
- * Seçilen komut yazı kutusuna "/ad " olarak girer; gönderimde metin kurulu
- * bir komuta uyuyorsa düz mesaj yerine etkileşim açılır (bkz. interactions.ts,
- * web ile aynı yol). Uymayan "/" metni eskisi gibi mesaj olarak gider.
+ * Seçilen giriş yazı kutusunu komut kipine sokar (bkz. command-mode.tsx).
  */
-
-export interface BotCommand {
-  /** "/" OLMADAN; [a-z0-9_-], en çok 32. */
-  name: string;
-  description: string;
-}
-
-export interface CommandBot {
-  /** Botun profil kimliği. */
-  id: string;
-  applicationId: string;
-  /** Görünen ad. */
-  name: string;
-  username: string;
-  imageUrl: string | null;
-  commands: BotCommand[];
-}
 
 export interface CommandMatch {
   key: string;
-  bot: CommandBot;
-  command: BotCommand;
+  entry: SlashCommandEntry;
+  /** Alt komut yolu: [] | ["alt"] | ["grup", "alt"]. */
+  path: string[];
+  /** Ekranda görünen `ad grup alt` (yerel adlarla). */
+  label: string;
+  description: string;
 }
 
-/**
- * Kanaldaki botların komutları. Uç henüz her ortamda yayında değil: 404
- * (ya da 401/403) ve boş liste "öneri yok" demek — "/" düğmesi hiç
- * görünmez, hata gösterilmez.
- */
-export function useBotCommands(serverId: string | undefined, channelId: string | undefined) {
-  return useQuery({
-    queryKey: ["bot-commands", serverId, channelId],
-    enabled: Boolean(serverId && channelId),
-    queryFn: async (): Promise<CommandBot[]> => {
-      try {
-        const data = await api<{ bots?: CommandBot[] }>(endpoints.botCommands(serverId ?? "", channelId ?? ""));
-        return (data.bots ?? []).filter((bot) => Array.isArray(bot.commands) && bot.commands.length > 0);
-      } catch (reason) {
-        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) return [];
-        throw reason;
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-}
-
-/**
- * Taslak "/" ile başlıyor ve henüz boşluk yoksa (komut adı yazılıyor) ada
- * göre süzülmüş öneriler. Aynı adı taşıyan iki botun komutu ayrı ayrı
- * listelenir; hangisi olduğu avatar ve addan anlaşılır.
- */
-export function matchCommands(bots: CommandBot[], draft: string): CommandMatch[] {
-  if (!draft.startsWith("/") || /\s/.test(draft)) return [];
-  const prefix = draft.slice(1).toLowerCase();
+/** Taslak "/" ile başlıyorsa süzülmüş düzleştirilmiş girişler. */
+export function matchCommands(bots: SlashBot[], draft: string, locale: string): CommandMatch[] {
+  if (!draft.startsWith("/") || draft.includes("\n")) return [];
+  const query = draft.slice(1).toLocaleLowerCase("tr-TR").replace(/\s+/g, " ").trimStart();
   const matches: CommandMatch[] = [];
-  for (const bot of bots) {
-    for (const command of bot.commands) {
-      if (command.name.toLowerCase().startsWith(prefix)) {
-        matches.push({ key: `${bot.id}:${command.name}`, bot, command });
-      }
+  for (const entry of flattenSlashCommands(bots)) {
+    const { command } = entry;
+    for (const path of commandPaths(command)) {
+      const chain = pathOptions(command, path);
+      const base = [command.name, ...chain.map((o) => o.name)].join(" ");
+      const label = [
+        localize(command.name, command.name_localizations, locale),
+        ...chain.map((o) => localize(o.name, o.name_localizations, locale)),
+      ].join(" ");
+      if (!base.startsWith(query) && !label.toLocaleLowerCase("tr-TR").startsWith(query)) continue;
+      const leaf = chain[chain.length - 1];
+      const description = leaf
+        ? localize(leaf.description, leaf.description_localizations, locale)
+        : localize(command.description, command.description_localizations, locale);
+      matches.push({ key: `${entry.bot.id}:${command.id}:${path.join(" ")}`, entry, path, label, description });
     }
   }
   return matches;
@@ -86,36 +57,24 @@ export function CommandSuggestions({
   onPick,
 }: {
   matches: CommandMatch[];
-  onPick: (command: string) => void;
+  onPick: (match: CommandMatch) => void;
 }) {
+  const t = useT();
   return (
-    <View
-      style={{
-        position: "absolute",
-        left: spacing.sm,
-        right: spacing.sm,
-        bottom: spacing.xs,
-        maxHeight: 272,
-        borderRadius: radii.lg,
-        borderCurve: "continuous",
-        borderWidth: 1,
-        borderColor: colors.bentoBorder,
-        backgroundColor: colors.panel,
-        boxShadow: `0 8px 24px ${colors.shadow}`,
-        overflow: "hidden",
-      }}
-    >
+    <FloatingList>
       <FlatList
         data={matches}
         keyExtractor={(match) => match.key}
         // Klavye açıkken ilk dokunuş klavyeyi kapatmakla harcanmasın.
         keyboardShouldPersistTaps="always"
-        contentContainerStyle={{ paddingVertical: spacing.xs }}
+        contentContainerStyle={{ paddingBottom: spacing.xs }}
+        ListHeaderComponent={<ListHeader title={t("appCommands.commands")} />}
+        stickyHeaderIndices={[0]}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => onPick(item.command.name)}
+            onPress={() => onPick(item)}
             accessibilityRole="button"
-            accessibilityLabel={`/${item.command.name}, ${item.bot.name}: ${item.command.description}`}
+            accessibilityLabel={`/${item.label}, ${item.entry.bot.name}: ${item.description}`}
             style={({ pressed }) => ({
               flexDirection: "row",
               alignItems: "center",
@@ -126,25 +85,57 @@ export function CommandSuggestions({
               backgroundColor: pressed ? colors.raised : "transparent",
             })}
           >
-            <Avatar imageUrl={item.bot.imageUrl} fallbackText={item.bot.name} size={32} />
+            <Avatar imageUrl={item.entry.bot.imageUrl} fallbackText={item.entry.bot.name} size={32} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}>
-                <Text numberOfLines={1} style={{ ...typography.body, ...fw(700), color: colors.bright, flexShrink: 1 }}>
-                  /{item.command.name}
-                </Text>
-                <Text numberOfLines={1} style={{ fontSize: 11, lineHeight: 14, color: colors.muted, flexShrink: 1 }}>
-                  {item.bot.name}
-                </Text>
-              </View>
-              {item.command.description ? (
+              <Text numberOfLines={1} style={{ ...typography.body, ...fw(700), color: colors.bright }}>
+                /{item.label}
+              </Text>
+              {item.description ? (
                 <Text numberOfLines={1} style={{ ...typography.caption, color: colors.muted }}>
-                  {item.command.description}
+                  {item.description}
                 </Text>
               ) : null}
             </View>
+            <Text numberOfLines={1} style={{ fontSize: 11, lineHeight: 14, color: colors.muted, maxWidth: "35%" }}>
+              {item.entry.bot.name}
+            </Text>
           </Pressable>
         )}
       />
+    </FloatingList>
+  );
+}
+
+/** Yazma çubuğunun hemen üstünde yüzen kart (komut ve seçici listeleri). */
+export function FloatingList({ children }: { children: React.ReactNode }) {
+  return (
+    <View
+      style={{
+        position: "absolute",
+        left: spacing.sm,
+        right: spacing.sm,
+        bottom: spacing.xs,
+        maxHeight: 300,
+        borderRadius: radii.lg,
+        borderCurve: "continuous",
+        borderWidth: 1,
+        borderColor: colors.bentoBorder,
+        backgroundColor: colors.panel,
+        boxShadow: `0 8px 24px ${colors.shadow}`,
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
+/** Listenin küçük büyük harfli başlığı ("Komutlar", "İsteğe bağlı"). */
+export function ListHeader({ title }: { title: string }) {
+  const locale = useLocale();
+  return (
+    <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.xs, backgroundColor: colors.panel }}>
+      <Text style={{ ...typography.overline, color: colors.muted }}>{title.toLocaleUpperCase(locale === "tr" ? "tr-TR" : "en-US")}</Text>
     </View>
   );
 }

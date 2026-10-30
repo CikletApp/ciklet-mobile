@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type RefObject } from "react";
-import { BackHandler, Keyboard, ScrollView, Text, TextInput, View } from "react-native";
+import { BackHandler, Keyboard, ScrollView, Text, TextInput, View, type KeyboardTypeOptions } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -76,6 +76,12 @@ export function Composer({
   onVoiceRecorded,
   onCaretChange,
   commandsAvailable = false,
+  commandBar,
+  commandError,
+  commandMode = false,
+  keyboardType,
+  maxLength,
+  onBackspaceEmpty,
   controlRef,
 }: {
   inputRef: RefObject<TextInput | null>;
@@ -103,6 +109,18 @@ export function Composer({
   onCaretChange?: (caret: number) => void;
   /** Kanaldaki botların "/" komutu var — klavye açıkken "/" düğmesi görünür. */
   commandsAvailable?: boolean;
+  /**
+   * Komut kipi (bkz. command-mode.tsx): kutunun üstünde komut etiketi ve
+   * seçenek çipleri, altında kırmızı doğrulama hatası. Kipteyken gönder
+   * düğmesi hep açık (doğrulama gönderimde), ek/mikrofon/"/" gizli.
+   */
+  commandBar?: ReactNode;
+  commandError?: string | null;
+  commandMode?: boolean;
+  keyboardType?: KeyboardTypeOptions;
+  maxLength?: number;
+  /** Kutu boşken geri silme (komut kipinde çip kaldırma / kipten çıkma). */
+  onBackspaceEmpty?: () => void;
   controlRef?: RefObject<ComposerHandle | null>;
 }) {
   const insets = useSafeAreaInsets();
@@ -115,12 +133,12 @@ export function Composer({
   /** İmleç — emoji sona değil imlecin olduğu yere girer. */
   const selection = useRef({ start: 0, end: 0 });
 
-  const canSend = value.trim().length > 0 || attachments.length > 0;
+  const canSend = commandMode || value.trim().length > 0 || attachments.length > 0;
   const isUploading = uploadProgress !== null;
   const silent = hasSilentPrefix(value);
   const voice = useVoiceRecorder((asset, meta) => onVoiceRecorded?.(asset, meta));
   const recording = voice.phase === "recording";
-  const showMic = Boolean(onVoiceRecorded) && !canSend && !isUploading;
+  const showMic = Boolean(onVoiceRecorded) && !canSend && !isUploading && !commandMode;
   const panelOpen = panel !== null;
   // Arama klavyesi açıkken panel klavyenin üstünde dar bir şerit olarak kalır.
   const compact = panelOpen && searching && keyboardVisible;
@@ -212,7 +230,7 @@ export function Composer({
     replaceRange(start - cut, end, "");
   };
 
-  const slashVisible = commandsAvailable && keyboardVisible && !panelOpen && value.length === 0;
+  const slashVisible = commandsAvailable && !commandMode && keyboardVisible && !panelOpen && value.length === 0;
 
   return (
     <View>
@@ -294,6 +312,8 @@ export function Composer({
           </View>
         ) : null}
 
+        {commandBar}
+
         {isUploading || uploadError ? (
           <Text style={{ ...typography.caption, color: uploadError ? colors.danger : colors.muted }}>
             {uploadError ?? uploadProgress}
@@ -310,14 +330,16 @@ export function Composer({
             <RecordingBar elapsedMs={voice.elapsedMs} level={voice.level} onCancel={voice.cancel} />
           ) : (
           <>
-          <IconButton
-            icon="plus"
-            label="Dosya ekle"
-            background="transparent"
-            tint={colors.muted}
-            disabled={isUploading}
-            onPress={onPickAttachment}
-          />
+          {commandMode ? null : (
+            <IconButton
+              icon="plus"
+              label="Dosya ekle"
+              background="transparent"
+              tint={colors.muted}
+              disabled={isUploading}
+              onPress={onPickAttachment}
+            />
+          )}
 
           <View
             style={{
@@ -348,9 +370,20 @@ export function Composer({
                 // `keyboardDidShow` gelmez; panel burada çekilir.
                 if (panelOpen && keyboardVisible) closePanel();
               }}
+              onKeyPress={
+                onBackspaceEmpty
+                  ? (event) => {
+                      if (event.nativeEvent.key === "Backspace" && value.length === 0) onBackspaceEmpty();
+                    }
+                  : undefined
+              }
+              keyboardType={keyboardType}
+              maxLength={maxLength}
               placeholder={placeholder}
               placeholderTextColor={colors.muted}
-              multiline
+              multiline={!commandMode}
+              submitBehavior={commandMode ? "submit" : undefined}
+              onSubmitEditing={commandMode ? () => onSend() : undefined}
               style={{
                 flex: 1,
                 maxHeight: 120,
@@ -417,7 +450,7 @@ export function Composer({
             // Basılı tutunca sessiz gönderim (Telegram "sessiz gönder").
             <Pressable
               onPress={() => onSend()}
-              onLongPress={canSend && !isUploading && !silent ? () => onSend({ silent: true }) : undefined}
+              onLongPress={canSend && !isUploading && !silent && !commandMode ? () => onSend({ silent: true }) : undefined}
               delayLongPress={400}
               disabled={!canSend || isUploading}
               haptic="light"
@@ -438,6 +471,12 @@ export function Composer({
             </Pressable>
           )}
         </View>
+
+        {commandError ? (
+          <Text accessibilityLiveRegion="polite" style={{ ...typography.caption, color: colors.danger }}>
+            {commandError}
+          </Text>
+        ) : null}
       </View>
 
       {/* Klavyenin ya da panelin kapladığı alan. */}

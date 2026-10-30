@@ -17,11 +17,12 @@ import {
   useBulkBan,
   useKickMember,
   useMyPermissions,
+  useServerChannels,
   useServerMemberPages,
   useServerSummary,
   useTimeoutMember,
 } from "@/api/hooks";
-import type { ServerMemberListItem } from "@/api/types";
+import type { ChannelExtras, ServerMemberListItem } from "@/api/types";
 import {
   ActionSheet,
   Avatar,
@@ -38,6 +39,7 @@ import {
   showToast,
   type ActionSheetItem,
 } from "@/components/ui";
+import { useUserAppSheetItems } from "@/features/chat/user-apps";
 import { NameplateBackground } from "@/features/profile/nameplate";
 import { BanSheet, PruneSheet } from "@/features/server/moderation-sheets";
 import { RoleIconBadge, roleIconFromRoles } from "@/features/server/role-icon-badge";
@@ -63,8 +65,10 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * rolsüz, uzun süredir görülmeyen üyeleri "Üyeleri Temizle" ile çıkarır.
  */
 export default function ServerMembersScreen() {
-  const { serverId } = useLocalSearchParams<{ serverId: string }>();
+  // `channelId`: bir kanaldan açıldıysa "Uygulamalar" (USER komutları) orada çalışır.
+  const { serverId, channelId } = useLocalSearchParams<{ serverId: string; channelId?: string }>();
   const { data: server } = useServerSummary(serverId);
+  const { data: serverChannels } = useServerChannels(channelId ? undefined : serverId);
   const { data: actor } = useMyPermissions(serverId);
   const myId = useAuth((s) => s.profile?.id);
   const now = useNow(30_000);
@@ -131,7 +135,18 @@ export default function ServerMembersScreen() {
   const fail = (error: unknown, fallback: string) =>
     showToast(error instanceof ApiError ? error.message : fallback, "error");
 
-  const menuItems: (ActionSheetItem | "separator")[] = [];
+  // Kanal bağlamı yoksa sunucunun sistem kanalı, o da yoksa ilk metin kanalı
+  // (web'de üye listesi hep açık kanalın yanında; mobilde bu ekran sunucu düzeyinde).
+  const appChannelId = useMemo(() => {
+    if (channelId) return channelId;
+    const list = (serverChannels ?? []) as (NonNullable<typeof serverChannels>[number] & ChannelExtras)[];
+    const text = list.filter((c) => c.type === "TEXT" && !c.parentChannelId && !c.forum);
+    const systemId = (server as { systemChannelId?: string | null } | undefined)?.systemChannelId;
+    return text.find((c) => c.id === systemId)?.id ?? text[0]?.id;
+  }, [channelId, serverChannels, server]);
+  const appItems = useUserAppSheetItems(appChannelId, selected?.profileId);
+
+  const menuItems: (ActionSheetItem | "separator" | { heading: string })[] = [];
   if (selected) {
     const can = permissionsFor(selected);
     const name = nameOf(selected);
@@ -141,6 +156,7 @@ export default function ServerMembersScreen() {
       icon: "user",
       onPress: () => router.push(`/profile/${selected.profileId}`),
     });
+    if (appItems.length > 0) menuItems.push("separator", ...appItems);
     if (can.timeout || can.kick || can.ban) menuItems.push("separator");
     if (can.timeout) {
       if (isTimedOut(selected.timedOutUntil, now)) {

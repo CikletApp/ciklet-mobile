@@ -72,7 +72,7 @@ export default function DirectChatScreen() {
 
   const openDetails = () => {
     if (isGroup) router.push(`/directs/${directId}/info`);
-    else if (peer && !isNotes) router.push(`/profile/${peer.id}`);
+    else if (peer && !isNotes) router.push({ pathname: "/profile/[profileId]", params: { profileId: peer.id, chatId: directId } });
   };
 
   const menu: MenuItem[] = [

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui";
 import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presence/activity-reply-sheet";
 import { isMobileActivity } from "@/features/presence/media-activity";
+import { UserAppsCard } from "@/features/chat/user-apps";
 import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import {
@@ -99,7 +100,8 @@ const PLAN_LABELS: Record<string, string> = {
 const BANNER_HEIGHT = 110;
 
 export default function ProfileScreen() {
-  const { profileId } = useLocalSearchParams<{ profileId: string }>();
+  // `chatId`: profil bir sohbetten açıldıysa — "Uygulamalar" (USER komutları) o sohbette çalışır.
+  const { profileId, chatId } = useLocalSearchParams<{ profileId: string; chatId?: string }>();
   const { accepted } = useFriends();
   const { data: directs } = useDirects();
   const card = useProfileCard(profileId);
@@ -314,6 +316,8 @@ export default function ProfileScreen() {
               ) : null}
             </View>
           )}
+
+          <UserAppsCard chatId={chatId} targetId={profile.id} />
 
           {data ? (
             <View style={{ marginHorizontal: -spacing.lg }}>

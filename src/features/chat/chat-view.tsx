@@ -43,7 +43,8 @@ import { isAfterSnowflake } from "@/lib/snowflake";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { AttachmentSheet, type AttachmentSource } from "./components/attachment-sheet";
 import { DaySeparator } from "./components/day-separator";
-import { CommandSuggestions, matchCommands, useBotCommands } from "./components/command-suggestions";
+import { CommandSuggestions, matchCommands, type CommandMatch } from "./components/command-suggestions";
+import { CommandBar, CommandPicker, commandInputProps, useCommandMode } from "./command-mode";
 import { Composer, type ComposerHandle, type PendingFile } from "./components/composer";
 import {
   ComposerSuggestions,
@@ -65,7 +66,17 @@ import { ChatScopeProvider, type ChatScope } from "./chat-scope";
 import { canForwardMessage } from "./forward";
 import { dropExpired, nextExpiry } from "./message-expiry";
 import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
-import { matchSlashCommand, runSlashCommand, waitForAck } from "./interactions";
+import { localize } from "./app-commands";
+import {
+  contextMenuCommands,
+  matchSlashCommand,
+  runContextMenuCommand,
+  runSlashCommand,
+  silentNotice,
+  useAppCommands,
+  waitForAck,
+} from "./interactions";
+import { useLocale, useT } from "@/lib/i18n";
 import { SILENT_PREFIX } from "./message-markup";
 import { useServerEmojis, type ServerStickerLite } from "./server-assets";
 import { useComposer, type ComposerAttachment } from "./use-composer";
@@ -163,11 +174,13 @@ export function ChatView({
   const actions = useMessageActions(kind, chatId, serverId);
   const insets = useSafeAreaInsets();
   const scope = useMemo<ChatScope>(() => ({ kind, chatId, serverId }), [kind, chatId, serverId]);
-  // "/" komutları yalnızca sunucu kanallarında (botlar orada).
-  const commandBots = useBotCommands(
-    kind === "channel" && !readOnlyOfficial ? serverId : undefined,
-    kind === "channel" ? chatId : undefined
-  );
+  // Uygulama komutları: sunucu kanalında ve botla birebir DM'de (insanla
+  // DM'de sunucu boş liste döndürür). "/" listesi, komut kipi ve mesaj
+  // eylemlerindeki "Uygulamalar" bölümü buradan beslenir.
+  const commandBots = useAppCommands(readOnlyOfficial ? undefined : chatId);
+  const locale = useLocale();
+  const t = useT();
+  const commandMode = useCommandMode({ chatId });
 
   // Sabitlenen mesajlar. Yetki kuralı web'le aynı (sunucu yine denetler):
   // DM ve grupta herkes, kanalda yönetici ve moderatör.
@@ -529,28 +542,34 @@ export function ChatView({
    */
   const runCommand = useCallback(
     async (text: string): Promise<false | "sent" | "failed"> => {
-      if (kind !== "channel" || !text.startsWith("/")) return false;
+      if (!text.startsWith("/")) return false;
       const match = matchSlashCommand(text, commandBots.data ?? []);
       if (!match) return false;
       stopTyping();
       setDraft("");
-      const result = await runSlashCommand(chatId, match);
+      // Yazılmış metin yedeği: argümanlar sunucuda komutun şemasına oturtulur.
+      const result = await runSlashCommand(chatId, match.entry, { args: match.args });
       if (!result.ok) {
         setDraft(text);
         showToast(result.error, "error");
         return "failed";
       }
       void waitForAck(chatId, result.id).then((silent) => {
-        if (silent) showToast(`${match.bot.name} komuta yanıt vermedi.`);
+        if (silent) showToast(silentNotice(match.entry.bot.name));
       });
       return "sent";
     },
-    [chatId, commandBots.data, kind, setDraft, stopTyping]
+    [chatId, commandBots.data, setDraft, stopTyping]
   );
 
   const onSend = useCallback(
     (options?: { silent?: boolean }) => {
       if (uploadingRef.current || commandRunningRef.current) return;
+      // Komut kipi: seçenekler doğrulanır ve çalıştırılır (hata kutunun altında).
+      if (commandMode.active) {
+        void commandMode.submit();
+        return;
+      }
       if (!draft.trim() && attachments.length === 0) return;
       if (requireAttachment && attachments.length === 0) {
         showToast("Bu medya kanalına yalnızca görsel, video ya da dosya ekli mesaj gönderilebilir.", "error");
@@ -594,7 +613,7 @@ export function ChatView({
       setReplyingTo(null);
       pickedRoles.current.clear();
     },
-    [attachments, commandBots.data, draft, replyingTo?.id, requireAttachment, runCommand, send, serverEmojis, setDraft, stopTyping]
+    [attachments, commandBots.data, commandMode, draft, replyingTo?.id, requireAttachment, runCommand, send, serverEmojis, setDraft, stopTyping]
   );
 
   const onSelectSticker = useCallback(
@@ -734,19 +753,28 @@ export function ChatView({
     requestAnimationFrame(() => composerRef.current?.focus());
   }, []);
 
-  /** Komut önerisi seçildi: "/komut " yazılır, imleç sona geçer. */
-  const onPickCommand = (name: string) => {
-    const next = `/${name} `;
-    setDraft(next);
-    composerRef.current?.focus();
-    requestAnimationFrame(() => composerRef.current?.setSelection(next.length, next.length));
+  /** Komut seçildi: yazı kutusu komut kipine girer (bkz. command-mode.tsx). */
+  const onPickCommand = (match: CommandMatch) => {
+    stopTyping();
+    setDraft("");
+    commandMode.enter(match);
+    requestAnimationFrame(() => composerRef.current?.focus());
   };
 
-  const commandMatches = matchCommands(commandBots.data ?? [], draft);
+  // Komut kipinde odak değişince (çipe dokunma, seçimden sonra) yazı kutusu odakta kalır.
+  const commandFocus = commandMode.active ? commandMode.state?.focus ?? -1 : null;
+  useEffect(() => {
+    if (commandFocus === null) return;
+    const frame = requestAnimationFrame(() => composerRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [commandFocus]);
+
+  const commandMatches = commandMode.active ? [] : matchCommands(commandBots.data ?? [], draft, locale);
+  const commandInput = commandInputProps(commandMode, t);
 
   // `@` / `:` önerileri — yalnızca sunucu kanalında (üyeler, roller, sunucu
-  // emojileri orada). Komut listesi açıksa o öncelikli.
-  const trigger = kind === "channel" && commandMatches.length === 0 ? suggestionTrigger : null;
+  // emojileri orada). Komut listesi ya da komut kipi açıksa o öncelikli.
+  const trigger = kind === "channel" && commandMatches.length === 0 && !commandMode.active ? suggestionTrigger : null;
   const suggestions = useComposerSuggestions(trigger, serverId);
 
   const onPickSuggestion = (item: ComposerSuggestion) => {
@@ -760,6 +788,9 @@ export function ChatView({
     syncTrigger(next, position);
     requestAnimationFrame(() => composerRef.current?.setSelection(position, position));
   };
+
+  // Mesaj eylemlerindeki "Uygulamalar" (MESSAGE komutları); yoksa bölüm yok.
+  const messageApps = useMemo(() => contextMenuCommands(commandBots.data ?? [], 3), [commandBots.data]);
 
   const selectedIds = selection.ids;
   const toggleSelected = selection.toggle;
@@ -970,7 +1001,9 @@ export function ChatView({
           {/* "/" komut önerileri mesajların üstünde, yazma çubuğunun hemen
               üzerinde yüzer; listenin kabı içinde kaldığı için dokunuşlar
               kesin olarak ona gelir. */}
-          {commandMatches.length > 0 ? (
+          {commandMode.active ? (
+            <CommandPicker mode={commandMode} chatId={chatId} kind={kind} serverId={serverId} />
+          ) : commandMatches.length > 0 ? (
             <CommandSuggestions matches={commandMatches} onPick={onPickCommand} />
           ) : suggestions.length > 0 ? (
             <ComposerSuggestions items={suggestions} onPick={onPickSuggestion} />
@@ -992,10 +1025,16 @@ export function ChatView({
           <Composer
             inputRef={composerRef}
             controlRef={composerControl}
-            commandsAvailable={Boolean(commandBots.data?.length)}
-            value={draft}
-            onChangeText={onChangeDraft}
+            commandsAvailable={(commandBots.data ?? []).some((bot) => bot.commands.some((c) => c.type === 1))}
+            value={commandMode.active ? commandMode.inputValue : draft}
+            onChangeText={commandMode.active ? commandMode.onChangeText : onChangeDraft}
             onSend={onSend}
+            commandMode={commandMode.active}
+            commandBar={commandMode.active ? <CommandBar mode={commandMode} /> : null}
+            commandError={commandMode.state?.error ?? null}
+            keyboardType={commandInput.keyboardType}
+            maxLength={commandInput.maxLength}
+            onBackspaceEmpty={commandMode.active ? commandMode.onBackspaceEmpty : undefined}
             attachments={attachments}
             replyingTo={replyingTo}
             uploadProgress={uploadProgress}
@@ -1013,7 +1052,7 @@ export function ChatView({
             onCancelReply={() => setReplyingTo(null)}
             onSelectGif={onSelectGif}
             onSelectActivity={onSelectActivity}
-            placeholder={placeholder}
+            placeholder={commandMode.active ? (commandInput.placeholder ?? placeholder) : placeholder}
           />
         )}
       </BlurTargetView>
@@ -1099,6 +1138,25 @@ export function ChatView({
                 }
           }
           serverId={serverId}
+          apps={messageApps.map((app) => ({
+            key: `${app.bot.id}:${app.command.id}`,
+            label: localize(app.command.name, app.command.name_localizations, locale),
+            botName: app.bot.name,
+            imageUrl: app.bot.imageUrl,
+            onPress: () => {
+              const target = selected.message.id;
+              setSelected(null);
+              void runContextMenuCommand(chatId, app, target).then((result) => {
+                if (!result.ok) {
+                  showToast(result.error, "error");
+                  return;
+                }
+                void waitForAck(chatId, result.id).then((silent) => {
+                  if (silent) showToast(silentNotice(app.bot.name));
+                });
+              });
+            },
+          }))}
           thread={
             canStartThread && serverId && canStartThreadFrom(selected.message)
               ? {

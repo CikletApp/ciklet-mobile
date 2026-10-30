@@ -17,6 +17,7 @@ import {
 } from "react-native-safe-area-context";
 
 import {
+  Avatar,
   EmojiImage,
   Icon,
   KeyboardAvoider,
@@ -28,6 +29,7 @@ import {
 import { classifyAttachment, readAttachmentInfo, type AttachmentInfo } from "@/lib/attachments";
 import { emojiUrl } from "@/lib/emoji";
 import type { ChatMessagePayload } from "@/realtime/events";
+import { useLocale, useT } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { isForwardedMessage } from "../forward";
@@ -78,7 +80,16 @@ const POP_IN = new Keyframe({
   100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.cubic) },
 }).duration(180);
 
-type Mode = "menu" | "picker" | "edit" | "report" | "thread";
+type Mode = "menu" | "picker" | "edit" | "report" | "thread" | "apps";
+
+/** "Uygulamalar" bölümündeki bir mesaj bağlam menüsü komutu (bot avatarı + yerel ad). */
+export interface MessageAppAction {
+  key: string;
+  label: string;
+  botName: string;
+  imageUrl: string | null;
+  onPress: () => void;
+}
 
 /** Alt başlık hareketsizlikte arşiv süreleri (web lib/threads `AUTO_ARCHIVE_CHOICES`). */
 const ARCHIVE_CHOICES: { minutes: number; label: string }[] = [
@@ -115,6 +126,7 @@ export function MessageContextMenu({
   serverId,
   canDeleteOthers = false,
   onSelectMessages,
+  apps = [],
 }: {
   message: ChatMessagePayload;
   /** Basılı tutulan balonun pencere koordinatları — kopya buraya çizilir. */
@@ -149,7 +161,11 @@ export function MessageContextMenu({
   canDeleteOthers?: boolean;
   /** Mesajları Yönet, sunucu kanalı: "Mesajları Seç" (toplu silme). */
   onSelectMessages?: () => void;
+  /** Sohbetteki botların MESSAGE komutları; boşsa "Uygulamalar" görünmez. */
+  apps?: MessageAppAction[];
 }) {
+  const t = useT();
+  const locale = useLocale();
   const insets = useSystemInsets();
   const myId = useAuth((state) => state.profile?.id);
   const [mode, setMode] = useState<Mode>("menu");
@@ -207,6 +223,8 @@ export function MessageContextMenu({
   if (onForward) actions.push({ key: "forward", icon: "forward", label: "İlet", onPress: onForward });
   if (thread) actions.push({ key: "thread", icon: "message", label: "Alt başlık oluştur", onPress: () => setMode("thread") });
   if (onSelectMessages) actions.push({ key: "select", icon: "check", label: "Mesajları Seç", onPress: onSelectMessages });
+  // Uygulamalar: bot komutları ayrı sayfada (web'deki alt menü karşılığı).
+  if (apps.length > 0) actions.push({ key: "apps", icon: "sparkles", label: t("appCommands.apps"), onPress: () => setMode("apps") });
   // İletilen mesaj düzenlenemez (web 403 döner): içerik başkasının sözü.
   // Anketin metni soru; düzenleme kartı bozardı.
   if (isMine && !isForwardedMessage(message) && (message.type as string) !== "POLL") {
@@ -278,6 +296,43 @@ export function MessageContextMenu({
           <Sheet onDismiss={onClose} fill drag={pickerDrag}>
             <EmojiPickerPanel onEmoji={(emoji) => void onReact(emoji)} headerGesture={pickerDrag.header} serverId={serverId} />
             {error ? <ErrorText error={error} /> : null}
+          </Sheet>
+        ) : null}
+
+        {mode === "apps" ? (
+          <Sheet onDismiss={onClose}>
+            <Text style={{ ...typography.overline, color: colors.muted }}>
+              {t("appCommands.apps").toLocaleUpperCase(locale === "tr" ? "tr-TR" : "en-US")}
+            </Text>
+            <View style={{ marginHorizontal: -spacing.sm }}>
+              {apps.map((app) => (
+                <Pressable
+                  key={app.key}
+                  onPress={app.onPress}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${app.label}, ${app.botName}`}
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.md,
+                    minHeight: 52,
+                    paddingHorizontal: spacing.sm,
+                    borderRadius: radii.md,
+                    backgroundColor: pressed ? colors.raised : "transparent",
+                  })}
+                >
+                  <Avatar imageUrl={app.imageUrl} fallbackText={app.botName} size={32} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={{ ...typography.body, color: colors.bright }}>
+                      {app.label}
+                    </Text>
+                    <Text numberOfLines={1} style={{ ...typography.caption, color: colors.muted }}>
+                      {app.botName}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
           </Sheet>
         ) : null}
 

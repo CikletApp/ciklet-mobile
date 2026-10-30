@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { Avatar } from "./avatar";
 import { Icon, type IconName } from "./icon";
 import { Pressable } from "./pressable";
 
@@ -15,6 +16,8 @@ export interface ActionSheetItem {
   /** Etiketin altındaki açıklama satırı. */
   detail?: string;
   destructive?: boolean;
+  /** Verilirse simge yerine avatar (ör. "Uygulamalar"daki bot). */
+  avatar?: { imageUrl: string | null; fallbackText: string };
   onPress: () => void;
 }
 
@@ -35,7 +38,8 @@ export function ActionSheet({
   visible: boolean;
   onClose: () => void;
   header?: ReactNode;
-  items: (ActionSheetItem | "separator")[];
+  /** `{ heading }`: küçük bölüm başlığı (ör. "Uygulamalar"). */
+  items: (ActionSheetItem | "separator" | { heading: string })[];
 }) {
   const insets = useSafeAreaInsets();
   const pending = useRef<(() => void) | null>(null);
@@ -118,6 +122,13 @@ export function ActionSheet({
                   key={`sep-${index}`}
                   style={{ height: 1, marginVertical: 6, marginHorizontal: spacing.md, backgroundColor: colors.border }}
                 />
+              ) : "heading" in item ? (
+                <Text
+                  key={`heading-${index}`}
+                  style={{ ...typography.overline, color: colors.muted, paddingHorizontal: spacing.md, paddingTop: 6, paddingBottom: 2 }}
+                >
+                  {item.heading}
+                </Text>
               ) : (
                 <Pressable
                   key={item.key}
@@ -139,7 +150,11 @@ export function ActionSheet({
                     backgroundColor: pressed ? colors.raised : "transparent",
                   })}
                 >
-                  <Icon name={item.icon} size={21} color={item.destructive ? colors.danger : colors.muted} />
+                  {item.avatar ? (
+                    <Avatar imageUrl={item.avatar.imageUrl} fallbackText={item.avatar.fallbackText} size={24} />
+                  ) : (
+                    <Icon name={item.icon} size={21} color={item.destructive ? colors.danger : colors.muted} />
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={{ ...typography.body, ...fw(500), color: item.destructive ? colors.danger : colors.bright }}>
                       {item.label}

@@ -165,9 +165,19 @@ export const endpoints = {
   /** GET: sunucu çıkartmaları `[{ id, name, description, imageUrl }]`. */
   serverStickers: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/stickers`,
   /**
-   * POST: eğik çizgi komutu `{ botId, name, args }` ya da bileşen (type 3)
-   * `{ messageId, customId, values? }` → `{ id }`. GET `…/interactions/{id}`
-   * → `{ status }` (3 sn sonra hâlâ PENDING ise bot yanıt vermedi).
+   * GET: sohbette görünen uygulama komutları (kanal ya da botla DM) —
+   * `{ bots: [{ id, applicationId, name, username, imageUrl, commands }] }`,
+   * komutlar Discord biçiminde (bkz. features/chat/app-commands).
+   */
+  applicationCommands: (chatId: string) =>
+    `/api/channels/${encodeURIComponent(chatId)}/application-commands`,
+  /**
+   * POST: eğik çizgi komutu `{ botId, commandId, name, commandType: 1,
+   * options | args, attachments? }`, bağlam menüsü `{ botId, commandId,
+   * commandType: 2|3, targetId }`, otomatik tamamlama `{ type: 4, … }` ya da
+   * bileşen (type 3) `{ messageId, customId, values? }` → `{ id }`. GET
+   * `…/interactions/{id}` → `{ status }` (3 sn sonra hâlâ PENDING ise bot
+   * yanıt vermedi).
    */
   channelInteractions: (channelId: string) =>
     `/api/channels/${encodeURIComponent(channelId)}/interactions`,
