@@ -4,6 +4,8 @@ import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
 import type {
+  AuditLogActor,
+  AuditLogEntry,
   MyServerPermissions,
   ServerMemberListItem,
   ServerMembersPage,
@@ -148,6 +150,153 @@ export function useKickMember(serverId: string) {
   return useMutation({
     mutationFn: (memberId: string) => api<unknown>(endpoints.memberKick(memberId, serverId), { method: "DELETE" }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.members(serverId) }),
+  });
+}
+
+// ── Yasaklama ve temizleme ──────────────────────────────────────────
+
+/** web `lib/server-bans` — yasak süresi seçenekleri. */
+export const BAN_DURATIONS: { id: string; label: string; seconds: number | null }[] = [
+  { id: "1h", label: "1 saat", seconds: 60 * 60 },
+  { id: "1d", label: "1 gün", seconds: 24 * 60 * 60 },
+  { id: "7d", label: "1 hafta", seconds: 7 * 24 * 60 * 60 },
+  { id: "30d", label: "30 gün", seconds: 30 * 24 * 60 * 60 },
+  { id: "forever", label: "Kalıcı", seconds: null },
+];
+
+/** web `lib/server-bans` — yasaklarken mesaj geçmişini silme seçenekleri. */
+export const BAN_PURGE_OPTIONS: { id: string; label: string; hours: number }[] = [
+  { id: "none", label: "Silme", hours: 0 },
+  { id: "1h", label: "Son 1 saat", hours: 1 },
+  { id: "24h", label: "Son 24 saat", hours: 24 },
+  { id: "7d", label: "Son 7 gün", hours: 24 * 7 },
+];
+
+/** Yasak sebebinin tavanı (web `BAN_REASON_MAX`). */
+export const BAN_REASON_MAX = 500;
+/** Denetim kaydı sebebinin tavanı (web `AUDIT_REASON_MAX`). */
+export const AUDIT_REASON_MAX = 512;
+/** Tek istekte toplu yasaklanabilecek en çok üye (web ile aynı). */
+export const BULK_BAN_MAX = 200;
+/** Üye temizleme süreleri (gün). */
+export const PRUNE_DAY_OPTIONS = [7, 30] as const;
+export type PruneDays = (typeof PRUNE_DAY_OPTIONS)[number];
+
+export interface BanInput {
+  reason?: string;
+  durationSeconds: number | null;
+  purgeHours: number;
+}
+
+function banBody(input: BanInput) {
+  return {
+    ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+    durationSeconds: input.durationSeconds,
+    purgeHours: input.purgeHours,
+  };
+}
+
+/** Tek üyeyi yasakla (`POST /bans`). */
+export function useBanMember(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, ...input }: BanInput & { userId: string }) =>
+      api<{ success: true; expiresAt: string | null; purged: number }>(endpoints.serverBans(serverId), {
+        method: "POST",
+        body: { userId, ...banBody(input) },
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.members(serverId) }),
+  });
+}
+
+/** Toplu yasak (`POST /bans/bulk`): yetkinin/hiyerarşinin yetmediği kişiler `failed`. */
+export function useBulkBan(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userIds, ...input }: BanInput & { userIds: string[] }) =>
+      api<{ banned: string[]; failed: string[] }>(endpoints.serverBansBulk(serverId), {
+        method: "POST",
+        body: { userIds, ...banBody(input) },
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.members(serverId) }),
+  });
+}
+
+/** Temizlemede çıkarılacak üye sayısı (önizleme). */
+export function usePrunePreview(serverId: string, days: PruneDays, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.prunePreview(serverId, days),
+    enabled,
+    queryFn: () => api<{ days: number; count: number }>(endpoints.serverPrune(serverId, days)),
+    staleTime: 0,
+  });
+}
+
+/** Rolsüz ve `days` gündür görülmeyen üyeleri çıkar. */
+export function usePruneMembers(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ days, reason }: { days: PruneDays; reason?: string }) =>
+      api<{ pruned: number }>(endpoints.serverPrune(serverId), {
+        method: "POST",
+        body: { days, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.members(serverId) }),
+  });
+}
+
+// ── Denetim kaydı ───────────────────────────────────────────────────
+
+/** Sayfa boyu; dolu sayfa "devamı var" demek (web ile aynı). */
+export const AUDIT_LOG_PAGE_SIZE = 50;
+
+export function useAuditLogs(serverId: string | undefined, action: string | null, userId: string | null) {
+  return useInfiniteQuery({
+    queryKey: qk.auditLogs(serverId ?? "yok", action, userId),
+    enabled: Boolean(serverId),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      api<AuditLogEntry[]>(
+        endpoints.serverAuditLogs(serverId!, { action, userId, before: pageParam, limit: AUDIT_LOG_PAGE_SIZE })
+      ),
+    getNextPageParam: (last) =>
+      last.length >= AUDIT_LOG_PAGE_SIZE ? (last[last.length - 1]?.id ?? undefined) : undefined,
+    staleTime: 30_000,
+  });
+}
+
+export function useAuditLogActors(serverId: string | undefined) {
+  return useQuery({
+    queryKey: qk.auditLogActors(serverId ?? "yok"),
+    enabled: Boolean(serverId),
+    queryFn: () => api<AuditLogActor[]>(endpoints.serverAuditLogActors(serverId!)),
+    staleTime: 60_000,
+  });
+}
+
+// ── Toplu mesaj silme ───────────────────────────────────────────────
+
+/** Toplu silmenin sınırları (web ile aynı; Discord kuralı). */
+export const BULK_DELETE_MAX = 100;
+export const BULK_DELETE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * Seçilen kanal mesajlarını sil. Tek mesaj tekil silme ucuna gider (sebep
+ * yok); iki ve fazlası toplu uca. Silinen mesajlar canlı akıştan mezar taşı
+ * olarak gelir, önbelleğe burada dokunulmaz.
+ */
+export function useBulkDeleteMessages(channelId: string, serverId: string) {
+  return useMutation({
+    mutationFn: async ({ messageIds, reason }: { messageIds: string[]; reason?: string }) => {
+      if (messageIds.length === 1) {
+        await api(endpoints.editChannelMessage(messageIds[0], channelId, serverId), { method: "DELETE" });
+        return { deleted: messageIds };
+      }
+      return api<{ deleted: string[] }>(endpoints.bulkDeleteMessages(channelId), {
+        method: "POST",
+        body: { messageIds, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+      });
+    },
   });
 }
 

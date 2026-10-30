@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Linking, Text, TextInput, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
 import {
+  BULK_BAN_MAX,
   canActOnMember,
+  hasServerPermission,
   isTimedOut,
   timeoutRemainingLabel,
   topRolePosition,
   TIMEOUT_DURATIONS,
+  useBanMember,
+  useBulkBan,
   useKickMember,
   useMyPermissions,
   useServerMemberPages,
@@ -20,6 +25,7 @@ import type { ServerMemberListItem } from "@/api/types";
 import {
   ActionSheet,
   Avatar,
+  Button,
   EmptyState,
   ErrorState,
   Icon,
@@ -33,6 +39,7 @@ import {
   type ActionSheetItem,
 } from "@/components/ui";
 import { NameplateBackground } from "@/features/profile/nameplate";
+import { BanSheet, PruneSheet } from "@/features/server/moderation-sheets";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { streamWatchUrl } from "@/lib/activity-broadcast";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
@@ -49,6 +56,10 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * Satıra dokununca eylem sayfası açılır. Moderasyon eylemleri (zaman aşımı
  * ver / kaldır, sunucudan at) `/my-permissions` bitleri ve rol hiyerarşisine
  * göre gösterilir (web `canActOn`); uçlar yine kendi denetimini yapar.
+ *
+ * Yasaklama yetkisi olan "Seç" ile çoklu seçime geçer ve seçilenleri tek
+ * istekte yasaklar (web üyeler sekmesindeki seçim); "Atma" yetkisi olan
+ * rolsüz, uzun süredir görülmeyen üyeleri "Üyeleri Temizle" ile çıkarır.
  */
 export default function ServerMembersScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -56,6 +67,7 @@ export default function ServerMembersScreen() {
   const { data: actor } = useMyPermissions(serverId);
   const myId = useAuth((s) => s.profile?.id);
   const now = useNow(30_000);
+  const insets = useSafeAreaInsets();
 
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
@@ -69,8 +81,18 @@ export default function ServerMembersScreen() {
 
   const timeout = useTimeoutMember(serverId);
   const kick = useKickMember(serverId);
+  const ban = useBanMember(serverId);
+  const bulkBan = useBulkBan(serverId);
   const [selected, setSelected] = useState<ServerMemberListItem | null>(null);
   const [timeoutTarget, setTimeoutTarget] = useState<ServerMemberListItem | null>(null);
+  /** Yasak sayfası: tek üye ya da seçim ("bulk"). */
+  const [banTarget, setBanTarget] = useState<ServerMemberListItem | "bulk" | null>(null);
+  const [pruneOpen, setPruneOpen] = useState(false);
+  // Çoklu seçim (toplu yasak): üye kimliği → kullanıcı (profil) kimliği.
+  const [selectMode, setSelectMode] = useState(false);
+  const [picked, setPicked] = useState<Map<string, string>>(() => new Map());
+  const canBanAny = hasServerPermission(actor, "BAN_MEMBERS");
+  const canPrune = hasServerPermission(actor, "KICK_MEMBERS");
 
   const ownerId = server?.profileId;
   const nameOf = (member: ServerMemberListItem) =>
@@ -82,7 +104,27 @@ export default function ServerMembersScreen() {
     return {
       timeout: !self && !member.profile.isBot && canActOnMember(actor, target, "MODERATE_MEMBERS"),
       kick: !self && canActOnMember(actor, target, "KICK_MEMBERS"),
+      ban: !self && canActOnMember(actor, target, "BAN_MEMBERS"),
     };
+  };
+
+  const exitSelect = () => {
+    setSelectMode(false);
+    setPicked(new Map());
+  };
+
+  const togglePick = (member: ServerMemberListItem) => {
+    if (!permissionsFor(member).ban) return;
+    if (!picked.has(member.id) && picked.size >= BULK_BAN_MAX) {
+      showToast(`En fazla ${BULK_BAN_MAX} üye seçilebilir.`, "error");
+      return;
+    }
+    setPicked((current) => {
+      const next = new Map(current);
+      if (next.has(member.id)) next.delete(member.id);
+      else next.set(member.id, member.profileId);
+      return next;
+    });
   };
 
   const fail = (error: unknown, fallback: string) =>
@@ -98,7 +140,7 @@ export default function ServerMembersScreen() {
       icon: "user",
       onPress: () => router.push(`/profile/${selected.profileId}`),
     });
-    if (can.timeout || can.kick) menuItems.push("separator");
+    if (can.timeout || can.kick || can.ban) menuItems.push("separator");
     if (can.timeout) {
       if (isTimedOut(selected.timedOutUntil, now)) {
         menuItems.push({
@@ -146,6 +188,15 @@ export default function ServerMembersScreen() {
           ]),
       });
     }
+    if (can.ban) {
+      menuItems.push({
+        key: "ban",
+        label: "Yasakla",
+        icon: "shield",
+        destructive: true,
+        onPress: () => setBanTarget(selected),
+      });
+    }
   }
 
   const durationItems: ActionSheetItem[] = timeoutTarget
@@ -166,7 +217,18 @@ export default function ServerMembersScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Üyeler" }} />
+      <Stack.Screen
+        options={{
+          title: "Üyeler",
+          headerRight: canBanAny
+            ? () => (
+                <Pressable onPress={() => (selectMode ? exitSelect() : setSelectMode(true))} accessibilityRole="button">
+                  <Text style={{ ...typography.bodyStrong, color: colors.brand }}>{selectMode ? "İptal" : "Seç"}</Text>
+                </Pressable>
+              )
+            : undefined,
+        }}
+      />
       <View
         style={{
           flexDirection: "row",
@@ -191,6 +253,29 @@ export default function ServerMembersScreen() {
           accessibilityLabel="Üye ara"
         />
       </View>
+
+      {canPrune && !selectMode ? (
+        <Pressable
+          onPress={() => setPruneOpen(true)}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+            marginHorizontal: spacing.lg,
+            marginBottom: spacing.sm,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            borderRadius: radii.lg,
+            borderCurve: "continuous",
+            backgroundColor: pressed ? colors.raised : colors.panel,
+          })}
+        >
+          <Icon name="users" size={18} color={colors.muted} />
+          <Text style={{ ...typography.body, color: colors.text, flex: 1 }}>Üyeleri Temizle</Text>
+          <Icon name="chevron-right" size={16} color={colors.muted} />
+        </Pressable>
+      ) : null}
 
       {pages.isLoading ? (
         <ListSkeleton rows={8} />
@@ -217,10 +302,14 @@ export default function ServerMembersScreen() {
           renderItem={({ item }) => {
             const timedOut = isTimedOut(item.timedOutUntil, now);
             const topRole = [...item.roles].sort((a, b) => b.position - a.position)[0];
+            const pickable = selectMode && permissionsFor(item).ban;
+            const isPicked = picked.has(item.id);
             return (
               <Pressable
-                onPress={() => setSelected(item)}
-                accessibilityRole="button"
+                onPress={() => (selectMode ? togglePick(item) : setSelected(item))}
+                disabled={selectMode && !pickable}
+                accessibilityRole={selectMode ? "checkbox" : "button"}
+                accessibilityState={selectMode ? { checked: isPicked, disabled: !pickable } : undefined}
                 accessibilityLabel={`${nameOf(item)}${timedOut ? ", zaman aşımında" : ""}`}
                 style={({ pressed }) => ({
                   flexDirection: "row",
@@ -230,8 +319,10 @@ export default function ServerMembersScreen() {
                   paddingVertical: spacing.sm,
                   overflow: "hidden",
                   backgroundColor: pressed ? colors.raised : "transparent",
+                  opacity: selectMode && !pickable ? 0.45 : 1,
                 })}
               >
+                {selectMode ? <PickMark checked={isPicked} /> : null}
                 {/* İsim plakası (web üye satırı): sağa yaslı sahne + isme doğru sönen renk. */}
                 <NameplateBackground id={item.profile.nameplateId} />
                 <Avatar
@@ -296,7 +387,71 @@ export default function ServerMembersScreen() {
         }
         items={durationItems}
       />
+
+      {selectMode ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
+            paddingBottom: insets.bottom + spacing.md,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            backgroundColor: colors.panel,
+          }}
+        >
+          <Text style={{ ...typography.bodyStrong, color: colors.bright, flex: 1 }}>{`${picked.size} üye seçildi`}</Text>
+          <Button label="Seçilenleri yasakla" variant="danger" disabled={picked.size === 0} onPress={() => setBanTarget("bulk")} />
+        </View>
+      ) : null}
+
+      <BanSheet
+        visible={banTarget !== null}
+        title={
+          banTarget === "bulk"
+            ? `${picked.size} üye yasaklansın mı?`
+            : banTarget
+              ? `${nameOf(banTarget)} yasaklansın mı?`
+              : ""
+        }
+        onClose={() => setBanTarget(null)}
+        onSubmit={async (input, duration) => {
+          if (banTarget === "bulk") {
+            const result = await bulkBan.mutateAsync({ userIds: [...picked.values()], ...input });
+            if (result.banned.length > 0) showToast(`${result.banned.length} üye yasaklandı.`);
+            if (result.failed.length > 0) showToast(`${result.failed.length} üye yasaklanamadı.`, "error");
+            exitSelect();
+          } else if (banTarget) {
+            const name = nameOf(banTarget);
+            await ban.mutateAsync({ userId: banTarget.profileId, ...input });
+            showToast(`${name} yasaklandı${duration.seconds ? ` (${duration.label})` : ""}.`);
+          }
+        }}
+      />
+      <PruneSheet serverId={serverId} visible={pruneOpen} onClose={() => setPruneOpen(false)} />
     </Screen>
+  );
+}
+
+/** Seçim modunda satır başındaki onay dairesi. */
+function PickMark({ checked }: { checked: boolean }) {
+  return (
+    <View
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: radii.full,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: checked ? 0 : 2,
+        borderColor: colors.muted,
+        backgroundColor: checked ? colors.brand : "transparent",
+      }}
+    >
+      {checked ? <Icon name="check" size={14} color={colors.onBrand} /> : null}
+    </View>
   );
 }
 

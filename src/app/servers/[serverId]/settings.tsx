@@ -6,9 +6,11 @@ import { ChannelType, MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
 import {
+  hasServerPermission,
   useDeleteServer,
   useLeaveServer,
   useMyMembership,
+  useMyPermissions,
   useServerChannels,
   useServerDetails,
   useUpdateServer,
@@ -17,12 +19,15 @@ import { Avatar, Divider, Icon, ListGroup, ListRow, Screen, ScreenLoader, Sectio
 import { pickAndUploadServerBanner, pickAndUploadServerImage } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import type { ChannelExtras } from "@/api/types";
+import { AFK_TIMEOUT_DEFAULT, AFK_TIMEOUT_OPTIONS } from "@/lib/voice-settings";
 
 export default function ServerSettingsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { data: server, isLoading } = useServerDetails(serverId);
   const { data: membership } = useMyMembership(serverId);
   const { data: channels } = useServerChannels(serverId);
+  const { data: permissions } = useMyPermissions(serverId);
   const myId = useAuth((state) => state.profile?.id);
   const update = useUpdateServer(serverId);
   const remove = useDeleteServer(serverId);
@@ -33,6 +38,9 @@ export default function ServerSettingsScreen() {
   const [isPublic, setIsPublic] = useState(false);
   const [isDiscoverable, setIsDiscoverable] = useState(false);
   const [systemChannelId, setSystemChannelId] = useState<string | null>(null);
+  // AFK kanalı + zaman aşımı (web Sunucu Ayarları → Genel Görünüm ile aynı).
+  const [afkChannelId, setAfkChannelId] = useState<string | null>(null);
+  const [afkTimeout, setAfkTimeout] = useState(AFK_TIMEOUT_DEFAULT);
   const [mediaBusy, setMediaBusy] = useState<"image" | "banner" | null>(null);
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -45,18 +53,30 @@ export default function ServerSettingsScreen() {
     setIsPublic(server.isPublic);
     setIsDiscoverable(server.isDiscoverable);
     setSystemChannelId(server.systemChannelId);
+    setAfkChannelId(server.afkChannelId ?? null);
+    setAfkTimeout(server.afkTimeout ?? AFK_TIMEOUT_DEFAULT);
   }, [server?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading || !server) return <ScreenLoader label="Sunucu ayarları yükleniyor…" />;
 
   const isOwner = server.profileId === myId;
-  const canEdit = isOwner || membership?.role === MemberRole.ADMIN;
+  // Uçla aynı kapı (getServerManager): sahip, yönetici ya da "Sunucuyu Yönet".
+  const canEdit = isOwner || membership?.role === MemberRole.ADMIN || hasServerPermission(permissions, "MANAGE_SERVER");
+  const savedAfkChannelId = server.afkChannelId ?? null;
+  const savedAfkTimeout = server.afkTimeout ?? AFK_TIMEOUT_DEFAULT;
+  // AFK kanalı olabilecekler: ses/görüntü kanalı; sahne ve alt başlık değil.
+  const afkCandidates = (channels ?? []).filter((channel) => {
+    const extras = channel as ChannelExtras;
+    return channel.type !== ChannelType.TEXT && !extras.stage && !extras.parentChannelId;
+  });
   const dirty =
     name !== server.name ||
     description !== (server.description ?? "") ||
     isPublic !== server.isPublic ||
     isDiscoverable !== server.isDiscoverable ||
-    systemChannelId !== server.systemChannelId;
+    systemChannelId !== server.systemChannelId ||
+    afkChannelId !== savedAfkChannelId ||
+    afkTimeout !== savedAfkTimeout;
 
   const save = () => {
     if (!canEdit || !dirty || update.isPending) return;
@@ -66,6 +86,8 @@ export default function ServerSettingsScreen() {
       isPublic,
       isDiscoverable: isPublic && isDiscoverable,
       systemChannelId,
+      ...(afkChannelId !== savedAfkChannelId ? { afkChannelId } : {}),
+      ...(afkTimeout !== savedAfkTimeout ? { afkTimeout } : {}),
     });
   };
 
@@ -171,6 +193,51 @@ export default function ServerSettingsScreen() {
                     <ListRow icon="hash" title={channel.name} detail={systemChannelId === channel.id ? "Seçili" : undefined} chevron={false} onPress={() => setSystemChannelId(channel.id)} />
                   </View>
                 ))}
+              </ListGroup>
+            </View>
+
+            <SectionHeader title="AFK KANALI" />
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+              <ListGroup>
+                <ListRow title="AFK kanalı yok" detail={!afkChannelId ? "Seçili" : undefined} chevron={false} onPress={() => setAfkChannelId(null)} />
+                {afkCandidates.map((channel) => (
+                  <View key={channel.id}>
+                    <Divider inset={52} />
+                    <ListRow icon="volume" title={channel.name} detail={afkChannelId === channel.id ? "Seçili" : undefined} chevron={false} onPress={() => setAfkChannelId(channel.id)} />
+                  </View>
+                ))}
+              </ListGroup>
+              <Text style={{ ...typography.caption, color: colors.muted }}>
+                Sesli kanalda belirlenen süre boyunca boşta kalan üyeler bu kanala taşınır ve orada konuşamaz.
+              </Text>
+            </View>
+
+            <SectionHeader title="AFK ZAMAN AŞIMI" />
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <ListGroup>
+                {AFK_TIMEOUT_OPTIONS.map((option, index) => (
+                  <View key={option.value}>
+                    {index > 0 ? <Divider inset={16} /> : null}
+                    <ListRow
+                      title={option.label}
+                      detail={afkTimeout === option.value ? "Seçili" : undefined}
+                      chevron={false}
+                      disabled={!afkChannelId}
+                      onPress={() => setAfkTimeout(option.value)}
+                    />
+                  </View>
+                ))}
+              </ListGroup>
+            </View>
+          </>
+        ) : null}
+
+        {hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? (
+          <>
+            <SectionHeader title="MODERASYON" />
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <ListGroup>
+                <ListRow icon="list" title="Denetim Kaydı" onPress={() => router.push(`/servers/${serverId}/audit-log`)} />
               </ListGroup>
             </View>
           </>

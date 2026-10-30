@@ -4,6 +4,7 @@ import type { LiveKitTokenResponse } from "@ciklet/embedded-activities-sdk/types
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { appleConfigFor } from "@/features/voice/audio-route";
+import { readBitrate, readVideoQualityMode, type VideoQualityMode } from "@/lib/voice-settings";
 
 /**
  * LiveKit köprüsü.
@@ -35,16 +36,34 @@ export { LIVEKIT_URL } from "@/lib/config";
  * sonra token üretir — istemcinin oda adına güvenilmez.
  */
 export async function fetchRoomToken(room: string, username: string): Promise<RoomToken> {
-  const res = await api<LiveKitTokenResponse & { moderation?: Partial<VoiceModerationState> | null }>(
-    endpoints.livekitToken(room, username)
-  );
+  const res = await api<
+    LiveKitTokenResponse & {
+      moderation?: Partial<VoiceModerationState> | null;
+      voice?: { bitrate?: unknown; videoQualityMode?: unknown } | null;
+      afk?: boolean;
+    }
+  >(endpoints.livekitToken(room, username));
   return {
     token: res.token,
     moderation: {
       muted: res.moderation?.muted === true,
       deafened: res.moderation?.deafened === true,
     },
+    // Kanalın ses ayarları (web api/livekit `voice`); DM aramasında yok.
+    voice: res.voice
+      ? {
+          bitrate: readBitrate(res.voice.bitrate),
+          videoQualityMode: readVideoQualityMode(res.voice.videoQualityMode),
+        }
+      : null,
+    afk: res.afk === true,
   };
+}
+
+/** Kanalın ses ayarları — mikrofon bit hızı ve kamera kalitesi. */
+export interface ChannelVoiceSettings {
+  bitrate: number;
+  videoQualityMode: VideoQualityMode;
 }
 
 /**
@@ -62,4 +81,26 @@ export const NO_VOICE_MODERATION: VoiceModerationState = { muted: false, deafene
 export interface RoomToken {
   token: string;
   moderation: VoiceModerationState;
+  voice: ChannelVoiceSettings | null;
+  /** Sunucunun AFK kanalı: kimse konuşamaz (token yayın izni vermiyor). */
+  afk: boolean;
+}
+
+/**
+ * Oda yayın varsayılanları: kanalın bit hızı mikrofon kodlayıcısının tavanı;
+ * "720p" kipinde kamera ağ kötüleşince çözünürlüğü korur (web lib/call-quality).
+ */
+export function roomOptionsFor(voice: ChannelVoiceSettings | null) {
+  return {
+    adaptiveStream: true,
+    dynacast: true,
+    ...(voice
+      ? {
+          publishDefaults: {
+            audioPreset: { maxBitrate: voice.bitrate },
+            ...(voice.videoQualityMode === "full" ? { degradationPreference: "maintain-resolution" as const } : {}),
+          },
+        }
+      : {}),
+  };
 }

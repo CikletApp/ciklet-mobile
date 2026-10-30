@@ -89,7 +89,7 @@ export interface UpdateProfileInput {
  *
  * ⚠️ Klasörün ADI ve RENGİ burada YOK ve `GET /api/folders` diye bir uç da
  * yok (yalnızca POST/PATCH var). Bu yüzden mobil klasörleri gruplayabiliyor
- * ama başlıklarını sunucudan okuyamıyor — bkz. docs/ROADMAP.md.
+ * ama başlıklarını sunucudan okuyamıyor.
  */
 export interface MembershipWithServer extends Member {
   server: {
@@ -159,6 +159,10 @@ export interface ServerDetails {
   description: string | null;
   profileId: string;
   systemChannelId: string | null;
+  /** AFK kanalı (boşta kalanlar buraya taşınır, konuşamaz); null = kapalı. */
+  afkChannelId?: string | null;
+  /** AFK zaman aşımı, saniye (lib/voice-settings AFK_TIMEOUT_OPTIONS). */
+  afkTimeout?: number;
   isPublic: boolean;
   isDiscoverable: boolean;
   inviteCode: string;
@@ -452,6 +456,18 @@ export interface RichPresence {
    * media-activity). Masaüstü ve web göndermiyor; yoksa masaüstü/web sayılır.
    */
   device?: string;
+  /**
+   * Discord uyumlu RPC etkinliği (masaüstü köprüsü). Çizmeden önce
+   * lib/activity-party ile denetlenir — gövde istemciden geliyor.
+   * `applicationId`: RPC uygulama kimliği; `partySize` [şu an, en çok] →
+   * "(2/4)"; `buttons` en çok 2 bağlantı düğmesi (yalnızca başkasına
+   * çizilir); `joinable` katılınabilir (masaüstündeki "Katıl"; mobilde
+   * düğme yok). Katılma sırrı hiçbir zaman burada değil.
+   */
+  applicationId?: string;
+  partySize?: [number, number];
+  buttons?: { label: string; url: string }[];
+  joinable?: boolean;
 }
 
 /** Üye listesi ekranlarında profil + presence birleştirilmiş görünüm. */
@@ -514,7 +530,7 @@ export interface ProfileCardResponse {
   } | null;
   mutualFriendsCount: number;
   mutualFriends: SearchProfileSlim[];
-  // ── Üye kartı genişlemesi (ciklet-web, plan.md kategori 3) ──────────
+  // ── Üye kartı genişlemesi ──────────
   /** Türetilmiş rozetler (`lib/profile-badges`); sunucu üretir, istemci çizer. */
   badges?: ProfileBadge[];
   /** İkisinin de görünür üye olduğu sunucular (en çok 50). */
@@ -868,6 +884,12 @@ export interface ChannelExtras {
   announcement?: boolean;
   /** Ses kanalı durumu — kanal listesinde adın altında. */
   voiceStatus?: string | null;
+  /** Ses kanalı kullanıcı sınırı; 0 = sınırsız (lib/voice-settings). */
+  userLimit?: number;
+  /** Ses bit hızı (bps). */
+  bitrate?: number;
+  /** Kamera kalitesi: "auto" | "full" (720p). */
+  videoQualityMode?: string;
   parentChannelId?: string | null;
   archivedAt?: string | null;
 }
@@ -914,6 +936,29 @@ export interface ServerMemberListItem {
 export interface ServerMembersPage {
   items: ServerMemberListItem[];
   nextCursor: string | null;
+}
+
+/** ciklet-web: denetim kaydında işlem yapan kişi (`audit-logs/actors` ve kayıt satırı). */
+export interface AuditLogActor {
+  id: string;
+  username: string;
+  name: string | null;
+  imageUrl: string | null;
+}
+
+/** ciklet-web: `GET /api/servers/[id]/audit-logs` satırı. */
+export interface AuditLogEntry {
+  id: string;
+  serverId: string;
+  actorId: string;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  details: unknown;
+  /** Sebep (`reason` gövdesi ya da `X-Audit-Log-Reason`); eski kayıtlarda `details.reason`. */
+  reason: string | null;
+  createdAt: string;
+  actor: AuditLogActor | null;
 }
 
 /** ciklet-web: `GET /api/servers/[id]/rules` */

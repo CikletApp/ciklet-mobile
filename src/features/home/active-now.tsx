@@ -9,6 +9,8 @@ import type { RichPresence } from "@/api/types";
 import { Avatar, Icon, Pressable } from "@/components/ui";
 import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presence/activity-reply-sheet";
 import { StreamWatchButton } from "@/features/presence/stream-watch-button";
+import { ActivityButtons } from "@/features/presence/activity-buttons";
+import { partySizeLabel, stateWithParty } from "@/lib/activity-party";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { resolveMediaUrl } from "@/lib/config";
 import { isStreamingSoftwareActivity } from "@/lib/activity-broadcast";
@@ -153,6 +155,10 @@ export function ActiveNow() {
                     ) : activity.details ? (
                       <Text style={{ fontSize: 11, lineHeight: 15, color: colors.muted }} numberOfLines={1}>{activity.details}</Text>
                     ) : null}
+                    {/* Discord uyumlu grup: durum + "(2/4)" (lib/activity-party). */}
+                    {!isMedia(activity) && partySizeLabel(activity) ? (
+                      <Text style={{ fontSize: 11, lineHeight: 15, color: colors.muted }} numberOfLines={1}>{stateWithParty(activity)}</Text>
+                    ) : null}
                     {isMedia(activity) ? null : <ElapsedLine startedAt={activity.startedAt} />}
                   </View>
                 </View>
@@ -160,6 +166,8 @@ export function ActiveNow() {
               {isMedia(activity) ? <MediaTiming activity={activity} /> : null}
               {/* Twitch/Kick yayını: kanalı tarayıcıda açar (adres yoksa çizilmez). */}
               <StreamWatchButton activity={activity} compact />
+              {/* Programın bağlantı düğmeleri (Şimdi Aktif yalnızca arkadaşlar — hep başkası). */}
+              <ActivityButtons activity={activity} compact />
             </Pressable>
           );
         })}

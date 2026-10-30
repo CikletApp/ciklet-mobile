@@ -96,6 +96,12 @@ export const qk = {
   /** Sayfalı üye listesi (moderasyon ekranı). */
   memberPages: (serverId: string, query: string) => ["members", serverId, "pages", query] as const,
   serverRules: (serverId: string) => ["server-rules", serverId] as const,
+  /** Denetim kaydı (süzgeçli, sayfalı) ve kayıttaki kişiler. */
+  auditLogs: (serverId: string, action: string | null, userId: string | null) =>
+    ["audit-logs", serverId, action ?? "*", userId ?? "*"] as const,
+  auditLogActors: (serverId: string) => ["audit-logs", serverId, "actors"] as const,
+  /** Üye temizleme önizlemesi (`members` altında: üye listesiyle tazelenir). */
+  prunePreview: (serverId: string, days: number) => ["members", serverId, "prune", days] as const,
   /**
    * Alt başlıklar `channels` altında: kanal yerleşimi değişince
    * (`server.channels_updated`) kanal listesiyle birlikte tazelenir.

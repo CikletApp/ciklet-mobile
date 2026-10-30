@@ -113,6 +113,8 @@ export function MessageContextMenu({
   pin,
   thread,
   serverId,
+  canDeleteOthers = false,
+  onSelectMessages,
 }: {
   message: ChatMessagePayload;
   /** Basılı tutulan balonun pencere koordinatları — kopya buraya çizilir. */
@@ -143,6 +145,10 @@ export function MessageContextMenu({
   thread?: { defaultName: string; onCreate: (name: string, autoArchiveMinutes: number) => Promise<void> };
   /** Tepki seçicisinde "Bu Sunucu" emojileri için. */
   serverId?: string;
+  /** Mesajları Yönet: başkasının mesajında da "Sil" (web moderatör silmesi). */
+  canDeleteOthers?: boolean;
+  /** Mesajları Yönet, sunucu kanalı: "Mesajları Seç" (toplu silme). */
+  onSelectMessages?: () => void;
 }) {
   const insets = useSystemInsets();
   const myId = useAuth((state) => state.profile?.id);
@@ -198,17 +204,16 @@ export function MessageContextMenu({
   if (bookmark) actions.push(bookmark);
   if (onForward) actions.push({ key: "forward", icon: "forward", label: "İlet", onPress: onForward });
   if (thread) actions.push({ key: "thread", icon: "message", label: "Alt başlık oluştur", onPress: () => setMode("thread") });
+  if (onSelectMessages) actions.push({ key: "select", icon: "check", label: "Mesajları Seç", onPress: onSelectMessages });
   // İletilen mesaj düzenlenemez (web 403 döner): içerik başkasının sözü.
   // Anketin metni soru; düzenleme kartı bozardı.
   if (isMine && !isForwardedMessage(message) && (message.type as string) !== "POLL") {
     actions.push({ key: "edit", icon: "pencil", label: "Düzenle", onPress: () => setMode("edit") });
   }
 
-  const destructive: MenuAction[] = isMine
-    ? [{ key: "delete", icon: "trash", label: "Sil", onPress: onDelete }]
-    : onReport
-      ? [{ key: "report", icon: "flag", label: "Bildir", onPress: () => setMode("report") }]
-      : [];
+  const destructive: MenuAction[] = [];
+  if (isMine || canDeleteOthers) destructive.push({ key: "delete", icon: "trash", label: "Sil", onPress: onDelete });
+  if (!isMine && onReport) destructive.push({ key: "report", icon: "flag", label: "Bildir", onPress: () => setMode("report") });
 
   const reacted = new Set(
     (message.reactions ?? []).filter((reaction) => reaction.profileId === myId).map((reaction) => reaction.emoji)

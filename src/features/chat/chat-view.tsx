@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
-import { useChatMessages, useMentolPlan, useMyMembership, type ChatKind } from "@/api/hooks";
+import { hasServerPermission, useChatMessages, useMentolPlan, useMyMembership, useMyPermissions, type ChatKind } from "@/api/hooks";
 import { EmptyState, ErrorState, ListSkeleton, showDialog, showToast } from "@/components/ui";
 import { launchActivityById } from "@/features/activities/launch";
 import { useChatStream } from "@/realtime/use-chat-stream";
@@ -70,6 +70,7 @@ import { useServerEmojis, type ServerStickerLite } from "./server-assets";
 import { useComposer, type ComposerAttachment } from "./use-composer";
 import { authorIdOf, useChatItems, type ChatItem } from "./use-chat-items";
 import { useMessageActions } from "./use-message-actions";
+import { SelectableRow, SelectionBar, selectionBlock, useMessageSelection } from "./message-selection";
 import { fw } from "@/theme/fonts";
 
 /** Atlanacak mesaj bulunana kadar en çok bu kadar eski sayfa çekilir. */
@@ -178,6 +179,18 @@ export function ChatView({
       membership.data?.role === MemberRole.ADMIN ||
       membership.data?.role === MemberRole.MODERATOR);
   const [pinListOpen, setPinListOpen] = useState(false);
+
+  // Mesajları Yönet (web kuralı: yönetici/moderatör ya da rol/kanal izni;
+  // sunucu yine denetler): başkasının mesajını silme ve toplu silme.
+  const permissions = useMyPermissions(kind === "channel" && !readOnlyOfficial ? serverId : undefined);
+  const canManageMessages =
+    kind === "channel" &&
+    !readOnlyOfficial &&
+    Boolean(serverId) &&
+    (membership.data?.role === MemberRole.ADMIN ||
+      membership.data?.role === MemberRole.MODERATOR ||
+      hasServerPermission(permissions.data, "MANAGE_MESSAGES"));
+  const selection = useMessageSelection(chatId, serverId);
 
   // Canlı akış: gelen mesajlar doğrudan cache'e yazılır; kopuklukta telafi edilir.
   useChatStream(kind, chatId);
@@ -707,12 +720,23 @@ export function ChatView({
     requestAnimationFrame(() => composerRef.current?.setSelection(position, position));
   };
 
+  const selectedIds = selection.ids;
+  const toggleSelected = selection.toggle;
   const renderItem = useCallback(
     ({ item }: { item: ChatItem }) =>
       item.kind === "day" ? (
         <DaySeparator iso={item.iso} />
       ) : item.kind === "unread" ? (
         <UnreadDivider />
+      ) : selectedIds ? (
+        <SelectableRow checked={selectedIds.has(item.message.id)} onPress={() => toggleSelected(item.message)}>
+          <MessageItem
+            oneToOne={oneToOne}
+            message={item.message}
+            grouped={item.grouped}
+            lastInGroup={item.lastInGroup}
+          />
+        </SelectableRow>
       ) : (
         <MessageItem
           oneToOne={oneToOne}
@@ -727,7 +751,7 @@ export function ChatView({
           onJumpToMessage={jumpToMessage}
         />
       ),
-    [actions, readOnlyOfficial, oneToOne, onLongPressMessage, onSwipeReply, jumpToMessage]
+    [actions, readOnlyOfficial, oneToOne, onLongPressMessage, onSwipeReply, jumpToMessage, selectedIds, toggleSelected]
   );
 
   if (isLoading) {
@@ -774,6 +798,7 @@ export function ChatView({
             data={items}
             keyExtractor={(item) => item.key}
             renderItem={renderItem}
+            extraData={selectedIds}
             /**
              * Zemin rengi listenin KENDİSİNDE açıkça verilir.
              * Ölçümle görüldü: bazı ekranlarda liste yüzeyi kap rengini değil,
@@ -887,7 +912,13 @@ export function ChatView({
           ) : null}
         </View>
 
-        {readOnlyOfficial || lockedNotice ? (
+        {selection.active ? (
+          <SelectionBar
+            count={selection.ids?.size ?? 0}
+            onCancel={selection.exit}
+            onDelete={selection.openConfirm}
+          />
+        ) : readOnlyOfficial || lockedNotice ? (
           <>
             <OfficialFooter text={lockedNotice} />
             <View style={{ height: insets.bottom }} />
@@ -937,6 +968,15 @@ export function ChatView({
           message={selected.message}
           anchor={selected.anchor}
           isMine={messageAuthorId(selected.message) === myId}
+          canDeleteOthers={canManageMessages}
+          onSelectMessages={
+            canManageMessages && selectionBlock(selected.message) !== "never"
+              ? () => {
+                  selection.start(selected.message);
+                  setSelected(null);
+                }
+              : undefined
+          }
           oneToOne={oneToOne}
           pending={actions.pending}
           error={actions.error}
@@ -1031,6 +1071,8 @@ export function ChatView({
           }
         />
       ) : null}
+
+      {selection.sheet}
 
       {forwarding ? (
         <ForwardSheet message={forwarding} onClose={() => setForwarding(null)} />

@@ -42,6 +42,8 @@ import {
 import { ListenAlongBar, SpotifyCard } from "@/features/spotify/spotify-card";
 import { activeCustomStatus } from "@/lib/custom-status";
 import { broadcastPresentation } from "@/lib/activity-broadcast";
+import { partySizeLabel, stateWithParty } from "@/lib/activity-party";
+import { ActivityButtons } from "@/features/presence/activity-buttons";
 import { StreamWatchButton } from "@/features/presence/stream-watch-button";
 import { displayNameOf, formatActivity, formatDate } from "@/lib/format";
 import { parseNameStyle } from "@/lib/name-style";
@@ -425,6 +427,12 @@ export default function ProfileScreen() {
                         {presence.activity.details}
                       </Text>
                     ) : null}
+                    {/* Discord uyumlu grup: durum satırının sonunda "(2/4)" (lib/activity-party). */}
+                    {partySizeLabel(presence.activity) ? (
+                      <Text style={{ ...typography.caption, color: colors.muted }}>
+                        {stateWithParty(presence.activity)}
+                      </Text>
+                    ) : null}
                     {isMobileActivity(presence.activity) ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                         <Icon name="smartphone" size={12} color={colors.muted} />
@@ -433,6 +441,8 @@ export default function ProfileScreen() {
                     ) : null}
                     {/* Twitch/Kick yayını: kanalı tarayıcıda açar (adres yoksa çizilmez). */}
                     <StreamWatchButton activity={presence.activity} />
+                    {/* Programın bağlantı düğmeleri: yalnızca başkasının etkinliğinde (Discord gibi). */}
+                    {!isSelf && profile.id !== myId ? <ActivityButtons activity={presence.activity} /> : null}
                     {canReplyToActivity ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                         <Icon name="reply" size={12} color={colors.brand} />

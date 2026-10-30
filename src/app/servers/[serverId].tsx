@@ -28,11 +28,15 @@ import {
   IconButton,
   Pressable,
   UnreadBadge,
+  showToast,
   type ActionSheetItem,
   type IconName,
 } from "@/components/ui";
 import { openNotificationSettings } from "@/features/notifications/notification-sheet";
 import { openThread } from "@/features/server/thread-nav";
+import { useVoiceOccupancy } from "@/features/voice/use-voice-occupancy";
+import { CHANNEL_FULL_MESSAGE, formatUserLimit, isVoiceChannelFull } from "@/lib/voice-settings";
+import { useAuth } from "@/stores/auth";
 import { effectiveChannelNotification, findSetting } from "@/lib/notification-settings";
 import { useNow } from "@/lib/use-now";
 import { usePresenceStore } from "@/stores/presence";
@@ -68,6 +72,22 @@ export default function ServerChannelsScreen() {
       else next.add(type);
       return next;
     });
+
+  // Kullanıcı sınırlı ses kanalı varsa doluluk ağ geçidinden izlenir
+  // ("3/5" rozeti, "Kanal dolu"). "Üyeleri Taşı" izni olan ve sunucunun
+  // AFK kanalı muaf — token ucuyla aynı kural (web kenar çubuğu da aynı).
+  const hasLimitedVoice = (channels ?? []).some((c) => ((c as Channel & ChannelExtras).userLimit ?? 0) > 0);
+  const occupancy = useVoiceOccupancy(serverId, hasLimitedVoice);
+  const { data: details } = useServerDetails(serverId);
+  const myId = useAuth((s) => s.profile?.id);
+  const canBypassLimit = hasServerPermission(permissions, "MOVE_MEMBERS");
+  const voiceSlot = (channel: Channel) => {
+    const limit = (channel as Channel & ChannelExtras).userLimit ?? 0;
+    if (channel.type === ChannelType.TEXT || limit <= 0) return { label: null, full: false };
+    const ids = occupancy.members[channel.id] ?? [];
+    const exempt = canBypassLimit || details?.afkChannelId === channel.id || (myId ? ids.includes(myId) : false);
+    return { label: formatUserLimit(ids.length, limit), full: !exempt && isVoiceChannelFull(ids.length, limit) };
+  };
 
   const sections = buildSections(channels ?? []);
   // Açık alt başlıklar üst kanalın altında (web kenar çubuğu; forum hariç).
@@ -212,6 +232,7 @@ export default function ServerChannelsScreen() {
               <ChannelRow
                 serverId={serverId}
                 channel={item}
+                slot={voiceSlot(item)}
                 muted={channelMuted(item.id)}
                 onLongPress={() => setMenuChannel(item)}
                 unread={unread?.channelUnreads?.[item.id]?.count ?? 0}
@@ -361,12 +382,15 @@ const CHANNEL_ICON: Record<string, IconName> = {
 function ChannelRow({
   serverId,
   channel,
+  slot,
   muted,
   onLongPress,
   unread,
 }: {
   serverId: string;
   channel: Channel;
+  /** Kullanıcı sınırlı ses kanalı: "3/5" rozeti ve dolu mu (katılım denenmez). */
+  slot: { label: string | null; full: boolean };
   /** Kanal ya da sunucu susturulmuş: satır geri çekilir, rozet sayılmaz. */
   muted: boolean;
   onLongPress: () => void;
@@ -391,6 +415,10 @@ function ChannelRow({
   return (
     <Pressable
       onPress={() => {
+        if (!isText && slot.full) {
+          showToast(CHANNEL_FULL_MESSAGE);
+          return;
+        }
         if (isText) {
           router.push(`/chat/channel/${channel.id}?serverId=${serverId}`);
         } else if (isAudio) {
@@ -402,7 +430,7 @@ function ChannelRow({
       onLongPress={onLongPress}
       disabled={!enabled}
       accessibilityRole="button"
-      accessibilityLabel={`${channel.name} kanalı${muted ? ", susturuldu" : ""}${voiceStatus ? `, ${voiceStatus}` : ""}`}
+      accessibilityLabel={`${channel.name} kanalı${muted ? ", susturuldu" : ""}${voiceStatus ? `, ${voiceStatus}` : ""}${slot.label ? `, kullanıcı sınırı ${slot.label}` : ""}`}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
@@ -434,6 +462,12 @@ function ChannelRow({
           </Text>
         ) : null}
       </View>
+      {/* Kullanıcı sınırlı ses kanalı: web kenar çubuğundaki "3/5" hapı. */}
+      {slot.label ? (
+        <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.sm, backgroundColor: colors.raised }}>
+          <Text style={{ ...typography.caption, ...fw(600), color: colors.muted, fontVariant: ["tabular-nums"] }}>{slot.label}</Text>
+        </View>
+      ) : null}
       {muted ? <Icon name="bell-off" size={15} color={colors.muted} /> : null}
       {lit ? <UnreadBadge count={unread} tone="brand" /> : null}
     </Pressable>

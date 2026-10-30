@@ -229,6 +229,7 @@ export default function RootLayout() {
                   <Stack.Screen name="profile/effect" />
                   <Stack.Screen name="profile/status" />
                   <Stack.Screen name="profile/server/[memberId]" />
+                  <Stack.Screen name="servers/[serverId]/audit-log" />
                   <Stack.Screen name="servers/[serverId]/channels/[channelId]" />
                   <Stack.Screen name="servers/[serverId]/events" />
                   <Stack.Screen name="servers/[serverId]/events/new" />

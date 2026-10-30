@@ -16,6 +16,7 @@ import { ActionSheet, showToast, type ActionSheetItem } from "@/components/ui";
 import { ServerEvent } from "@/realtime/events";
 import { onGatewayEvent } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
+import { AFK_MOVED_MESSAGE } from "@/lib/voice-settings";
 import type { VoiceParticipant } from "@/stores/voice";
 import { colors, typography } from "@/theme/tokens";
 
@@ -190,7 +191,8 @@ export function useVoiceModeratedEvents(
             break;
           case "move":
             if (typeof frame.targetChannelId === "string") {
-              showToast("Bir moderatör seni başka bir kanala taşıdı.");
+              // AFK süpürmesi de aynı yolu kullanır (web lib/voice/afk-sweep).
+              showToast(frame.reason === "afk" ? AFK_MOVED_MESSAGE : "Bir moderatör seni başka bir kanala taşıdı.");
               onMove(frame.targetChannelId, serverId);
             }
             break;

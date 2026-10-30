@@ -83,7 +83,7 @@ export function useServerDetails(serverId: string | undefined) {
 export function useUpdateServer(serverId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: Partial<Pick<ServerDetails, "name" | "description" | "isPublic" | "isDiscoverable" | "systemChannelId" | "imageUrl" | "bannerUrl">>) =>
+    mutationFn: (input: Partial<Pick<ServerDetails, "name" | "description" | "isPublic" | "isDiscoverable" | "systemChannelId" | "imageUrl" | "bannerUrl" | "afkChannelId" | "afkTimeout">>) =>
       api<ServerDetails>(endpoints.server(serverId), { method: "PATCH", body: input }),
     onSuccess: (server) => {
       queryClient.setQueryData(qk.server(serverId), server);
@@ -120,7 +120,14 @@ export function useCreateChannel(serverId: string) {
 export function useUpdateChannel(serverId: string, channelId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name: string; type: ChannelType }) =>
+    // Ses ayarları (lib/voice-settings) yalnızca değiştiyse gönderilir.
+    mutationFn: (input: {
+      name: string;
+      type: ChannelType;
+      userLimit?: number;
+      bitrate?: number;
+      videoQualityMode?: string;
+    }) =>
       api(endpoints.manageChannel(channelId, serverId), { method: "PATCH", body: input }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.channels(serverId) }),
   });

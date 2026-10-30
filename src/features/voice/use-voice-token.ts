@@ -3,7 +3,8 @@ import { PermissionsAndroid, Platform } from "react-native";
 import { AudioSession } from "@livekit/react-native";
 
 import { ApiError } from "@/api/client";
-import { fetchRoomToken, NO_VOICE_MODERATION, type VoiceModerationState } from "@/lib/livekit";
+import { fetchRoomToken, NO_VOICE_MODERATION, type ChannelVoiceSettings, type VoiceModerationState } from "@/lib/livekit";
+import { CHANNEL_FULL_CODE } from "@/lib/voice-settings";
 import { useAuth } from "@/stores/auth";
 import {
   hasActiveAudioSessions,
@@ -49,6 +50,8 @@ export function useVoiceToken(
     roomId: string;
     token: string | null;
     moderation: VoiceModerationState;
+    voice: ChannelVoiceSettings | null;
+    afk: boolean;
     error: string | null;
   } | null>(null);
 
@@ -83,10 +86,12 @@ export function useVoiceToken(
         routeId = id;
         if (!callKitManaged) await AudioSession.startAudioSession();
         const issued = await fetchRoomToken(roomId, profile.username);
-        if (!cancelled) setResult({ roomId, token: issued.token, moderation: issued.moderation, error: null });
+        if (!cancelled) {
+          setResult({ roomId, token: issued.token, moderation: issued.moderation, voice: issued.voice, afk: issued.afk, error: null });
+        }
       } catch (err) {
         if (cancelled) return;
-        setResult({ roomId, token: null, moderation: NO_VOICE_MODERATION, error: describeError(err) });
+        setResult({ roomId, token: null, moderation: NO_VOICE_MODERATION, voice: null, afk: false, error: describeError(err) });
         if (routeId !== null) releaseAudioRoute(routeId);
         routeId = null;
         stopIfLast();
@@ -102,9 +107,9 @@ export function useVoiceToken(
   }, [roomId, profile, needsCamera, defaultRoute, callKitManaged]);
 
   if (result && result.roomId === roomId) {
-    return { token: result.token, moderation: result.moderation, error: result.error };
+    return { token: result.token, moderation: result.moderation, voice: result.voice, afk: result.afk, error: result.error };
   }
-  return { token: null, moderation: NO_VOICE_MODERATION, error: null };
+  return { token: null, moderation: NO_VOICE_MODERATION, voice: null, afk: false, error: null };
 }
 
 /** Kullanıcı mikrofon iznini reddetti — sunucu hatasından ayrı ele alınır. */
@@ -130,6 +135,8 @@ function describeError(err: unknown): string {
     return "Görüntülü görüşme için kamera izni gerekiyor. Ayarlar → Uygulamalar → Ciklet üzerinden verebilirsin.";
   }
   if (err instanceof ApiError) {
+    // Kullanıcı sınırı dolu (web api/livekit `channel_full`): sunucunun metni.
+    if (err.code === CHANNEL_FULL_CODE) return err.message;
     return err.status === 403 ? "Bu görüşmeye katılma yetkin yok." : err.message;
   }
   return "Ses bağlantısı kurulamadı.";

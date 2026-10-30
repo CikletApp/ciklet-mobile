@@ -42,7 +42,7 @@ import {
   useVoiceModerationMenu,
 } from "@/features/voice/voice-moderation";
 import { useVoiceSession } from "@/features/voice/use-voice-session";
-import { LIVEKIT_URL, type VoiceModerationState } from "@/lib/livekit";
+import { LIVEKIT_URL, roomOptionsFor, type VoiceModerationState } from "@/lib/livekit";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -100,7 +100,9 @@ export default function VoiceChannelScreen() {
     [channelId, channel?.name, server?.name, serverId, joinedAt, isVideo]
   );
 
-  const { token, status, error, leave, moderation: joinModeration } = useVoiceSession(session);
+  const { token, status, error, leave, moderation: joinModeration, voice, afk } = useVoiceSession(session);
+  // Kanalın bit hızı / kamera kalitesi: oda seçenekleri bağlantı başına bir kez.
+  const roomOptions = useMemo(() => roomOptionsFor(voice), [voice]);
 
   const onLeave = useCallback(() => {
     leave();
@@ -170,10 +172,10 @@ export default function VoiceChannelScreen() {
       serverUrl={LIVEKIT_URL}
       token={token}
       connect
-      // Sunucuda susturulmuş üye mikrofonla katılmaz (web media-room).
-      audio={!isStage && !pushToTalk && !joinModeration.muted}
+      // Sunucuda susturulmuş üye ve AFK kanalı mikrofonla katılmaz (web media-room).
+      audio={!isStage && !pushToTalk && !joinModeration.muted && !afk}
       video={isVideo}
-      options={{ adaptiveStream: true, dynacast: true }}
+      options={roomOptions}
       onConnected={() => setMediaError(false)}
       onError={() => setMediaError(true)}
       // Kurulamayan medya bağlantısı hata olarak değil "koptu" olarak

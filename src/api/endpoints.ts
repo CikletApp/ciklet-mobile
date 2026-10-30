@@ -321,6 +321,24 @@ export const endpoints = {
   /** POST `{ seconds, reason? }` zaman aşımı verir; `{ seconds: null }` kaldırır. */
   memberTimeout: (memberId: string) =>
     `/api/members/${encodeURIComponent(memberId)}/timeout`,
+  /** POST `{ userId, reason?, durationSeconds?, purgeHours? }` — tek üyeyi yasakla. */
+  serverBans: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/bans`,
+  /** POST `{ userIds (≤200), reason?, durationSeconds?, purgeHours? }` → `{ banned, failed }`. */
+  serverBansBulk: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/bans/bulk`,
+  /** GET `?days=7|30` → `{ days, count }` önizleme; POST `{ days, reason? }` → `{ pruned }`. */
+  serverPrune: (serverId: string, days?: number) =>
+    `/api/servers/${encodeURIComponent(serverId)}/prune${qs({ days })}`,
+  /** GET denetim kaydı (yeniden eskiye); `before` imleci son kaydın kimliği. */
+  serverAuditLogs: (
+    serverId: string,
+    params: { action?: string | null; userId?: string | null; before?: string | null; limit?: number }
+  ) => `/api/servers/${encodeURIComponent(serverId)}/audit-logs${qs(params)}`,
+  /** GET kayıtta işlem yapmış kişiler (kullanıcı süzgeci için). */
+  serverAuditLogActors: (serverId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/audit-logs/actors`,
+  /** POST `{ messageIds (2–100), reason? }` → `{ deleted }` — son 14 günün mesajları. */
+  bulkDeleteMessages: (channelId: string) =>
+    `/api/channels/${encodeURIComponent(channelId)}/messages/bulk-delete`,
   /** GET `{ required, text, serverName, acceptedAt, pending }` — kural perdesi. */
   serverRules: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/rules`,
   serverRulesAccept: (serverId: string) =>

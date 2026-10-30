@@ -23,7 +23,7 @@ export function useVoiceSession(session: ActiveVoice | null) {
   const setParticipants = useVoice((s) => s.setParticipants);
 
   // Sesli kanal Discord gibi hoparlörden başlar; düğmeyle ahizeye alınabilir.
-  const { token, moderation, error } = useVoiceToken(session?.roomId, {
+  const { token, moderation, voice, afk, error } = useVoiceToken(session?.roomId, {
     needsCamera: session?.kind === "video",
     defaultRoute: "speaker",
   });
@@ -46,8 +46,13 @@ export function useVoiceSession(session: ActiveVoice | null) {
   }, [roomId]);
 
   // ── Ağ geçidi: kanala katıl / ayrıl + katılımcı listesi ─────────
+  // Katılım token ALINDIKTAN sonra: token ucu reddettiyse (kanal dolu, izin
+  // yok) kullanıcı listede görünmemeli — eskiden ekran açılır açılmaz
+  // katılınıyordu ve dolu kanalda "6/5" görünüyordu. Web de LiveKit
+  // bağlandıktan sonra katılıyor.
+  const hasToken = Boolean(token);
   useEffect(() => {
-    if (!session) return;
+    if (!session || !hasToken) return;
     const channelId = session.roomId;
 
     const join = () => {
@@ -74,7 +79,7 @@ export function useVoiceSession(session: ActiveVoice | null) {
       releaseOpen();
       sendGatewayEvent({ event_type: ClientEvent.VOICE_LEAVE, channel_id: channelId });
     };
-  }, [session, setParticipants]);
+  }, [session, hasToken, setParticipants]);
 
   const leave = useCallback(() => {
     if (session) {
@@ -87,6 +92,10 @@ export function useVoiceSession(session: ActiveVoice | null) {
     token,
     /** Katılım anındaki sunucu susturması / sağırlaştırması (token yanıtı). */
     moderation,
+    /** Kanalın ses ayarları (bit hızı, kamera kalitesi); DM'de null. */
+    voice,
+    /** Sunucunun AFK kanalı: mikrofonla katılınmaz. */
+    afk,
     error,
     status: error ? ("error" as const) : token ? ("connected" as const) : ("connecting" as const),
     leave,
