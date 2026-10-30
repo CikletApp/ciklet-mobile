@@ -425,6 +425,9 @@ export interface RichPresence {
   startedAt?: number;
   largeImageUrl?: string;
   smallImageUrl?: string;
+  /** Büyük/küçük görselin açıklaması (Discord uyumlu; aktivite SDK'sı ve masaüstü RPC). */
+  largeText?: string;
+  smallText?: string;
   appIconUrl?: string;
   timestamps?: { start: number; end: number };
   /** Yalnızca `STREAMING`: bağlı hesap yayını (Twitch/Kick); `state` yayının kategorisi. */
@@ -761,6 +764,32 @@ export interface BookmarkEntry {
   serverName: string | null;
   /** Web adresi; mobil kendi rotasını `scope` + `chatId`'den kurar. */
   url: string;
+  /** Kurulu hatırlatıcı (ISO) — "Bana hatırlat"; eski sunucuda alan yok. */
+  remindAt?: string | null;
+  /** Son hatırlatmanın gönderildiği an. */
+  remindedAt?: string | null;
+}
+
+/** ciklet-web: `GET /api/bookmarks?idsOnly=1`. */
+export interface BookmarkIdsResponse {
+  ids: string[];
+  /** Mesaj kimliği → hatırlatıcı anı (ISO). */
+  reminders?: Record<string, string>;
+}
+
+/** ciklet-web: `GET /api/profile-annotations?ignored=1` satırı. */
+export interface IgnoredUser {
+  id: string;
+  username: string;
+  name: string | null;
+  imageUrl: string | null;
+  ignoredAt: string;
+}
+
+/** ciklet-web: `GET/PATCH /api/servers/:id/sidebar-preferences`. */
+export interface SidebarPreferences {
+  hideMutedChannels: boolean;
+  hiddenChannelIds: string[];
 }
 
 /** ciklet-web: `GET /api/mentions` satırı (son 7 gün, kanal mesajları). */

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { RefreshControl, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { router } from "expo-router";
@@ -96,7 +96,7 @@ export default function ChatsScreen() {
   // Arkadaş takma adları liste başlıklarında gerçek adın önüne geçer.
   const nicknames = useNicknames();
   const { data: annotations } = useAnnotations();
-  // Yok sayılan kişilerin satırında sessiz ikonu çıkar.
+  // Yoksayılan kişilerin satırında sessiz ikonu çıkar.
   const ignoredIds = useMemo(
     () =>
       new Set(
@@ -111,9 +111,26 @@ export default function ChatsScreen() {
    * Sıralama sunucudan gelir (son mesaj zamanına göre); istemci yalnızca
    * sabitlenmişleri öne çeker ve filtreyi uygular.
    */
+  // Yoksaydığın kişiyle birebir sohbetler ana listeden çıkar (Discord
+  // "Ignore"; web directs-sidebar ile aynı): liste sonunda "Yoksayılan
+  // sohbetler (N)" satırıyla açılır, karşı tarafa haber verilmez.
+  const isIgnoredDirect = useCallback(
+    (direct: (typeof conversations)[number]) => {
+      const peer = directDisplay(direct, myId).peer;
+      return !directDisplay(direct, myId).isGroup && !!peer && ignoredIds.has(peer.id);
+    },
+    [myId, ignoredIds]
+  );
+  const ignoredConversations = useMemo(
+    () => conversations.filter(isIgnoredDirect),
+    [conversations, isIgnoredDirect]
+  );
+  const [showIgnored, setShowIgnored] = useState(false);
+
   const visible = useMemo(() => {
     const pinned = new Set(pinnedDirectIds);
     const filtered = conversations.filter((direct) => {
+      if (isIgnoredDirect(direct)) return false;
       if (filter === "unread") return isDirectUnread(direct, myId, directUnread);
       if (filter === "pinned") return pinned.has(direct.id);
       if (filter === "groups") return direct.isGroup === true;
@@ -122,11 +139,11 @@ export default function ChatsScreen() {
     return [...filtered].sort(
       (a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id))
     );
-  }, [conversations, pinnedDirectIds, filter, myId, directUnread]);
+  }, [conversations, pinnedDirectIds, filter, myId, directUnread, isIgnoredDirect]);
 
   const unreadTotal = useMemo(
-    () => conversations.filter((direct) => isDirectUnread(direct, myId, directUnread)).length,
-    [conversations, myId, directUnread]
+    () => conversations.filter((direct) => !isIgnoredDirect(direct) && isDirectUnread(direct, myId, directUnread)).length,
+    [conversations, myId, directUnread, isIgnoredDirect]
   );
 
   const filterItems = useMemo<TabItem<Filter>[]>(
@@ -316,6 +333,40 @@ export default function ChatsScreen() {
             paddingBottom: tabInset + spacing.lg,
           }}
           ListEmptyComponent={<EmptyChats filter={filter} />}
+          ListFooterComponent={
+            filter === "all" && ignoredConversations.length > 0 ? (
+              <View>
+                <Pressable
+                  onPress={() => setShowIgnored((value) => !value)}
+                  accessibilityRole="button"
+                  style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}
+                >
+                  <Icon name={showIgnored ? "chevron-down" : "chevron-right"} size={14} color={colors.muted} />
+                  <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }}>
+                    Yoksayılan sohbetler ({ignoredConversations.length})
+                  </Text>
+                </Pressable>
+                {showIgnored
+                  ? ignoredConversations.map((item) => (
+                      <View key={item.id} style={{ opacity: 0.6 }}>
+                        <ConversationRow
+                          item={item}
+                          myId={myId}
+                          nicknames={nicknames}
+                          unreadCount={0}
+                          unreadReady={directUnread.ready}
+                          pinned={false}
+                          onTogglePinned={() => togglePinned(item.id)}
+                          onRemove={(display) => confirmRemove(item, display)}
+                          onLongPress={(display) => setActionsFor({ item, display })}
+                          ignoredIds={ignoredIds}
+                        />
+                      </View>
+                    ))
+                  : null}
+              </View>
+            ) : null
+          }
         />
       )}
 

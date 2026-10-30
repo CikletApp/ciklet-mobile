@@ -5,6 +5,7 @@ import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
 import type {
   BookmarkEntry,
+  BookmarkIdsResponse,
   MentionEntry,
   MessageRequestEntry,
   ProfileConnectionView,
@@ -24,9 +25,51 @@ import type {
 export function useBookmarkIds() {
   return useQuery({
     queryKey: qk.bookmarkIds,
-    queryFn: () => api<{ ids: string[] }>(endpoints.bookmarks(true)),
+    queryFn: () => api<BookmarkIdsResponse>(endpoints.bookmarks(true)),
     select: (data) => new Set(data?.ids ?? []),
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Kurulu hatırlatıcılar: mesaj kimliği → an (ISO). Kimlik kümesiyle aynı istek. */
+export function useBookmarkReminders() {
+  return useQuery({
+    queryKey: qk.bookmarkIds,
+    queryFn: () => api<BookmarkIdsResponse>(endpoints.bookmarks(true)),
+    select: (data) => data?.reminders ?? {},
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * "Bana hatırlat" (web hooks/use-bookmarks setReminder): kayıtlı değilse
+ * hatırlatıcıyla birlikte kaydeder, kayıtlıysa yalnızca hatırlatıcıyı
+ * kurar/kaldırır (`remindAt=null`). Sunucu 409 (500 kayıt sınırı) dönebilir.
+ */
+export function useSetBookmarkReminder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ target, remindAt }: { target: BookmarkTarget; remindAt: Date | null }) => {
+      const iso = remindAt ? remindAt.toISOString() : null;
+      const saved = queryClient.getQueryData<BookmarkIdsResponse>(qk.bookmarkIds)?.ids.includes(target.messageId) ?? false;
+      if (iso && !saved) {
+        await api(endpoints.bookmarks(), { method: "POST", body: { ...target, remindAt: iso } });
+      } else {
+        await api(endpoints.bookmarks(), { method: "PATCH", body: { messageId: target.messageId, remindAt: iso } });
+      }
+      return iso;
+    },
+    onSuccess: (iso, { target }) => {
+      queryClient.setQueryData<BookmarkIdsResponse>(qk.bookmarkIds, (old) => {
+        const ids = new Set(old?.ids ?? []);
+        ids.add(target.messageId);
+        const reminders = { ...(old?.reminders ?? {}) };
+        if (iso) reminders[target.messageId] = iso;
+        else delete reminders[target.messageId];
+        return { ids: [...ids], reminders };
+      });
+      void queryClient.invalidateQueries({ queryKey: qk.bookmarks });
+    },
   });
 }
 
@@ -52,11 +95,14 @@ export function useToggleBookmark() {
         ? api(endpoints.bookmarks(), { method: "DELETE", body: { messageId: target.messageId } })
         : api(endpoints.bookmarks(), { method: "POST", body: target }),
     onMutate: ({ target, saved }) => {
-      queryClient.setQueryData<{ ids: string[] }>(qk.bookmarkIds, (old) => {
+      queryClient.setQueryData<BookmarkIdsResponse>(qk.bookmarkIds, (old) => {
         const ids = new Set(old?.ids ?? []);
-        if (saved) ids.delete(target.messageId);
-        else ids.add(target.messageId);
-        return { ids: [...ids] };
+        const reminders = { ...(old?.reminders ?? {}) };
+        if (saved) {
+          ids.delete(target.messageId);
+          delete reminders[target.messageId];
+        } else ids.add(target.messageId);
+        return { ids: [...ids], reminders };
       });
       if (saved) {
         queryClient.setQueryData<BookmarkEntry[]>(qk.bookmarks, (old) =>

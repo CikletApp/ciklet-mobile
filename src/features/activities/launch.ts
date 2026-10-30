@@ -33,6 +33,10 @@ export interface ActivityChatContext {
   chatId?: string | null;
   /** Kanal sohbetlerinde zorunlu (gönderim ucu sunucu kimliği ister). */
   serverId?: string | null;
+  /** SDK `custom_id`: özel bağlantının customId'si (derin bağlantı). */
+  customId?: string | null;
+  /** SDK `referrer_id`: daveti / bağlantıyı paylaşan kullanıcı (kart yazarı). */
+  referrerId?: string | null;
 }
 
 /** Çift tetiklenme koruması (web: 3 sn pencere). */
@@ -78,6 +82,8 @@ export function joinActivity(activity: ActivityDescriptor, context: ActivityChat
     chatType: chatTypeOf(context),
     serverId: context.serverId || null,
     isHost: false,
+    customId: context.customId ?? null,
+    referrerId: context.referrerId ?? null,
   });
 }
 
@@ -166,6 +172,8 @@ export async function launchActivity(
     chatType: chatTypeOf(context),
     serverId: context.serverId || null,
     isHost: true,
+    customId: context.customId ?? null,
+    referrerId: context.referrerId ?? null,
   });
 }
 

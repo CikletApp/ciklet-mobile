@@ -220,6 +220,11 @@ export const endpoints = {
   profileAnnotations: "/api/profile-annotations",
   profileAnnotation: (profileId: string) =>
     `/api/profile-annotations/${encodeURIComponent(profileId)}`,
+  /** Yoksayılan kullanıcılar, profil alt kümesiyle (Ayarlar → Gizlilik). */
+  ignoredUsers: "/api/profile-annotations?ignored=1",
+  /** GET/PATCH `{ hideMutedChannels?, follow?: { channelIds, followed } }` — kişisel kenar çubuğu tercihi. */
+  sidebarPreferences: (serverId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/sidebar-preferences`,
   /**
    * Keşfet — mobil için ciklet-web'den istenen JSON uçları (web tarafı SSR).
    * Uç henüz yayında değilse ekran 404'ü "hazırlanıyor" olarak gösterir.
@@ -252,6 +257,8 @@ export const endpoints = {
   activityInviteTargets: (chatId: string) => `/api/activities/invite${qs({ chatId })}`,
   /** GET — başka sohbete düşen davet kartından katılma (erişim yeniden doğrulanır). */
   activitySession: (chatId: string) => `/api/activities/session${qs({ chatId })}`,
+  /** GET `{ assets: { anahtar: adres } }` — SDK setActivity görsel anahtarları (Portal › Art Assets). */
+  activityAssets: (clientId: string) => `/api/activities/assets${qs({ clientId })}`,
   /**
    * GET `{ keys: string[] }` — Ciklet'in tanıdığı oyun/program ad anahtarları
    * (oturum gerekir). Canlı oyun etkinliği bu kümeye göre süzülür (lib/recognized-games).
@@ -284,7 +291,10 @@ export const endpoints = {
     `/api/spotify/now-playing/${encodeURIComponent(profileId)}`,
   /** POST `{ hostProfileId, action: "sync" | "stop" }` — ~10 sn'de bir. */
   spotifyListenAlong: "/api/spotify/listen-along",
-  /** GET liste (`?idsOnly=1` → `{ ids }`), POST `{ messageId, scope, chatId }`, DELETE `{ messageId }`. */
+  /**
+   * GET liste (`?idsOnly=1` → `{ ids, reminders }`), POST `{ messageId, scope, chatId, remindAt? }`,
+   * PATCH `{ messageId, remindAt: ISO | null }` (hatırlatıcı), DELETE `{ messageId }`.
+   */
   bookmarks: (idsOnly?: boolean) => `/api/bookmarks${qs({ idsOnly: idsOnly ? 1 : undefined })}`,
   /** Son 7 günde bahsedilen kanal mesajları. */
   mentions: "/api/mentions",

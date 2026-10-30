@@ -122,7 +122,7 @@ export function useSocialEvents() {
         const directId = typeof frame.directId === "string" ? frame.directId : null;
         const myId = useAuth.getState().profile?.id;
         if (!sender?.id || !sender.username || sender.id === myId) return;
-        if (frame.isSpam === true || ignoring(sender.id)) return;
+        if (frame.isSpam === true || frame.ignored === true || ignoring(sender.id)) return;
         if (!noticeAllowed(directId)) return;
         if (directId && !directAllows(directId)) return;
 
@@ -154,6 +154,40 @@ export function useSocialEvents() {
           imageUrl: typeof frame.senderImage === "string" ? frame.senderImage : null,
           fallbackText: senderName,
           onPress: () => router.push(`/chat/channel/${channelId}?serverId=${serverId}`),
+        });
+      }),
+
+      // Aynı hesabın başka cihazında kişisel tercih değişti (web ile aynı).
+      onGatewayEvent(ServerEvent.SELF_SYNC, (frame) => {
+        if (frame.topic === "annotations") invalidate(qk.annotations);
+        else if (frame.topic === "bookmarks") invalidate(qk.bookmarkIds, qk.bookmarks);
+        else if (frame.topic === "sidebar" && typeof frame.serverId === "string") {
+          invalidate(qk.sidebarPreferences(frame.serverId));
+        }
+      }),
+
+      // "Bana hatırlat" vakti geldi (web: realtime-provider `bookmark.reminder`).
+      onGatewayEvent(ServerEvent.BOOKMARK_REMINDER, (frame) => {
+        invalidate(qk.bookmarkIds, qk.bookmarks);
+        const scope = frame.scope === "direct" ? "direct" : "channel";
+        const chatId = typeof frame.chatId === "string" ? frame.chatId : null;
+        const serverId = typeof frame.serverId === "string" ? frame.serverId : "";
+        const author = typeof frame.authorName === "string" ? frame.authorName : "";
+        const where = typeof frame.where === "string" ? frame.where : null;
+        const preview = formatMessagePreview({ content: typeof frame.content === "string" ? frame.content : "", media: frame.media });
+        if (!chatId) return;
+        void playSound("message");
+        showInAppNotice({
+          title: "Hatırlatıcı",
+          body: [author && where ? `${author} · ${where}` : author || where, preview].filter(Boolean).join(": "),
+          imageUrl: typeof frame.authorImage === "string" ? frame.authorImage : null,
+          fallbackText: author || "?",
+          onPress: () =>
+            router.push(
+              scope === "direct"
+                ? `/chat/direct/${chatId}`
+                : `/chat/channel/${chatId}?serverId=${serverId}`
+            ),
         });
       }),
 

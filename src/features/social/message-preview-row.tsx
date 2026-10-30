@@ -22,6 +22,7 @@ export function MessagePreviewRow({
   onPress,
   onLongPress,
   trailing,
+  footer,
 }: {
   id: string;
   author: SearchProfileSlim | null;
@@ -32,6 +33,8 @@ export function MessagePreviewRow({
   onPress: () => void;
   onLongPress?: () => void;
   trailing?: React.ReactNode;
+  /** Metnin altındaki küçük satır (ör. Kaydedilenler'de "Hatırlatıcı: 14:30"). */
+  footer?: React.ReactNode;
 }) {
   const name = author ? displayNameOf(author) : "Bir kullanıcı";
   // Ek mesajında içerik dosyanın adresi olabilir; adres görünmez (lib/message-preview).
@@ -70,6 +73,7 @@ export function MessagePreviewRow({
           <Text style={{ ...typography.body, color: colors.text }} numberOfLines={4}>
             {emojify(text, `prev-${id}`, 16)}
           </Text>
+          {footer}
         </View>
         {trailing}
       </View>

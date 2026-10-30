@@ -6,6 +6,8 @@ import { ApiError, api } from "@/api/client";
 import {
   useBlockedUsers,
   useAccountSessions,
+  useIgnoredUsers,
+  useSetIgnored,
   useCurrentProfile,
   useMyServers,
   useRevokeSession,
@@ -16,7 +18,7 @@ import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CurrentProfile } from "@/api/types";
-import { Avatar, Button, Divider, EmptyState, ListGroup, ListRow, Screen, SectionHeader, showDialog } from "@/components/ui";
+import { Avatar, Button, Divider, EmptyState, ListGroup, ListRow, Screen, SectionHeader, showDialog, showToast } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { getDeviceId } from "@/lib/device";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -32,6 +34,8 @@ export default function PrivacySettingsScreen() {
   const memberships = useMyServers();
   const blocked = useBlockedUsers();
   const unblock = useUnblockUser();
+  const ignoredUsers = useIgnoredUsers();
+  const setIgnored = useSetIgnored();
   const queryClient = useQueryClient();
   const updateServerDm = useMutation({
     mutationFn: ({ memberId, value }: { memberId: string; value: boolean }) =>
@@ -227,6 +231,43 @@ export default function PrivacySettingsScreen() {
             <ActivityIndicator color={colors.brand} />
           ) : (
             <EmptyState icon="shield" title="Engellenen kimse yok" description="Engellediğin kullanıcılar burada görünür." />
+          )}
+        </View>
+
+        <SectionHeader title="YOKSAYILAN KULLANICILAR" />
+        <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+          <Text style={{ ...typography.caption, color: colors.muted }}>
+            {"Yoksaydığın kişilerin mesajları daraltılır, sana bildirim göndermez, etkinlikleri ve DM'leri gizlenir. Onlara haber verilmez ve seni görmeye devam ederler."}
+          </Text>
+          {(ignoredUsers.data?.length ?? 0) > 0 ? (
+            <ListGroup>
+              {ignoredUsers.data?.map((entry, index) => (
+                <View key={entry.id}>
+                  {index > 0 ? <Divider inset={52} /> : null}
+                  <ListRow
+                    leading={<Avatar profileId={entry.id} imageUrl={entry.imageUrl} fallbackText={entry.username} size={36} />}
+                    title={entry.name?.trim() || entry.username}
+                    subtitle={`@${entry.username}`}
+                    detail="Yoksaymayı Bırak"
+                    chevron={false}
+                    disabled={setIgnored.isPending}
+                    onPress={() =>
+                      setIgnored.mutate(
+                        { profileId: entry.id, ignored: false },
+                        {
+                          onSuccess: () => showToast(`${entry.name?.trim() || entry.username} artık yoksayılmıyor.`),
+                          onError: () => showToast("İşlem tamamlanamadı. Tekrar dene.", "error"),
+                        }
+                      )
+                    }
+                  />
+                </View>
+              ))}
+            </ListGroup>
+          ) : ignoredUsers.isLoading ? (
+            <ActivityIndicator color={colors.brand} />
+          ) : (
+            <EmptyState icon="bell-off" title="Kimseyi yoksaymadın" description="Yoksaydığın kullanıcılar burada görünür." />
           )}
         </View>
 

@@ -40,6 +40,13 @@ interface PresenceState {
    * realtime/recognized-games). Yüklenene dek null: oyun kovası gizli.
    */
   recognized: RecognizedSet | null;
+  /**
+   * Yoksaydığın kişiler (Discord "Ignore"): etkinlikleri sana çizilmez.
+   * Ham etkinlik saklanır; yoksayma kalkınca geri görünür. Kaynak
+   * profil kayıtları (api/hooks/use-annotations → useSyncIgnoredPresence).
+   */
+  hidden: ReadonlySet<string>;
+  setHidden: (ids: ReadonlySet<string>) => void;
 
   /** `statuses` sunucudan DİZİ olarak gelir — bkz. realtime/events.ts. */
   applyBatch: (
@@ -109,6 +116,9 @@ export const usePresenceStore = create<PresenceState>((set) => ({
 
   setRecognized: (recognized) => set({ recognized }),
 
+  hidden: new Set(),
+  setHidden: (hidden) => set({ hidden }),
+
   reset: () =>
     set({
       entries: {},
@@ -129,8 +139,10 @@ export function usePresence(userId: string | undefined): PresenceEntry {
     userId ? (state.entries[userId] ?? EMPTY) : EMPTY
   );
   const recognized = usePresenceStore((state) => state.recognized);
-  // Ciklet'in tanımadığı oyun/program görünmez (lib/recognized-games).
-  const activity = visibleActivity(entry.activity, recognized);
+  const hidden = usePresenceStore((state) => (userId ? state.hidden.has(userId) : false));
+  // Ciklet'in tanımadığı oyun/program görünmez (lib/recognized-games);
+  // yoksaydığın kişinin etkinliği hiç görünmez.
+  const activity = hidden ? null : visibleActivity(entry.activity, recognized);
   return activity === entry.activity ? entry : { ...entry, activity };
 }
 

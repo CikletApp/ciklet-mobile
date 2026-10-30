@@ -63,6 +63,10 @@ export const qk = {
 
   /** Kullanıcının başkaları hakkında tuttuğu kayıtlar (tek liste). */
   annotations: ["profile-annotations"] as const,
+  /** Ayarlar → Gizlilik: yoksayılan kullanıcılar (profil alt kümesiyle). */
+  ignoredUsers: ["profile-annotations", "ignored"] as const,
+  /** Sunucu başına kenar çubuğu tercihleri (Kanallara Göz At, sessizleri gizle). */
+  sidebarPreferences: (serverId: string) => ["sidebar-preferences", serverId] as const,
 
   /** Keşfet listeleri. */
   discover: (tab: string, query: string) => ["discover", tab, query] as const,

@@ -19,6 +19,10 @@ import {
   useServerTiers,
   useSidebarThreads,
   useUnreadCounts,
+  DEFAULT_SIDEBAR_PREFERENCES,
+  isChannelShownInSidebar,
+  useSidebarPreferences,
+  useUpdateSidebarPreferences,
 } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
 import {
@@ -37,7 +41,7 @@ import { openThread } from "@/features/server/thread-nav";
 import { useVoiceOccupancy } from "@/features/voice/use-voice-occupancy";
 import { CHANNEL_FULL_MESSAGE, formatUserLimit, isVoiceChannelFull } from "@/lib/voice-settings";
 import { useAuth } from "@/stores/auth";
-import { effectiveChannelNotification, findSetting } from "@/lib/notification-settings";
+import { effectiveChannelNotification, findSetting, isMutedAt } from "@/lib/notification-settings";
 import { useNow } from "@/lib/use-now";
 import { usePresenceStore } from "@/stores/presence";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
@@ -89,11 +93,65 @@ export default function ServerChannelsScreen() {
     return { label: formatUserLimit(ids.length, limit), full: !exempt && isVoiceChannelFull(ids.length, limit) };
   };
 
-  const sections = buildSections(channels ?? []);
   // Açık alt başlıklar üst kanalın altında (web kenar çubuğu; forum hariç).
   const threadsByParent = useSidebarThreads(serverId);
   const { data: notificationSettings } = useNotificationSettings();
   const now = useNow(60_000);
+
+  // Kişisel görünürlük (web kenar çubuğu ile aynı): "Kanallara Göz At"ta
+  // takipten çıkarılan kanallar ve — açıksa — kanal düzeyinde susturulmuş
+  // kanallar listede çizilmez. Erişim değişmez; yalnızca bu kişinin listesi.
+  const { data: sidebarPrefs } = useSidebarPreferences(serverId);
+  const updateSidebar = useUpdateSidebarPreferences(serverId);
+  const prefs = sidebarPrefs ?? DEFAULT_SIDEBAR_PREFERENCES;
+  const [serverMenuOpen, setServerMenuOpen] = useState(false);
+  const shownChannels = (() => {
+    if (prefs.hiddenChannelIds.length === 0 && !prefs.hideMutedChannels) return channels ?? [];
+    const hiddenSet = new Set(prefs.hiddenChannelIds);
+    return (channels ?? []).filter((channel) =>
+      isChannelShownInSidebar({
+        channelId: channel.id,
+        prefs,
+        hiddenSet,
+        muted: isMutedAt(findSetting(notificationSettings, { channelId: channel.id })?.mutedUntil, now),
+      })
+    );
+  })();
+  const sections = buildSections(shownChannels);
+  const serverMenuItems: ActionSheetItem[] = [
+    {
+      key: "browse",
+      label: "Kanallara Göz At",
+      icon: "list",
+      onPress: () => router.push(`/servers/${serverId}/browse-channels`),
+    },
+    {
+      key: "hide-muted",
+      label: "Sessize Alınan Kanalları Gizle",
+      detail: prefs.hideMutedChannels ? "Açık" : "Kapalı",
+      icon: prefs.hideMutedChannels ? "eye-off" : "eye",
+      onPress: () =>
+        updateSidebar.mutate(
+          { hideMutedChannels: !prefs.hideMutedChannels },
+          {
+            onSuccess: (saved) =>
+              showToast(
+                saved.hideMutedChannels
+                  ? "Sessize alınan kanallar artık gizleniyor."
+                  : "Sessize alınan kanallar artık görünüyor."
+              ),
+            onError: () => showToast("Tercih kaydedilemedi.", "error"),
+          }
+        ),
+    },
+    {
+      key: "notifications",
+      label: "Bildirimler",
+      icon: "bell-off",
+      onPress: () =>
+        openNotificationSettings({ target: { serverId }, kind: "server", title: server?.name ?? "Sunucu" }),
+    },
+  ];
   /** Basılı tutulan kanal — eylem sayfası (bildirimler, düzenle). */
   const [menuChannel, setMenuChannel] = useState<Channel | null>(null);
   const channelMuted = (channelId: string) =>
@@ -137,6 +195,13 @@ export default function ServerChannelsScreen() {
           title: "",
           headerRight: () => (
             <View style={{ flexDirection: "row", gap: spacing.xs }}>
+              <IconButton
+                icon="more"
+                label="Sunucu menüsü"
+                background="transparent"
+                tint={colors.muted}
+                onPress={() => setServerMenuOpen(true)}
+              />
               {canManageChannels ? (
                 <IconButton
                   icon="plus"
@@ -249,6 +314,19 @@ export default function ServerChannelsScreen() {
           )}
         />
       )}
+
+      <ActionSheet
+        visible={serverMenuOpen}
+        onClose={() => setServerMenuOpen(false)}
+        header={
+          server ? (
+            <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
+              {server.name}
+            </Text>
+          ) : undefined
+        }
+        items={serverMenuItems}
+      />
 
       <ActionSheet
         visible={menuChannel !== null}

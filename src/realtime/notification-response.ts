@@ -170,7 +170,9 @@ export function routeForNotification(data: Record<string, unknown> | undefined):
   // Kanalda etiketlenme push'u (sözleşme: type "mention" + channelId + serverId)
   // doğrudan kanala gider.
   const channelId = typeof data.channelId === "string" ? data.channelId : "";
-  if (type === "MENTION" && channelId) {
+  // "Bana hatırlat" push'u (type "reminder"): DM ise `directId` yukarıda
+  // yakalandı; kanal hatırlatıcısı etiketlenmeyle aynı yola gider.
+  if ((type === "MENTION" || type === "REMINDER") && channelId) {
     const serverId = typeof data.serverId === "string" ? data.serverId : "";
     return `/chat/channel/${encodeURIComponent(channelId)}?serverId=${encodeURIComponent(serverId)}`;
   }

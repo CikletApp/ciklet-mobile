@@ -37,6 +37,18 @@ import {
 import { ActivityInviteSheet } from "@/features/activities/invite-sheet";
 import { openActivityHelp } from "@/features/activities/invite";
 import { resolveCardActivity } from "@/features/activities/card-state";
+import {
+  activitySafeArea,
+  closeNotice,
+  currentStateFor,
+  currentUserPayload,
+  normalizeLaunchContext,
+  toSdkPresence,
+  usesAssetKeys,
+  type HostStateSnapshot,
+  type SdkUser,
+} from "@/features/activities/sdk-host";
+import { setEmbeddedActivityPresence } from "@/features/presence/media-presence";
 import { API_BASE_URL, resolveMediaUrl } from "@/lib/config";
 import { fw } from "@/theme/fonts";
 import { ServerEvent } from "@/realtime/events";
@@ -102,6 +114,26 @@ function activityAvatar(imageUrl: string | null | undefined): string | null {
   const resolved = resolveMediaUrl(imageUrl);
   if (!resolved) return null;
   return /^(https?:\/\/|data:image\/)/i.test(resolved) ? resolved : null;
+}
+
+/** SDK setActivity görsel anahtarları (Portal › Art Assets) — aktivite başına bir kez. */
+const presenceAssetsCache = new Map<string, Promise<Record<string, string>>>();
+function loadPresenceAssets(clientId: string): Promise<Record<string, string>> {
+  let pending = presenceAssetsCache.get(clientId);
+  if (!pending) {
+    pending = api<{ assets?: Record<string, unknown> }>(endpoints.activityAssets(clientId))
+      .then((res) => {
+        const out: Record<string, string> = {};
+        for (const [key, url] of Object.entries(res?.assets ?? {})) if (typeof url === "string") out[key] = url;
+        return out;
+      })
+      .catch(() => {
+        presenceAssetsCache.delete(clientId);
+        return {};
+      });
+    presenceAssetsCache.set(clientId, pending);
+  }
+  return pending;
 }
 
 function toSdkParticipant(participant: RoomParticipant) {
@@ -197,6 +229,8 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
   const [frameError, setFrameError] = useState(false);
   const participantsRef = useRef<RoomParticipant[]>([]);
   const frameReadyRef = useRef(false);
+  /** Son hesaplanan safe-area (READY anında gönderilir). */
+  const safeAreaRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const fetchTimesRef = useRef<number[]>([]);
   /** OPEN_INVITE_DIALOG açılışları (host tarafı hız sınırı). */
   const inviteOpensRef = useRef<number[]>([]);
@@ -206,6 +240,31 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
 
   // Aynı sohbetteki katılımcılar aynı örneği paylaşır (web: i-<id>-<chat>).
   const instanceId = `i-${clientId}-${chatId || "solo"}`;
+  // SDK `launch_id`: bu WebView yüklemesine özgü (oturum anahtarıyla birlikte yeni).
+  const [launchId] = useState(
+    () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${session.key}`
+  );
+  // SDK başlatma bağlamı (web lib/activity/launch-context ile aynı kural):
+  // özel bağlantı, daveti paylaşan kişi (kendisi değil), sunucu kanalında sunucu.
+  const launchContext = useMemo(
+    () =>
+      normalizeLaunchContext(
+        { customId: session.customId, referrerId: session.referrerId, guildId: session.serverId },
+        profile?.id
+      ),
+    [session.customId, session.referrerId, session.serverId, profile?.id]
+  );
+  /** SUBSCRIBE'da hemen gönderilecek güncel durum (Discord gibi; sdk-host). */
+  const hostStateRef = useRef<HostStateSnapshot>({
+    layoutMode: "focused",
+    orientation: "portrait",
+    hidden: false,
+    user: null,
+  });
+  /** Bu oturumun setActivity ile yayına koyduğu etkinlik var mı (kapanışta kalkar). */
+  const presenceOwnedRef = useRef(false);
+  const presenceSeqRef = useRef(0);
+  const [startedAt] = useState(() => Date.now());
 
   const status = useQuery({
     queryKey: ["activity-authorize", clientId],
@@ -283,14 +342,46 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
   // Görünüm değişimi aktiviteye bildirilir (SDK ACTIVITY_LAYOUT_MODE_UPDATE /
   // ORIENTATION_UPDATE) — PiP'te sade görünüme geçebilsin.
   useEffect(() => {
+    hostStateRef.current.layoutMode = mode === "mini" ? "pip" : "focused";
     if (!frameReadyRef.current) return;
     send(rpcDispatch("ACTIVITY_LAYOUT_MODE_UPDATE", { layout_mode: mode === "mini" ? "pip" : "focused" }));
   }, [mode, send]);
   useEffect(() => {
-    if (!frameReadyRef.current) return;
     const orientation = landscape ? "landscape" : "portrait";
+    hostStateRef.current.orientation = orientation;
+    if (!frameReadyRef.current) return;
     send(rpcDispatch("ORIENTATION_UPDATE", { screen_orientation: orientation, orientation }));
   }, [landscape, send]);
+
+  // Kullanıcı (CURRENT_USER_UPDATE): profil değişince bildirilir; abonelikte güncel hâl.
+  const sdkUser = useMemo<SdkUser | null>(
+    () =>
+      profile
+        ? { id: profile.id, username: profile.username, global_name: profile.name ?? null, avatar: activityAvatar(profile.imageUrl) }
+        : null,
+    [profile]
+  );
+  const sentUserKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    hostStateRef.current.user = sdkUser;
+    const key = sdkUser ? `${sdkUser.id}|${sdkUser.username}|${sdkUser.global_name ?? ""}|${sdkUser.avatar ?? ""}` : "";
+    const previous = sentUserKeyRef.current;
+    sentUserKeyRef.current = key;
+    if (!frameReadyRef.current || previous === null || previous === key || !sdkUser) return;
+    send(rpcDispatch("CURRENT_USER_UPDATE", currentUserPayload(sdkUser)));
+  }, [sdkUser, send]);
+
+  // SDK setActivity etkinliği aktivite kapanınca kalkar (web ile aynı).
+  useEffect(
+    () => () => {
+      presenceSeqRef.current += 1;
+      if (presenceOwnedRef.current) {
+        presenceOwnedRef.current = false;
+        setEmbeddedActivityPresence(null);
+      }
+    },
+    []
+  );
 
   // Android geri tuşu: yataydan çık → mini pencereye in (Discord). Onay
   // ekranında geri, aktiviteyi kapatır.
@@ -507,11 +598,54 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
           return;
         }
 
-        case "SET_ACTIVITY":
-        case "CAPTURE_LOG":
+        case "SET_ACTIVITY": {
+          // Discord `setActivity` → kullanıcının rich presence'ı (sdk-host;
+          // web activities-room ile aynı). Yayın medya etkinliğiyle aynı
+          // kuyruktan (features/presence/media-presence), öncelikli.
+          const seq = ++presenceSeqRef.current;
+          const assets = usesAssetKeys(args) ? await loadPresenceAssets(current.id) : null;
+          if (seq !== presenceSeqRef.current) {
+            send(rpcResponse(cmd, nonce, {}));
+            return;
+          }
+          const presence = toSdkPresence(args, {
+            clientId: current.id,
+            appName: current.name,
+            appIconUrl: current.icon,
+            startedAt,
+            assets,
+          });
+          if (presence?.kind === "invalid") {
+            send(rpcError(cmd, nonce, 4002, presence.message));
+            return;
+          }
+          if (presence?.kind === "set") {
+            presenceOwnedRef.current = true;
+            setEmbeddedActivityPresence(presence.activity);
+          } else if (presence?.kind === "clear" && presenceOwnedRef.current) {
+            presenceOwnedRef.current = false;
+            setEmbeddedActivityPresence(null);
+          }
+          send(rpcResponse(cmd, nonce, {}));
+          return;
+        }
+
         case "SUBSCRIBE":
-        case "UNSUBSCRIBE":
-          if (cmd === "CAPTURE_LOG" && __DEV__) {
+        case "UNSUBSCRIBE": {
+          send(rpcResponse(cmd, nonce, {}));
+          // Durum olayına abone olunca güncel değer HEMEN gider (Discord gibi).
+          if (cmd === "SUBSCRIBE" && typeof args.evt === "string") {
+            const state = currentStateFor(args.evt, hostStateRef.current);
+            if (state !== null) send(rpcDispatch(args.evt, state));
+            if (args.evt === "ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE" && participantsRef.current.length > 0) {
+              send(rpcDispatch(args.evt, { participants: participantsRef.current.map(toSdkParticipant) }));
+            }
+          }
+          return;
+        }
+
+        case "CAPTURE_LOG":
+          if (__DEV__) {
             console.warn(`[Aktivite:${current.name}] [${String(args.level ?? "log")}]`, String(args.message ?? ""));
           }
           send(rpcResponse(cmd, nonce, {}));
@@ -531,15 +665,18 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
           send(rpcResponse(cmd, nonce, { locale: deviceLocale() }));
           return;
 
-        case "CLOSE":
+        case "CLOSE": {
+          const notice = closeNotice(args);
+          if (notice) showToast(`${current.name}: ${notice}`, "error");
           leave();
           return;
+        }
 
         default:
           send(rpcError(cmd, nonce, 1001, `Unknown command: ${cmd}`));
       }
     },
-    [chatId, serverId, consented, profile, deepColor, requestAuthCode, send, leave]
+    [chatId, serverId, consented, profile, deepColor, requestAuthCode, send, leave, startedAt]
   );
 
   const onMessage = useCallback(
@@ -591,9 +728,16 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
             instance_id: instanceId,
             frame_id: instanceId,
             platform: "mobile",
+            location_id: chatId ?? undefined,
+            launch_id: launchId,
+            guild_id: launchContext.guildId,
+            custom_id: launchContext.customId,
+            referrer_id: launchContext.referrerId,
           })
         );
         send(rpcDispatch("ACTIVITY_LAYOUT_MODE_UPDATE", { layout_mode: view.mode === "mini" ? "pip" : "focused" }));
+        // Gerçek safe-area (çentik / ev çubuğu) → SDK `--ciklet-safe-area-inset-*`.
+        send(rpcDispatch("SAFE_AREA_INSETS_UPDATE", safeAreaRef.current));
         if (participantsRef.current.length > 0) {
           send(
             rpcDispatch("ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE", {
@@ -605,13 +749,16 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
       }
 
       if (data.cmd === "CLOSE") {
+        // `sdk.close(code, message)`: normal olmayan kapanışta mesaj gösterilir (Discord).
+        const notice = closeNotice(data.args);
+        if (notice) showToast(`${activity.name}: ${notice}`, "error");
         leave();
         return;
       }
       if (!data.nonce) return;
       void handleCommand(data, activity);
     },
-    [activity, chatId, consented, instanceId, profile, handleCommand, send, leave]
+    [activity, chatId, consented, instanceId, profile, handleCommand, send, leave, launchId, launchContext]
   );
 
   const html = useMemo(
@@ -621,11 +768,13 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
         clientId,
         instanceId,
         channelId: chatId ?? "",
+        launchId,
+        launch: launchContext,
         backgroundColor: deepColor,
       }),
     // Tema rengi değişince belge yeniden yüklenmesin: ilk renk yeterli.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [descriptor.url, clientId, instanceId, chatId]
+    [descriptor.url, clientId, instanceId, chatId, launchId, launchContext]
   );
 
   // ── Yerleşim ───────────────────────────────────────────────────────
@@ -684,14 +833,17 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
   // pencere sohbetin yazma çubuğu açıkken ezilmesin).
   const keyboard = useAnimatedKeyboard();
   const keyboardEvent = useSharedValue(0);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const show = Keyboard.addListener(showEvent, (event) => {
       keyboardEvent.set(withTiming(event.endCoordinates.height, { duration: 160 }));
+      setKeyboardOpen(true);
     });
     const hide = Keyboard.addListener(hideEvent, () => {
       keyboardEvent.set(withTiming(0, { duration: 160 }));
+      setKeyboardOpen(false);
     });
     return () => {
       show.remove();
@@ -699,6 +851,26 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
     };
   }, [keyboardEvent]);
   const avoidKeyboard = !mini && !showLandscape;
+
+  // Safe-area: aktivitenin gördüğü gerçek boşluklar (sdk-host activitySafeArea);
+  // READY'de ve değişince SAFE_AREA_INSETS_UPDATE ile gider.
+  const safeArea = useMemo(
+    () =>
+      activitySafeArea({
+        mode,
+        landscape: showLandscape,
+        keyboardOpen,
+        insets: { top: insets.top, right: insets.right, bottom: insets.bottom, left: insets.left },
+      }),
+    [mode, showLandscape, keyboardOpen, insets.top, insets.right, insets.bottom, insets.left]
+  );
+  const safeAreaKey = `${safeArea.top}|${safeArea.right}|${safeArea.bottom}|${safeArea.left}`;
+  useEffect(() => {
+    safeAreaRef.current = safeArea;
+    if (!frameReadyRef.current) return;
+    send(rpcDispatch("SAFE_AREA_INSETS_UPDATE", safeArea));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnızca değer değişince
+  }, [safeAreaKey, send]);
   const bodyStyle = useAnimatedStyle(() => {
     if (!avoidKeyboard) return { paddingBottom: 0 };
     return { paddingBottom: Math.max(keyboard.height.value, keyboardEvent.get()) };

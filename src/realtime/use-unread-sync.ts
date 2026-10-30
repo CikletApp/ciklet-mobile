@@ -63,6 +63,8 @@ export function useUnreadSync() {
         const directId = frame.directId;
         const sender = frame.sender as { id?: string } | undefined;
         if (typeof directId !== "string" || !sender?.id || sender.id === myId()) return;
+        // Yoksaydığın kişiden gelen DM rozet üretmez (sunucu `ignored` işaretler).
+        if (frame.ignored === true) return;
         if (isOpen(directId)) return;
         patchUnread(queryClient, (data) => incrementDirect(data, directId));
       }),

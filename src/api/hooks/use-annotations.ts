@@ -1,11 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/stores/auth";
+import { usePresenceStore } from "@/stores/presence";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
 import type {
+  IgnoredUser,
   ProfileAnnotation,
   ProfileAnnotationEntry,
   ProfileAnnotationPatch,
@@ -78,6 +80,7 @@ export function useSaveAnnotation(profileId: string | undefined) {
         const empty = !merged.nickname && !merged.note && !merged.ignored;
         return empty ? rest : [...rest, { targetId: profileId, ...merged }];
       });
+      void queryClient.invalidateQueries({ queryKey: qk.ignoredUsers });
     },
   });
 }
@@ -132,6 +135,48 @@ export function useSetIgnored() {
       queryClient.setQueryData<ProfileAnnotationEntry[]>(qk.annotations, (current) =>
         patchEntries(current, profileId, merged)
       );
+      void queryClient.invalidateQueries({ queryKey: qk.ignoredUsers });
     },
+  });
+}
+
+const NO_IDS: ReadonlySet<string> = new Set();
+
+/** Yoksaydığın kişiler (Discord "Ignore") — mesaj daraltma, DM listesi, etkinlik. */
+export function useIgnoredIds(): ReadonlySet<string> {
+  const { data } = useAnnotations();
+  return useMemo(() => {
+    if (!data) return NO_IDS;
+    const ids = new Set<string>();
+    for (const [profileId, annotation] of Object.entries(data)) if (annotation.ignored) ids.add(profileId);
+    return ids;
+  }, [data]);
+}
+
+/** Tek kişi yoksayılıyor mu? */
+export function useIsIgnored(profileId: string | null | undefined): boolean {
+  const { data } = useAnnotations();
+  return profileId ? data?.[profileId]?.ignored === true : false;
+}
+
+/**
+ * Yoksayılanları presence deposuna aktarır: etkinlikleri hiçbir yerde
+ * çizilmez (web: realtime-provider → useRichPresence.setHidden). Kökte bir
+ * kez çağrılır.
+ */
+export function useSyncIgnoredPresence() {
+  const ids = useIgnoredIds();
+  useEffect(() => {
+    usePresenceStore.getState().setHidden(ids);
+  }, [ids]);
+}
+
+/** Ayarlar → Gizlilik: yoksayılan kullanıcılar (profil alt kümesiyle). */
+export function useIgnoredUsers() {
+  const signedIn = useAuth((s) => s.status === "signedIn");
+  return useQuery({
+    queryKey: qk.ignoredUsers,
+    enabled: signedIn,
+    queryFn: () => api<IgnoredUser[]>(endpoints.ignoredUsers),
   });
 }

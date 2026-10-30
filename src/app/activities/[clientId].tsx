@@ -14,16 +14,20 @@ import { launchActivityById } from "@/features/activities/launch";
  * gelenler için.
  */
 export default function ActivityLaunchScreen() {
-  const { clientId, chatId, serverId } = useLocalSearchParams<{
+  // customId / referrerId: SDK başlatma bağlamı (özel bağlantı, paylaşan
+  // kişi) — derin bağlantıdan aktiviteye `custom_id` / `referrer_id` olarak geçer.
+  const { clientId, chatId, serverId, customId, referrerId } = useLocalSearchParams<{
     clientId: string;
     chatId?: string;
     serverId?: string;
+    customId?: string;
+    referrerId?: string;
   }>();
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    void launchActivityById(clientId, { chatId, serverId }).then((found) => {
+    void launchActivityById(clientId, { chatId, serverId, customId, referrerId }).then((found) => {
       if (cancelled) return;
       if (!found) {
         setMissing(true);
@@ -35,7 +39,7 @@ export default function ActivityLaunchScreen() {
     return () => {
       cancelled = true;
     };
-  }, [clientId, chatId, serverId]);
+  }, [clientId, chatId, serverId, customId, referrerId]);
 
   if (!missing) return <ScreenLoader label="Aktivite hazırlanıyor…" />;
 

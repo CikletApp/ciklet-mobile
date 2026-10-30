@@ -59,7 +59,7 @@ export function readActivityInviteOrigin(metadata: unknown): ActivityInviteOrigi
  * Köken sohbetteki oturuma katıl ve o sohbete git. Kartın içeriğine
  * güvenilmez: oturum ve aktivite tanımı sunucudan, erişim doğrulanarak gelir.
  */
-export async function joinFromInvite(originChatId: string): Promise<void> {
+export async function joinFromInvite(originChatId: string, referrerId?: string | null): Promise<void> {
   let session: ActivitySessionResponse;
   try {
     session = await api<ActivitySessionResponse>(endpoints.activitySession(originChatId));
@@ -74,7 +74,8 @@ export async function joinFromInvite(originChatId: string): Promise<void> {
   const serverId = chat.type === "channel" ? chat.serverId : null;
   joinActivity(
     { id: activity.id, name: activity.name, url: activity.url, icon: activity.icon },
-    { chatId: chat.id, serverId }
+    // Kartı gönderen kişi daveti paylaşan (SDK `referrer_id`).
+    { chatId: chat.id, serverId, referrerId }
   );
   if (chat.type === "channel" && serverId) {
     router.push({ pathname: "/chat/channel/[channelId]", params: { channelId: chat.id, serverId } });

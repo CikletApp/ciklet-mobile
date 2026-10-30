@@ -36,6 +36,27 @@ import {
  * (finalize_offline → rich presence null).
  */
 
+/**
+ * Gömülü aktivitenin etkinliğini yayınlar / kaldırır (null). Kaldırınca
+ * telefonda çalan medya varsa o yeniden yayınlanır, yoksa kayıt silinir
+ * (yalnızca kayıt bizimse — masaüstündeki oyun etkinliği silinmez).
+ */
+export function setEmbeddedActivityPresence(activity: RichPresence | null): void {
+  embedded = activity;
+  // Yeni bağlantıda sunucu tarafı boş: aktivite etkinliği yeniden gider.
+  if (activity && !embeddedOpenHook) {
+    embeddedOpenHook = onGatewayOpen(() => {
+      if (!embedded) return;
+      sentKey = null;
+      queue(current);
+    });
+  } else if (!activity && embeddedOpenHook) {
+    embeddedOpenHook();
+    embeddedOpenHook = null;
+  }
+  queue(current);
+}
+
 /** Bu cihazda özellik var mı (Android + modüllü derleme). */
 export const mediaPresenceSupported = Platform.OS === "android" && CikletMedia !== null;
 
@@ -57,6 +78,15 @@ let sentAt = 0;
 let sentKey: string | null = null;
 /** Ağ geçidindeki kayıt bizim gönderdiğimiz bir etkinlik mi. */
 let serverHasOurs = false;
+/**
+ * Açık gömülü aktivitenin SDK `setActivity` etkinliği (features/activities/
+ * sdk-host). Varken yayında ÖNCELİKLİ — web realtime-provider
+ * `embeddedActivity` ile aynı kural: aktivite kapanınca (null) medya
+ * etkinliği geri gelir. Medya paylaşımı kapalı / Android dışı cihazda da
+ * çalışır; aynı kısma ve tekrar eleme kuyruğundan geçer.
+ */
+let embedded: RichPresence | null = null;
+let embeddedOpenHook: (() => void) | null = null;
 
 const covers = new Map<string, string>();
 const coverUploads = new Map<string, Promise<string | null>>();
@@ -82,7 +112,7 @@ function flush(): void {
 }
 
 function queue(activity: RichPresence | null): void {
-  pending = activity;
+  pending = embedded ?? activity;
   if (timer) return;
   timer = setTimeout(flush, Math.max(0, MIN_INTERVAL_MS - (Date.now() - sentAt)));
 }

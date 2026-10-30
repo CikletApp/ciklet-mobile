@@ -118,6 +118,14 @@ export const ServerEvent = {
   SERVER_CHANNELS_UPDATED: "server.channels_updated",
   /** `{ messageId, content, senderName, senderImage, channelId, serverId, channelName }` */
   MENTION: "mention",
+  /**
+   * `{ topic: "annotations" | "bookmarks" | "sidebar", serverId }` — aynı
+   * hesabın başka cihazında kişisel bir tercih değişti (yoksay, hatırlatıcı,
+   * kanal takibi); ilgili önbellek yeniden çekilir.
+   */
+  SELF_SYNC: "self.sync",
+  /** `{ messageId, scope, chatId, serverId, url, content, media, authorName, authorImage, where }` — "Bana hatırlat" vakti. */
+  BOOKMARK_REMINDER: "bookmark.reminder",
   /** Aktivite odası görüntüsü: `{ chatId, participants, hostId, state, activity? }`. */
   ACTIVITY_UPDATE: "activity.update",
   /** `{ chatId, version, patch, transient, state, senderId, seq }` */

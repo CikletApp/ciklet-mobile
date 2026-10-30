@@ -604,9 +604,9 @@ function AnnotationCard({ profileId }: { profileId: string }) {
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ ...typography.body, color: colors.text }}>Yok say</Text>
+            <Text style={{ ...typography.body, color: colors.text }}>Yoksay</Text>
             <Text style={{ ...typography.caption, color: colors.muted }}>
-              Bu kişiden gelen bildirim önerileri bastırılır.
+              Mesajları daraltılır, bildirim gelmez, etkinliği gizlenir. Ona haber verilmez.
             </Text>
           </View>
           <Switch
@@ -614,7 +614,7 @@ function AnnotationCard({ profileId }: { profileId: string }) {
             onValueChange={(next) => persist({ ignored: next })}
             trackColor={{ false: colors.border, true: colors.brand }}
             thumbColor={colors.onBrand}
-            accessibilityLabel="Yok say"
+            accessibilityLabel="Yoksay"
           />
         </View>
       </View>

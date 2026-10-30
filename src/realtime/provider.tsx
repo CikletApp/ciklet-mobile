@@ -21,6 +21,7 @@ import { useCallEvents } from "./use-call-events";
 import { useMessageNotifications } from "./use-message-notifications";
 import { useSocialEvents } from "./use-social-events";
 import { useUnreadSync } from "./use-unread-sync";
+import { useSyncIgnoredPresence } from "@/api/hooks/use-annotations";
 
 /**
  * Presence dinleyicileri MODÜL YÜKLENİRKEN bağlanır.
@@ -91,6 +92,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   useSocialEvents();
   // Okunmamış rozetleri: canlı sayaç + mutabakat.
   useUnreadSync();
+  // Yoksayılanların etkinliği hiçbir yerde çizilmez (web ile aynı).
+  useSyncIgnoredPresence();
   // Push token, bildirime dokunma, rozet.
   useMessageNotifications();
   // Gelen/giden çağrılar — ekrandan bağımsız, kök düzeyde dinlenir.

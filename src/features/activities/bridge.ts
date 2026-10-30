@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/config";
+import { buildActivityFrameUrl, type ActivityLaunchContext } from "@/features/activities/sdk-host";
 
 /**
  * Aktivite köprüsü — gömülü uygulama ⇄ React Native.
@@ -25,21 +26,21 @@ export interface ActivityFrameParams {
   instanceId: string;
   /** Aktivitenin bağlı olduğu sohbet (kanal veya DM). Yoksa boş. */
   channelId: string;
+  /** Bu WebView yüklemesine özgü kimlik (SDK `launch_id`). */
+  launchId: string;
+  /** custom_id / referrer_id / guild_id (features/activities/sdk-host). */
+  launch?: ActivityLaunchContext | null;
   backgroundColor: string;
 }
 
-/** Aktiviteye geçirilen sorgu parametreleri — SDK bunları okur. */
-export function buildActivityUrl({
-  activityUrl,
-  instanceId,
-  channelId,
-}: ActivityFrameParams): string {
-  const url = new URL(activityUrl);
-  url.searchParams.set("instance_id", instanceId);
-  if (channelId) url.searchParams.set("channel_id", channelId);
-  url.searchParams.set("frame_id", instanceId);
-  url.searchParams.set("platform", "mobile");
-  return url.toString();
+/**
+ * Aktiviteye geçirilen sorgu parametreleri — SDK bunları okur. Küme ve
+ * kurallar web ile aynı (sdk-host `buildActivityFrameUrl`, ciklet-web
+ * lib/activity/launch-context): location_id, launch_id, referrer_id,
+ * custom_id, guild_id artık mobilde de gidiyor.
+ */
+export function buildActivityUrl({ activityUrl, instanceId, channelId, launchId, launch }: ActivityFrameParams): string {
+  return buildActivityFrameUrl(activityUrl, { instanceId, channelId, launchId, frameId: instanceId, launch });
 }
 
 export const ACTIVITY_BASE_URL = API_BASE_URL;

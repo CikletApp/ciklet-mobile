@@ -36,6 +36,13 @@ export interface ActivitySession {
   chatType: "channel" | "direct" | null;
   serverId: string | null;
   isHost: boolean;
+  /**
+   * SDK başlatma bağlamı (web `use-activities` launchContext): özel
+   * bağlantının customId'si ve daveti paylaşan kullanıcı. iframe adresine
+   * `custom_id` / `referrer_id` olarak yazılır (features/activities/sdk-host).
+   */
+  customId?: string | null;
+  referrerId?: string | null;
   /** Her başlatmada yeni — aynı aktiviteyi yeniden açmak WebView'i tazeler. */
   key: number;
 }

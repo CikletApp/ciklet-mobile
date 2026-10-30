@@ -12,6 +12,7 @@ import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { InAppNoticeHost } from "@/components/in-app-notice";
 import { DialogHost, ToastHost } from "@/components/ui";
+import { ReminderSheetHost } from "@/features/social/reminder-sheet";
 import { ImageViewerHost } from "@/components/ui/image-viewer";
 import { ActivityHost } from "@/features/activities/activity-host";
 import { BrandSplash } from "@/features/auth/auth-shell";
@@ -230,6 +231,7 @@ export default function RootLayout() {
                   <Stack.Screen name="profile/status" />
                   <Stack.Screen name="profile/server/[memberId]" />
                   <Stack.Screen name="servers/[serverId]/audit-log" />
+                  <Stack.Screen name="servers/[serverId]/browse-channels" />
                   <Stack.Screen name="servers/[serverId]/channels/[channelId]" />
                   <Stack.Screen name="servers/[serverId]/events" />
                   <Stack.Screen name="servers/[serverId]/events/new" />
@@ -290,6 +292,7 @@ export default function RootLayout() {
             <InteractionModalHost key={`interaction-${themeRevision}`} />
             <DialogHost key={`dialog-${themeRevision}`} />
             <ToastHost key={`toast-${themeRevision}`} />
+            <ReminderSheetHost key={`reminder-${themeRevision}`} />
             {/* Ön planda gelen DM / etiketlenme kartı. */}
             <InAppNoticeHost key={`notice-${themeRevision}`} />
           </RealtimeProvider>

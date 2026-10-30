@@ -33,6 +33,7 @@ export function ActiveNow() {
   const { accepted } = useFriends();
   const entries = usePresenceStore((s) => s.entries);
   const recognized = useRecognizedGames();
+  const hidden = usePresenceStore((s) => s.hidden);
   const openDirect = useOpenDirect();
   const scheme = useTheme((s) => s.scheme);
   // Karta dokununca etkinliğe yanıt/tepki sayfası (web sunucu ETKİNLİK kartı gibi).
@@ -45,14 +46,16 @@ export function ActiveNow() {
     () => accepted
       .map((friend) => {
         const entry = entries[friend.profile.id];
-        return { friend, status: entry?.status, activity: visibleActivity(entry?.activity, recognized) };
+        // Yoksaydığın arkadaşın etkinliği burada da görünmez.
+        const activity = hidden.has(friend.profile.id) ? null : visibleActivity(entry?.activity, recognized);
+        return { friend, status: entry?.status, activity };
       })
       .filter((item): item is { friend: typeof item.friend; status: PresenceStatus; activity: RichPresence } =>
         !isOfficialProfile(item.friend.profile) &&
         ACTIVE_STATUSES.includes(item.status ?? PresenceStatus.OFFLINE) &&
         Boolean(item.activity)
       ),
-    [accepted, entries, recognized]
+    [accepted, entries, recognized, hidden]
   );
   if (active.length === 0) return null;
 

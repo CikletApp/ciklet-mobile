@@ -130,8 +130,8 @@ export function ChatActionsSheet({
     if (!isOfficial) {
       items.push({
         key: "ignore",
-        label: ignored ? "Yok saymayı bırak" : "Yok say",
-        detail: ignored ? undefined : "Mesajları sana bildirim göndermez",
+        label: ignored ? "Yoksaymayı Bırak" : "Yoksay",
+        detail: ignored ? undefined : "Mesajları daraltılır, bildirim gelmez. Ona haber verilmez.",
         icon: ignored ? "bell" : "bell-off",
         onPress: () =>
           setIgnored.mutate(
@@ -140,8 +140,8 @@ export function ChatActionsSheet({
               onSuccess: () =>
                 showToast(
                   ignored
-                    ? `${display.title} artık yok sayılmıyor.`
-                    : `${display.title} yok sayılıyor. Mesajları sana bildirim göndermeyecek.`
+                    ? `${display.title} artık yoksayılmıyor.`
+                    : `${display.title} yoksayılıyor. Mesajları daraltılacak ve sana bildirim göndermeyecek.`
                 ),
               onError: () => showToast("İşlem tamamlanamadı. Tekrar dene.", "error"),
             }

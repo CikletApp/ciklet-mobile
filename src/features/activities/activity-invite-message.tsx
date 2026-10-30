@@ -97,7 +97,7 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
     if (isJoined || joining) return;
     if (origin) {
       setJoining(true);
-      void joinFromInvite(origin.chatId).finally(() => setJoining(false));
+      void joinFromInvite(origin.chatId, profile.id).finally(() => setJoining(false));
       return;
     }
     setJoining(true);
@@ -113,8 +113,9 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
             showToast("Bu etkinlik artık kullanılamıyor.", "error");
             return;
           }
-          if (action.kind === "join") joinActivity(toDescriptor(action.activity), { chatId, serverId });
-          else await launchActivity(action.activity, { chatId, serverId });
+          // Kartın yazarı daveti paylaşan kişi (SDK `referrer_id`; web ile aynı).
+          if (action.kind === "join") joinActivity(toDescriptor(action.activity), { chatId, serverId, referrerId: profile.id });
+          else await launchActivity(action.activity, { chatId, serverId, referrerId: profile.id });
         } finally {
           setJoining(false);
         }

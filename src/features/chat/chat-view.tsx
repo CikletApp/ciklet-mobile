@@ -17,8 +17,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
-import { hasServerPermission, useChatMessages, useMentolPlan, useMyMembership, useMyPermissions, type ChatKind } from "@/api/hooks";
-import { EmptyState, ErrorState, ListSkeleton, showDialog, showToast } from "@/components/ui";
+import { hasServerPermission, useChatMessages, useIgnoredIds, useMentolPlan, useMyMembership, useMyPermissions, type ChatKind } from "@/api/hooks";
+import { EmptyState, ErrorState, Icon, ListSkeleton, Pressable, showDialog, showToast } from "@/components/ui";
 import { launchActivityById } from "@/features/activities/launch";
 import { useChatStream } from "@/realtime/use-chat-stream";
 import { useReadState } from "@/realtime/use-read-state";
@@ -394,6 +394,38 @@ export function ChatView({
   );
   const items = useChatItems(listed, !hasNextPage && !isLoading, unreadMarker ?? null);
 
+  // Yoksaydığın kişinin mesaj grupları daraltılır (Discord "Ignore"; web
+  // chat-message-group ile aynı): grubun ilk mesajının yerinde "Yoksaydığın
+  // bir kullanıcıdan gelen mesaj — Göster", diğerleri çizilmez. Açılan grup
+  // bu ekranda açık kalır. Kendi mesajın daraltılmaz.
+  const ignoredIds = useIgnoredIds();
+  const [revealedGroups, setRevealedGroups] = useState<ReadonlySet<string>>(() => new Set());
+  const ignoredGroups = useMemo(() => {
+    const byMessage = new Map<string, { start: string; isStart: boolean }>();
+    const counts = new Map<string, number>();
+    if (ignoredIds.size === 0) return { byMessage, counts };
+    // Dizi en yeniden en eskiye; grup başı (en eski) `grouped=false`.
+    let start: string | null = null;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.kind !== "message") continue;
+      const author = authorIdOf(item.message);
+      if (!item.grouped) start = item.message.id;
+      if (author === myId || !ignoredIds.has(author) || !start) continue;
+      byMessage.set(item.message.id, { start, isStart: !item.grouped });
+      counts.set(start, (counts.get(start) ?? 0) + 1);
+    }
+    return { byMessage, counts };
+  }, [items, ignoredIds, myId]);
+  const toggleIgnoredGroup = useCallback((start: string) => {
+    setRevealedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(start)) next.delete(start);
+      else next.add(start);
+      return next;
+    });
+  }, []);
+
   // Okundu bilgisi — listedeki en yeni GERÇEK mesaj (outbox hariç).
   useReadState(chatId, kind, messages[0]?.id);
 
@@ -731,7 +763,7 @@ export function ChatView({
 
   const selectedIds = selection.ids;
   const toggleSelected = selection.toggle;
-  const renderItem = useCallback(
+  const renderMessageRow = useCallback(
     ({ item }: { item: ChatItem }) =>
       item.kind === "day" ? (
         <DaySeparator iso={item.iso} />
@@ -761,6 +793,30 @@ export function ChatView({
         />
       ),
     [actions, readOnlyOfficial, oneToOne, onLongPressMessage, onSwipeReply, jumpToMessage, selectedIds, toggleSelected]
+  );
+  const renderItem = useCallback(
+    (info: { item: ChatItem }) => {
+      const gate = info.item.kind === "message" ? ignoredGroups.byMessage.get(info.item.message.id) : undefined;
+      if (!gate) return renderMessageRow(info);
+      const revealed = revealedGroups.has(gate.start);
+      if (!gate.isStart) return revealed ? renderMessageRow(info) : null;
+      const bar = (
+        <IgnoredMessagesBar
+          count={ignoredGroups.counts.get(gate.start) ?? 1}
+          revealed={revealed}
+          onToggle={() => toggleIgnoredGroup(gate.start)}
+        />
+      );
+      return revealed ? (
+        <View>
+          {bar}
+          {renderMessageRow(info)}
+        </View>
+      ) : (
+        bar
+      );
+    },
+    [ignoredGroups, revealedGroups, renderMessageRow, toggleIgnoredGroup]
   );
 
   if (isLoading) {
@@ -1213,4 +1269,19 @@ function useExpiryClock(messages: readonly ChatMessagePayload[]): number {
     return () => clearTimeout(timer);
   }, [next]);
   return now;
+}
+
+/** Yoksayılan kişinin daraltılmış mesaj grubu (web chat-message-group ile aynı metin). */
+function IgnoredMessagesBar({ count, revealed, onToggle }: { count: number; revealed: boolean; onToggle: () => void }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}>
+      <Icon name="bell-off" size={13} color={colors.muted} />
+      <Text style={{ ...typography.caption, color: colors.muted, flexShrink: 1 }} numberOfLines={1}>
+        {count > 1 ? `Yoksaydığın bir kullanıcıdan gelen ${count} mesaj` : "Yoksaydığın bir kullanıcıdan gelen mesaj"} —{" "}
+      </Text>
+      <Pressable onPress={onToggle} accessibilityRole="button" hitSlop={8}>
+        <Text style={{ ...typography.caption, ...fw(600), color: colors.brand }}>{revealed ? "Gizle" : "Göster"}</Text>
+      </Pressable>
+    </View>
+  );
 }
