@@ -1,3 +1,5 @@
+import { automodEn, streamingEn } from "./automod.en";
+import { serverGuideEn } from "./server-guide.en";
 import type { Messages } from "./tr";
 
 /** İngilizce sözlük — `tr.ts` ile aynı şekli taşımak zorunda. */
@@ -57,6 +59,38 @@ export const en = {
     enterValue: "Enter a value",
     enterNumber: "Enter a number",
     runFailed: "Couldn't run the command.",
+  },
+  messageComponents: {
+    choose: "Make a selection",
+    chooseOption: "Choose an option",
+    search: "Search",
+    noResults: "No results found",
+    loading: "Loading…",
+    confirm: "Select",
+    clear: "Clear",
+    selectedCount: "{count} selected",
+    selectRange: "{min}–{max} selections",
+    unknown: "Unknown",
+    botNoResponse: "{name} did not respond.",
+    interactionFailed: "Couldn't start the interaction.",
+    formNoResponse: "The bot didn't respond to the form.",
+    formFailed: "Couldn't submit the form.",
+    formLabel: "Bot form",
+    submit: "Submit",
+    cancel: "Cancel",
+    requiredMark: "Required",
+    uploadFile: "Upload file",
+    uploading: "Uploading…",
+    uploadFailed: "Couldn't upload the file.",
+    removeFile: "Remove",
+    fileLimit: "Up to {max} files",
+    allowedTypes: "Allowed: {types}",
+    fileTypeRejected: "This file type isn't accepted.",
+    download: "Download",
+    spoiler: "Spoiler",
+    show: "Show",
+    openImage: "Enlarge image",
+    attachment: "Attachment",
   },
   settings: {
     title: "Settings",
@@ -160,4 +194,7 @@ export const en = {
       reset: "Reset to default",
     },
   },
+  automod: automodEn,
+  streaming: streamingEn,
+  serverGuide: serverGuideEn,
 } satisfies Messages;

@@ -1,4 +1,5 @@
 import { Linking } from "react-native";
+import { router } from "expo-router";
 
 import { showDialog } from "@/components/ui/dialog";
 import { API_BASE_URL } from "@/lib/config";
@@ -56,6 +57,12 @@ function open(url: string) {
 export function openGuardedLink(url: string | null | undefined) {
   if (!url) return;
   if (!isExternalLink(url)) {
+    // Ciklet'in şablon bağlantısı (/sablon/KOD) tarayıcı yerine uygulamada açılır.
+    const template = /^https?:\/\/[^/?#]+\/sablon\/([A-Za-z0-9_-]+)\/?(?:[?#]|$)/i.exec(url.trim());
+    if (template) {
+      router.push(`/sablon/${template[1]}`);
+      return;
+    }
     open(url);
     return;
   }

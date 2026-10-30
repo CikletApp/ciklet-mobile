@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SectionList, Share, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
@@ -23,6 +23,8 @@ import {
   isChannelShownInSidebar,
   useSidebarPreferences,
   useUpdateSidebarPreferences,
+  useServerGuide,
+  useWelcomeScreen,
 } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
 import {
@@ -38,6 +40,9 @@ import {
 } from "@/components/ui";
 import { openNotificationSettings } from "@/features/notifications/notification-sheet";
 import { openThread } from "@/features/server/thread-nav";
+import { GuideEntryRow } from "@/features/server/guide-view";
+import { ServerJoinGate, WelcomeScreenModal } from "@/features/server/join-flow";
+import { hasWelcomeContent, isWithinWelcomeWindow } from "@/lib/welcome-screen";
 import { useVoiceOccupancy } from "@/features/voice/use-voice-occupancy";
 import { CHANNEL_FULL_MESSAGE, formatUserLimit, isVoiceChannelFull } from "@/lib/voice-settings";
 import { useAuth } from "@/stores/auth";
@@ -118,6 +123,29 @@ export default function ServerChannelsScreen() {
     );
   })();
   const sections = buildSections(shownChannels);
+
+  // Sunucu Rehberi (web kenar çubuğu girişi + sunucu kökünün ilk
+  // yönlendirmesi): rehber açık ve üye onu hiç açmamışsa bir kez rehbere.
+  const { data: guideData } = useServerGuide(serverId);
+  const guide = guideData?.guide ?? null;
+  const guideOpened = useRef<string | null>(null);
+  const openingGuide = guideData?.shouldOpen === true;
+  useEffect(() => {
+    if (!openingGuide || guideOpened.current === serverId) return;
+    guideOpened.current = serverId;
+    router.push(`/servers/${serverId}/guide`);
+  }, [openingGuide, serverId]);
+
+  // Karşılama ekranı: yalnızca yeni katılan üyeye (katılımdan sonraki 15 dk)
+  // sorgulanır; rehber açıksa üye zaten rehbere düştüğü için ikinci bir
+  // "hoş geldin" açılmaz (web sunucu düzeniyle aynı kural).
+  const isNewMember =
+    Boolean(membership) &&
+    (membership as { isGhost?: boolean } | undefined)?.isGhost !== true &&
+    isWithinWelcomeWindow(membership?.createdAt ?? "");
+  const { data: welcomeScreen } = useWelcomeScreen(serverId, isNewMember);
+  const welcomeToShow =
+    isNewMember && guideData !== undefined && guide === null && hasWelcomeContent(welcomeScreen) ? welcomeScreen : null;
   const serverMenuItems: ActionSheetItem[] = [
     {
       key: "browse",
@@ -233,11 +261,20 @@ export default function ServerChannelsScreen() {
           stickySectionHeadersEnabled={false}
           ListHeaderComponent={
             server ? (
-              <ServerHero
-                serverId={serverId}
-                name={server.name}
-                imageUrl={server.imageUrl}
-              />
+              <>
+                <ServerHero
+                  serverId={serverId}
+                  name={server.name}
+                  imageUrl={server.imageUrl}
+                />
+                {guide ? (
+                  <GuideEntryRow
+                    taskIds={guide.tasks.map((task) => task.id)}
+                    completed={guide.completed}
+                    onPress={() => router.push(`/servers/${serverId}/guide`)}
+                  />
+                ) : null}
+              </>
             ) : null
           }
           contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
@@ -314,6 +351,19 @@ export default function ServerChannelsScreen() {
           )}
         />
       )}
+
+      {/* Katılım soruları (kural perdesi kanal ekranında). Rehbere
+          yönlendirilirken perde rehber sayfasında açılır. */}
+      {!openingGuide ? <ServerJoinGate serverId={serverId} channels={channels} onboardingOnly /> : null}
+      {welcomeToShow && server ? (
+        <WelcomeScreenModal
+          serverId={serverId}
+          serverName={server.name}
+          serverImageUrl={server.imageUrl || null}
+          screen={welcomeToShow}
+          channels={channels}
+        />
+      ) : null}
 
       <ActionSheet
         visible={serverMenuOpen}

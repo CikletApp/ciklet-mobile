@@ -81,6 +81,40 @@ export const endpoints = {
     `/api/servers/${encodeURIComponent(serverId)}/bot-commands${qs({ channelId })}`,
   invite: (code: string) => `/api/i/${encodeURIComponent(code)}`,
 
+  // ── Moderasyon ve entegrasyonlar (web Ayarlar › Moderasyon / Entegrasyonlar) ──
+  /** GET sunucu + moderasyon/AutoMod alanları (yalnızca Sunucuyu Yönet'e dolu). */
+  serverModeration: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}${qs({ moderation: 1 })}`,
+  /** GET kurulu botlar; DELETE `/:botId` botu kaldırır (Sunucuyu Yönet). */
+  serverIntegrations: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/integrations`,
+  serverIntegration: (serverId: string, botId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/integrations/${encodeURIComponent(botId)}`,
+  /** GET `{ webhooks, channels }` / POST `{ name, channelId, avatarUrl? }` → URL bir kez (Webhook'ları Yönet). */
+  serverWebhooks: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/webhooks`,
+  /** PATCH `{ name?, channelId?, avatarUrl? }`; POST token yeniler (yeni URL); DELETE. */
+  serverWebhook: (serverId: string, webhookId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/webhooks/${encodeURIComponent(webhookId)}`,
+  /** GET `{ owner, broadcaster, items }` / POST `{ roleId, platform, requirement }` (yalnızca sahip). */
+  serverLinkedRoles: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/linked-roles`,
+  serverLinkedRole: (serverId: string, linkedRoleId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/linked-roles/${encodeURIComponent(linkedRoleId)}`,
+  /** GET Twitch/Kick bağlantı durumu; DELETE bağlantıyı kaldırır. */
+  streamingConnection: (platform: "twitch" | "kick") => `/api/connections/${platform}`,
+
+  // ── Sunucu şablonları (web Ayarlar › Şablonlar + /sablon/[kod]) ───
+  /** GET şablonlar / POST `{ name, description? }` (Sunucuyu Yönet). */
+  serverTemplates: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/templates`,
+  /** PATCH `{ sync: true }` ya da `{ name, description }`; DELETE. */
+  serverTemplate: (serverId: string, templateId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/templates/${encodeURIComponent(templateId)}`,
+  /** GET şablon önizlemesi; POST `{ name }` → `{ id }` (şablondan sunucu kur). */
+  template: (code: string) => `/api/templates/${encodeURIComponent(code)}`,
+
+  // ── Zamanlanmış mesajlar (lib/scheduled-messages) ─────────────────
+  /** GET `{ items }` (chatId yoksa tüm sohbetler); POST `{ chatId, content, sendAt }`. */
+  scheduledMessages: "/api/scheduled-messages",
+  /** DELETE — bekleyeni iptal et / gönderilemeyeni listeden kaldır. */
+  scheduledMessage: (scheduledId: string) => `/api/scheduled-messages/${encodeURIComponent(scheduledId)}`,
+
   // ── Sunucu klasörleri ─────────────────────────────────────────────
   /** GET: klasörler (ad, renk, sıra). ciklet-web'e mobil için eklendi. */
   folders: "/api/folders",
@@ -368,6 +402,19 @@ export const endpoints = {
   serverRules: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/rules`,
   serverRulesAccept: (serverId: string) =>
     `/api/servers/${encodeURIComponent(serverId)}/rules/accept`,
+
+  // ── Katılım: sorular, karşılama ekranı, Sunucu Rehberi ────────────
+  /** GET yapılandırma + üyenin durumu (`pending`, `rulesPending`, `answers`); PUT kaydet (Sunucuyu Yönet). */
+  serverOnboarding: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/onboarding`,
+  /** POST `{ answers }` → roller verilir, `{ channelIds }` döner. */
+  serverOnboardingComplete: (serverId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/onboarding/complete`,
+  /** GET (sunucuyu görebilen herkes; özel kanallar yalnızca yöneticiye) / PUT (yönetici). */
+  serverWelcomeScreen: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/welcome-screen`,
+  /** GET `{ guide, shouldOpen, config? }`; PUT kaydet (Sunucuyu Yönet). */
+  serverGuide: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/guide`,
+  /** POST `{ taskId, done }` | `{ seen: true }` | `{ visitChannelId }`. */
+  serverGuideProgress: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/guide/progress`,
 
   // ── Alt başlıklar ve forum ────────────────────────────────────────
   /**

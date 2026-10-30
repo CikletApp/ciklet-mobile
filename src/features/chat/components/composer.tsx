@@ -4,7 +4,7 @@ import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 
-import { Icon, IconButton, Pressable, dokimorjiInputProps, emojify } from "@/components/ui";
+import { Icon, IconButton, Pressable, dokimorjiInputProps, emojify, showToast } from "@/components/ui";
 import { classifyAttachment } from "@/lib/attachments";
 import { splitEmoji } from "@/lib/emoji";
 import { formatMessagePreview } from "@/lib/message-preview";
@@ -18,6 +18,7 @@ import type { ServerStickerLite } from "../server-assets";
 import { KeyboardGlyph } from "./composer-glyphs";
 import { ComposerPanel } from "./composer-picker";
 import { RecordingBar, useVoiceRecorder } from "./voice-recorder";
+import { ScheduleMessageSheet, ScheduledMessagesStrip } from "./scheduled-messages";
 import {
   rememberPanelTab,
   useKeyboardSpace,
@@ -83,6 +84,7 @@ export function Composer({
   maxLength,
   onBackspaceEmpty,
   controlRef,
+  scheduleChatId,
 }: {
   inputRef: RefObject<TextInput | null>;
   value: string;
@@ -122,6 +124,11 @@ export function Composer({
   /** Kutu boşken geri silme (komut kipinde çip kaldırma / kipten çıkma). */
   onBackspaceEmpty?: () => void;
   controlRef?: RefObject<ComposerHandle | null>;
+  /**
+   * Verilirse "Zamanla" düğmesi ve "N zamanlanmış mesaj" şeridi görünür
+   * (web giriş çubuğu; resmi/kilitli sohbette çubuk zaten çizilmez).
+   */
+  scheduleChatId?: string;
 }) {
   const insets = useSafeAreaInsets();
   const { height: keyboardHeight, visible: keyboardVisible } = useKeyboardSpace();
@@ -138,6 +145,25 @@ export function Composer({
   const silent = hasSilentPrefix(value);
   const voice = useVoiceRecorder((asset, meta) => onVoiceRecorded?.(asset, meta));
   const recording = voice.phase === "recording";
+  /** Zamanlanacak metin — sayfa açılırken çubuktaki metin donar (web). */
+  const [scheduleDraft, setScheduleDraft] = useState<string | null>(null);
+  const scheduleVisible = Boolean(scheduleChatId) && !commandMode;
+  const openSchedule = () => {
+    // Web: dosya ekliyken düğme kapalı (yalnızca metin zamanlanır).
+    if (attachments.length > 0) return;
+    const text = value.trim();
+    if (!text) {
+      showToast("Önce zamanlanacak mesajı yaz.");
+      inputRef.current?.focus();
+      return;
+    }
+    if (text.startsWith("/")) {
+      showToast("Eğik çizgi komutları zamanlanamaz.");
+      return;
+    }
+    Keyboard.dismiss();
+    setScheduleDraft(text);
+  };
   const showMic = Boolean(onVoiceRecorded) && !canSend && !isUploading && !commandMode;
   const panelOpen = panel !== null;
   // Arama klavyesi açıkken panel klavyenin üstünde dar bir şerit olarak kalır.
@@ -320,6 +346,9 @@ export function Composer({
           </Text>
         ) : null}
 
+        {/* Bekleyen zamanlanmış mesajlar (yoksa hiç çizilmez). */}
+        {scheduleChatId ? <ScheduledMessagesStrip chatId={scheduleChatId} /> : null}
+
         {/* Telegram düzeni: [+] [yazı kutusu (içinde "/" ve emoji/klavye)] [gönder].
             GIF ve aktiviteler artık panelin sekmeleri. */}
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
@@ -406,6 +435,12 @@ export function Composer({
                 <Text style={{ fontSize: 18, lineHeight: 22, ...fw(700), color: colors.muted }}>/</Text>
               </InputButton>
             ) : null}
+            {scheduleVisible ? (
+              // Zamanla: yazılan metni ileri bir ana kurar (web saat düğmesi).
+              <InputButton label="Mesajı zamanla" onPress={openSchedule} disabled={attachments.length > 0}>
+                <Icon name="clock" size={18} color={colors.muted} />
+              </InputButton>
+            ) : null}
             <InputButton
               label={panelOpen ? "Klavyeye dön" : "Emoji, GIF ve aktiviteler"}
               onPress={panelOpen ? returnToKeyboard : openPanel}
@@ -478,6 +513,15 @@ export function Composer({
           </Text>
         ) : null}
       </View>
+
+      {scheduleChatId && scheduleDraft !== null ? (
+        <ScheduleMessageSheet
+          chatId={scheduleChatId}
+          content={scheduleDraft}
+          onClose={() => setScheduleDraft(null)}
+          onScheduled={() => onChangeText("")}
+        />
+      ) : null}
 
       {/* Klavyenin ya da panelin kapladığı alan. */}
       <Animated.View style={[{ overflow: "hidden" }, spacerStyle]}>
@@ -583,25 +627,29 @@ function AttachmentChip({
 function InputButton({
   label,
   onPress,
+  disabled = false,
   children,
 }: {
   label: string;
   onPress: () => void;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       haptic="light"
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
       style={({ pressed }) => ({
         width: INPUT_BUTTON_SIZE,
         height: 40,
         alignItems: "center",
         justifyContent: "center",
         borderRadius: radii.full,
-        opacity: pressed ? 0.6 : 1,
+        opacity: disabled ? 0.4 : pressed ? 0.6 : 1,
       })}
     >
       {children}

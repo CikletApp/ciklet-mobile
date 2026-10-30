@@ -8,7 +8,12 @@ import {
   useRemoveConnection,
   useSaveConnection,
   useSpotifyLink,
+  useStreamingConnection,
   useUnlinkSpotify,
+  useUnlinkStreaming,
+  PLATFORM_COLORS,
+  PLATFORM_LABELS,
+  type StreamingPlatform,
 } from "@/api/hooks";
 import type { ConnectionType } from "@/api/types";
 import {
@@ -24,6 +29,7 @@ import {
   showToast,
 } from "@/components/ui";
 import { CONNECTION_TYPES, connectionMeta, normalizeHandle } from "@/lib/profile-extras";
+import { useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -125,6 +131,9 @@ export default function ConnectionsScreen() {
           </>
         ) : null}
 
+        <StreamingConnectionRow platform="twitch" />
+        <StreamingConnectionRow platform="kick" />
+
         <SectionHeader title="BAĞLANTI EKLE" />
         <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
@@ -219,5 +228,72 @@ export default function ConnectionsScreen() {
         </View>
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * Twitch / Kick (web settings/streaming-connection-row): hesap bağlıysa
+ * "Yayında" etiketi ve bağlantılı roller (sunucu sahibinin kanalına
+ * abone/takipçi olan üyeye rol) bu bağlantıyla çalışır. OAuth dönüşü
+ * tarayıcı oturumu istediği için bağlama Spotify gibi webden/masaüstünden;
+ * mobilde durum, yayıncı izni ve kaldırma.
+ */
+function StreamingConnectionRow({ platform }: { platform: StreamingPlatform }) {
+  const t = useT();
+  const { data: status } = useStreamingConnection(platform);
+  const unlink = useUnlinkStreaming(platform);
+  const label = PLATFORM_LABELS[platform];
+  const color = PLATFORM_COLORS[platform];
+  if (!status?.configured) return null;
+
+  const disconnect = () =>
+    unlink.mutate(undefined, {
+      onSuccess: () => showToast(t("streaming.settings.disconnected", { platform: label })),
+      onError: () => showToast(t("streaming.settings.disconnectFailed", { platform: label }), "error"),
+    });
+
+  return (
+    <>
+      <SectionHeader title={label.toLocaleUpperCase("tr-TR")} />
+      <View
+        style={{
+          marginHorizontal: spacing.lg,
+          padding: spacing.md,
+          gap: spacing.sm,
+          borderRadius: radii.lg,
+          borderWidth: 1,
+          borderColor: `${color}40`,
+          backgroundColor: colors.panel,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <Icon name="video" size={18} color={color} />
+          <Text style={{ ...typography.bodyStrong, color: colors.bright, flex: 1 }} numberOfLines={1}>
+            {status.linked ? (status.handle ?? label) : "Bağlı değil"}
+          </Text>
+          {status.live ? (
+            <Text style={{ ...typography.caption, ...fw(800), color: "#fff", backgroundColor: "#593695", paddingHorizontal: 6, borderRadius: 4 }}>
+              {t("streaming.live")}
+            </Text>
+          ) : null}
+          {status.linked ? <Button label={t("streaming.settings.disconnect")} variant="ghost" onPress={disconnect} loading={unlink.isPending} /> : null}
+        </View>
+        {status.linked ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+            <Icon name="shield" size={14} color={status.broadcaster ? colors.success : colors.muted} />
+            <Text style={{ ...typography.caption, color: colors.muted, flex: 1 }}>
+              {status.broadcaster ? t("streaming.settings.broadcaster") : t("streaming.settings.broadcasterHint")}
+            </Text>
+          </View>
+        ) : null}
+        <Text style={{ ...typography.caption, color: colors.muted }}>
+          {status.linked
+            ? status.broadcaster
+              ? `${label} hesabın doğrulandı.`
+              : `"${t("streaming.settings.grantBroadcaster")}" için web ya da masaüstünde Ayarlar → Profil → Bağlantılar'ı kullan.`
+            : `${t("streaming.settings.hint")}. ${label} gerçek hesabınla doğrulanır; bağlamak için web ya da masaüstünde Ayarlar → Profil → Bağlantılar'ı kullan.`}
+        </Text>
+      </View>
+    </>
   );
 }

@@ -14,7 +14,7 @@ import {
 import { useKeepAwake } from "expo-keep-awake";
 import { Track } from "livekit-client";
 
-import { isStageModerator, useChannel, useMyPermissions, useServerSummary } from "@/api/hooks";
+import { isStageModerator, useChannel, useGuideVisit, useMyPermissions, useServerSummary } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
 import {
   Avatar,
@@ -65,6 +65,8 @@ export default function VoiceChannelScreen() {
 
   const { data: server } = useServerSummary(serverId);
   const channel = useChannel(serverId, channelId);
+  // Sunucu Rehberi: ses kanalına bağlı yapılacak da açılınca tamamlanır (web kanal sayfası).
+  useGuideVisit(serverId, channelId);
   // Sahne kanalı (ciklet-web lib/stage): herkes dinleyici katılır, yayın izni yok;
   // mikrofon otomatik açılmaz, konuşmacı yapılınca elle açılır.
   const extras = channel as ChannelExtras | undefined;

@@ -31,7 +31,9 @@ export type ServerPermissionKey =
   | "MODERATE_MEMBERS"
   | "MUTE_MEMBERS"
   | "MOVE_MEMBERS"
-  | "VIEW_AUDIT_LOG";
+  | "VIEW_AUDIT_LOG"
+  | "MANAGE_WEBHOOKS"
+  | "SEND_MESSAGES";
 
 export function useMyPermissions(serverId: string | undefined) {
   return useQuery({

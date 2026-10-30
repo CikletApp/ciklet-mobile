@@ -1,3 +1,6 @@
+import { automodTr, streamingTr } from "./automod.tr";
+import { serverGuideTr } from "./server-guide.tr";
+
 /**
  * Türkçe sözlük — KAYNAK. Anahtar yapısı buradan türer; diğer diller
  * (en.ts) aynı şekli `satisfies Messages` ile taşımak zorunda, eksik anahtar
@@ -66,6 +69,39 @@ export const tr = {
     enterValue: "Bir değer gir",
     enterNumber: "Bir sayı gir",
     runFailed: "Komut çalıştırılamadı.",
+  },
+  /** Mesaj bileşenleri ve bot formları (web lib/i18n ns/message-components ile aynı metinler). */
+  messageComponents: {
+    choose: "Seç…",
+    chooseOption: "Bir seçenek seç",
+    search: "Ara",
+    noResults: "Sonuç bulunamadı",
+    loading: "Yükleniyor…",
+    confirm: "Seç",
+    clear: "Temizle",
+    selectedCount: "{count} seçildi",
+    selectRange: "{min}–{max} seçim",
+    unknown: "Bilinmeyen",
+    botNoResponse: "{name} yanıt vermedi.",
+    interactionFailed: "Etkileşim başlatılamadı.",
+    formNoResponse: "Bot forma yanıt vermedi.",
+    formFailed: "Form gönderilemedi.",
+    formLabel: "Bot formu",
+    submit: "Gönder",
+    cancel: "İptal",
+    requiredMark: "Zorunlu",
+    uploadFile: "Dosya yükle",
+    uploading: "Yükleniyor…",
+    uploadFailed: "Dosya yüklenemedi.",
+    removeFile: "Kaldır",
+    fileLimit: "En fazla {max} dosya",
+    allowedTypes: "İzin verilen: {types}",
+    fileTypeRejected: "Bu dosya türü kabul edilmiyor.",
+    download: "İndir",
+    spoiler: "Spoiler",
+    show: "Göster",
+    openImage: "Görseli büyüt",
+    attachment: "Ek",
   },
   settings: {
     title: "Ayarlar",
@@ -169,6 +205,12 @@ export const tr = {
       reset: "Varsayılana dön",
     },
   },
+  /** AutoMod ayarları (Sunucu Ayarları → Moderasyon) — automod.tr.ts. */
+  automod: automodTr,
+  /** Yayın bağlantıları ve bağlantılı roller — automod.tr.ts. */
+  streaming: streamingTr,
+  /** Sunucu Rehberi (web ile aynı anahtarlar) — server-guide.tr.ts. */
+  serverGuide: serverGuideTr,
 } as const;
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

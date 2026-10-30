@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Share, Switch, Text, View } from "react-native";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { Image } from "expo-image";
 import { ChannelType, MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
@@ -15,7 +15,7 @@ import {
   useServerDetails,
   useUpdateServer,
 } from "@/api/hooks";
-import { Avatar, Divider, Icon, ListGroup, ListRow, Screen, ScreenLoader, SectionHeader, TextField, showDialog } from "@/components/ui";
+import { Avatar, Divider, Icon, type IconName, ListGroup, ListRow, Screen, ScreenLoader, SectionHeader, TextField, showDialog } from "@/components/ui";
 import { pickAndUploadServerBanner, pickAndUploadServerImage } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -62,6 +62,12 @@ export default function ServerSettingsScreen() {
   const isOwner = server.profileId === myId;
   // Uçla aynı kapı (getServerManager): sahip, yönetici ya da "Sunucuyu Yönet".
   const canEdit = isOwner || membership?.role === MemberRole.ADMIN || hasServerPermission(permissions, "MANAGE_SERVER");
+  const canManageServer = hasServerPermission(permissions, "MANAGE_SERVER");
+  const moderationLinks: SettingsLink[] = [
+    ...(hasServerPermission(permissions, "MANAGE_ROLES") ? [{ icon: "shield" as const, title: "Roller", href: `/servers/${serverId}/roles` }] : []),
+    ...(canManageServer ? [{ icon: "flag" as const, title: "Moderasyon", href: `/servers/${serverId}/moderation` }] : []),
+    ...(hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? [{ icon: "list" as const, title: "Denetim Kaydı", href: `/servers/${serverId}/audit-log` }] : []),
+  ];
   const savedAfkChannelId = server.afkChannelId ?? null;
   const savedAfkTimeout = server.afkTimeout ?? AFK_TIMEOUT_DEFAULT;
   // AFK kanalı olabilecekler: ses/görüntü kanalı; sahne ve alt başlık değil.
@@ -232,19 +238,29 @@ export default function ServerSettingsScreen() {
           </>
         ) : null}
 
-        {hasServerPermission(permissions, "VIEW_AUDIT_LOG") || hasServerPermission(permissions, "MANAGE_ROLES") ? (
+        {/* Web Sunucu Ayarları menüsünün grupları ve sekme izinleri
+            (lib/role-permissions SERVER_SETTINGS_TAB_BITS) — her ekranın
+            arkasındaki uç aynı bitleri yeniden denetler. */}
+        {canManageServer ? (
+          <>
+            <SectionHeader title="GENEL" />
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <SettingsLinks
+                links={[
+                  { icon: "home", title: "Karşılama Ekranı", href: `/servers/${serverId}/welcome-screen` },
+                  { icon: "compass", title: "Katılım Soruları", href: `/servers/${serverId}/onboarding` },
+                  { icon: "list", title: "Sunucu Rehberi", href: `/servers/${serverId}/guide-settings` },
+                ]}
+              />
+            </View>
+          </>
+        ) : null}
+
+        {moderationLinks.length > 0 ? (
           <>
             <SectionHeader title="MODERASYON" />
             <View style={{ paddingHorizontal: spacing.lg }}>
-              <ListGroup>
-                {hasServerPermission(permissions, "MANAGE_ROLES") ? (
-                  <ListRow icon="shield" title="Roller" onPress={() => router.push(`/servers/${serverId}/roles`)} />
-                ) : null}
-                {hasServerPermission(permissions, "MANAGE_ROLES") && hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? <Divider inset={16} /> : null}
-                {hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? (
-                  <ListRow icon="list" title="Denetim Kaydı" onPress={() => router.push(`/servers/${serverId}/audit-log`)} />
-                ) : null}
-              </ListGroup>
+              <SettingsLinks links={moderationLinks} />
             </View>
           </>
         ) : null}
@@ -258,8 +274,25 @@ export default function ServerSettingsScreen() {
               subtitle={`https://ciklet.xyz/i/${server.inviteCode}`}
               onPress={() => void Share.share({ message: `https://ciklet.xyz/i/${server.inviteCode}` })}
             />
+            {canManageServer ? (
+              <>
+                <Divider inset={52} />
+                <ListRow icon="copy" title="Şablonlar" onPress={() => router.push(`/servers/${serverId}/templates`)} />
+              </>
+            ) : null}
           </ListGroup>
         </View>
+
+        {canManageServer || hasServerPermission(permissions, "MANAGE_WEBHOOKS") ? (
+          <>
+            <SectionHeader title="ENTEGRASYON" />
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <ListGroup>
+                <ListRow icon="link" title="Entegrasyonlar" onPress={() => router.push(`/servers/${serverId}/integrations`)} />
+              </ListGroup>
+            </View>
+          </>
+        ) : null}
 
         <SectionHeader title="TEHLİKELİ BÖLGE" />
         <View style={{ paddingHorizontal: spacing.lg }}>
@@ -271,6 +304,25 @@ export default function ServerSettingsScreen() {
         {update.isError ? <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>{update.error instanceof ApiError ? update.error.message : "Sunucu kaydedilemedi."}</Text> : null}
       </ScrollView>
     </Screen>
+  );
+}
+
+interface SettingsLink {
+  icon: IconName;
+  title: string;
+  href: string;
+}
+
+function SettingsLinks({ links }: { links: SettingsLink[] }) {
+  return (
+    <ListGroup>
+      {links.map((link, index) => (
+        <View key={link.href}>
+          {index > 0 ? <Divider inset={16} /> : null}
+          <ListRow icon={link.icon} title={link.title} onPress={() => router.push(link.href as Href)} />
+        </View>
+      ))}
+    </ListGroup>
   );
 }
 

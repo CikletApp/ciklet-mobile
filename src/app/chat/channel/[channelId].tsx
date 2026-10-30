@@ -16,6 +16,7 @@ import {
   useThreadParent,
   useThreadState,
   useUnreadCounts,
+  useGuideVisit,
 } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
 import {
@@ -34,10 +35,10 @@ import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
 import {
   NsfwCurtain,
-  RulesCurtain,
   useNsfwAcknowledged,
   useTimeoutNotice,
 } from "@/features/server/channel-gates";
+import { ServerJoinGate } from "@/features/server/join-flow";
 import { ForumView } from "@/features/server/forum-view";
 import { MediaGallery } from "@/features/server/media-gallery";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
@@ -72,6 +73,8 @@ export default function ChannelChatScreen() {
   }>();
 
   const channelsQuery = useServerChannels(serverId);
+  // Sunucu Rehberi: bu kanala bağlı yapılacaklar açılınca tamamlanır (web kanal sayfası).
+  useGuideVisit(serverId, channelId);
   const resolved = useThreadParent(serverId, channelId, parentIdParam, channelsQuery);
   const parentId = resolved.parentId;
   const isThread = resolved.status === "thread";
@@ -361,7 +364,8 @@ export default function ChannelChatScreen() {
           lockedNotice={lockedNotice}
         />
       )}
-      {serverId && gate === "ready" ? <RulesCurtain serverId={serverId} /> : null}
+      {/* Katılım soruları + kural perdesi (web server-join-gate; sıra `beforeRules`). */}
+      {serverId && gate === "ready" ? <ServerJoinGate serverId={serverId} channels={channelsQuery.data} /> : null}
       {gate === "ready" && !nsfw.acknowledged ? (
         <NsfwCurtain
           channelName={(isThread ? parent?.name : channel?.name) ?? "kanal"}
