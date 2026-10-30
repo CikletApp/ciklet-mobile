@@ -3,7 +3,7 @@ import { AppState } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useNotificationSettings } from "@/api/hooks/use-notification-settings";
+import { serverDefaultLevelFrom, useNotificationSettings } from "@/api/hooks/use-notification-settings";
 import { qk } from "@/api/query-keys";
 import type { ProfileAnnotationEntry } from "@/api/types";
 import { showInAppNotice } from "@/components/in-app-notice";
@@ -76,7 +76,9 @@ export function useSocialEvents() {
       const effective = effectiveChannelNotification(
         findSetting(list, { channelId }),
         serverId ? findSetting(list, { serverId }) : undefined,
-        Date.now()
+        Date.now(),
+        // Sunucunun varsayılan seviyesi (Server.defaultNotificationLevel).
+        serverDefaultLevelFrom(queryClient, serverId)
       );
       return mention ? effective.notifyMentions : effective.notifyMessages;
     };

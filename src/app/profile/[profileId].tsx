@@ -49,6 +49,7 @@ import { StreamWatchButton } from "@/features/presence/stream-watch-button";
 import { displayNameOf, formatActivity, formatDate } from "@/lib/format";
 import { parseNameStyle } from "@/lib/name-style";
 import { isOfficialProfile } from "@/lib/official";
+import { ServerTagPill } from "@/features/server-tag/server-tag-pill";
 import { useCallActions } from "@/realtime/use-call-events";
 import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
@@ -241,6 +242,8 @@ export default function ProfileScreen() {
                 animate
                 textStyle={{ ...typography.displayLg, color: colors.bright, flexShrink: 1 }}
               />
+              {/* Sunucu etiketi (web ServerTagPill): Discord "Server Tag". */}
+              <ServerTagPill guild={data?.primaryGuild} />
               {!badges && isOfficial ? (
                 <Tag label="RESMÎ" tint={colors.onBrand} background={colors.brand} />
               ) : !badges && profile.isBot ? (

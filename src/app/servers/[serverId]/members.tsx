@@ -43,6 +43,7 @@ import { useUserAppSheetItems } from "@/features/chat/user-apps";
 import { NameplateBackground } from "@/features/profile/nameplate";
 import { BanSheet, PruneSheet } from "@/features/server/moderation-sheets";
 import { RoleIconBadge, roleIconFromRoles } from "@/features/server/role-icon-badge";
+import { ServerTagPill } from "@/features/server-tag/server-tag-pill";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { streamWatchUrl } from "@/lib/activity-broadcast";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
@@ -360,6 +361,7 @@ export default function ServerMembersScreen() {
                     />
                     {/* Rol simgesi (web üye satırı): en yüksek simgeli rol. */}
                     <RoleIconBadge icon={roleIconFromRoles(item.roles)} size={16} />
+                    <ServerTagPill guild={item.profile.primaryGuild} size="sm" />
                   </View>
                   {timedOut ? (
                     <Text style={{ ...typography.caption, color: colors.danger }} numberOfLines={1}>

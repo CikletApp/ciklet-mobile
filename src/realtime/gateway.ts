@@ -73,6 +73,8 @@ export interface MessageEnvelope {
     roleColor: string | null;
     /** Adın yanındaki rol simgesi `{ url, emoji, name }` (web lib/roles); eski sunucuda yok. */
     roleIcon?: unknown;
+    /** Adın yanındaki sunucu etiketi (web lib/server-tag `PrimaryGuild`); eski sunucuda yok. */
+    primaryGuild?: unknown;
   };
   expiresAt: string | null;
   timestamp: string;

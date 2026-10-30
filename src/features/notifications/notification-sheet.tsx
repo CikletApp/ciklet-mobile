@@ -6,6 +6,7 @@ import { create } from "zustand";
 import {
   useNotificationSetting,
   useResetNotificationSetting,
+  useServerNotificationDefault,
   useUpdateNotificationSetting,
 } from "@/api/hooks";
 import { Icon, Pressable, showToast } from "@/components/ui";
@@ -74,6 +75,8 @@ function SheetBody({ request }: { request: NotificationSheetRequest }) {
   const muted = isMutedAt(record?.mutedUntil, now);
   const remaining = muteRemainingLabel(record?.mutedUntil, now);
   const level = record?.level ?? null;
+  // Sunucunun varsayılan seviyesi: sunucu kaydı seviye taşımıyorsa geçerli.
+  const serverDefault = useServerNotificationDefault(request.kind === "server" ? request.target.serverId : null);
 
   const write = (patch: Parameters<typeof update.mutate>[0]["patch"]) =>
     update.mutate(
@@ -84,7 +87,7 @@ function SheetBody({ request }: { request: NotificationSheetRequest }) {
   const levelOptions: { id: NotificationLevel | null; label: string }[] =
     request.kind === "channel"
       ? [{ id: null, label: "Sunucu varsayılanı" }, ...levelList()]
-      : levelList();
+      : [{ id: null, label: `Varsayılan (${LEVEL_LABELS[serverDefault]})` }, ...levelList()];
 
   return (
     <RNPressable
@@ -146,11 +149,7 @@ function SheetBody({ request }: { request: NotificationSheetRequest }) {
                   <OptionRow
                     key={option.id ?? "inherit"}
                     label={option.label}
-                    selected={
-                      option.id === level ||
-                      // Sunucuda kayıt yoksa etkin seviye "Tüm mesajlar".
-                      (request.kind === "server" && level === null && option.id === "ALL")
-                    }
+                    selected={option.id === level}
                     onPress={() => write({ level: option.id })}
                   />
                 ))}

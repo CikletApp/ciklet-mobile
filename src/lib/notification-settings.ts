@@ -7,7 +7,8 @@
  *
  * Seviye ve susturma AYRI eksenlerdir (Discord'daki gibi):
  * - `level`: ALL (her mesaj), MENTIONS (yalnızca bahsetmeler), NOTHING.
- *   Kanalda `null` = sunucudan miras; sunucuda `null` = ALL.
+ *   Kanalda `null` = sunucudan miras; sunucuda `null` = sunucunun
+ *   varsayılanı (Server.defaultNotificationLevel; bilinmiyorsa ALL).
  * - `mutedUntil`: doluysa o ana kadar hiçbir bildirim ve okunmamış rozeti
  *   yok; `MUTE_FOREVER` süresiz.
  */
@@ -63,6 +64,20 @@ export function muteUntilFrom(durationMs: number, now: number): number {
   return durationMs === MUTE_FOREVER ? MUTE_FOREVER : now + durationMs;
 }
 
+/** Sunucu varsayılanı yalnızca ALL/MENTIONS olabilir (Discord); bozuk değer ALL. */
+export function normalizeServerDefaultLevel(value: unknown): NotificationLevel {
+  return value === "MENTIONS" ? "MENTIONS" : "ALL";
+}
+
+/** Saf çözüm: kanal → üyenin sunucu ayarı → sunucu varsayılanı (web ile aynı). */
+export function resolveNotificationLevel(
+  channelLevel: NotificationLevel | null | undefined,
+  serverLevel: NotificationLevel | null | undefined,
+  serverDefault: NotificationLevel | null | undefined = "ALL"
+): NotificationLevel {
+  return channelLevel ?? serverLevel ?? normalizeServerDefaultLevel(serverDefault);
+}
+
 export interface EffectiveNotification {
   muted: boolean;
   level: NotificationLevel;
@@ -72,14 +87,18 @@ export interface EffectiveNotification {
   notifyMentions: boolean;
 }
 
-/** Kanal için etkin karar: kanal YA DA sunucu susturulmuşsa sessiz; seviye kanaldan, yoksa sunucudan. */
+/**
+ * Kanal için etkin karar: kanal YA DA sunucu susturulmuşsa sessiz; seviye
+ * kanaldan, yoksa sunucudan, yoksa sunucunun varsayılanından.
+ */
 export function effectiveChannelNotification(
   channel: NotificationSettingRecord | null | undefined,
   server: NotificationSettingRecord | null | undefined,
-  now: number
+  now: number,
+  serverDefault: NotificationLevel | null | undefined = "ALL"
 ): EffectiveNotification {
   const muted = isMutedAt(channel?.mutedUntil, now) || isMutedAt(server?.mutedUntil, now);
-  const level: NotificationLevel = channel?.level ?? server?.level ?? "ALL";
+  const level: NotificationLevel = resolveNotificationLevel(channel?.level, server?.level, serverDefault);
   return {
     muted,
     level,

@@ -36,6 +36,8 @@ import { isForwardedMessage } from "../forward";
 import type { ReportReason } from "../use-message-actions";
 import { useDragToDismiss } from "./drag-dismiss";
 import { EmojiPickerPanel } from "./emoji-picker";
+import { SuperReactionToggle } from "./super-reaction-toggle";
+import { isBurstRow } from "../reaction-groups";
 import { saveAttachment } from "./message-attachment";
 import { MessageItem, copyableText, type MessageAnchor } from "./message-item";
 import { useBookmarkAction, useReminderAction } from "@/features/social/bookmark";
@@ -141,7 +143,7 @@ export function MessageContextMenu({
    */
   blurTarget: RefObject<View | null>;
   onClose: () => void;
-  onReact: (emoji: string) => Promise<void>;
+  onReact: (emoji: string, options?: { burst?: boolean }) => Promise<void>;
   onReply: () => void;
   /** Yalnızca iletilebilir mesajlarda (bkz. `canForwardMessage`). */
   onForward?: () => void;
@@ -169,6 +171,8 @@ export function MessageContextMenu({
   const insets = useSystemInsets();
   const myId = useAuth((state) => state.profile?.id);
   const [mode, setMode] = useState<Mode>("menu");
+  // Emoji seçicisindeki "Süper Tepki" anahtarı; menü her açılışta kapalı başlar.
+  const [superMode, setSuperMode] = useState(false);
   // Tam emoji sayfası tepeden aşağı çekilince kapanır (composer paneliyle aynı).
   const pickerDrag = useDragToDismiss(onClose);
   const [frame, setFrame] = useState<{ width: number; height: number } | null>(null);
@@ -235,8 +239,11 @@ export function MessageContextMenu({
   if (isMine || canDeleteOthers) destructive.push({ key: "delete", icon: "trash", label: "Sil", onPress: onDelete });
   if (!isMine && onReport) destructive.push({ key: "report", icon: "flag", label: "Bildir", onPress: () => setMode("report") });
 
+  // Hızlı tepki çubuğu normal tepkidir; süper tepki satırları ayrı (burst).
   const reacted = new Set(
-    (message.reactions ?? []).filter((reaction) => reaction.profileId === myId).map((reaction) => reaction.emoji)
+    (message.reactions ?? [])
+      .filter((reaction) => reaction.profileId === myId && !isBurstRow(reaction))
+      .map((reaction) => reaction.emoji)
   );
 
   return (
@@ -294,7 +301,13 @@ export function MessageContextMenu({
 
         {mode === "picker" ? (
           <Sheet onDismiss={onClose} fill drag={pickerDrag}>
-            <EmojiPickerPanel onEmoji={(emoji) => void onReact(emoji)} headerGesture={pickerDrag.header} serverId={serverId} />
+            {/* Discord gibi seçicinin üstünde "Süper Tepki" anahtarı (web ile aynı). */}
+            <SuperReactionToggle enabled={superMode} onEnabledChange={setSuperMode} onNavigate={onClose} />
+            <EmojiPickerPanel
+              onEmoji={(emoji) => void onReact(emoji, superMode ? { burst: true } : undefined)}
+              headerGesture={pickerDrag.header}
+              serverId={serverId}
+            />
             {error ? <ErrorText error={error} /> : null}
           </Sheet>
         ) : null}

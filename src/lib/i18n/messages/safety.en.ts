@@ -162,5 +162,10 @@ export const safetyEn = {
     answerPlaceholder: "Your answer",
     choose: "Choose an option",
     apply: "Apply",
+    pendingBadge: "Application pending",
+    pendingTitle: "Your application is under review",
+    withdraw: "Withdraw application",
+    withdrawn: "Your application was withdrawn.",
+    close: "Close",
   },
 } satisfies Widen<typeof safetyTr>;

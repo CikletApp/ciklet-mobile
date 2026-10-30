@@ -101,6 +101,8 @@ export const endpoints = {
   /** GET form + kendi başvurum (`?code=` davet) / POST `{ code?, answers, rulesAccepted }` — başvuran. */
   joinApplication: (serverId: string, code?: string | null) =>
     `/api/servers/${encodeURIComponent(serverId)}/join-application${qs({ code: code ?? undefined })}`,
+  /** GET `{ applications }` — oturum sahibinin BEKLEYEN başvuruları (sunucu listesinde "Başvuru bekliyor"). */
+  myJoinApplications: "/api/join-applications/mine",
   /** GET `{ applications }` (moderatör kuyruğu) — `?status=PENDING`. */
   joinApplications: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/join-applications${qs({ status: "PENDING" })}`,
   /** PATCH `{ action: "approve" | "reject", reason? }`. */
@@ -130,6 +132,8 @@ export const endpoints = {
     `/api/servers/${encodeURIComponent(serverId)}/templates/${encodeURIComponent(templateId)}`,
   /** GET şablon önizlemesi; POST `{ name }` → `{ id }` (şablondan sunucu kur). */
   template: (code: string) => `/api/templates/${encodeURIComponent(code)}`,
+  /** Sunucu widget'ı ayarları: GET / PATCH `{ enabled?, channel_id? }` (Sunucuyu Yönet). */
+  serverWidget: (serverId: string) => `/api/guilds/${encodeURIComponent(serverId)}/widget`,
 
   // ── Zamanlanmış mesajlar (lib/scheduled-messages) ─────────────────
   /** GET `{ items }` (chatId yoksa tüm sohbetler); POST `{ chatId, content, sendAt }`. */
@@ -208,6 +212,8 @@ export const endpoints = {
   editDirectMessage: (directMessageId: string, directId: string) =>
     `/api/socket/direct-messages/${encodeURIComponent(directMessageId)}${qs({ directId })}`,
   reactions: "/api/socket/reactions",
+  /** GET bu haftaki süper tepki hakkı (`{ plan, limit, used, remaining, resetAt }`). */
+  superReactions: "/api/super-reactions",
   reports: "/api/reports",
 
   // ── Sohbet zenginleştirmeleri (rol pili, sunucu emojisi, çıkartma) ──
@@ -314,8 +320,10 @@ export const endpoints = {
   klipySearch: (q: string, page: number) => `/api/klipy${qs({ endpoint: "search", q, per_page: 24, page })}`,
 
   // ── Gerçek zamanlı ses & aktiviteler ──────────────────────────────
+  // `e2ee=1`: bu sürüm uçtan uca şifreli sesi destekliyor (web api/livekit;
+  // sunucu VOICE_E2EE_REQUIRED açıkken yalnızca bunlara token verir).
   livekitToken: (room: string, username: string) =>
-    `/api/livekit${qs({ room, username })}`,
+    `/api/livekit${qs({ room, username, e2ee: 1 })}`,
   activities: "/api/activities",
   activityAuthorize: "/api/activities/authorize",
   /** GET `?chatId=` hedefler · POST `{ chatId, targets }` — "Arkadaşları Davet Et". */
@@ -349,6 +357,8 @@ export const endpoints = {
   profileGames: "/api/profile/games",
   /** PUT `{ name, type, tag? }` favori yapar; DELETE kaldırır. */
   profileFavoriteGame: "/api/profile/games/favorite",
+  /** Sunucu etiketi (web lib/server-tag): GET durum + seçenekler, PUT `{ serverId }`, DELETE kaldırır. */
+  profileServerTag: "/api/profile/server-tag",
   /** GET bağlantı durumu, DELETE bağlantıyı kaldır. Bağlama OAuth ile webde. */
   /** Rich presence kapağı yükleme (ham JPEG/PNG gövde) → `{ url }` (web lib/presence-covers). */
   presenceCovers: "/api/presence/covers",

@@ -15,7 +15,9 @@ export function useServerSounds(serverId: string | undefined) {
   return useQuery({
     queryKey: qk.serverSounds(serverId ?? "yok"),
     enabled: Boolean(serverId),
-    queryFn: () => api<ServerSoundItem[]>(endpoints.serverSounds(serverId!)),
+    // Varsayılan sesler (isDefault, mutlak adres) listenin sonunda gelir; web
+    // çalma paneliyle aynı liste, veri mesajındaki kimlik iki tarafta da çözülür.
+    queryFn: () => api<ServerSoundItem[]>(`${endpoints.serverSounds(serverId!)}?includeDefaults=1`),
     staleTime: 5 * 60_000,
   });
 }

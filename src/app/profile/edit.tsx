@@ -26,6 +26,7 @@ import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { GAMES_VISIBILITY_OPTIONS } from "@/lib/profile-extras";
 import { UserFacingUploadError, pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
 import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
+import { ServerTagPicker } from "@/features/server-tag/server-tag-picker";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import { favoriteCandidates, favoriteGameTagLabel } from "@/lib/favorite-game";
 import { ScreenLoader } from "@/components/ui/screen";
@@ -422,6 +423,9 @@ export default function EditProfileScreen() {
             </ListGroup>
           </View>
           <FavoriteGameSheet visible={favoritePicker} onClose={() => setFavoritePicker(false)} />
+
+          {/* Sunucu etiketi (web lib/server-tag): anında kaydedilir. */}
+          <ServerTagPicker />
 
           {updateProfile.isError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>

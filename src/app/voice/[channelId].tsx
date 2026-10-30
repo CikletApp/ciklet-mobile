@@ -47,6 +47,7 @@ import { usePreferences } from "@/stores/preferences";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useOngoingCallService } from "@/features/call/use-ongoing-call-service";
+import { E2EEParticipantBadge, useVoiceE2EERoom, VoiceE2EEPill, VoiceE2EEProvider } from "@/features/call/voice-e2ee";
 
 /**
  * Sesli kanal ekranı.
@@ -102,9 +103,13 @@ export default function VoiceChannelScreen() {
     [channelId, channel?.name, server?.name, serverId, joinedAt, isVideo]
   );
 
-  const { token, status, error, leave, moderation: joinModeration, voice, afk } = useVoiceSession(session);
+  const { token, status, error, leave, moderation: joinModeration, voice, afk, e2ee: roomE2EE } = useVoiceSession(session);
   // Kanalın bit hızı / kamera kalitesi: oda seçenekleri bağlantı başına bir kez.
   const roomOptions = useMemo(() => roomOptionsFor(voice), [voice]);
+  // Uçtan uca şifreli oda: karar token yanıtından (sunucu ana anahtarı +
+  // sahne değil) — kanal verisi gecikirse ya da özellik kapalıysa web'le
+  // uyuşmazlık olmasın.
+  const e2ee = useVoiceE2EERoom(token, roomE2EE, roomOptions, attempt);
 
   const onLeave = useCallback(() => {
     leave();
@@ -159,7 +164,7 @@ export default function VoiceChannelScreen() {
     );
   }
 
-  if (!token) {
+  if (!token || !e2ee.ready) {
     return (
       <>
         <Stack.Screen options={{ title: channel?.name ?? "" }} />
@@ -178,6 +183,8 @@ export default function VoiceChannelScreen() {
       audio={!isStage && !pushToTalk && !joinModeration.muted && !afk}
       video={isVideo}
       options={roomOptions}
+      // Şifreli odada Room'u useVoiceE2EERoom kurdu (seçenekler içinde).
+      room={e2ee.room}
       onConnected={() => setMediaError(false)}
       onError={() => setMediaError(true)}
       // Kurulamayan medya bağlantısı hata olarak değil "koptu" olarak
@@ -185,6 +192,7 @@ export default function VoiceChannelScreen() {
       onDisconnected={() => setMediaError(true)}
     >
       <Stack.Screen options={{ title: channel?.name ?? "" }} />
+      <VoiceE2EEProvider mode={e2ee.mode} session={e2ee.session}>
       <VoiceRoomBody
         title={channel?.name ?? "Ses kanalı"}
         subtitle={isStage ? `${server?.name ?? "Sunucu"} · Sahne` : (extras?.voiceStatus?.trim() || server?.name)}
@@ -202,6 +210,7 @@ export default function VoiceChannelScreen() {
           setAttempt((value) => value + 1);
         }}
       />
+      </VoiceE2EEProvider>
     </LiveKitRoom>
   );
 }
@@ -296,6 +305,8 @@ function VoiceRoomBody({
           {subtitle ? (
             <Text style={{ ...typography.caption, color: colors.muted }}>{subtitle}</Text>
           ) : null}
+          {/* Uçtan uca şifreleme durumu + ses gizlilik kodu (sahnede yok). */}
+          <VoiceE2EEPill />
         </View>
 
         {isStage ? (
@@ -424,6 +435,7 @@ function VoiceRoomBody({
                 >
                   {participant.name?.trim() || participant.username}
                 </Text>
+                <E2EEParticipantBadge identity={participant.username} compact />
               </Pressable>
               );
             })

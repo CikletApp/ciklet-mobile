@@ -248,6 +248,7 @@ export default function RootLayout() {
                   <Stack.Screen name="servers/[serverId]/settings" />
                   <Stack.Screen name="servers/[serverId]/subscriptions" />
                   <Stack.Screen name="servers/[serverId]/templates" />
+                  <Stack.Screen name="servers/[serverId]/widget" />
                   <Stack.Screen name="servers/[serverId]/invites" />
                   <Stack.Screen name="servers/[serverId]/welcome-screen" />
                   <Stack.Screen name="sablon/[code]" />

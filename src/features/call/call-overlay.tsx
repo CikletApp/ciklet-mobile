@@ -13,6 +13,7 @@ import { Avatar, IconButton, Pressable, showToast } from "@/components/ui";
 import { useCurrentAudioRoute } from "@/features/voice/audio-route";
 import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
+import { useVoiceE2EERoom, VoiceE2EEPill, VoiceE2EEProvider } from "@/features/call/voice-e2ee";
 import { LIVEKIT_URL } from "@/lib/livekit";
 import { displayNameOf } from "@/lib/format";
 import { ClientEvent } from "@/realtime/events";
@@ -220,6 +221,9 @@ export function CallOverlay() {
  * modalda, küçültülünce (WhatsApp gibi) modal kapanır ve uygulamanın
  * üstünde sürüklenebilir mini pencere kalır. Android geri tuşu küçültür.
  */
+/** DM görüşmesi oda seçenekleri; sabit nesne (oda bağlantı başına bir kez kurulur). */
+const DIRECT_CALL_ROOM_OPTIONS = { adaptiveStream: true, dynacast: true } as const;
+
 function ConnectedCall({
   directId,
   onHangUp,
@@ -236,7 +240,7 @@ function ConnectedCall({
   const [initialKind] = useState(kind);
   // Sesli arama telefon gibi ahizeden, görüntülü arama hoparlörden başlar;
   // kulaklık bağlıysa ikisinde de o kazanır.
-  const { token, error } = useVoiceToken(directId, {
+  const { token, error, e2ee: roomE2EE } = useVoiceToken(directId, {
     needsCamera: initialKind === "video",
     defaultRoute: initialKind === "video" ? "speaker" : "earpiece",
     // iOS: ses oturumunu CallKit etkinleştirir/kapatır (features/call/callkit).
@@ -260,6 +264,9 @@ function ConnectedCall({
     onHangUp,
   });
 
+  // Uçtan uca şifreli görüşme: oda ve ilk yerel anahtar bağlanmadan kurulur.
+  const e2ee = useVoiceE2EERoom(token, roomE2EE, DIRECT_CALL_ROOM_OPTIONS);
+
   const minimize = () => setMinimized(true);
   const openChat = () => {
     setMinimized(true);
@@ -267,7 +274,7 @@ function ConnectedCall({
   };
   const background = kind === "video" ? "#000000" : colors.deep;
 
-  if (error || !token) {
+  if (error || !token || !e2ee.ready) {
     return (
       <CallSurface onRequestClose={onHangUp}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xl, backgroundColor: background }}>
@@ -300,8 +307,10 @@ function ConnectedCall({
       connect
       audio
       video={kind === "video"}
-      options={{ adaptiveStream: true, dynacast: true }}
+      options={DIRECT_CALL_ROOM_OPTIONS}
+      room={e2ee.room}
     >
+      <VoiceE2EEProvider mode={e2ee.mode} session={e2ee.session}>
       <VideoUpgradeBridge />
       <CallPresenceBridge directId={directId} kind={initialKind} />
       <CallKitMuteSync />
@@ -315,6 +324,7 @@ function ConnectedCall({
         </View>
       </CallSurface>
       {minimized ? <MiniCall kind={kind} onRestore={() => setMinimized(false)} onHangUp={onHangUp} /> : null}
+      </VoiceE2EEProvider>
     </LiveKitRoom>
   );
 }
@@ -450,6 +460,8 @@ function CallStage({
         <Text style={{ ...typography.body, color: reconnecting ? "#e0a100" : colors.muted }}>
           {reconnecting ? "Yeniden bağlanılıyor…" : elapsed}
         </Text>
+        {/* Uçtan uca şifreleme durumu + ses gizlilik kodu. */}
+        <VoiceE2EEPill />
       </View>
 
       {upgrade ? (

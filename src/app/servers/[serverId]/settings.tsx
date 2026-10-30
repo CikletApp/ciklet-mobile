@@ -21,6 +21,8 @@ import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import type { ChannelExtras } from "@/api/types";
 import { AFK_TIMEOUT_DEFAULT, AFK_TIMEOUT_OPTIONS } from "@/lib/voice-settings";
+import { DefaultNotificationsSection } from "@/features/server/default-notifications-section";
+import { ServerTagSection } from "@/features/server-tag/server-tag-section";
 
 export default function ServerSettingsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -71,6 +73,8 @@ export default function ServerSettingsScreen() {
     ...(canManageServer ? [{ icon: "flag" as const, title: "Moderasyon", href: `/servers/${serverId}/moderation` }] : []),
     ...(hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? [{ icon: "list" as const, title: "Denetim Kaydı", href: `/servers/${serverId}/audit-log` }] : []),
   ];
+  // İfadeler (web Sunucu Ayarları › Emoji): İfade Oluştur ya da İfadeleri Yönet.
+  const canSeeEmojis = hasServerPermission(permissions, "MANAGE_EXPRESSIONS") || hasServerPermission(permissions, "CREATE_EXPRESSIONS");
   const savedAfkChannelId = server.afkChannelId ?? null;
   const savedAfkTimeout = server.afkTimeout ?? AFK_TIMEOUT_DEFAULT;
   // AFK kanalı olabilecekler: ses/görüntü kanalı; sahne ve alt başlık değil.
@@ -238,6 +242,20 @@ export default function ServerSettingsScreen() {
                 ))}
               </ListGroup>
             </View>
+
+            <DefaultNotificationsSection serverId={serverId} level={server.defaultNotificationLevel} />
+
+            {/* Sunucu etiketi (web lib/server-tag): kendi Kaydet düğmesiyle. */}
+            <ServerTagSection server={server} />
+          </>
+        ) : null}
+
+        {canSeeEmojis ? (
+          <>
+            <SectionHeader title="İFADELER" />
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <SettingsLinks links={[{ icon: "emoji", title: "Emoji", href: `/servers/${serverId}/emojis` }]} />
+            </View>
           </>
         ) : null}
 
@@ -287,6 +305,8 @@ export default function ServerSettingsScreen() {
               <>
                 <Divider inset={52} />
                 <ListRow icon="copy" title="Şablonlar" onPress={() => router.push(`/servers/${serverId}/templates`)} />
+                <Divider inset={52} />
+                <ListRow icon="monitor" title="Widget" onPress={() => router.push(`/servers/${serverId}/widget`)} />
               </>
             ) : null}
           </ListGroup>

@@ -122,6 +122,7 @@ export function ChatView({
   placeholder,
   readOnlyOfficial = false,
   lockedNotice,
+  lockedBanner,
   requireAttachment = false,
   oneToOne = false,
   unreadSeed,
@@ -140,6 +141,8 @@ export function ChatView({
    * şimdilik web'de). Mesajlar okunur, yazılamaz.
    */
   lockedNotice?: string;
+  /** Kilitliyken notun üstünde gösterilecek bant (ör. karantina, features/server/quarantine-banner). */
+  lockedBanner?: React.ReactNode;
   /**
    * Medya kanalı: yalnızca ekli mesaj gönderilir (sunucu eksiz mesajı
    * reddediyor; burada gönderilmeden önce söylenir).
@@ -818,8 +821,8 @@ export function ChatView({
           lastInGroup={item.lastInGroup}
           onLongPress={readOnlyOfficial ? undefined : onLongPressMessage}
           onReply={readOnlyOfficial || item.message.deleted ? undefined : onSwipeReply}
-          onReactionPress={(message, emoji) => {
-            void actions.toggleReaction(message.id, emoji);
+          onReactionPress={(message, emoji, options) => {
+            void actions.toggleReaction(message.id, emoji, options);
           }}
           onJumpToMessage={jumpToMessage}
         />
@@ -1019,6 +1022,7 @@ export function ChatView({
           />
         ) : readOnlyOfficial || lockedNotice ? (
           <>
+            {lockedBanner}
             <OfficialFooter text={lockedNotice} />
             <View style={{ height: insets.bottom }} />
           </>
@@ -1091,8 +1095,8 @@ export function ChatView({
             actions.clearError();
             setSelected(null);
           }}
-          onReact={async (emoji) => {
-            const ok = await actions.toggleReaction(selected.message.id, emoji);
+          onReact={async (emoji, options) => {
+            const ok = await actions.toggleReaction(selected.message.id, emoji, options);
             if (ok) setSelected(null);
           }}
           onReply={() => {

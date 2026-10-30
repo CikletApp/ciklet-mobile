@@ -48,6 +48,7 @@ import { CHANNEL_FULL_MESSAGE, formatUserLimit, isVoiceChannelFull } from "@/lib
 import { useAuth } from "@/stores/auth";
 import { effectiveChannelNotification, findSetting, isMutedAt } from "@/lib/notification-settings";
 import { useNow } from "@/lib/use-now";
+import { useServerTagMenuItem } from "@/features/server-tag/use-server-tag-menu-item";
 import { usePresenceStore } from "@/stores/presence";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -146,6 +147,8 @@ export default function ServerChannelsScreen() {
   const { data: welcomeScreen } = useWelcomeScreen(serverId, isNewMember);
   const welcomeToShow =
     isNewMember && guideData !== undefined && guide === null && hasWelcomeContent(welcomeScreen) ? welcomeScreen : null;
+  // Sunucu etiketi (web lib/server-tag): "Etiketi Kullan" / "Etiketi Bırak".
+  const serverTagItem = useServerTagMenuItem(serverId, serverMenuOpen);
   const serverMenuItems: ActionSheetItem[] = [
     {
       key: "browse",
@@ -179,6 +182,7 @@ export default function ServerChannelsScreen() {
       onPress: () =>
         openNotificationSettings({ target: { serverId }, kind: "server", title: server?.name ?? "Sunucu" }),
     },
+    ...(serverTagItem ? [serverTagItem] : []),
   ];
   /** Basılı tutulan kanal — eylem sayfası (bildirimler, düzenle). */
   const [menuChannel, setMenuChannel] = useState<Channel | null>(null);

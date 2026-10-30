@@ -21,6 +21,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import {
+  useMyPendingApplications,
   useRailItems,
   useReorderRail,
   useUnreadCounts,
@@ -46,6 +47,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
 import { useTabBarScrollHandler } from "@/components/ui/tab-bar-collapse";
+import { PendingApplicationRows } from "@/features/join-application/pending-applications";
 
 /**
  * Sunucular — sunucuların kendi evi.
@@ -79,6 +81,9 @@ export default function ServersScreen() {
   const { items, isLoading } = useRailItems();
   const { data: unread } = useUnreadCounts();
   const reorder = useReorderRail();
+  // Bekleyen katılım başvuruları listenin sonunda soluk satır (web rayıyla aynı).
+  const { data: pendingApplications, refetch: refetchPending } = useMyPendingApplications();
+  const pendingCount = pendingApplications?.length ?? 0;
 
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState<RailItem[] | null>(null);
@@ -97,11 +102,12 @@ export default function ServersScreen() {
         queryClient.refetchQueries({ queryKey: qk.memberships }),
         queryClient.refetchQueries({ queryKey: qk.folders }),
         queryClient.refetchQueries({ queryKey: qk.unreadCounts }),
+        refetchPending(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [queryClient]);
+  }, [queryClient, refetchPending]);
 
   // Arama klasörlerin İÇİNE de bakar; sonuç düz listedir (sürükleme yok —
   // süzülmüş listede sıra değiştirmek anlamsız olurdu).
@@ -216,7 +222,7 @@ export default function ServersScreen() {
 
       {isLoading ? (
         <ListSkeleton rows={6} />
-      ) : ordered.length === 0 ? (
+      ) : ordered.length === 0 && pendingCount === 0 ? (
         <EmptyState
           icon="compass"
           title="Henüz sunucun yok"
@@ -288,7 +294,7 @@ export default function ServersScreen() {
               )}
             </DraggableRow>
           ))}
-
+          {needle ? null : <PendingApplicationRows />}
         </Animated.ScrollView>
       )}
 

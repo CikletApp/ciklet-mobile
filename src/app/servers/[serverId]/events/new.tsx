@@ -1,14 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
-import { useCreateServerEvent, useServerChannels } from "@/api/hooks";
+import { useCreateServerEvent, useServerChannels, useServerEvents, useUpdateServerEvent } from "@/api/hooks";
 import type { RecurrencePresetId } from "@/api/types";
 import { Button, Icon, KeyboardAvoider, Pressable, SegmentedTabs, TextField, showToast } from "@/components/ui";
-import { recurrencePresets } from "@/lib/event-recurrence";
+import { presetIdOf, recurrencePresets } from "@/lib/event-recurrence";
 import { pickAndUploadEventCover } from "@/lib/uploads";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -19,6 +19,10 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * Doğrulama sunucuda da yapılır (geçmiş başlangıç, bitiş sırası).
  * Kapak görseli (16:9) ve tekrar (web formundaki seçeneklerin aynısı,
  * başlangıç gününe göre: "Her hafta Salı", "Her ay 1. Salı" …) isteğe bağlı.
+ *
+ * `?eventId=` ile aynı form "Etkinliği Düzenle" olarak açılır (web
+ * modalındaki düzenleme): alanlar doldurulur; başlangıç ve tekrar
+ * değişmediyse uca gönderilmez (mevcut kural ve hatırlatma korunur).
  */
 
 const DURATIONS = [
@@ -38,10 +42,29 @@ function startOfDay(offset: number): Date {
   return date;
 }
 
+/** Bugünden kaç gün sonra (yerel takvim günü; geçmiş için negatif). */
+function dayOffsetOf(date: Date): number {
+  const day = new Date(date.getTime());
+  day.setHours(0, 0, 0, 0);
+  return Math.round((day.getTime() - startOfDay(0).getTime()) / 86_400_000);
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** "1 sa 30 dk" */
+function durationText(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return [h ? `${h} sa` : "", m ? `${m} dk` : ""].filter(Boolean).join(" ");
+}
+
 export default function NewServerEventScreen() {
-  const { serverId } = useLocalSearchParams<{ serverId: string }>();
+  const { serverId, eventId } = useLocalSearchParams<{ serverId: string; eventId?: string }>();
   const { data: channels } = useServerChannels(serverId);
   const create = useCreateServerEvent(serverId);
+  const update = useUpdateServerEvent(serverId);
+  const { data: eventList } = useServerEvents(eventId ? serverId : undefined);
+  const editing = eventId ? eventList?.find((item) => item.id === eventId) : undefined;
   const voiceChannels = useMemo(
     () => (channels ?? []).filter((channel) => channel.type !== ChannelType.TEXT),
     [channels]
@@ -57,13 +80,55 @@ export default function NewServerEventScreen() {
     const next = new Date(Date.now() + 60 * 60_000);
     return `${String(next.getHours()).padStart(2, "0")}:00`;
   });
-  const [duration, setDuration] = useState<(typeof DURATIONS)[number]["id"]>("none");
+  const [duration, setDuration] = useState<string>("none");
+  // Düzenlemede hazır sürelere uymayan mevcut süre ayrı bir çip olur.
+  const [customMinutes, setCustomMinutes] = useState<number | null>(null);
   const [recurrence, setRecurrence] = useState<RecurrencePresetId>("none");
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Düzenlemede açılıştaki başlangıç (dakika) ve tekrar — değişmedilerse gönderilmez.
+  const [base, setBase] = useState<{ startMinute: number; recurrence: RecurrencePresetId } | null>(null);
+  const prefilled = useRef(false);
 
-  const days = useMemo(() => Array.from({ length: 30 }, (_, offset) => ({ offset, date: startOfDay(offset) })), []);
+  useEffect(() => {
+    if (!editing || prefilled.current) return;
+    prefilled.current = true;
+    const start = new Date(editing.startsAt);
+    setName(editing.name);
+    setDescription(editing.description ?? "");
+    setPlaceKind(editing.channelId ? "voice" : "other");
+    setChannelId(editing.channelId);
+    setLocation(editing.location ?? "");
+    setDayOffset(dayOffsetOf(start));
+    setTime(`${pad2(start.getHours())}:${pad2(start.getMinutes())}`);
+    const minutes = editing.endsAt ? Math.round((new Date(editing.endsAt).getTime() - start.getTime()) / 60_000) : 0;
+    const preset = DURATIONS.find((item) => item.minutes === minutes);
+    setCustomMinutes(preset ? null : minutes);
+    setDuration(preset ? preset.id : "custom");
+    const recurrenceId = presetIdOf(editing.recurrenceRule);
+    setRecurrence(recurrenceId);
+    setCoverImageUrl(editing.coverImageUrl ?? null);
+    setBase({ startMinute: Math.floor(start.getTime() / 60_000), recurrence: recurrenceId });
+  }, [editing]);
+
+  const durations = useMemo(
+    () => [
+      ...DURATIONS,
+      ...(customMinutes
+        ? [{ id: "custom", label: `Mevcut süre (${durationText(customMinutes)})`, minutes: customMinutes }]
+        : []),
+    ],
+    [customMinutes]
+  );
+
+  // Gün çipleri bugünden 30 gün; düzenlenen etkinlik bu aralığın dışındaysa onun günü de eklenir.
+  const firstOffset = Math.min(0, dayOffset);
+  const lastOffset = Math.max(29, dayOffset);
+  const days = useMemo(
+    () => Array.from({ length: lastOffset - firstOffset + 1 }, (_, i) => ({ offset: firstOffset + i, date: startOfDay(firstOffset + i) })),
+    [firstOffset, lastOffset]
+  );
   const timeMatch = TIME.exec(time.trim());
   const place = placeKind === "voice" ? channelId : location.trim();
   const valid = name.trim().length > 0 && Boolean(timeMatch) && Boolean(place) && !coverUploading;
@@ -94,7 +159,35 @@ export default function NewServerEventScreen() {
     if (!timeMatch) return;
     setError(null);
     const startsAt = new Date(startsAtLocal.getTime());
-    const minutes = DURATIONS.find((item) => item.id === duration)?.minutes ?? 0;
+    const minutes = durations.find((item) => item.id === duration)?.minutes ?? 0;
+    if (editing && base) {
+      const startChanged = Math.floor(startsAt.getTime() / 60_000) !== base.startMinute;
+      const effectiveStart = startChanged ? startsAt : new Date(editing.startsAt);
+      const recurrenceChanged = startChanged || recurrence !== base.recurrence;
+      update.mutate(
+        {
+          eventId: editing.id,
+          input: {
+            name: name.trim(),
+            description: description.trim(),
+            channelId: placeKind === "voice" ? channelId : null,
+            location: placeKind === "other" ? location.trim() : null,
+            ...(startChanged ? { startsAt: startsAt.toISOString() } : {}),
+            endsAt: minutes ? new Date(effectiveStart.getTime() + minutes * 60_000).toISOString() : null,
+            ...(recurrenceChanged ? { recurrenceRule: selectedPreset.rule } : {}),
+            coverImageUrl,
+          },
+        },
+        {
+          onSuccess: () => {
+            showToast("Etkinlik güncellendi.");
+            router.back();
+          },
+          onError: (reason) => setError(reason instanceof ApiError ? reason.message : "Etkinlik güncellenemedi."),
+        }
+      );
+      return;
+    }
     create.mutate(
       {
         name: name.trim(),
@@ -115,7 +208,7 @@ export default function NewServerEventScreen() {
 
   return (
     <KeyboardAvoider style={{ backgroundColor: colors.bg }}>
-      <Stack.Screen options={{ title: "Etkinlik Oluştur" }} />
+      <Stack.Screen options={{ title: eventId ? "Etkinliği Düzenle" : "Etkinlik Oluştur" }} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing["4xl"] }}>
         <Pressable
           onPress={() => void pickCover()}
@@ -150,7 +243,7 @@ export default function NewServerEventScreen() {
           <Button label="Kapağı kaldır" icon="close" variant="secondary" onPress={() => setCoverImageUrl(null)} />
         ) : null}
 
-        <TextField label="ETKİNLİK ADI" value={name} onChangeText={setName} maxLength={100} autoFocus />
+        <TextField label="ETKİNLİK ADI" value={name} onChangeText={setName} maxLength={100} autoFocus={!eventId} />
         <TextField
           label="AÇIKLAMA"
           value={description}
@@ -222,7 +315,7 @@ export default function NewServerEventScreen() {
 
         <Text style={{ ...typography.overline, color: colors.muted }}>SÜRE</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-          {DURATIONS.map((item) => (
+          {durations.map((item) => (
             <Chip key={item.id} label={item.label} selected={duration === item.id} onPress={() => setDuration(item.id)} />
           ))}
         </View>
@@ -235,7 +328,14 @@ export default function NewServerEventScreen() {
         </View>
 
         {error ? <Text style={{ ...typography.caption, color: colors.danger }}>{error}</Text> : null}
-        <Button label="Etkinliği Oluştur" fullWidth size="lg" disabled={!valid} loading={create.isPending} onPress={submit} />
+        <Button
+          label={eventId ? "Kaydet" : "Etkinliği Oluştur"}
+          fullWidth
+          size="lg"
+          disabled={!valid || (Boolean(eventId) && !editing)}
+          loading={create.isPending || update.isPending}
+          onPress={submit}
+        />
       </ScrollView>
     </KeyboardAvoider>
   );

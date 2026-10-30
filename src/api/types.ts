@@ -109,6 +109,12 @@ export interface MembershipWithServer extends Member {
   orderInFolder: number | null;
   /** Bu sunucunun üyelerinden DM kabul edilsin mi. */
   allowServerDMs: boolean;
+  /** Etkin zaman aşımı bitişi (ISO) ya da null. */
+  timedOutUntil?: string | null;
+  /** AutoMod karantinası (web Member.quarantinedAt); doluysa etkileşimler kapalı. */
+  quarantinedAt?: string | null;
+  /** Karantina ayrıntısı — `lib/quarantine` `readQuarantine` ile okunur. */
+  quarantine?: unknown;
 }
 
 /** `PATCH /api/members/[memberId]` — sunucuya özel profil alanları. */
@@ -163,6 +169,16 @@ export interface ServerDetails {
   afkChannelId?: string | null;
   /** AFK zaman aşımı, saniye (lib/voice-settings AFK_TIMEOUT_OPTIONS). */
   afkTimeout?: number;
+  /**
+   * Varsayılan bildirim seviyesi (Discord "Default Notification Settings"):
+   * bildirim ayarını değiştirmemiş üyeler için. Eski sunucu sürümü göndermez → ALL.
+   */
+  defaultNotificationLevel?: "ALL" | "MENTIONS" | "NOTHING";
+  /** Sunucu etiketi (web lib/server-tag): 2–4 karakter + tek emoji rozet; eski sunucuda yok. */
+  tag?: string | null;
+  tagBadge?: string | null;
+  /** Üyeler etiketi kullanabilir mi; kapalıyken etiket hiçbir yerde görünmez. */
+  tagEnabled?: boolean;
   isPublic: boolean;
   isDiscoverable: boolean;
   inviteCode: string;
@@ -549,6 +565,35 @@ export interface ProfileCardResponse {
    * geçmiş satır + etiket; yoksa / gizliyse null. Eski sunucuda alan yok.
    */
   favoriteGame?: FavoriteGameView | null;
+  /** Adın yanındaki sunucu etiketi (web lib/server-tag); yoksa null, eski sunucuda alan yok. */
+  primaryGuild?: PrimaryGuild | null;
+}
+
+/**
+ * ciklet-web: `lib/server-tag.ts` → `PrimaryGuild` (Discord `primary_guild`).
+ * Mesaj yazarı, üye satırı ve profil kartı aynı şekli taşır.
+ */
+export interface PrimaryGuild {
+  serverId: string;
+  tag: string;
+  badge: string | null;
+  identityEnabled: boolean;
+  serverName?: string;
+}
+
+/** ciklet-web: `lib/server-tag.ts` → `EligibleServerTag` (seçilebilir etiketler). */
+export interface EligibleServerTag {
+  serverId: string;
+  serverName: string;
+  serverImageUrl: string | null;
+  tag: string;
+  badge: string | null;
+}
+
+/** ciklet-web: `GET /api/profile/server-tag`. */
+export interface MyServerTagResponse {
+  primaryGuild: PrimaryGuild | null;
+  eligible: EligibleServerTag[];
 }
 
 export type ProfileBadgeId =
@@ -962,6 +1007,8 @@ export interface ServerMemberListItem {
     customStatusText?: string | null;
     customStatusEmoji?: string | null;
     customStatusUntil?: string | null;
+    /** Adın yanındaki sunucu etiketi (web lib/server-tag); eski sunucuda yok. */
+    primaryGuild?: PrimaryGuild | null;
   };
   roles: {
     id: string;
@@ -1155,4 +1202,6 @@ export interface ServerSoundItem {
   audioUrl: string;
   /** Yüzde 0–200; çalan taraf uygular. */
   volume: number;
+  /** Varsayılan ses (her sunucuda; web lib/soundboard DEFAULT_SOUNDS). */
+  isDefault?: boolean;
 }

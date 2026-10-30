@@ -13,7 +13,7 @@ import { emojiUrl, getDokimorji } from "@/lib/emoji";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { formatCustomEmoji } from "../message-markup";
-import { useServerEmojis } from "../server-assets";
+import { usableEmojis, useServerEmojis } from "../server-assets";
 import { CollapsibleHeader, type CollapsingChrome } from "./collapsing-chrome";
 
 /**
@@ -238,7 +238,8 @@ export function EmojiPickerPanel({
   const serverList = useServerEmojis(serverId);
   const serverEmojis = useMemo<PickerEmoji[]>(
     () =>
-      serverList.map((emoji) => ({
+      // Role özel olup rolü olmadığın emojiler gösterilmez (Discord).
+      usableEmojis(serverList).map((emoji) => ({
         native: formatCustomEmoji(emoji),
         url: emoji.imageUrl,
         name: `:${emoji.name}:`,

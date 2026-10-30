@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
   findSetting,
   isSettingMeaningful,
+  normalizeServerDefaultLevel,
   settingKey,
   type NotificationLevel,
   type NotificationSettingRecord,
@@ -23,13 +24,57 @@ import { qk } from "../query-keys";
  */
 export function useNotificationSettings() {
   const signedIn = useAuth((s) => s.status === "signedIn");
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: qk.notificationSettings,
-    queryFn: () => api<NotificationSettingRecord[]>(endpoints.notificationSettings),
+    queryFn: () => fetchNotificationSettings(queryClient),
     enabled: signedIn,
     staleTime: 5 * 60_000,
     select: (data) => (Array.isArray(data) ? data : []),
   });
+}
+
+type ServerDefaults = Record<string, NotificationLevel>;
+
+/**
+ * Liste + sunucu varsayılanları tek istekte (`includeServerDefaults=1`).
+ * Liste önbelleği eskisi gibi DİZİ kalır (iyimser yazımlar ve olay
+ * dinleyicileri onu okuyor); varsayılanlar ayrı anahtara yazılır. Eski
+ * sunucu sürümü dizi döndürürse varsayılanların hepsi ALL sayılır.
+ */
+async function fetchNotificationSettings(queryClient: QueryClient): Promise<NotificationSettingRecord[]> {
+  const data = await api<NotificationSettingRecord[] | { settings?: NotificationSettingRecord[]; serverDefaults?: Record<string, unknown> }>(
+    `${endpoints.notificationSettings}?includeServerDefaults=1`
+  );
+  const defaults: ServerDefaults = {};
+  if (!Array.isArray(data)) {
+    for (const [serverId, level] of Object.entries(data?.serverDefaults ?? {})) {
+      if (normalizeServerDefaultLevel(level) !== "ALL") defaults[serverId] = "MENTIONS";
+    }
+  }
+  queryClient.setQueryData<ServerDefaults>(qk.notificationServerDefaults, defaults);
+  return Array.isArray(data) ? data : Array.isArray(data?.settings) ? data.settings : [];
+}
+
+/** Sunucunun varsayılan seviyesi önbellekten (olay dinleyicileri için; yoksa ALL). */
+export function serverDefaultLevelFrom(queryClient: QueryClient, serverId: string | null | undefined): NotificationLevel {
+  if (!serverId) return "ALL";
+  return queryClient.getQueryData<ServerDefaults>(qk.notificationServerDefaults)?.[serverId] ?? "ALL";
+}
+
+/**
+ * Sunucunun varsayılan bildirim seviyesi (Server.defaultNotificationLevel).
+ * Veri `useNotificationSettings` isteğiyle gelir; bu hook yalnızca okur.
+ */
+export function useServerNotificationDefault(serverId: string | null | undefined): NotificationLevel {
+  useNotificationSettings();
+  const { data } = useQuery({
+    queryKey: qk.notificationServerDefaults,
+    queryFn: () => ({}) as ServerDefaults,
+    enabled: false,
+    staleTime: Infinity,
+  });
+  return (serverId && data?.[serverId]) || "ALL";
 }
 
 /** Tek hedefin kaydı (yoksa undefined = varsayılan / miras). */

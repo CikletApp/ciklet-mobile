@@ -23,7 +23,7 @@ export function useVoiceSession(session: ActiveVoice | null) {
   const setParticipants = useVoice((s) => s.setParticipants);
 
   // Sesli kanal Discord gibi hoparlörden başlar; düğmeyle ahizeye alınabilir.
-  const { token, moderation, voice, afk, error } = useVoiceToken(session?.roomId, {
+  const { token, moderation, voice, afk, stage, e2ee, error } = useVoiceToken(session?.roomId, {
     needsCamera: session?.kind === "video",
     defaultRoute: "speaker",
   });
@@ -96,6 +96,10 @@ export function useVoiceSession(session: ActiveVoice | null) {
     voice,
     /** Sunucunun AFK kanalı: mikrofonla katılınmaz. */
     afk,
+    /** Sahne kanalı (token yanıtı): uçtan uca şifresiz. */
+    stage,
+    /** Sunucu odayı uçtan uca şifreli kurdu (VOICE_E2EE_ENABLED, sahne değil). */
+    e2ee,
     error,
     status: error ? ("error" as const) : token ? ("connected" as const) : ("connecting" as const),
     leave,

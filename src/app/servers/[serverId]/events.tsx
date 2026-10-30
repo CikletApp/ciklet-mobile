@@ -29,16 +29,20 @@ import {
   type ActionSheetItem,
 } from "@/components/ui";
 import { formatDate, formatTime } from "@/lib/format";
-import { describeRecurrence } from "@/lib/event-recurrence";
+import { describeRecurrence, RECURRENCE_SCOPE_TEXT, type RecurrenceScope } from "@/lib/event-recurrence";
 import { useNow } from "@/lib/use-now";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
+/** Tekrarlayan etkinlikte "Bu etkinlik / Tüm seri" sorulan eylem. */
+type ScopedAction = "complete" | "cancel" | "delete";
+
 /**
  * Sunucu etkinlikleri — web sunucu menüsündeki "Etkinlikler" modalının
  * mobil karşılığı. Herkes listeyi görür ve "İlgileniyorum" der; moderatör+
- * oluşturur, elle başlatır / bitirir / iptal eder / siler. Ses kanalında
- * yapılan etkinliğe dokununca kanal açılır.
+ * oluşturur, düzenler, elle başlatır / bitirir / iptal eder / siler. Ses
+ * kanalında yapılan etkinliğe dokununca kanal açılır. Tekrarlayan etkinlikte
+ * bitir/iptal/sil Discord gibi "Bu etkinlik / Tüm seri" sorar.
  */
 export default function ServerEventsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -50,15 +54,51 @@ export default function ServerEventsScreen() {
   const remove = useDeleteServerEvent(serverId);
   const now = useNow(60_000);
   const [menuEvent, setMenuEvent] = useState<ServerEventItem | null>(null);
+  const [scopeAsk, setScopeAsk] = useState<{ event: ServerEventItem; action: ScopedAction } | null>(null);
 
   const fail = (error: unknown, fallback: string) =>
     showToast(error instanceof ApiError ? error.message : fallback, "error");
 
-  const changeStatus = (event: ServerEventItem, status: ServerEventStatus, done: string) =>
+  const changeStatus = (event: ServerEventItem, status: ServerEventStatus, done: string, scope?: RecurrenceScope) =>
     setStatus.mutate(
-      { eventId: event.id, status },
-      { onSuccess: () => showToast(done), onError: (error) => fail(error, "Etkinlik güncellenemedi.") }
+      { eventId: event.id, status, scope },
+      {
+        // "Bu etkinlik": sıradaki tekrar planlandı (yanıt SCHEDULED).
+        onSuccess: (result) =>
+          showToast(status !== "ACTIVE" && result?.status === "SCHEDULED" ? RECURRENCE_SCOPE_TEXT.rolled : done),
+        onError: (error) => fail(error, "Etkinlik güncellenemedi."),
+      }
     );
+
+  const deleteEvent = (event: ServerEventItem, scope?: RecurrenceScope) =>
+    remove.mutate(
+      { eventId: event.id, scope },
+      {
+        onSuccess: (result) => {
+          if (result?.skipped) showToast(RECURRENCE_SCOPE_TEXT.rolled);
+        },
+        onError: (error) => fail(error, "Etkinlik silinemedi."),
+      }
+    );
+
+  /** Bitir/iptal/sil — tekrarlayan etkinlikte önce kapsam sorulur. */
+  const runScoped = (event: ServerEventItem, action: ScopedAction, scope?: RecurrenceScope) => {
+    if (!scope && event.recurrenceRule) {
+      setScopeAsk({ event, action });
+      return;
+    }
+    if (action === "delete") {
+      if (scope) deleteEvent(event, scope);
+      else
+        showDialog("Etkinlik silinsin mi?", `“${event.name}” kalıcı olarak silinecek.`, [
+          { text: "Vazgeç", style: "cancel" },
+          { text: "Sil", style: "destructive", onPress: () => deleteEvent(event) },
+        ]);
+      return;
+    }
+    if (action === "complete") changeStatus(event, "COMPLETED", "Etkinlik bitti.", scope);
+    else changeStatus(event, "CANCELED", "Etkinlik iptal edildi.", scope);
+  };
 
   const menuItems: ActionSheetItem[] = [];
   if (menuEvent) {
@@ -73,34 +113,50 @@ export default function ServerEventsScreen() {
     }
     menuItems.push(
       {
+        key: "edit",
+        label: "Etkinliği Düzenle",
+        icon: "pencil",
+        onPress: () => router.push(`/servers/${serverId}/events/new?eventId=${menuEvent.id}`),
+      },
+      {
         key: "end",
         label: "Bitir",
         icon: "check",
-        onPress: () => changeStatus(menuEvent, "COMPLETED", "Etkinlik bitti."),
+        onPress: () => runScoped(menuEvent, "complete"),
       },
       {
         key: "cancel",
         label: "İptal et",
         icon: "close",
-        onPress: () => changeStatus(menuEvent, "CANCELED", "Etkinlik iptal edildi."),
+        onPress: () => runScoped(menuEvent, "cancel"),
       },
       {
         key: "delete",
         label: "Sil",
         icon: "trash",
         destructive: true,
-        onPress: () =>
-          showDialog("Etkinlik silinsin mi?", `“${menuEvent.name}” kalıcı olarak silinecek.`, [
-            { text: "Vazgeç", style: "cancel" },
-            {
-              text: "Sil",
-              style: "destructive",
-              onPress: () => remove.mutate(menuEvent.id, { onError: (error) => fail(error, "Etkinlik silinemedi.") }),
-            },
-          ]),
+        onPress: () => runScoped(menuEvent, "delete"),
       }
     );
   }
+
+  const scopeItems: ActionSheetItem[] = scopeAsk
+    ? [
+        {
+          key: "occurrence",
+          label: RECURRENCE_SCOPE_TEXT.occurrence,
+          icon: "clock",
+          onPress: () => runScoped(scopeAsk.event, scopeAsk.action, "occurrence"),
+        },
+        {
+          key: "series",
+          label: RECURRENCE_SCOPE_TEXT.series,
+          icon: "rotate-ccw",
+          destructive: scopeAsk.action !== "complete",
+          onPress: () => runScoped(scopeAsk.event, scopeAsk.action, "series"),
+        },
+      ]
+    : [];
 
   return (
     <Screen>
@@ -169,6 +225,25 @@ export default function ServerEventsScreen() {
           ) : undefined
         }
         items={menuItems}
+      />
+
+      {/* Tekrarlayan etkinlik: "Bu etkinlik / Tüm seri" (web kapsam penceresi). */}
+      <ActionSheet
+        visible={scopeAsk !== null}
+        onClose={() => setScopeAsk(null)}
+        header={
+          scopeAsk ? (
+            <View style={{ gap: spacing.xs }}>
+              <Text style={{ ...typography.bodyStrong, color: colors.bright }}>
+                {RECURRENCE_SCOPE_TEXT[scopeAsk.action].title}
+              </Text>
+              <Text style={{ ...typography.caption, color: colors.muted }}>
+                {RECURRENCE_SCOPE_TEXT[scopeAsk.action].description}
+              </Text>
+            </View>
+          ) : undefined
+        }
+        items={scopeItems}
       />
     </Screen>
   );

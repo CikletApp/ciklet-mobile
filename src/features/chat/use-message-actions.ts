@@ -7,6 +7,17 @@ import { addSidebarThread, type ChatKind } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import type { ReactionDelta } from "@/realtime/events";
 import { applyReactionDelta, type MessageCache } from "./reaction-cache";
+import { showToast } from "@/components/ui/toast";
+import { useAuth } from "@/stores/auth";
+import { isBurstRow } from "./reaction-groups";
+import {
+  SUPER_REACTION_PLAN_TEXT,
+  SUPER_REACTION_QUERY_KEY,
+  SUPER_REACTION_QUOTA_TEXT,
+  canSendSuperReaction,
+  setSuperReactionQuota,
+  type SuperReactionQuota,
+} from "./super-reactions";
 
 export type ReportReason = "SPAM" | "HARASSMENT" | "HATE_SPEECH" | "VIOLENCE" | "SELF_HARM" | "CSAM" | "ILLEGAL" | "IMPERSONATION" | "OTHER";
 
@@ -59,19 +70,62 @@ export function useMessageActions(
     [chatId, kind, run, serverId]
   );
 
+  /**
+   * Tepki ekle/kaldır. `burst`: süper tepki (normal tepkiden ayrı). Kendi
+   * süper tepkisini kaldırmak hak istemez; eklemede hak yoksa istek gitmez,
+   * Mentol tanıtımı gösterilir (web ile aynı).
+   */
   const toggleReaction = useCallback(
-    (messageId: string, emoji: string) =>
-      run(() =>
-        api<ReactionDelta>(endpoints.reactions, {
+    async (messageId: string, emoji: string, options?: { burst?: boolean }) => {
+      const burst = options?.burst === true;
+      const myId = useAuth.getState().profile?.id;
+      const ownsBurst =
+        burst &&
+        Boolean(myId) &&
+        (queryClient.getQueryData<MessageCache>(qk.messages.chat(chatId))?.pages ?? []).some((page) =>
+          page.items.some(
+            (item) =>
+              item.id === messageId &&
+              (item.reactions ?? []).some((r) => isBurstRow(r) && r.emoji === emoji && r.profileId === myId)
+          )
+        );
+      if (burst && !ownsBurst) {
+        const quota =
+          queryClient.getQueryData<SuperReactionQuota>(SUPER_REACTION_QUERY_KEY) ??
+          (await queryClient
+            .fetchQuery({
+              queryKey: SUPER_REACTION_QUERY_KEY,
+              queryFn: () => api<SuperReactionQuota>(endpoints.superReactions),
+            })
+            .catch(() => undefined));
+        if (!canSendSuperReaction(quota)) {
+          showToast(quota && quota.plan !== "FREE" ? SUPER_REACTION_QUOTA_TEXT : SUPER_REACTION_PLAN_TEXT);
+          return false;
+        }
+      }
+      return run(() =>
+        api<ReactionDelta & { superReactions?: SuperReactionQuota }>(endpoints.reactions, {
           method: "POST",
-          body:
-            kind === "channel"
-              ? { messageId, emoji }
-              : { directMessageId: messageId, emoji },
-        }).then((delta) => {
-          queryClient.setQueryData<MessageCache>(qk.messages.chat(chatId), (old) => applyReactionDelta(old, delta));
+          body: {
+            ...(kind === "channel" ? { messageId } : { directMessageId: messageId }),
+            emoji,
+            ...(burst ? { burst: true } : {}),
+          },
         })
-      ),
+          .then((delta) => {
+            queryClient.setQueryData<MessageCache>(qk.messages.chat(chatId), (old) => applyReactionDelta(old, delta));
+            if (delta.superReactions) setSuperReactionQuota(queryClient, delta.superReactions);
+          })
+          .catch((reason: unknown) => {
+            // Hak bitti / plan yok: sayaç tazelenir, hata menüde de görünür.
+            if (reason instanceof ApiError && (reason.code === "super_reaction_quota" || reason.code === "super_reaction_plan")) {
+              void queryClient.invalidateQueries({ queryKey: SUPER_REACTION_QUERY_KEY });
+              showToast(reason.message, "error");
+            }
+            throw reason;
+          })
+      );
+    },
     [chatId, kind, queryClient, run]
   );
 

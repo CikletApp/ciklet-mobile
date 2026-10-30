@@ -33,6 +33,8 @@ export type ServerPermissionKey =
   | "MOVE_MEMBERS"
   | "VIEW_AUDIT_LOG"
   | "MANAGE_WEBHOOKS"
+  | "MANAGE_EXPRESSIONS"
+  | "CREATE_EXPRESSIONS"
   | "SEND_MESSAGES";
 
 export function useMyPermissions(serverId: string | undefined) {

@@ -73,3 +73,45 @@ export function recurrencePresets(startsAt: Date): { id: RecurrencePresetId; lab
   );
   return rules.map((item) => ({ ...item, label: item.rule ? describeRecurrence(item.rule) ?? "" : "Tekrarlanmaz" }));
 }
+
+/** Hangi hazır seçenek bu kural? (Düzenleme formu; web `presetIdOf`.) */
+export function presetIdOf(rule: RecurrenceRule | null | undefined): RecurrencePresetId {
+  if (!rule) return "none";
+  switch (rule.frequency) {
+    case "daily":
+      return rule.byWeekday ? "weekdays" : "daily";
+    case "weekly":
+      return rule.interval === 2 ? "biweekly" : "weekly";
+    case "monthly":
+      return rule.byNWeekday?.length ? "monthlyNth" : "monthlyDate";
+    case "yearly":
+      return "yearly";
+  }
+}
+
+/**
+ * Tekrarlayan etkinliği bitirirken/iptal ederken/silerken Discord'un sorduğu
+ * kapsam (web `RecurrenceScope`): "occurrence" yalnızca bu tekrarı etkiler —
+ * etkinlik sıradaki tekrara kayar; "series" tüm seriyi.
+ */
+export type RecurrenceScope = "occurrence" | "series";
+
+/** "Bu etkinlik / Tüm seri" metinleri — web `RECURRENCE_SCOPE_TEXT` ile AYNI. */
+export const RECURRENCE_SCOPE_TEXT = {
+  complete: {
+    title: "Etkinliği bitir",
+    description: "Bu tekrarlayan bir etkinlik. Yalnızca bu etkinliği mi, yoksa serinin tamamını mı bitirmek istiyorsun? Yalnızca bu etkinliği bitirirsen sıradaki tekrar planlanır.",
+  },
+  cancel: {
+    title: "Etkinliği iptal et",
+    description: "Bu tekrarlayan bir etkinlik. Yalnızca bu etkinliği mi, yoksa serinin tamamını mı iptal etmek istiyorsun? Yalnızca bu etkinliği iptal edersen sıradaki tekrar planlanır.",
+  },
+  delete: {
+    title: "Etkinliği sil",
+    description: "Bu tekrarlayan bir etkinlik. Yalnızca bu etkinliği mi, yoksa serinin tamamını mı silmek istiyorsun? Serinin tamamı kalıcı olarak silinir.",
+  },
+  occurrence: "Bu etkinlik",
+  series: "Tüm seri",
+  cancelButton: "Vazgeç",
+  rolled: "Bu tekrar atlandı; sıradaki tekrar planlandı.",
+} as const;

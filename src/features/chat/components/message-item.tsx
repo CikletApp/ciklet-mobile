@@ -1,7 +1,16 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { Easing, Keyframe, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  Keyframe,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+  type SharedValue,
+} from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Image } from "expo-image";
@@ -54,8 +63,11 @@ import { EphemeralFooter, InteractionLabel, SilentLabel, ThreadLink } from "./me
 import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
 import { emojiOnlyCount, parseCustomEmojiToken } from "../message-markup";
+import { groupReactions } from "../reaction-groups";
+import { hadRecentBurst, subscribeReactionBurst } from "../reaction-burst";
 import { useServerEmojis } from "../server-assets";
 import { RoleIconBadge, memberRoleIcon } from "@/features/server/role-icon-badge";
+import { ServerTagPill, primaryGuildOf } from "@/features/server-tag/server-tag-pill";
 import { fw } from "@/theme/fonts";
 import { readable, senderColor } from "@/theme/palette";
 
@@ -142,7 +154,8 @@ export function MessageItem({
    */
   preview?: boolean;
   onLongPress?: (message: ChatMessagePayload, anchor: MessageAnchor) => void;
-  onReactionPress?: (message: ChatMessagePayload, emoji: string) => void;
+  /** `burst`: süper tepki çipine basıldı (süper tepki ekler/kaldırır). */
+  onReactionPress?: (message: ChatMessagePayload, emoji: string, options?: { burst?: boolean }) => void;
   /** Alıntıya ya da "bir mesajı sabitledi" satırına dokununca o mesaja git. */
   onJumpToMessage?: (messageId: string) => void;
   /** Satırı sola çekince yanıtla (WhatsApp/Telegram). Verilmezse çekiş kapalı. */
@@ -327,6 +340,8 @@ export function MessageItem({
       {isChannel ? (
         <RoleIconBadge icon={memberRoleIcon((message as { member?: Parameters<typeof memberRoleIcon>[0] }).member)} size={14} />
       ) : null}
+      {/* Sunucu etiketi (web ServerTagPill): Discord "Server Tag". */}
+      <ServerTagPill guild={primaryGuildOf(profile)} size="sm" />
       {isOfficial || profile.isBot ? (
         <View
           style={{
@@ -414,9 +429,20 @@ export function MessageItem({
         marginLeft: avatarColumn ? AVATAR_SIZE + spacing.sm : 0,
       }}
     >
-      {groupReactions(message.reactions, myId).map(({ emoji, count, mine }) => (
+      {groupReactions(message.reactions, myId).map(({ key, emoji, count, mine, burst, burstColors }) =>
+        burst ? (
+          <BurstReactionChip
+            key={key}
+            messageId={message.id}
+            emoji={emoji}
+            count={count}
+            mine={mine}
+            colors={burstColors}
+            onPress={() => onReactionPress?.(message, emoji, { burst: true })}
+          />
+        ) : (
         <Pressable
-          key={emoji}
+          key={key}
           onPress={() => onReactionPress?.(message, emoji)}
           accessibilityRole="button"
           accessibilityState={{ selected: mine }}
@@ -436,7 +462,8 @@ export function MessageItem({
           <ReactionGlyph emoji={emoji} size={16} />
           <Text style={{ fontSize: 12, lineHeight: 16, ...fw(600), color: mine ? colors.brand : colors.muted }}>{count}</Text>
         </Pressable>
-      ))}
+        )
+      )}
     </View>
   ) : null;
 
@@ -909,15 +936,118 @@ function ReactionGlyph({ emoji, size }: { emoji: string; size: number }) {
   return <Image source={{ uri: found.imageUrl }} style={{ width: size, height: size }} contentFit="contain" accessibilityLabel={`:${found.name}:`} />;
 }
 
-function groupReactions(reactions: NonNullable<ChatMessagePayload["reactions"]>, myId: string | undefined) {
-  const groups = new Map<string, { count: number; mine: boolean }>();
-  for (const reaction of reactions) {
-    const group = groups.get(reaction.emoji) ?? { count: 0, mine: false };
-    group.count += 1;
-    if (myId && reaction.profileId === myId) group.mine = true;
-    groups.set(reaction.emoji, group);
-  }
-  return [...groups].map(([emoji, group]) => ({ emoji, ...group }));
+const BURST_PARTICLES = [
+  { dx: -14, delay: 0 },
+  { dx: 10, delay: 90 },
+  { dx: -4, delay: 180 },
+  { dx: 16, delay: 260 },
+  { dx: -18, delay: 340 },
+];
+
+/**
+ * Süper tepki çipi (web: ReactionRow'daki süper tepki hapı). Renkli çerçeve
+ * ve ışıma `burstColors`'tan; canlı süper tepki gelince ya da çipe basınca
+ * kısa bir büyüme + yukarı uçuşan emoji patlaması oynar.
+ */
+function BurstReactionChip({
+  messageId,
+  emoji,
+  count,
+  mine,
+  colors: burstColors,
+  onPress,
+}: {
+  messageId: string;
+  emoji: string;
+  count: number;
+  mine: boolean;
+  colors: string[];
+  onPress: () => void;
+}) {
+  const reduceMotion = usePreferences((s) => s.reduceMotion);
+  const scale = useSharedValue(1);
+  const progress = useSharedValue(1);
+  const [a = "#ff73fa", b = "#5865f2"] = burstColors;
+
+  const play = useCallback(() => {
+    if (reduceMotion) return;
+    scale.set(withSequence(withTiming(1.18, { duration: 140 }), withSpring(1)));
+    progress.set(0);
+    progress.set(withTiming(1, { duration: 1100, easing: Easing.out(Easing.quad) }));
+  }, [progress, reduceMotion, scale]);
+
+  useEffect(() => {
+    if (hadRecentBurst(messageId, emoji)) play();
+    return subscribeReactionBurst((id, e) => {
+      if (id === messageId && e === emoji) play();
+    });
+  }, [emoji, messageId, play]);
+
+  const chipStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
+
+  return (
+    <Animated.View style={chipStyle}>
+      <Pressable
+        onPress={() => {
+          play();
+          onPress();
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ selected: mine }}
+        accessibilityLabel={`${parseCustomEmojiToken(emoji) ? `:${parseCustomEmojiToken(emoji)?.name}:` : emoji} süper tepki, ${count}`}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          height: 26,
+          paddingHorizontal: spacing.sm,
+          borderRadius: radii.full,
+          borderWidth: mine ? 2 : 1,
+          borderColor: a,
+          backgroundColor: pressed ? `${b}55` : `${a}2e`,
+          boxShadow: `0 0 ${mine ? 8 : 5}px ${b}`,
+        })}
+      >
+        <Icon name="sparkles" size={11} color={a} />
+        <ReactionGlyph emoji={emoji} size={16} />
+        <Text style={{ fontSize: 12, lineHeight: 16, ...fw(700), color: mine ? a : colors.bright }}>{count}</Text>
+      </Pressable>
+      <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 4, alignItems: "center" }}>
+        {BURST_PARTICLES.map((p, i) => (
+          <BurstParticle key={i} progress={progress} dx={p.dx} delay={p.delay} emoji={emoji} glow={i % 2 ? b : a} />
+        ))}
+      </View>
+    </Animated.View>
+  );
+}
+
+function BurstParticle({
+  progress,
+  dx,
+  delay,
+  emoji,
+  glow,
+}: {
+  progress: SharedValue<number>;
+  dx: number;
+  delay: number;
+  emoji: string;
+  glow: string;
+}) {
+  const style = useAnimatedStyle(() => {
+    // Gecikmeli başlangıç: her parçacık aynı ilerlemenin kaydırılmış dilimi.
+    const t = Math.min(1, Math.max(0, (progress.get() * 1100 - delay) / 800));
+    const visible = progress.get() < 1 && t > 0;
+    return {
+      opacity: visible ? 1 - t : 0,
+      transform: [{ translateY: -t * 46 }, { translateX: dx * t }, { scale: 0.7 + t * 0.6 }],
+    };
+  });
+  return (
+    <Animated.View style={[{ position: "absolute", bottom: 0, boxShadow: `0 0 6px ${glow}`, borderRadius: radii.full }, style]}>
+      <ReactionGlyph emoji={emoji} size={14} />
+    </Animated.View>
+  );
 }
 
 /**

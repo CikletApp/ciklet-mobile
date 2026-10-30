@@ -1,6 +1,8 @@
 import { automodTr, streamingTr } from "./automod.tr";
 import { safetyTr } from "./safety.tr";
+import { voiceE2eeTr } from "./voice-e2ee.tr";
 import { serverGuideTr } from "./server-guide.tr";
+import { serverTagTr } from "./server-tag.tr";
 
 /**
  * Türkçe sözlük — KAYNAK. Anahtar yapısı buradan türer; diğer diller
@@ -209,10 +211,13 @@ export const tr = {
   /** AutoMod ayarları (Sunucu Ayarları → Moderasyon) — automod.tr.ts. */
   automod: automodTr,
   safety: safetyTr,
+  voiceE2ee: voiceE2eeTr,
   /** Yayın bağlantıları ve bağlantılı roller — automod.tr.ts. */
   streaming: streamingTr,
   /** Sunucu Rehberi (web ile aynı anahtarlar) — server-guide.tr.ts. */
   serverGuide: serverGuideTr,
+  /** Sunucu etiketi (web ile aynı anahtarlar) — server-tag.tr.ts. */
+  serverTag: serverTagTr,
 } as const;
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

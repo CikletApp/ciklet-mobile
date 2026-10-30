@@ -9,7 +9,7 @@ import { fw } from "@/theme/fonts";
 import { readable } from "@/theme/palette";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { BROADCAST_LABEL, formatCustomEmoji } from "../message-markup";
-import { useCanMentionEveryone, useServerEmojis, useServerRoles } from "../server-assets";
+import { usableEmojis, useCanMentionEveryone, useServerEmojis, useServerRoles } from "../server-assets";
 
 /**
  * Yazarken açılan öneri listesi — ciklet-web editörünün `@` ve `:`
@@ -68,7 +68,8 @@ export function useComposerSuggestions(
 ): ComposerSuggestion[] {
   const active = Boolean(trigger && serverId);
   const roles = useServerRoles(active ? serverId : undefined);
-  const emojis = useServerEmojis(active ? serverId : undefined);
+  // Role özel olup rolü olmadığın emojiler önerilmez (Discord).
+  const emojis = usableEmojis(useServerEmojis(active ? serverId : undefined));
   const canBroadcast = useCanMentionEveryone(active ? serverId : undefined);
   // Üyeler sunucuda aranır (yalnızca ilk sayfayı süzmek büyük sunucuda
   // çoğu üyeyi önerilemez bırakıyordu); yazarken her harfte istek atılmaz.

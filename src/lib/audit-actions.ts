@@ -17,6 +17,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   guide_update: "sunucu rehberini güncelledi",
   emoji_create: "bir emoji ekledi",
   emoji_delete: "bir emoji sildi",
+  emoji_update: "bir emojiyi güncelledi",
   sticker_create: "bir çıkartma ekledi",
   sticker_delete: "bir çıkartma sildi",
   sound_create: "bir ses ekledi",

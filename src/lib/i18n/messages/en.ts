@@ -1,6 +1,8 @@
 import { automodEn, streamingEn } from "./automod.en";
 import { safetyEn } from "./safety.en";
+import { voiceE2eeEn } from "./voice-e2ee.en";
 import { serverGuideEn } from "./server-guide.en";
+import { serverTagEn } from "./server-tag.en";
 import type { Messages } from "./tr";
 
 /** İngilizce sözlük — `tr.ts` ile aynı şekli taşımak zorunda. */
@@ -197,6 +199,8 @@ export const en = {
   },
   automod: automodEn,
   safety: safetyEn,
+  voiceE2ee: voiceE2eeEn,
   streaming: streamingEn,
   serverGuide: serverGuideEn,
+  serverTag: serverTagEn,
 } satisfies Messages;

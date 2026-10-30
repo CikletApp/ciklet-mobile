@@ -40,6 +40,8 @@ import {
   useTimeoutNotice,
 } from "@/features/server/channel-gates";
 import { ServerJoinGate } from "@/features/server/join-flow";
+import { QuarantineBanner } from "@/features/server/quarantine-banner";
+import { QUARANTINE_COMPOSER_PLACEHOLDER } from "@/lib/quarantine";
 import { ForumView } from "@/features/server/forum-view";
 import { MediaGallery } from "@/features/server/media-gallery";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
@@ -134,10 +136,10 @@ export default function ChannelChatScreen() {
           : channelsQuery.isError
             ? "error"
             : "pending";
-  const { data: membership } = useMyMembership(serverId);
-  const timeoutNotice = useTimeoutNotice(
-    (membership as { timedOutUntil?: string | null } | undefined)?.timedOutUntil
-  );
+  const { data: membership, refetch: refetchMembership } = useMyMembership(serverId);
+  const timeoutNotice = useTimeoutNotice(membership?.timedOutUntil);
+  // AutoMod karantinası (web kanal sayfası): yazma çubuğu kapanır, üstünde bant.
+  const quarantined = Boolean(membership?.quarantinedAt);
   // Yalnızca dinler; yazma bildirimi ChatView'daki örnekten gider.
   const { typers } = useTyping(channelId);
   const typing = typingLabel(typers, { ellipsis: false });
@@ -279,11 +281,13 @@ export default function ChannelChatScreen() {
 
   const lockedNotice = isForum
     ? undefined
-    : thread.archived
-      ? "Bu alt başlık arşivlendi; yazmak için menüden arşivden çıkar."
-      : threadLocked && !canManageThreads
-        ? "Bu alt başlık kilitli; yalnızca alt başlıkları yönetebilenler yazabilir."
-        : timeoutNotice;
+    : quarantined
+      ? QUARANTINE_COMPOSER_PLACEHOLDER
+      : thread.archived
+        ? "Bu alt başlık arşivlendi; yazmak için menüden arşivden çıkar."
+        : threadLocked && !canManageThreads
+          ? "Bu alt başlık kilitli; yalnızca alt başlıkları yönetebilenler yazabilir."
+          : timeoutNotice;
 
   const headerIcon: IconName = isThread ? "message" : isForum ? "list" : isMedia ? "image" : "hash";
 
@@ -408,6 +412,11 @@ export default function ChannelChatScreen() {
           requireAttachment={isMedia}
           canStartThread={channel?.type === ChannelType.TEXT && !isThread && !isForum}
           lockedNotice={lockedNotice}
+          lockedBanner={
+            quarantined && !isForum ? (
+              <QuarantineBanner quarantine={membership?.quarantine} onRefresh={refetchMembership} />
+            ) : undefined
+          }
         />
       )}
       {/* Katılım soruları + kural perdesi (web server-join-gate; sıra `beforeRules`). */}

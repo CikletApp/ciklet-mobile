@@ -27,6 +27,17 @@ export interface ServerEmojiLite {
   id: string;
   name: string;
   imageUrl: string;
+  /**
+   * Role özel emoji: kullanıcı kullanabilir mi (sunucu hesaplar; web
+   * `available`). `false` ise seçici ve öneriler gizler (Discord), çizim
+   * etkilenmez. Yoksa kullanılabilir.
+   */
+  available?: boolean;
+}
+
+/** Seçici/öneri için: rol kısıtı yüzünden kullanılamayanları çıkarır. */
+export function usableEmojis<T extends { available?: boolean }>(emojis: T[]): T[] {
+  return emojis.every((emoji) => emoji.available !== false) ? emojis : emojis.filter((emoji) => emoji.available !== false);
 }
 
 export interface ServerStickerLite {
@@ -86,7 +97,8 @@ export function useServerEmojis(serverId: string | undefined): ServerEmojiLite[]
         const id = str(r.id);
         const name = str(r.name);
         const imageUrl = str(r.imageUrl);
-        return id && name && imageUrl && /^https:\/\//.test(imageUrl) ? { id, name, imageUrl } : null;
+        if (!id || !name || !imageUrl || !/^https:\/\//.test(imageUrl)) return null;
+        return r.available === false ? { id, name, imageUrl, available: false } : { id, name, imageUrl };
       }),
   });
   return query.data ?? EMPTY;

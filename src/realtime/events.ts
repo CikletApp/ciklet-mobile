@@ -146,6 +146,8 @@ export type ChatMessagePayload = MessageWithMember | DirectMessageWithProfile;
 export interface ReactionDelta {
   messageId: string;
   action: "add" | "remove";
+  /** Süper tepki eklemesi — alıcılar patlama animasyonu oynatır. */
+  superBurst?: boolean;
   reaction: {
     id: string;
     emoji: string;
@@ -153,6 +155,10 @@ export interface ReactionDelta {
     messageId: string | null;
     directMessageId: string | null;
     createdAt?: string;
+    /** Süper tepki satırı (Discord "burst"); aynı emojinin normal satırından ayrı kimlik. */
+    burst?: boolean;
+    /** Süper tepki parıltı renkleri (sunucu hesaplar). */
+    burstColors?: string[];
   };
 }
 
@@ -196,6 +202,8 @@ export function messageFromEnvelope(event: MessageEnvelope): ChatMessagePayload 
     username: event.author.username,
     name: event.author.name,
     imageUrl: event.author.imageUrl,
+    // Sunucu etiketi (web lib/server-tag): yetki kararındaki yazar görüntüsü.
+    ...(event.author.primaryGuild ? { primaryGuild: event.author.primaryGuild } : {}),
   } as PublicProfile;
 
   const replyTo = event.replyTo

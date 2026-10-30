@@ -30,3 +30,5 @@ export * from "./use-automod";
 export * from "./use-safety";
 export * from "./use-integrations";
 export * from "./use-server-onboarding";
+export * from "./use-server-tag";
+export * from "./use-widget";

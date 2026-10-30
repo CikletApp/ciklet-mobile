@@ -4,6 +4,7 @@ import type { LiveKitTokenResponse } from "@ciklet/embedded-activities-sdk/types
 import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { appleConfigFor } from "@/features/voice/audio-route";
+import { roomUsesE2EE } from "@/lib/voice-e2ee/session";
 import { readBitrate, readVideoQualityMode, type VideoQualityMode } from "@/lib/voice-settings";
 
 /**
@@ -41,6 +42,8 @@ export async function fetchRoomToken(room: string, username: string): Promise<Ro
       moderation?: Partial<VoiceModerationState> | null;
       voice?: { bitrate?: unknown; videoQualityMode?: unknown } | null;
       afk?: boolean;
+      stage?: unknown;
+      e2ee?: unknown;
     }
   >(endpoints.livekitToken(room, username));
   return {
@@ -57,6 +60,11 @@ export async function fetchRoomToken(room: string, username: string): Promise<Ro
         }
       : null,
     afk: res.afk === true,
+    // Sahne kanalı Discord'daki gibi uçtan uca şifresiz (lib/voice-e2ee).
+    stage: Boolean(res.stage),
+    // Uçtan uca şifreli oda mı? Sunucunun ana anahtarı (VOICE_E2EE_ENABLED)
+    // kapalıysa ya da sahneyse hayır — eskisi gibi katılınır.
+    e2ee: roomUsesE2EE(res),
   };
 }
 
@@ -84,6 +92,10 @@ export interface RoomToken {
   voice: ChannelVoiceSettings | null;
   /** Sunucunun AFK kanalı: kimse konuşamaz (token yayın izni vermiyor). */
   afk: boolean;
+  /** Sahne kanalı: uçtan uca şifreleme yok (Discord ile aynı). */
+  stage: boolean;
+  /** Sunucu bu odayı uçtan uca şifreli kurdu (ana anahtar açık, sahne değil). */
+  e2ee: boolean;
 }
 
 /**

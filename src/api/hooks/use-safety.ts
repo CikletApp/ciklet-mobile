@@ -131,8 +131,47 @@ export function useJoinApplicationForm(serverId: string | null, code: string | n
 }
 
 export function useSubmitJoinApplication(serverId: string) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { code: string | null; rulesAccepted: boolean; answers: { questionId: string; value: string }[] }) =>
       api<{ ok: true; application: { id: string; status: JoinApplicationStatus } }>(endpoints.joinApplication(serverId), { method: "POST", body: input }),
+    // Sunucular sekmesindeki "Başvuru bekliyor" satırı.
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: MY_APPLICATIONS_KEY }),
+  });
+}
+
+/** Kendi bekleyen başvurum (web navigation-pending-applications ile aynı uç). */
+export interface MyPendingApplication {
+  id: string;
+  serverId: string;
+  server: { id: string; name: string; imageUrl: string };
+  createdAt: string;
+}
+
+const MY_APPLICATIONS_KEY = ["my-join-applications"] as const;
+
+/**
+ * Oturum sahibinin bekleyen başvuruları. Gerçek zamanlı ayrı olay yok:
+ * uygulama öne gelince (react-query odak yöneticisi) ve dakikada bir —
+ * yalnızca bekleyen başvuru varken — yeniden istenir; onaylanan sunucu
+ * listeye üyelik olarak düşer, buradan kalkar.
+ */
+export function useMyPendingApplications() {
+  return useQuery({
+    queryKey: MY_APPLICATIONS_KEY,
+    queryFn: async () => (await api<{ applications: MyPendingApplication[] }>(endpoints.myJoinApplications)).applications ?? [],
+    refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 60_000 : false),
+  });
+}
+
+/** Bekleyen başvuruyu geri çeker (`DELETE /api/servers/[id]/join-application`). */
+export function useWithdrawJoinApplication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (serverId: string) => api<{ ok: true }>(endpoints.joinApplication(serverId), { method: "DELETE" }),
+    onSuccess: (_res, serverId) => {
+      queryClient.setQueryData<MyPendingApplication[]>(MY_APPLICATIONS_KEY, (prev) => (prev ?? []).filter((a) => a.serverId !== serverId));
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: MY_APPLICATIONS_KEY }),
   });
 }

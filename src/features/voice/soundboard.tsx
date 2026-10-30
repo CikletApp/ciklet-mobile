@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
-import { FlatList, Modal, Pressable as RNPressable, Text, View } from "react-native";
+import { Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 import { useDataChannel, useRoomContext } from "@livekit/react-native";
 import { createAudioPlayer } from "expo-audio";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useServerSounds } from "@/api/hooks";
 import type { ServerSoundItem } from "@/api/types";
-import { EmptyState, ListSkeleton, Pressable, showToast } from "@/components/ui";
+import { ListSkeleton, Pressable, showToast } from "@/components/ui";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -25,6 +25,10 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * çözer ve oradaki adres ile seviyeyi kullanır. Gönderenin adresine
  * güvenilseydi herhangi bir katılımcı herkese rastgele bir adresi
  * indirtebilirdi (web call/soundboard-popover aynı kuralı uygular).
+ *
+ * Varsayılan sesler (web lib/soundboard DEFAULT_SOUNDS) listeyle birlikte
+ * mutlak adresle gelir ve "VARSAYILAN SESLER" bölümünde gösterilir; kimlikleri
+ * sabit olduğu için webden çalınanlar da burada çözülür.
  */
 export const SOUNDBOARD_TOPIC = "soundboard";
 
@@ -143,6 +147,38 @@ export function SoundboardSheet({
 }) {
   const insets = useSafeAreaInsets();
   const sounds = useServerSounds(visible ? serverId : undefined);
+  const serverSounds = (sounds.data ?? []).filter((sound) => !sound.isDefault);
+  const defaultSounds = (sounds.data ?? []).filter((sound) => sound.isDefault);
+  const grid = (list: ServerSoundItem[]) => (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+      {list.map((item) => (
+        <Pressable
+          key={item.id}
+          onPress={() => onPlay(item)}
+          haptic="light"
+          noHitSlop
+          accessibilityRole="button"
+          accessibilityLabel={`${item.name} sesini çal`}
+          style={({ pressed }) => ({
+            width: "31%",
+            flexGrow: 1,
+            maxWidth: "33%",
+            alignItems: "center",
+            gap: 4,
+            paddingVertical: spacing.md,
+            paddingHorizontal: spacing.xs,
+            borderRadius: radii.lg,
+            backgroundColor: pressed ? colors.brandSoft : colors.raised,
+          })}
+        >
+          <Text style={{ fontSize: 24 }}>{item.emoji || "🔊"}</Text>
+          <Text style={{ ...typography.caption, ...fw(600), color: colors.bright }} numberOfLines={1}>
+            {item.name}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
@@ -171,43 +207,22 @@ export function SoundboardSheet({
           <Text style={{ ...typography.overline, color: colors.muted }}>SOUNDBOARD</Text>
           {sounds.isLoading ? (
             <ListSkeleton rows={3} />
-          ) : (sounds.data ?? []).length === 0 ? (
-            <EmptyState
-              icon="volume"
-              title="Ses yok"
-              description="Sunucu ayarlarından (web) soundboard sesi eklenebilir."
-            />
           ) : (
-            <FlatList
-              data={sounds.data}
-              keyExtractor={(sound) => sound.id}
-              numColumns={3}
-              columnWrapperStyle={{ gap: spacing.sm }}
-              contentContainerStyle={{ gap: spacing.sm }}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => onPlay(item)}
-                  haptic="light"
-                  noHitSlop
-                  accessibilityRole="button"
-                  accessibilityLabel={`${item.name} sesini çal`}
-                  style={({ pressed }) => ({
-                    flex: 1 / 3,
-                    alignItems: "center",
-                    gap: 4,
-                    paddingVertical: spacing.md,
-                    paddingHorizontal: spacing.xs,
-                    borderRadius: radii.lg,
-                    backgroundColor: pressed ? colors.brandSoft : colors.raised,
-                  })}
-                >
-                  <Text style={{ fontSize: 24 }}>{item.emoji || "🔊"}</Text>
-                  <Text style={{ ...typography.caption, ...fw(600), color: colors.bright }} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                </Pressable>
+            <ScrollView contentContainerStyle={{ gap: spacing.sm }}>
+              {serverSounds.length === 0 ? (
+                <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center", paddingVertical: spacing.sm }}>
+                  Bu sunucuda ses yok. Yöneticiler Sunucu Ayarları → Soundboard&apos;dan ekleyebilir.
+                </Text>
+              ) : (
+                grid(serverSounds)
               )}
-            />
+              {defaultSounds.length > 0 ? (
+                <>
+                  <Text style={{ ...typography.overline, color: colors.muted, marginTop: spacing.xs }}>VARSAYILAN SESLER</Text>
+                  {grid(defaultSounds)}
+                </>
+              ) : null}
+            </ScrollView>
           )}
           <View style={{ height: spacing.xs }} />
         </RNPressable>

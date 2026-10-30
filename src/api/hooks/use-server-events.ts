@@ -4,6 +4,7 @@ import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
 import type { MyServerPermissions, RecurrenceRule, ServerEventItem, ServerEventStatus } from "../types";
+import type { RecurrenceScope } from "@/lib/event-recurrence";
 
 /**
  * Zamanlanmış etkinlikler (web "Etkinlikler" modalı, `lib/server-events`).
@@ -58,19 +59,44 @@ export function useCreateServerEvent(serverId: string) {
   });
 }
 
-export function useSetServerEventStatus(serverId: string) {
+/** Düzenleme — yalnızca gönderilen alanlar değişir (web `PATCH /events/[id]`). */
+export type UpdateEventInput = Partial<CreateEventInput>;
+
+export function useUpdateServerEvent(serverId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ eventId, status }: { eventId: string; status: ServerEventStatus }) =>
-      api<unknown>(endpoints.serverEvent(serverId, eventId), { method: "PATCH", body: { status } }),
+    mutationFn: ({ eventId, input }: { eventId: string; input: UpdateEventInput }) =>
+      api<unknown>(endpoints.serverEvent(serverId, eventId), { method: "PATCH", body: input }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.serverEvents(serverId) }),
   });
 }
 
+/**
+ * Durum değişimi. Tekrarlayan etkinlikte `scope` "Bu etkinlik / Tüm seri"
+ * (web `RecurrenceScope`); "occurrence" etkinliği sıradaki tekrara kaydırır
+ * — yanıttaki `status` "SCHEDULED" döner.
+ */
+export function useSetServerEventStatus(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, status, scope }: { eventId: string; status: ServerEventStatus; scope?: RecurrenceScope }) =>
+      api<{ status?: ServerEventStatus }>(endpoints.serverEvent(serverId, eventId), {
+        method: "PATCH",
+        body: { status, ...(scope ? { scope } : {}) },
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.serverEvents(serverId) }),
+  });
+}
+
+/** Silme; tekrarlayan etkinlikte `scope: "occurrence"` yalnızca bu tekrarı atlar (`skipped: true`). */
 export function useDeleteServerEvent(serverId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (eventId: string) => api<unknown>(endpoints.serverEvent(serverId, eventId), { method: "DELETE" }),
+    mutationFn: ({ eventId, scope }: { eventId: string; scope?: RecurrenceScope }) =>
+      api<{ success: true; skipped?: boolean }>(
+        `${endpoints.serverEvent(serverId, eventId)}${scope ? `?scope=${scope}` : ""}`,
+        { method: "DELETE" }
+      ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.serverEvents(serverId) }),
   });
 }

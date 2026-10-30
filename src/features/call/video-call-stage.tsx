@@ -28,6 +28,7 @@ import { useAuth } from "@/stores/auth";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useCallTimer } from "./use-call-timer";
+import { VoiceE2EEPill } from "./voice-e2ee";
 
 /**
  * Bire bir görüntülü arama sahnesi: karşı taraf tam ekran, kendi
@@ -342,13 +343,15 @@ export function VideoCallStage({
         }}
       >
         <TopButton icon="chevron-down" label="Görüşmeyi küçült" onPress={onMinimize} />
-        <View pointerEvents="none" style={{ flex: 1, alignItems: "center" }}>
-          <Text numberOfLines={1} style={{ ...typography.title, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>
+        <View pointerEvents="box-none" style={{ flex: 1, alignItems: "center", gap: 2 }}>
+          <Text pointerEvents="none" numberOfLines={1} style={{ ...typography.title, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>
             {peerName}
           </Text>
-          <Text style={{ ...typography.caption, color: reconnecting ? "#ffd166" : OVERLAY_TEXT, ...TEXT_SHADOW }}>
+          <Text pointerEvents="none" style={{ ...typography.caption, color: reconnecting ? "#ffd166" : OVERLAY_TEXT, ...TEXT_SHADOW }}>
             {reconnecting ? "Yeniden bağlanılıyor…" : elapsed}
           </Text>
+          {/* Uçtan uca şifreleme durumu + ses gizlilik kodu. */}
+          <VoiceE2EEPill onDark />
         </View>
         {screenShare.canShare ? (
           <TopButton

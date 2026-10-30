@@ -162,5 +162,11 @@ export const safetyTr = {
     answerPlaceholder: "Yanıtın",
     choose: "Bir seçenek seç",
     apply: "Başvur",
+    // Sunucu listesindeki bekleyen başvuru (Discord: soluk ikon + saat rozeti).
+    pendingBadge: "Başvuru bekliyor",
+    pendingTitle: "Başvurun inceleniyor",
+    withdraw: "Başvuruyu geri çek",
+    withdrawn: "Başvurun geri çekildi.",
+    close: "Kapat",
   },
 };

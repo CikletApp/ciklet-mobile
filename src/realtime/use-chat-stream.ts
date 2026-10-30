@@ -6,6 +6,7 @@ import { qk } from "@/api/query-keys";
 import { useOutbox } from "@/stores/outbox";
 import { clearTyper } from "@/stores/typing";
 import { applyReactionDelta, type MessageCache } from "@/features/chat/reaction-cache";
+import { emitReactionBurst } from "@/features/chat/reaction-burst";
 import { applyPinUpdate } from "@/features/chat/pins";
 import { syncLatestMessages } from "@/features/chat/message-sync";
 import {
@@ -120,6 +121,8 @@ export function useChatStream(kind: ChatKind, chatId: string | undefined) {
       if (!delta?.messageId || !delta.reaction?.id) return;
       if (delta.action !== "add" && delta.action !== "remove") return;
       queryClient.setQueryData<MessageCache>(key, (old) => applyReactionDelta(old, delta));
+      // Süper tepki eklendi: o mesajın çipi patlama animasyonu oynatır.
+      if (delta.superBurst && delta.action === "add") emitReactionBurst(delta.messageId, delta.reaction.emoji);
     });
 
     // Bağlantı (yeniden) kurulduğunda kaçırılanlar; kopukken düzenli yoklama.

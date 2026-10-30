@@ -95,6 +95,8 @@ export const qk = {
 
   /** Bildirim ayarları (tek liste: sunucu, kanal, DM). */
   notificationSettings: ["notification-settings"] as const,
+  /** Sunucu varsayılan bildirim seviyeleri (ALL olmayanlar); ayar listesiyle birlikte gelir. */
+  notificationServerDefaults: ["notification-server-defaults"] as const,
   /** Oturum sahibinin sunucudaki izinleri. */
   myPermissions: (serverId: string) => ["my-permissions", serverId] as const,
   /** Sayfalı üye listesi (moderasyon ekranı). */

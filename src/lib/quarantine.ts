@@ -33,7 +33,29 @@ export const QUARANTINE_SEND_DENIED_MESSAGE =
 export const QUARANTINE_PROFILE_DENIED_MESSAGE =
   "Görünen adın, takma adın ya da biyografin bu sunucunun kurallarına takılıyor. Düzeltene ya da bir moderatör kısıtlamayı kaldırana kadar mesaj gönderemez, tepki veremez ve sese katılamazsın.";
 export const QUARANTINE_REACT_DENIED_MESSAGE = "Bu sunucuda etkileşimlerin AutoMod tarafından kısıtlandı; tepki veremezsin.";
+export const QUARANTINE_POLL_DENIED_MESSAGE = "Bu sunucuda etkileşimlerin AutoMod tarafından kısıtlandı; ankette oy veremezsin.";
 export const QUARANTINE_VOICE_DENIED_MESSAGE = "Bu sunucuda etkileşimlerin AutoMod tarafından kısıtlandı; sese katılamazsın.";
+
+// ── Kanal bandı (Discord "etkileşimlerin kısıtlandı") ─────────────────
+// Web components/chat/quarantine-banner ve mobil features/server/
+// quarantine-banner aynı metinleri buradan alır.
+export const QUARANTINE_BANNER_TITLE = "Bu sunucuda etkileşimlerin kısıtlandı";
+export const QUARANTINE_COMPOSER_PLACEHOLDER = "Etkileşimlerin kısıtlandığı için bu sunucuda mesaj gönderemezsin.";
+export const QUARANTINE_EDIT_PROFILE_LABEL = "Profilini düzenle";
+
+/** Bandın neden satırı. Kuralın yakaladığı içerik (detail) üyeye gösterilmez. */
+export function quarantineBannerReason(raw: unknown): string {
+  const info = readQuarantine(raw);
+  if (info?.source === "profile") return "Görünen adın, takma adın ya da biyografin bu sunucunun kurallarına takılıyor.";
+  return info?.ruleName ? `AutoMod kuralı: ${info.ruleName}` : "Hesabın AutoMod tarafından işaretlendi.";
+}
+
+/** Bandın açıklama satırı — neyin kapalı olduğu ve nasıl kalkacağı. */
+export function quarantineBannerHelp(raw: unknown): string {
+  return readQuarantine(raw)?.source === "profile"
+    ? "Profilini düzeltene ya da bir moderatör kısıtlamayı kaldırana kadar mesaj gönderemez, tepki veremez ve sese katılamazsın."
+    : "Bir moderatör kısıtlamayı kaldırana kadar mesaj gönderemez, tepki veremez ve sese katılamazsın.";
+}
 
 /** Gönderim reddinin metni (kaynağa göre). */
 export function quarantineSendMessage(raw: unknown): string {
