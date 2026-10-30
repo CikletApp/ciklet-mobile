@@ -41,6 +41,8 @@ export const tr = {
       game: "{game} yayını yapıyor",
       liveOn: "{platform}'te yayında",
       title: "Canlı yayın",
+      /** Twitch/Kick kanalını tarayıcıda açan düğme. */
+      watch: "Yayını İzle",
     },
   },
   settings: {

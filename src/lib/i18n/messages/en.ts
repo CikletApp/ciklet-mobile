@@ -34,6 +34,7 @@ export const en = {
       game: "Streaming {game}",
       liveOn: "Live on {platform}",
       title: "Live stream",
+      watch: "Watch Stream",
     },
   },
   settings: {

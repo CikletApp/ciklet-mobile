@@ -426,6 +426,21 @@ export interface RichPresence {
   /** Yalnızca `STREAMING`: bağlı hesap yayını (Twitch/Kick); `state` yayının kategorisi. */
   platform?: "twitch" | "kick" | "youtube";
   /**
+   * Yalnızca `STREAMING`: kanal adresi ("Yayını İzle"). Açmadan önce
+   * `streamWatchUrl` (lib/activity-broadcast) ile denetlenir — gövde
+   * istemciden de gelebilir.
+   */
+  url?: string;
+  channel?: string;
+  viewerCount?: number;
+  /**
+   * Yalnızca `STREAMING`: yayıncının masaüstünden bildirdiği oyun (sunucu
+   * birleştirir; ciklet-web lib/streaming/activity → withStreamGame). Varsa
+   * "<oyun> yayını yapıyor" bu addan, `gameIconUrl` oyunun görseli.
+   */
+  game?: string;
+  gameIconUrl?: string;
+  /**
    * Yalnızca oyun: oyunla aynı anda bir yayın programı (OBS…) açık (web
    * istemcisi koyar) → "<oyun> yayını yapıyor" (lib/activity-broadcast).
    */

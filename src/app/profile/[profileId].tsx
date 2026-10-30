@@ -42,6 +42,7 @@ import {
 import { ListenAlongBar, SpotifyCard } from "@/features/spotify/spotify-card";
 import { activeCustomStatus } from "@/lib/custom-status";
 import { broadcastPresentation } from "@/lib/activity-broadcast";
+import { StreamWatchButton } from "@/features/presence/stream-watch-button";
 import { displayNameOf, formatActivity, formatDate } from "@/lib/format";
 import { parseNameStyle } from "@/lib/name-style";
 import { isOfficialProfile } from "@/lib/official";
@@ -430,6 +431,8 @@ export default function ProfileScreen() {
                         <Text style={{ ...typography.caption, color: colors.muted }}>Telefondan</Text>
                       </View>
                     ) : null}
+                    {/* Twitch/Kick yayını: kanalı tarayıcıda açar (adres yoksa çizilmez). */}
+                    <StreamWatchButton activity={presence.activity} />
                     {canReplyToActivity ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                         <Icon name="reply" size={12} color={colors.brand} />

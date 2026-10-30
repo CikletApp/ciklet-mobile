@@ -10,7 +10,10 @@ import {
   isStreamingSoftwareActivity,
   isStreamingSoftwareName,
   normalizeSoftwareName,
+  isStreamWatchUrl,
+  streamWatchUrl,
 } from "../src/lib/activity-broadcast.ts";
+import { visibleActivity } from "../src/lib/recognized-games.ts";
 
 const TR = { live: "Yayında", game: "{game} yayını yapıyor", liveOn: "{platform}'te yayında", title: "Canlı yayın" };
 const EN = { live: "Live", game: "Streaming {game}", liveOn: "Live on {platform}", title: "Live stream" };
@@ -55,4 +58,30 @@ test("Twitch/Kick: kategori oyun olur", () => {
 test("bot etkinliği kurala girmez", () => {
   assert.equal(broadcastPresentation({ type: "STREAMING", name: "OBS Studio", bot: true }), null);
   assert.equal(broadcastPresentation(null), null);
+});
+
+test("yayın + masaüstü oyunu: '<masaüstü oyunu> yayını yapıyor' (sunucu `game` ekler)", () => {
+  const merged = { type: "STREAMING", name: "Twitch", platform: "twitch", state: "Just Chatting", game: "FC 27", url: "https://www.twitch.tv/ciklet" };
+  assert.equal(text(merged), "FC 27 yayını yapıyor");
+  assert.equal(text({ ...merged, game: "  " }), "Just Chatting yayını yapıyor");
+  assert.equal(text({ ...merged, game: undefined, state: undefined }), "Twitch'te yayında");
+});
+
+test("izleme adresi: yalnızca STREAMING + izin listesi (web isStreamWatchUrl ile aynı)", () => {
+  assert.equal(streamWatchUrl({ type: "STREAMING", url: "https://www.twitch.tv/ciklet" }), "https://www.twitch.tv/ciklet");
+  assert.equal(streamWatchUrl({ type: "STREAMING", url: "https://kick.com/ciklet" }), "https://kick.com/ciklet");
+  assert.equal(streamWatchUrl({ type: "STREAMING", url: "https://twitch.tv.evil.com/x" }), null);
+  assert.equal(streamWatchUrl({ type: "STREAMING", url: "javascript:alert(1)" }), null);
+  assert.equal(streamWatchUrl({ type: "PLAYING", url: "https://kick.com/ciklet" }), null);
+  // Yalnızca OBS + oyun: bağlı yayın yok, tıklanamaz.
+  assert.equal(streamWatchUrl({ type: "PLAYING", name: "FC 27", broadcasting: true }), null);
+  assert.equal(streamWatchUrl(null), null);
+  assert.equal(isStreamWatchUrl("https://kick.com/a/b"), false);
+});
+
+test("tanınmayan oyun yayın kartından sızmaz: yayın kalır, oyun alanları düşer", () => {
+  const stream = { type: "STREAMING", name: "Twitch", platform: "twitch", game: "Gizli Uygulama", gameIconUrl: "https://x.example/a.png" };
+  assert.deepEqual(visibleActivity(stream, new Set()), { type: "STREAMING", name: "Twitch", platform: "twitch" });
+  const plain = { type: "STREAMING", name: "Kick" };
+  assert.equal(visibleActivity(plain, null), plain);
 });

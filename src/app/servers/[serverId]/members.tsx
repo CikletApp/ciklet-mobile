@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Text, TextInput, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
@@ -34,6 +34,7 @@ import {
 } from "@/components/ui";
 import { NameplateBackground } from "@/features/profile/nameplate";
 import { isMobileActivity } from "@/features/presence/media-activity";
+import { streamWatchUrl } from "@/lib/activity-broadcast";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
 import { formatActivity } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
@@ -314,6 +315,8 @@ function MemberStatusLine({ profile }: { profile: ServerMemberListItem["profile"
   const activity = visible ? presence.activity : null;
   const activityText = formatActivity(activity);
   const custom = visible && !activityText ? customStatusOf(profile) : null;
+  // Twitch/Kick yayını: "FC 27 yayını yapıyor" dokununca kanal tarayıcıda açılır.
+  const watchUrl = streamWatchUrl(activity);
 
   if (activity && activityText) {
     return (
@@ -323,7 +326,12 @@ function MemberStatusLine({ profile }: { profile: ServerMemberListItem["profile"
             <Icon name="smartphone" size={11} color={colors.accent} />
           </View>
         ) : null}
-        <Text style={{ flexShrink: 1, ...typography.caption, color: colors.accent }} numberOfLines={1}>
+        <Text
+          style={{ flexShrink: 1, ...typography.caption, color: colors.accent }}
+          numberOfLines={1}
+          onPress={watchUrl ? () => void Linking.openURL(watchUrl).catch(() => undefined) : undefined}
+          accessibilityRole={watchUrl ? "link" : undefined}
+        >
           {activityText}
         </Text>
       </View>

@@ -8,6 +8,7 @@ import { useFriends, useOpenDirect } from "@/api/hooks";
 import type { RichPresence } from "@/api/types";
 import { Avatar, Icon, Pressable } from "@/components/ui";
 import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presence/activity-reply-sheet";
+import { StreamWatchButton } from "@/features/presence/stream-watch-button";
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { resolveMediaUrl } from "@/lib/config";
 import { isStreamingSoftwareActivity } from "@/lib/activity-broadcast";
@@ -67,7 +68,8 @@ export function ActiveNow() {
           // Kapaklar göreli yol olarak gelebilir (/api/presence/covers/…).
           const largeImage = software ? null : resolveMediaUrl(activity.largeImageUrl);
           const smallImage = software ? null : resolveMediaUrl(activity.smallImageUrl);
-          const activityLogo = software ? null : resolveMediaUrl(activity.appIconUrl) || largeImage;
+          // Yayına eklenen masaüstü oyununun görseli (STREAMING + `game`) önce.
+          const activityLogo = software ? null : resolveMediaUrl(activity.gameIconUrl) || resolveMediaUrl(activity.appIconUrl) || largeImage;
           const backdrop = largeImage || activityLogo;
           const label = formatActivity(activity);
 
@@ -156,6 +158,8 @@ export function ActiveNow() {
                 </View>
               </View>
               {isMedia(activity) ? <MediaTiming activity={activity} /> : null}
+              {/* Twitch/Kick yayını: kanalı tarayıcıda açar (adres yoksa çizilmez). */}
+              <StreamWatchButton activity={activity} compact />
             </Pressable>
           );
         })}

@@ -54,13 +54,21 @@ export function isRecognizedGame(recognized: RecognizedSet | null, name: string,
   return recognized.has(recognitionKey(name));
 }
 
-/** Görünür etkinlik: tanınmayan oyun/program null olur. */
-export function visibleActivity<T extends { name: string; type?: string | null }>(
+/**
+ * Görünür etkinlik: tanınmayan oyun/program null olur. Yayına eklenen oyun
+ * (`game`) da aynı kurala tabi: tanınmıyorsa yayın kalır, oyun alanları
+ * düşer (ciklet-web hooks/use-rich-presence `visibleActivity` ile aynı).
+ */
+export function visibleActivity<T extends { name: string; type?: string | null; game?: string | null; gameIconUrl?: string | null }>(
   activity: T | null | undefined,
   recognized: RecognizedSet | null
 ): T | null {
   if (!activity) return null;
-  return isRecognizedGame(recognized, activity.name, activity.type) ? activity : null;
+  if (!isRecognizedGame(recognized, activity.name, activity.type)) return null;
+  if (activity.game === undefined && activity.gameIconUrl === undefined) return activity;
+  if (typeof activity.game === "string" && isRecognizedGame(recognized, activity.game, "PLAYING")) return activity;
+  const { game: _game, gameIconUrl: _icon, ...rest } = activity;
+  return rest as T;
 }
 
 /** `GET /api/games/recognized` yanıtı → küme (bozuk girdiler atlanır). */

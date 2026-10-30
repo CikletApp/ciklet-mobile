@@ -5,8 +5,10 @@
  *
  * Yayın programı (OBS, Streamlabs, XSplit…) hiçbir yerde ADIYLA ve
  * İKONUYLA görünmez:
- *  - Twitch/Kick yayını (`STREAMING` + platform): oyun = kategori (`state`)
- *    → "Dead by Daylight yayını yapıyor"; kategori yoksa "Twitch'te yayında".
+ *  - Twitch/Kick yayını (`STREAMING` + platform): oyun = masaüstünün
+ *    bildirdiği oyun (`game`, sunucu birleştirir), yoksa kategori (`state`)
+ *    → "Dead by Daylight yayını yapıyor"; ikisi de yoksa "Twitch'te yayında".
+ *    Kanal adresi (`url`) varsa kart dokununca yayını açar (streamWatchUrl).
  *  - Yayın programı tek başına (masaüstü OBS'yi `STREAMING` bildiriyor):
  *    "Yayında".
  *  - Oyun + aynı anda yayın programı: masaüstü yalnızca oyunu bildiriyor,
@@ -55,6 +57,8 @@ export interface BroadcastSource {
   type?: string | number | null;
   name: string;
   state?: string | null;
+  /** Yayına eklenen masaüstü oyunu (yalnızca `STREAMING`). */
+  game?: string | null;
   platform?: string | null;
   broadcasting?: boolean;
   bot?: boolean;
@@ -90,12 +94,37 @@ function clean(value: string | null | undefined): string | null {
 export function broadcastPresentation(activity: BroadcastSource | null | undefined): BroadcastPresentation | null {
   if (!activity || activity.bot === true) return null;
   const platform = broadcastPlatform(activity.platform);
-  if (activity.type === "STREAMING" && platform) return { game: clean(activity.state), platform, software: false };
+  if (activity.type === "STREAMING" && platform) return { game: clean(activity.game) ?? clean(activity.state), platform, software: false };
   if (isStreamingSoftwareActivity(activity)) return { game: null, platform: null, software: true };
   if ((activity.type === "PLAYING" || activity.type === "COMPETING") && activity.broadcasting === true) {
     return { game: clean(activity.name), platform: null, software: false };
   }
   return null;
+}
+
+const STREAM_WATCH_PATTERNS: readonly RegExp[] = [
+  /^https:\/\/(?:www\.)?(?:twitch\.tv|kick\.com)\/[A-Za-z0-9_-]{2,25}$/,
+  /^https:\/\/(?:www\.|m\.)?youtube\.com\/(?:watch\?v=[A-Za-z0-9_-]{11}|live\/[A-Za-z0-9_-]{11}|@[A-Za-z0-9_.-]{3,30}|channel\/UC[A-Za-z0-9_-]{22})$/,
+  /^https:\/\/youtu\.be\/[A-Za-z0-9_-]{11}$/,
+];
+
+/**
+ * "Yayını İzle" adresi olarak açılabilir mi — ciklet-web
+ * lib/streaming/activity `isStreamWatchUrl` ve ağ geçidi
+ * `presence::stream_watch_platform` ile AYNI izin listesi.
+ */
+export function isStreamWatchUrl(url: unknown): url is string {
+  if (typeof url !== "string" || url.length > 96) return false;
+  return STREAM_WATCH_PATTERNS.some((pattern) => pattern.test(url));
+}
+
+/**
+ * Yayının izleme adresi (yalnızca `STREAMING` + izin listesi); bağlı yayın
+ * yoksa (yalnızca OBS + oyun) null — kart dokununca bir şey açmaz.
+ */
+export function streamWatchUrl(activity: { type?: string | number | null; url?: string | null } | null | undefined): string | null {
+  if (!activity || activity.type !== "STREAMING") return null;
+  return isStreamWatchUrl(activity.url) ? activity.url : null;
 }
 
 /** Etiketler — i18n sözlüğündeki `activity.broadcast` ad alanıyla aynı şekil. */
