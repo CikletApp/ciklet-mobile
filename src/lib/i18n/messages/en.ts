@@ -20,6 +20,8 @@ export const en = {
   messagePreview: {
     voice: "🎤 Voice message",
     voiceWithDuration: "🎤 Voice message ({duration})",
+    activity: "🎮 Activity: {name}",
+    activityUnnamed: "🎮 Activity invite",
     image: "📷 Photo",
     video: "🎥 Video",
     gif: "GIF",

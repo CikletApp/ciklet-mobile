@@ -28,6 +28,7 @@ export const PREVIEW_MEDIA_KINDS = [
   "clip",
   "file",
   "attachment",
+  "activity",
 ] as const;
 
 /**
@@ -223,6 +224,21 @@ function loneUrl(text: string): string | null {
 }
 
 /**
+ * Aktivite davet kartı mı? Kartın içeriği `ad|durum` biçiminde saklanıyor
+ * (`Birlikte İzle|TS:1793…`, `…|Katılmak için tıkla`, `…|Aktivite sona
+ * erdi…`); önizleme bunu olduğu gibi basıyordu. Metadata varsa adı oradan,
+ * yoksa (tel biçimi / eski kayıt) içerik kalıbından alır.
+ */
+const ACTIVITY_CARD_RE = /^([^|\n]{1,100})\|(?:TS:\d+|Katılmak için tıkla|Aktivite sona erdi\..*)$/;
+
+function activityCardName(raw: string, meta: Record<string, unknown> | null): string | null {
+  const fromMeta = meta && typeof meta.activityName === "string" ? meta.activityName.trim() : "";
+  if (fromMeta && (typeof meta?.activityId === "string" || ACTIVITY_CARD_RE.test(raw.trim()))) return fromMeta;
+  const match = ACTIVITY_CARD_RE.exec(raw.trim());
+  return match ? match[1].trim() : null;
+}
+
+/**
  * Mesajın dilden bağımsız önizlemesi.
  *
  * Öncelik: tel biçimindeki hazır `media` > metadata (çıkartma, sesli mesaj,
@@ -240,6 +256,10 @@ export function describeMessagePreview(source: PreviewSource | null | undefined)
   if (given) return { text, media: given };
 
   const meta = isRecord(metadata) ? metadata : null;
+
+  // Aktivite davet kartı: ham `ad|TS:…` yerine "🎮 Etkinlik: ad".
+  const activity = activityCardName(raw, meta);
+  if (activity) return { text: "", media: { kind: "activity", name: activity } };
 
   // Çıkartma: içerik çıkartmanın adı (arama/bildirim metni), kullanıcı metni değil.
   if (meta && isRecord(meta.sticker)) {
@@ -280,6 +300,8 @@ export interface PreviewLabels {
   clip: string;
   file: string;
   attachment: string;
+  activity: string;
+  activityUnnamed: string;
 }
 
 /** i18n'den etiketler. `t` yoksa uygulamanın o anki dili. */
@@ -294,6 +316,8 @@ export function previewLabels(t: Translator = currentTranslator()): PreviewLabel
     clip: t("messagePreview.clip"),
     file: t("messagePreview.file"),
     attachment: t("messagePreview.attachment"),
+    activity: t("messagePreview.activity"),
+    activityUnnamed: t("messagePreview.activityUnnamed"),
   };
 }
 
@@ -329,6 +353,9 @@ export function mediaLabel(media: PreviewMedia, labels: PreviewLabels = previewL
       break;
     case "file":
       label = media.name ? labels.file.replace("{name}", media.name) : labels.attachment;
+      break;
+    case "activity":
+      label = media.name ? labels.activity.replace("{name}", media.name) : labels.activityUnnamed;
       break;
     default:
       label = labels.attachment;
@@ -369,5 +396,11 @@ function isMessagePreview(value: unknown): value is MessagePreview {
 }
 
 function normalizePreview(preview: MessagePreview): MessagePreview {
-  return { text: stripAttachmentUrls(preview.text), media: readPreviewMedia(preview.media) };
+  const media = readPreviewMedia(preview.media);
+  if (!media) {
+    // Eski sunucu ya da önbellek: hazır önizlemede ham kart metni.
+    const activity = activityCardName(preview.text, null);
+    if (activity) return { text: "", media: { kind: "activity", name: activity } };
+  }
+  return { text: stripAttachmentUrls(preview.text), media };
 }

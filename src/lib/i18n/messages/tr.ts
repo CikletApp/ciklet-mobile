@@ -26,6 +26,8 @@ export const tr = {
   messagePreview: {
     voice: "🎤 Sesli mesaj",
     voiceWithDuration: "🎤 Sesli mesaj ({duration})",
+    activity: "🎮 Etkinlik: {name}",
+    activityUnnamed: "🎮 Etkinlik daveti",
     image: "📷 Fotoğraf",
     video: "🎥 Video",
     gif: "GIF",
