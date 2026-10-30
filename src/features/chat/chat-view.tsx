@@ -62,7 +62,7 @@ import { MessageItem, type MessageAnchor } from "./components/message-item";
 import { OutboxItem } from "./components/outbox-item";
 import { PinnedBar, PinnedListSheet } from "./components/pinned-bar";
 import { TypingBubble } from "./components/typing-bubble";
-import { ChatScopeProvider, type ChatScope } from "./chat-scope";
+import { ChatScopeProvider, rememberChatScope, type ChatScope } from "./chat-scope";
 import { canForwardMessage } from "./forward";
 import { dropExpired, nextExpiry } from "./message-expiry";
 import { canBePinned, pinnedAtOf, usePinAction, usePins } from "./pins";
@@ -174,6 +174,7 @@ export function ChatView({
   const actions = useMessageActions(kind, chatId, serverId);
   const insets = useSafeAreaInsets();
   const scope = useMemo<ChatScope>(() => ({ kind, chatId, serverId }), [kind, chatId, serverId]);
+  useEffect(() => rememberChatScope(scope), [scope]);
   // Uygulama komutları: sunucu kanalında ve botla birebir DM'de (insanla
   // DM'de sunucu boş liste döndürür). "/" listesi, komut kipi ve mesaj
   // eylemlerindeki "Uygulamalar" bölümü buradan beslenir.
@@ -1025,6 +1026,7 @@ export function ChatView({
           <Composer
             inputRef={composerRef}
             controlRef={composerControl}
+            scheduleChatId={chatId}
             commandsAvailable={(commandBots.data ?? []).some((bot) => bot.commands.some((c) => c.type === 1))}
             value={commandMode.active ? commandMode.inputValue : draft}
             onChangeText={commandMode.active ? commandMode.onChangeText : onChangeDraft}

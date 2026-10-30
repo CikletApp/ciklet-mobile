@@ -22,3 +22,18 @@ export const ChatScopeProvider = ChatScopeContext.Provider;
 export function useChatScope(): ChatScope | null {
   return useContext(ChatScopeContext);
 }
+
+/**
+ * Açılmış sohbetlerin kapsamı (sohbet kimliği → kapsam). Bot formu (modal)
+ * kökte, sağlayıcının dışında çizilir; formdaki kullanıcı/rol/kanal
+ * menüleri sunucu kimliğini buradan bulur.
+ */
+const known = new Map<string, ChatScope>();
+
+export function rememberChatScope(scope: ChatScope) {
+  known.set(scope.chatId, scope);
+}
+
+export function chatScopeFor(chatId: string): ChatScope | null {
+  return known.get(chatId) ?? null;
+}

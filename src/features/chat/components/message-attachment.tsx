@@ -394,8 +394,8 @@ const KIND_ICON: Partial<Record<AttachmentKind, { icon: IconName; tint: () => st
   text: { icon: "file", tint: () => colors.brand },
 };
 
-/** Genel dosya kartı — web `FileCard`: simge, ad, boyut ve İndir. */
-function FileCard({
+/** Genel dosya kartı — web `FileCard`: simge, ad, boyut ve İndir. Dosya bileşeni (V2) de kullanır. */
+export function FileCard({
   url,
   info,
   kind,

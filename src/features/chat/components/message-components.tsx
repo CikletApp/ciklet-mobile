@@ -1,88 +1,355 @@
-import { useState } from "react";
-import { ActivityIndicator, Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
-import Animated, { SlideInDown } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useState, type ReactNode } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
+import { Image } from "expo-image";
 
 import { openGuardedLink } from "@/lib/external-link";
 import { Icon, Pressable, emojify, showToast } from "@/components/ui";
-import type { ActionRow, ButtonComponent, SelectMenuComponent } from "@/lib/message-extras";
+import { openImageViewer } from "@/components/ui/image-viewer";
+import { classifyAttachment } from "@/lib/attachments";
+import { useT } from "@/lib/i18n";
+import { isSensitive } from "@/lib/message-extras";
+import {
+  accentHex,
+  type ActionRow,
+  type AnySelectComponent,
+  type ButtonComponent,
+  type ContainerChild,
+  type FileComponent,
+  type MediaGalleryComponent,
+  type MediaGalleryItem,
+  type MessageComponent,
+  type SectionComponent,
+  type ThumbnailComponent,
+} from "@/lib/message-components";
 import { isChannelMessage, type ChatMessagePayload } from "@/realtime/events";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { useChatScope } from "../chat-scope";
 import { runComponentInteraction, waitForAck } from "../interactions";
+import { SelectField, selectDefaults } from "./component-select";
+import { MediaGate } from "./media-gate";
+import { FileCard, MessageAttachment } from "./message-attachment";
+import { MessageMarkdown } from "./message-markdown";
 
 /**
- * Bot mesajının altındaki butonlar / seçim menüsü — ciklet-web
- * `chat/v2/message-components.tsx`. Dokunma type 3 etkileşim açar (aynı uç);
- * bot yanıtlayınca mesaj akıştan güncellenir. Bağlantı butonu (stil 5)
- * etkileşim açmaz, adresi açar. Yalnızca sunucu kanalında (uç kanal ister).
+ * Bot mesajı bileşenleri — ciklet-web `chat/v2/message-components.tsx`.
+ *
+ * Eski biçim: mesajın altında eylem satırları (butonlar / seçim menüsü).
+ * Components V2 (`metadata.componentsV2`): mesajın tamamı bileşenlerden
+ * oluşur — Kap (vurgu çizgili kart, spoiler örtüsü), Bölüm (metin + sağda
+ * küçük görsel ya da buton), Metin (markdown), Medya Galerisi, Dosya,
+ * Ayırıcı. Dokunma type 3 etkileşim açar (aynı uç; sunucu kanalı ve bot
+ * DM'i); bot yanıtlayınca mesaj akıştan güncellenir. Bağlantı butonu
+ * (stil 5) etkileşim açmaz, adresi açar.
  */
-export function MessageComponents({ message, rows }: { message: ChatMessagePayload; rows: ActionRow[] }) {
+export function MessageComponents({ message, components }: { message: ChatMessagePayload; components: MessageComponent[] }) {
+  const t = useT();
+  const scope = useChatScope();
   const [busy, setBusy] = useState<string | null>(null);
-  const [menu, setMenu] = useState<SelectMenuComponent | null>(null);
-  const channelId = isChannelMessage(message) ? message.channelId : null;
-  const botName = isChannelMessage(message)
-    ? message.member.profile.name?.trim() || message.member.profile.username
-    : "Bot";
+  // Mesaj menüsü gönderildikten sonra varsayılanlara döner (anahtar yenilenir).
+  const [resetKey, setResetKey] = useState(0);
+  const chatId = scope?.chatId ?? (isChannelMessage(message) ? message.channelId : null);
+  const profile = isChannelMessage(message) ? message.member.profile : message.profile;
+  const botName = profile?.name?.trim() || profile?.username || "Bot";
+  const sensitive = isSensitive(message.metadata);
 
   const fire = async (customId: string, values?: string[]) => {
-    if (!channelId || busy) return;
+    if (!chatId || busy) return;
     setBusy(customId);
-    const result = await runComponentInteraction(channelId, message.id, customId, values);
+    const result = await runComponentInteraction(chatId, message.id, customId, values);
     setBusy(null);
+    if (values) setResetKey((k) => k + 1);
     if (!result.ok) {
-      showToast(result.error, "error");
+      showToast(result.error || t("messageComponents.interactionFailed"), "error");
       return;
     }
-    void waitForAck(channelId, result.id).then((silent) => {
-      if (silent) showToast(`${botName} yanıt vermedi.`);
+    void waitForAck(chatId, result.id).then((silent) => {
+      if (silent) showToast(t("messageComponents.botNoResponse", { name: botName }));
     });
   };
 
-  if (!channelId) return null;
+  if (!chatId) return null;
+  const ctx: RenderCtx = { busy, fire, sensitive, resetKey, scope };
 
   return (
-    <View style={{ gap: spacing.xs, marginTop: spacing.xs }}>
-      {rows.map((row, rowIndex) => (
-        <View key={rowIndex} style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-          {row.components.map((component, index) =>
-            component.type === 2 ? (
-              <ComponentButton
-                key={index}
-                component={component}
-                busy={busy === component.custom_id}
-                onPress={() => {
-                  if (component.style === 5) {
-                    openGuardedLink(component.url);
-                    return;
-                  }
-                  if (component.custom_id) void fire(component.custom_id);
-                }}
-              />
-            ) : (
-              <SelectTrigger
-                key={index}
-                component={component}
-                busy={busy === component.custom_id}
-                onPress={() => setMenu(component)}
-              />
-            )
-          )}
-        </View>
+    <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
+      {components.map((component, index) => (
+        <TopComponent key={component.id ?? index} component={component} ctx={ctx} />
       ))}
-
-      {menu ? (
-        <SelectSheet
-          component={menu}
-          onClose={() => setMenu(null)}
-          onPick={(value) => {
-            const id = menu.custom_id;
-            setMenu(null);
-            void fire(id, [value]);
-          }}
-        />
-      ) : null}
     </View>
+  );
+}
+
+interface RenderCtx {
+  busy: string | null;
+  fire: (customId: string, values?: string[]) => Promise<void>;
+  sensitive: boolean;
+  resetKey: number;
+  scope: ReturnType<typeof useChatScope>;
+}
+
+function TopComponent({ component, ctx }: { component: MessageComponent; ctx: RenderCtx }) {
+  if (component.type === 17) return <Container component={component} ctx={ctx} />;
+  return <Child component={component} ctx={ctx} />;
+}
+
+function Child({ component, ctx }: { component: ContainerChild; ctx: RenderCtx }) {
+  switch (component.type) {
+    case 1:
+      return <Row row={component} ctx={ctx} />;
+    case 10:
+      return <MessageMarkdown value={component.content} color={colors.bright} />;
+    case 9:
+      return <Section component={component} ctx={ctx} />;
+    case 12:
+      return <Gallery component={component} sensitive={ctx.sensitive} />;
+    case 13:
+      return <FileBlock component={component} sensitive={ctx.sensitive} />;
+    case 14: {
+      const gap = component.spacing === 2 ? 16 : 8;
+      return (
+        <View style={{ paddingVertical: gap / 2 }}>
+          {component.divider !== false ? <View style={{ height: 1, backgroundColor: colors.border }} /> : null}
+        </View>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+/** Kap: panel zemin, ince çerçeve, solda vurgu çizgisi; spoiler ise örtülü. */
+function Container({ component, ctx }: { component: Extract<MessageComponent, { type: 17 }>; ctx: RenderCtx }) {
+  const accent = accentHex(component.accent_color);
+  const card = (
+    <View
+      style={{
+        flexDirection: "row",
+        borderRadius: 8,
+        borderCurve: "continuous",
+        borderWidth: 1,
+        borderColor: colors.bentoBorder,
+        backgroundColor: colors.panel,
+        overflow: "hidden",
+      }}
+    >
+      {accent ? <View style={{ width: 4, backgroundColor: accent }} /> : null}
+      <View style={{ flex: 1, minWidth: 0, padding: spacing.lg, gap: 8 }}>
+        {component.components.map((child, index) => (
+          <Child key={child.id ?? index} component={child} ctx={ctx} />
+        ))}
+      </View>
+    </View>
+  );
+  return component.spoiler ? <SpoilerCover>{card}</SpoilerCover> : card;
+}
+
+/** Kabın spoiler örtüsü — medya örtüsüyle aynı dil ("Spoiler", "Göster"). */
+function SpoilerCover({ children }: { children: ReactNode }) {
+  const t = useT();
+  const [revealed, setRevealed] = useState(false);
+  if (revealed) return <>{children}</>;
+  return (
+    <Pressable
+      onPress={() => setRevealed(true)}
+      accessibilityRole="button"
+      accessibilityLabel={`${t("messageComponents.spoiler")}, ${t("messageComponents.show")}`}
+      style={{
+        minHeight: 96,
+        borderRadius: 8,
+        borderCurve: "continuous",
+        backgroundColor: colors.deep,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: spacing.xs,
+        padding: spacing.lg,
+      }}
+    >
+      <Icon name="eye-off" size={22} color={colors.muted} />
+      <Text style={{ ...typography.bodyStrong, color: colors.text }}>{t("messageComponents.spoiler")}</Text>
+      <Text style={{ ...typography.caption, color: colors.brand }}>{t("messageComponents.show")}</Text>
+    </Pressable>
+  );
+}
+
+function Section({ component, ctx }: { component: SectionComponent; ctx: RenderCtx }) {
+  const accessory = component.accessory;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+        {component.components.map((text, index) => (
+          <MessageMarkdown key={text.id ?? index} value={text.content} color={colors.bright} />
+        ))}
+      </View>
+      {accessory.type === 11 ? (
+        <Thumbnail component={accessory} sensitive={ctx.sensitive} />
+      ) : (
+        <ComponentButton component={accessory} busy={ctx.busy === accessory.custom_id} onPress={() => pressButton(accessory, ctx)} />
+      )}
+    </View>
+  );
+}
+
+function Thumbnail({ component, sensitive }: { component: ThumbnailComponent; sensitive: boolean }) {
+  const t = useT();
+  return (
+    <MediaGate spoiler={Boolean(component.spoiler)} sensitive={sensitive}>
+      <Pressable
+        onPress={() => openImageViewer(component.media.url, null)}
+        accessibilityRole="imagebutton"
+        accessibilityLabel={component.description ?? t("messageComponents.openImage")}
+      >
+        <Image
+          source={{ uri: component.media.url }}
+          style={{ width: 85, height: 85, borderRadius: 8 }}
+          contentFit="cover"
+          accessibilityLabel={component.description}
+        />
+      </Pressable>
+    </MediaGate>
+  );
+}
+
+function isVideo(item: MediaGalleryItem): boolean {
+  return classifyAttachment(item.media.url, item.media.content_type ? { type: item.media.content_type } : null) === "video";
+}
+
+/** Medya galerisi: 1 → tek görsel; 2 ya da 4 → iki sütun; 3 ya da ≥5 → üç sütun kare. */
+function Gallery({ component, sensitive }: { component: MediaGalleryComponent; sensitive: boolean }) {
+  const [width, setWidth] = useState(0);
+  const items = component.items;
+  if (items.length === 1) {
+    const item = items[0];
+    if (isVideo(item)) {
+      // Spoiler bayrağı ek adındaki SPOILER_ önekiyle aynı örtüyü açar.
+      return (
+        <MessageAttachment
+          url={item.media.url}
+          metadata={{ attachment: { type: item.media.content_type, ...(item.spoiler ? { name: "SPOILER_video" } : {}) }, sensitive }}
+        />
+      );
+    }
+    return <SingleImage item={item} sensitive={sensitive} />;
+  }
+  const columns = items.length === 2 || items.length === 4 ? 2 : 3;
+  const gap = 4;
+  const tile = width > 0 ? (width - gap * (columns - 1)) / columns : 0;
+  return (
+    <View
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      style={{ flexDirection: "row", flexWrap: "wrap", gap, borderRadius: 8, overflow: "hidden" }}
+    >
+      {tile > 0
+        ? items.map((item, index) => (
+            <MediaGate key={`${item.media.url}-${index}`} spoiler={Boolean(item.spoiler)} sensitive={sensitive}>
+              <GalleryTile item={item} size={tile} />
+            </MediaGate>
+          ))
+        : null}
+    </View>
+  );
+}
+
+function GalleryTile({ item, size }: { item: MediaGalleryItem; size: number }) {
+  const t = useT();
+  if (isVideo(item)) {
+    return (
+      <Pressable
+        onPress={() => openGuardedLink(item.media.url)}
+        accessibilityRole="button"
+        accessibilityLabel={item.description ?? t("messageComponents.attachment")}
+        style={{ width: size, height: size, backgroundColor: colors.deep, alignItems: "center", justifyContent: "center" }}
+      >
+        <Icon name="play" size={26} color={colors.bright} />
+      </Pressable>
+    );
+  }
+  return (
+    <Pressable
+      onPress={() => openImageViewer(item.media.url, null)}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={item.description ?? t("messageComponents.openImage")}
+    >
+      <Image source={{ uri: item.media.url }} style={{ width: size, height: size }} contentFit="cover" />
+    </Pressable>
+  );
+}
+
+function SingleImage({ item, sensitive }: { item: MediaGalleryItem; sensitive: boolean }) {
+  const t = useT();
+  const known = item.media.width && item.media.height ? item.media.width / item.media.height : null;
+  const [aspect, setAspect] = useState<number | null>(known);
+  const ratio = aspect ?? 4 / 3;
+  return (
+    <MediaGate spoiler={Boolean(item.spoiler)} sensitive={sensitive}>
+      <Pressable
+        onPress={() => openImageViewer(item.media.url, null)}
+        accessibilityRole="imagebutton"
+        accessibilityLabel={item.description ?? t("messageComponents.openImage")}
+        style={{ alignSelf: "flex-start", width: "100%", maxHeight: 350 }}
+      >
+        <Image
+          source={{ uri: item.media.url }}
+          onLoad={(e) => {
+            if (!known && e.source.width && e.source.height) setAspect(e.source.width / e.source.height);
+          }}
+          style={{ width: "100%", aspectRatio: ratio, maxHeight: 350, borderRadius: 8 }}
+          contentFit="contain"
+          contentPosition="left"
+        />
+      </Pressable>
+    </MediaGate>
+  );
+}
+
+function FileBlock({ component, sensitive }: { component: FileComponent; sensitive: boolean }) {
+  const info = { name: component.name, type: component.file.content_type, size: component.size };
+  const card = <FileCard url={component.file.url} info={info} kind={classifyAttachment(component.file.url, info) === "probe" ? "file" : classifyAttachment(component.file.url, info)} />;
+  return component.spoiler || sensitive ? (
+    <MediaGate spoiler={Boolean(component.spoiler)} sensitive={sensitive}>
+      {card}
+    </MediaGate>
+  ) : (
+    card
+  );
+}
+
+function pressButton(component: ButtonComponent, ctx: RenderCtx) {
+  if (component.style === 5) {
+    if (component.url) openGuardedLink(component.url);
+    return;
+  }
+  if (component.custom_id) void ctx.fire(component.custom_id);
+}
+
+function Row({ row, ctx }: { row: ActionRow; ctx: RenderCtx }) {
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+      {row.components.map((component, index) =>
+        component.type === 2 ? (
+          <ComponentButton
+            key={component.custom_id ?? component.url ?? index}
+            component={component}
+            busy={ctx.busy === component.custom_id}
+            onPress={() => pressButton(component, ctx)}
+          />
+        ) : (
+          <MessageSelect key={`${component.custom_id}-${ctx.resetKey}`} component={component} ctx={ctx} />
+        )
+      )}
+    </View>
+  );
+}
+
+function MessageSelect({ component, ctx }: { component: AnySelectComponent; ctx: RenderCtx }) {
+  return (
+    <SelectField
+      component={component}
+      scope={ctx.scope}
+      values={selectDefaults(component)}
+      busy={ctx.busy === component.custom_id}
+      onCommit={(values) => void ctx.fire(component.custom_id, values)}
+    />
   );
 }
 
@@ -112,6 +379,7 @@ function ComponentButton({ component, busy, onPress }: { component: ButtonCompon
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
+        alignSelf: "flex-start",
         gap: 6,
         height: 32,
         paddingHorizontal: spacing.md,
@@ -129,109 +397,5 @@ function ComponentButton({ component, busy, onPress }: { component: ButtonCompon
       ) : null}
       {component.style === 5 ? <Icon name="link" size={12} color={tone.text} /> : null}
     </Pressable>
-  );
-}
-
-function SelectTrigger({ component, busy, onPress }: { component: SelectMenuComponent; busy: boolean; onPress: () => void }) {
-  const chosen = component.options.find((option) => option.default);
-  const disabled = Boolean(component.disabled) || busy;
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={component.placeholder ?? "Seç"}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: spacing.sm,
-        minWidth: 200,
-        maxWidth: "100%",
-        height: 34,
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.md,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: pressed ? colors.raised : colors.panel,
-        opacity: disabled ? 0.5 : 1,
-      })}
-    >
-      <Text numberOfLines={1} style={{ fontSize: 13, lineHeight: 17, color: chosen ? colors.bright : colors.muted, flexShrink: 1 }}>
-        {chosen ? chosen.label : component.placeholder || "Seç…"}
-      </Text>
-      {busy ? <ActivityIndicator size="small" color={colors.muted} /> : <Icon name="chevron-down" size={14} color={colors.muted} />}
-    </Pressable>
-  );
-}
-
-/** Seçim menüsünün seçenekleri — alttan açılan liste. */
-function SelectSheet({
-  component,
-  onClose,
-  onPick,
-}: {
-  component: SelectMenuComponent;
-  onClose: () => void;
-  onPick: (value: string) => void;
-}) {
-  const insets = useSafeAreaInsets();
-  return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
-      <RNPressable
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Kapat"
-        style={{ flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrim }}
-      >
-        <Animated.View
-          entering={SlideInDown.duration(200)}
-          style={{
-            maxHeight: "70%",
-            marginHorizontal: spacing.sm,
-            marginBottom: insets.bottom + spacing.sm,
-            padding: 6,
-            borderRadius: radii.xl,
-            borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: colors.bentoBorder,
-            backgroundColor: colors.panel,
-          }}
-        >
-          <Text style={{ ...typography.overline, color: colors.muted, padding: spacing.md }}>
-            {(component.placeholder || "Bir seçenek seç").toLocaleUpperCase("tr-TR")}
-          </Text>
-          <ScrollView>
-            {component.options.map((option) => (
-              <Pressable
-                key={option.value}
-                noHitSlop
-                onPress={() => onPick(option.value)}
-                accessibilityRole="button"
-                accessibilityLabel={option.label}
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.md,
-                  minHeight: 52,
-                  paddingHorizontal: spacing.md,
-                  borderRadius: radii.lg,
-                  backgroundColor: pressed ? colors.raised : "transparent",
-                })}
-              >
-                {option.emoji ? <Text style={{ fontSize: 18 }}>{emojify(option.emoji, `so-${option.value}`, 20)}</Text> : null}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ ...typography.body, ...fw(600), color: colors.bright }}>{option.label}</Text>
-                  {option.description ? (
-                    <Text style={{ ...typography.caption, color: colors.muted }}>{option.description}</Text>
-                  ) : null}
-                </View>
-                {option.default ? <Icon name="check" size={16} color={colors.brand} /> : null}
-              </Pressable>
-            ))}
-          </ScrollView>
-        </Animated.View>
-      </RNPressable>
-    </Modal>
   );
 }

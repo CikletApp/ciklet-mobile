@@ -39,13 +39,13 @@ import {
   extraAttachments,
   isSilent,
   possessiveName,
-  readComponents,
   readInteraction,
   readPoll,
   readPollResult,
   readSticker,
   readThread,
 } from "@/lib/message-extras";
+import { readMessageComponents } from "@/lib/message-components";
 import { EphemeralFooter, InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
 import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
@@ -236,6 +236,11 @@ export function MessageItem({
   const showHeader = !grouped && !isMine && !oneToOne;
   const avatarColumn = !isMine && !oneToOne;
   const isOfficial = isOfficialProfile(profile);
+  // Bot bileşenleri (web lib/message-components). Components V2 mesajında
+  // metin/ek yok: dosyalar yalnızca Dosya/Galeri bileşenleriyle görünür.
+  const componentData =
+    profile.isBot === true && !message.deleted && scope ? readMessageComponents(message.metadata) : null;
+  const componentsV2 = Boolean(componentData?.v2);
   const inviteCode = !message.fileUrl && !message.deleted && !isPoll
     ? extractInviteCode(message.content)
     : null;
@@ -245,7 +250,7 @@ export function MessageItem({
   const linkUrl = !message.fileUrl && !inviteCode && !message.deleted && !isPoll
     ? extractFirstWebUrl(message.content)
     : null;
-  const attachmentKind = message.fileUrl && !message.deleted
+  const attachmentKind = message.fileUrl && !message.deleted && !componentsV2
     ? classifyAttachment(message.fileUrl, readAttachmentInfo(message.metadata))
     : null;
   const visualMedia =
@@ -354,9 +359,8 @@ export function MessageItem({
   ) : null;
   // Alt başlık bağlantısı ThreadLink içinde ayrıca doğrulanır (bu kanalın alt başlığı mı).
   const thread = !message.deleted && scope?.serverId ? readThread(message.metadata) : null;
-  const components =
-    fromBot && !message.deleted && scope?.kind === "channel" ? readComponents(message.metadata) : [];
-  const extras = message.deleted ? [] : extraAttachments(message.metadata, message.fileUrl);
+  const components = componentData?.components ?? [];
+  const extras = message.deleted || componentsV2 ? [] : extraAttachments(message.metadata, message.fileUrl);
   const embeds = !message.deleted && hasEmbeds(message.metadata);
 
   const replyTarget = message.replyTo && !message.replyTo.deleted ? message.replyTo : null;
@@ -443,7 +447,7 @@ export function MessageItem({
   const contentAfterText = captionedMedia
     ? embeds || Boolean(thread) || components.length > 0
     : Boolean(activityReply) ||
-      Boolean(message.fileUrl && !message.deleted) ||
+      Boolean(message.fileUrl && !message.deleted && !componentsV2) ||
       extras.length > 0 ||
       Boolean(sticker && !message.deleted) ||
       Boolean(inviteCode) ||
@@ -538,7 +542,7 @@ export function MessageItem({
             {caption}
             {embeds ? <MessageEmbeds metadata={message.metadata} /> : null}
             {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} parentId={scope.chatId} thread={thread} /> : null}
-            {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
+            {components.length > 0 ? <MessageComponents message={message} components={components} /> : null}
             {metaRow}
           </View>
           {inlineMeta ? <MessageMeta {...metaInfo} tint={mutedColor} inline /> : null}
@@ -563,7 +567,7 @@ export function MessageItem({
             <MessageActivityReply activity={activityReply} content={message.content} isMine={isMine} />
           ) : null}
 
-          {message.fileUrl && !message.deleted ? (
+          {message.fileUrl && !message.deleted && !componentsV2 ? (
             <MessageAttachment
               url={message.fileUrl}
               metadata={message.metadata}
@@ -596,7 +600,7 @@ export function MessageItem({
           {embeds ? <MessageEmbeds metadata={message.metadata} /> : null}
 
           {thread && scope?.serverId ? <ThreadLink serverId={scope.serverId} parentId={scope.chatId} thread={thread} /> : null}
-          {components.length > 0 ? <MessageComponents message={message} rows={components} /> : null}
+          {components.length > 0 ? <MessageComponents message={message} components={components} /> : null}
 
           {bareMedia ? null : bareEmoji && showMeta ? (
             <MessageMeta {...metaInfo} tint={mutedColor} pill={bubbleColor} />
