@@ -116,6 +116,8 @@ export const ServerEvent = {
   PROFILE_UPDATED: "profile.updated",
   /** `{ serverId }` — kanal/kategori eklendi, silindi, taşındı. */
   SERVER_CHANNELS_UPDATED: "server.channels_updated",
+  /** `{ serverId, threadId }` — alt başlık üyeliği / "Herkes davet edebilir" değişti (sohbet odası). */
+  THREAD_MEMBERS_UPDATED: "thread.members_updated",
   /** `{ messageId, content, senderName, senderImage, channelId, serverId, channelName }` */
   MENTION: "mention",
   /**

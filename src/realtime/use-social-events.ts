@@ -226,6 +226,11 @@ export function useSocialEvents() {
         if (typeof frame.serverId !== "string") return;
         invalidate(qk.channels(frame.serverId), qk.server(frame.serverId));
       }),
+      // Açık alt başlığın üye listesi (web thread-members-popover ile aynı olay).
+      onGatewayEvent(ServerEvent.THREAD_MEMBERS_UPDATED, (frame) => {
+        if (typeof frame.serverId !== "string" || typeof frame.threadId !== "string") return;
+        invalidate(qk.threadMembers(frame.serverId, frame.threadId));
+      }),
 
       // Avatar/afiş/ad değişti — bir kez çekilen kaynaklar tazelenir (web:
       // realtime-provider `profile.updated`).

@@ -5,6 +5,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Server } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError, api } from "@/api/client";
+import { openApplicationIfRequired } from "@/features/join-application/join-application-sheet";
+import { INVITES_PAUSED_MESSAGE } from "@/lib/safety";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import {
@@ -17,6 +19,7 @@ import {
   TextField,
 } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { InviteEventCard, TEMPORARY_INVITE_NOTICE, parseInviteInput, type InviteEventCardData } from "@/features/invites/invite-options";
 
 /**
  * Sunucu oluştur veya davetle katıl.
@@ -139,6 +142,12 @@ interface InvitePreview {
   memberCount: number;
   onlineCount: number;
   ownerName: string;
+  /** Geçici üyelik daveti (web davet sayfasıyla aynı uyarı). */
+  temporary?: boolean;
+  /** Davete bağlı etkinlik (web `InviteEventCard`). */
+  event?: InviteEventCardData | null;
+  /** Davetler duraklatıldı (web lib/safety) — "Katıl" yerine uyarı. */
+  invitesPaused?: boolean;
 }
 
 /**
@@ -155,28 +164,32 @@ function JoinServer() {
 
   const lookup = useMutation({
     mutationFn: () => {
-      // Kullanıcı tam davet bağlantısını yapıştırabilir; koda indir.
-      const trimmed = code.trim();
-      const inviteCode = trimmed.split("/").filter(Boolean).pop() ?? trimmed;
-      return api<InvitePreview>(endpoints.invite(inviteCode));
+      // Kullanıcı tam davet bağlantısını yapıştırabilir; koda indir. Discord
+      // gibi `?event=<id>` bağlantısı etkinlik kartını da getirir.
+      const { code: inviteCode, eventId } = parseInviteInput(code);
+      const url = endpoints.invite(inviteCode);
+      return api<InvitePreview>(eventId ? `${url}?event=${encodeURIComponent(eventId)}` : url);
     },
     onSuccess: setPreview,
   });
 
   const join = useMutation({
     mutationFn: (_serverId: string) => {
-      const trimmed = code.trim();
-      const inviteCode = trimmed.split("/").filter(Boolean).pop() ?? trimmed;
+      const { code: inviteCode } = parseInviteInput(code);
       return api(endpoints.invite(inviteCode), { method: "POST" });
     },
     onSuccess: (_result, serverId) => {
       void queryClient.invalidateQueries({ queryKey: qk.memberships });
       router.replace(`/servers/${serverId}`);
     },
+    // Katılım başvurusu gerekiyorsa form açılır (web davet sayfası ile aynı).
+    onError: (reason, serverId) => {
+      openApplicationIfRequired(reason, serverId, parseInviteInput(code).code);
+    },
   });
 
   const lookupError = lookup.error instanceof ApiError ? lookup.error : null;
-  const joinError = join.error instanceof ApiError ? join.error : null;
+  const joinError = join.error instanceof ApiError && join.error.code !== "application_required" ? join.error : null;
 
   return (
     <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
@@ -225,12 +238,21 @@ function JoinServer() {
             </View>
           </View>
 
-          <Button
-            label="Sunucuya Katıl"
-            onPress={() => join.mutate(preview.id)}
-            loading={join.isPending}
-            fullWidth
-          />
+          {preview.event ? <InviteEventCard event={preview.event} /> : null}
+          {preview.temporary ? (
+            <Text style={{ ...typography.caption, color: colors.muted }}>{TEMPORARY_INVITE_NOTICE}</Text>
+          ) : null}
+
+          {preview.invitesPaused ? (
+            <Text style={{ ...typography.caption, color: colors.danger }}>{INVITES_PAUSED_MESSAGE}</Text>
+          ) : (
+            <Button
+              label="Sunucuya Katıl"
+              onPress={() => join.mutate(preview.id)}
+              loading={join.isPending}
+              fullWidth
+            />
+          )}
 
           {joinError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>

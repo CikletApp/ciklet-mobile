@@ -18,6 +18,7 @@ import { ActivityHost } from "@/features/activities/activity-host";
 import { BrandSplash } from "@/features/auth/auth-shell";
 import { CallOverlay } from "@/features/call/call-overlay";
 import { InteractionModalHost } from "@/features/chat/interaction-modal";
+import { JoinApplicationHost } from "@/features/join-application/join-application-sheet";
 import { startOutboxSender } from "@/features/chat/outbox-sender";
 import { startVoicePrefetch } from "@/features/chat/voice-prefetch";
 import { NotificationSettingsHost } from "@/features/notifications/notification-sheet";
@@ -247,9 +248,11 @@ export default function RootLayout() {
                   <Stack.Screen name="servers/[serverId]/settings" />
                   <Stack.Screen name="servers/[serverId]/subscriptions" />
                   <Stack.Screen name="servers/[serverId]/templates" />
+                  <Stack.Screen name="servers/[serverId]/invites" />
                   <Stack.Screen name="servers/[serverId]/welcome-screen" />
                   <Stack.Screen name="sablon/[code]" />
                   <Stack.Screen name="servers/[serverId]/threads/[channelId]" />
+                  <Stack.Screen name="servers/[serverId]/thread-members/[channelId]" />
                   <Stack.Screen name="settings/account" />
                   <Stack.Screen name="settings/activity" />
                   <Stack.Screen name="settings/authorized-apps" />
@@ -298,6 +301,8 @@ export default function RootLayout() {
             <NotificationSettingsHost key={`notify-${themeRevision}`} />
             {/* Bot etkileşim formu (callback type 9). */}
             <InteractionModalHost key={`interaction-${themeRevision}`} />
+            {/* Katılım başvurusu formu (application_required). */}
+            <JoinApplicationHost key={`join-application-${themeRevision}`} />
             <DialogHost key={`dialog-${themeRevision}`} />
             <ToastHost key={`toast-${themeRevision}`} />
             <ReminderSheetHost key={`reminder-${themeRevision}`} />

@@ -18,6 +18,7 @@
  */
 import { classifyAttachment, fileNameFromUrl, isUploadHostUrl, type AttachmentInfo } from "@/lib/attachments";
 import { currentTranslator, type Translator } from "@/lib/i18n";
+import { componentsPlainText } from "@/lib/message-components";
 
 export const PREVIEW_MEDIA_KINDS = [
   "voice",
@@ -244,18 +245,25 @@ function activityCardName(raw: string, meta: Record<string, unknown> | null): st
  * Öncelik: tel biçimindeki hazır `media` > metadata (çıkartma, sesli mesaj,
  * klip) > ek adresi > içeriğin kendisi yalnızca gizli bir adresse o adres.
  */
+/** V2 bileşenlerinin düz metin özeti; V2 değilse boş. */
+function componentsV2Text(meta: Record<string, unknown> | null): string {
+  if (!meta || meta.componentsV2 !== true || !Array.isArray(meta.components)) return "";
+  return componentsPlainText(meta.components);
+}
+
 export function describeMessagePreview(source: PreviewSource | null | undefined): MessagePreview {
   if (!source) return { text: "", media: null };
   const raw = (source.content ?? source.message ?? "").toString();
   const metadata = source.metadata;
   const fileUrl = typeof source.fileUrl === "string" ? source.fileUrl.trim() : "";
   const urls = attachmentUrls(fileUrl, metadata);
-  const text = stripAttachmentUrls(raw, urls);
+  const meta = isRecord(metadata) ? metadata : null;
+  // Components V2 mesajının `content`'i boş: metin bileşenlerinin özeti
+  // (Discord da önizleme/bildirimde Metin bileşenlerini gösterir).
+  const text = stripAttachmentUrls(raw, urls) || componentsV2Text(meta);
 
   const given = readPreviewMedia(source.media);
   if (given) return { text, media: given };
-
-  const meta = isRecord(metadata) ? metadata : null;
 
   // Aktivite davet kartı: ham `ad|TS:…` yerine "🎮 Etkinlik: ad".
   const activity = activityCardName(raw, meta);

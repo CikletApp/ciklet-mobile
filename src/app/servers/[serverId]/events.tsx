@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FlatList, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
@@ -28,6 +29,7 @@ import {
   type ActionSheetItem,
 } from "@/components/ui";
 import { formatDate, formatTime } from "@/lib/format";
+import { describeRecurrence } from "@/lib/event-recurrence";
 import { useNow } from "@/lib/use-now";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -189,19 +191,23 @@ function EventCard({
 }) {
   const active = event.status === "ACTIVE";
   const place = event.channelName ?? event.location;
+  const repeats = describeRecurrence(event.recurrenceRule);
 
   return (
     <View
       style={{
-        padding: spacing.lg,
-        gap: spacing.sm,
         borderRadius: radii.xl,
         borderCurve: "continuous",
         borderWidth: 1,
         borderColor: active ? colors.brand : colors.bentoBorder,
         backgroundColor: colors.panel,
+        overflow: "hidden",
       }}
     >
+      {event.coverImageUrl ? (
+        <Image source={{ uri: event.coverImageUrl }} style={{ width: "100%", aspectRatio: 16 / 9 }} contentFit="cover" />
+      ) : null}
+      <View style={{ padding: spacing.lg, gap: spacing.sm }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         {active ? (
           <Tag label="ŞİMDİ" tint={colors.onBrand} background={colors.brand} />
@@ -232,6 +238,15 @@ function EventCard({
         </View>
       ) : null}
 
+      {repeats ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+          <Icon name="rotate-ccw" size={15} color={colors.muted} />
+          <Text style={{ ...typography.caption, color: colors.muted, flex: 1 }} numberOfLines={1}>
+            {repeats}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs }}>
         <Icon name="users" size={15} color={colors.muted} />
         <Text style={{ ...typography.caption, color: colors.muted, flex: 1 }}>
@@ -245,6 +260,7 @@ function EventCard({
           variant={event.interested ? "secondary" : "primary"}
           onPress={onInterest}
         />
+      </View>
       </View>
     </View>
   );

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
-import type { MyServerPermissions, ServerEventItem, ServerEventStatus } from "../types";
+import type { MyServerPermissions, RecurrenceRule, ServerEventItem, ServerEventStatus } from "../types";
 
 /**
  * Zamanlanmış etkinlikler (web "Etkinlikler" modalı, `lib/server-events`).
@@ -43,6 +43,10 @@ export interface CreateEventInput {
   location?: string | null;
   startsAt: string;
   endsAt?: string | null;
+  /** Tekrar kuralı (null/yok → tekrarlanmaz). */
+  recurrenceRule?: RecurrenceRule | null;
+  /** UploadThing `serverBanner` adresi (16:9). */
+  coverImageUrl?: string | null;
 }
 
 export function useCreateServerEvent(serverId: string) {

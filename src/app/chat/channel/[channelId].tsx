@@ -13,6 +13,7 @@ import {
   usePinForumPost,
   useServerChannels,
   useServerSummary,
+  useThreadMembership,
   useThreadParent,
   useThreadState,
   useUnreadCounts,
@@ -99,6 +100,7 @@ export default function ChannelChatScreen() {
   const archive = useArchiveThread(serverId ?? "");
   const lock = useLockThread(serverId ?? "");
   const pin = usePinForumPost(serverId ?? "");
+  const follow = useThreadMembership(serverId ?? "", channelId);
   // "Alt Başlıkları Yönet" (web `canManageThreads`: moderatör+ ya da bit).
   // Yalnızca arayüz ipucu; kanal geçersiz kılmalarını uç denetler.
   const { data: actor } = useMyPermissions(serverId);
@@ -112,6 +114,9 @@ export default function ChannelChatScreen() {
   );
   const threadLocked = thread.thread?.locked === true;
   const forumPinned = thread.thread?.forumPinned === true;
+  // Takip = alt başlık üyeliği (web lib/threads); eski sunucuda alan yok → menü öğesi gizli.
+  const threadJoined = thread.thread?.joined;
+  const threadPrivate = thread.thread?.private === true;
   const isForumPost = isThread && (parent as ChannelExtras | undefined)?.forum === true;
   const [menuOpen, setMenuOpen] = useState(false);
   const title = isThread ? (thread.thread?.name ?? threadName ?? "Alt başlık") : (channel?.name ?? "");
@@ -155,6 +160,22 @@ export default function ChannelChatScreen() {
       { threadId: channelId, locked },
       {
         onSuccess: () => showToast(locked ? "Alt başlık kilitlendi." : "Alt başlığın kilidi açıldı."),
+        onError: (error) =>
+          showToast(error instanceof ApiError ? error.message : "Alt başlık güncellenemedi.", "error"),
+      }
+    );
+  };
+
+  const setFollowing = (join: boolean) => {
+    if (!serverId) return;
+    follow.mutate(
+      { userId: "@me", add: join },
+      {
+        onSuccess: () => {
+          showToast(join ? "Alt başlık takip ediliyor." : "Alt başlık takibi bırakıldı.");
+          // Özel alt başlıktan ayrılan (moderatör değilse) onu artık göremez.
+          if (!join && threadPrivate && !canManageThreads) router.replace(`/chat/channel/${parentId}?serverId=${serverId}`);
+        },
         onError: (error) =>
           showToast(error instanceof ApiError ? error.message : "Alt başlık güncellenemedi.", "error"),
       }
@@ -226,6 +247,31 @@ export default function ChannelChatScreen() {
           icon: "list",
           onPress: () => router.push(`/servers/${serverId}/threads/${parentId}`),
         },
+        ...(threadJoined === undefined
+          ? []
+          : [
+              threadJoined
+                ? {
+                    key: "unfollow",
+                    label: "Takibi Bırak",
+                    detail: threadPrivate ? "Özel alt başlıktan ayrılırsın" : undefined,
+                    icon: "bell-off" as const,
+                    onPress: () => setFollowing(false),
+                  }
+                : {
+                    key: "follow",
+                    label: "Takip Et",
+                    detail: "Kenar listesinde görünür, bildirim gelir",
+                    icon: "bell" as const,
+                    onPress: () => setFollowing(true),
+                  },
+            ]),
+        {
+          key: "members",
+          label: "Üyeler",
+          icon: "users",
+          onPress: () => router.push(`/servers/${serverId}/thread-members/${channelId}`),
+        },
         ...moderationItems,
         ...(archiveItem ? [archiveItem] : []),
       ]
@@ -268,7 +314,7 @@ export default function ChannelChatScreen() {
               subtitle={
                 typing ??
                 (isThread
-                  ? `${forumPinned ? "Sabitlendi · " : ""}${threadLocked ? "Kilitli · " : ""}${thread.archived ? "Arşivde · " : ""}#${parent?.name ?? "kanal"}`
+                  ? `${threadPrivate ? "Özel · " : ""}${forumPinned ? "Sabitlendi · " : ""}${threadLocked ? "Kilitli · " : ""}${thread.archived ? "Arşivde · " : ""}#${parent?.name ?? "kanal"}`
                   : topic || server?.name)
               }
               subtitleTone={typing ? "live" : "muted"}

@@ -1028,6 +1028,35 @@ export interface ThreadSummary {
   latestMessageId: string | null;
   profileId: string;
   threadStarterMessageId: string | null;
+  /** Özel alt başlık: yalnızca üyeler + moderatörler görür; eski sunucuda yok. */
+  private?: boolean;
+  /** Özel alt başlıkta herkes davet edebilir mi; eski sunucuda yok. */
+  invitable?: boolean;
+  /** Oturum sahibi takip ediyor (üye); eski sunucuda yok. */
+  joined?: boolean;
+}
+
+/** ciklet-web: `GET /api/channels/[id]/thread-members` (lib/server/thread-members). */
+export interface ThreadMembersState {
+  threadId: string;
+  private: boolean;
+  invitable: boolean;
+  ownerId: string;
+  joined: boolean;
+  canJoin: boolean;
+  canAdd: boolean;
+  canManage: boolean;
+  canEditInvitable: boolean;
+  members: {
+    profileId: string;
+    memberId: string;
+    joinedAt: string;
+    username: string;
+    name: string | null;
+    imageUrl: string | null;
+    nickname: string | null;
+    isBot: boolean;
+  }[];
 }
 
 /** ciklet-web: `GET /api/servers/[id]/threads` satırı (kenar listesi). */
@@ -1038,6 +1067,8 @@ export interface ServerThread {
   latestMessageId: string | null;
   /** Kilitli (web lib/threads); eski sunucuda yok. */
   locked?: boolean;
+  /** Özel alt başlık; eski sunucuda yok. */
+  private?: boolean;
 }
 
 /** ciklet-web: `GET /api/channels/[id]/forum` gönderisi. */
@@ -1081,11 +1112,37 @@ export interface ServerEventItem {
   location: string | null;
   startsAt: string;
   endsAt: string | null;
+  /** null → tekrarlanmaz (web `lib/server-events/recurrence`). */
+  recurrenceRule?: RecurrenceRule | null;
+  /** 16:9 kapak görseli. */
+  coverImageUrl?: string | null;
   status: ServerEventStatus;
   creator: { username: string; name: string | null; imageUrl: string | null } | null;
   interestedCount: number;
   interested: boolean;
 }
+
+/** Discord `recurrence_rule` alt kümesi; günler 0 = Pazartesi … 6 = Pazar. */
+export interface RecurrenceRule {
+  frequency: "daily" | "weekly" | "monthly" | "yearly";
+  interval: number;
+  byWeekday?: number[];
+  byNWeekday?: { n: number; day: number }[];
+  byMonth?: number[];
+  byMonthDay?: number[];
+  /** IANA saat dilimi; yoksa sunucu Europe/Istanbul varsayar. */
+  timeZone?: string;
+}
+
+export type RecurrencePresetId =
+  | "none"
+  | "daily"
+  | "weekdays"
+  | "weekly"
+  | "biweekly"
+  | "monthlyNth"
+  | "monthlyDate"
+  | "yearly";
 
 // ── Soundboard ──────────────────────────────────────────────────────
 

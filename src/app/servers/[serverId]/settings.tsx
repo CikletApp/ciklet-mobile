@@ -63,6 +63,9 @@ export default function ServerSettingsScreen() {
   // Uçla aynı kapı (getServerManager): sahip, yönetici ya da "Sunucuyu Yönet".
   const canEdit = isOwner || membership?.role === MemberRole.ADMIN || hasServerPermission(permissions, "MANAGE_SERVER");
   const canManageServer = hasServerPermission(permissions, "MANAGE_SERVER");
+  // Web Sunucu Ayarları › Davetler sekmesiyle aynı kapı (davet listesi ucu:
+  // Sunucuyu Yönet ya da Kanalları Yönet).
+  const canManageInvites = canManageServer || hasServerPermission(permissions, "MANAGE_CHANNELS");
   const moderationLinks: SettingsLink[] = [
     ...(hasServerPermission(permissions, "MANAGE_ROLES") ? [{ icon: "shield" as const, title: "Roller", href: `/servers/${serverId}/roles` }] : []),
     ...(canManageServer ? [{ icon: "flag" as const, title: "Moderasyon", href: `/servers/${serverId}/moderation` }] : []),
@@ -274,6 +277,12 @@ export default function ServerSettingsScreen() {
               subtitle={`https://ciklet.xyz/i/${server.inviteCode}`}
               onPress={() => void Share.share({ message: `https://ciklet.xyz/i/${server.inviteCode}` })}
             />
+            {canManageInvites ? (
+              <>
+                <Divider inset={52} />
+                <ListRow icon="user-plus" title="Davetler" onPress={() => router.push(`/servers/${serverId}/invites`)} />
+              </>
+            ) : null}
             {canManageServer ? (
               <>
                 <Divider inset={52} />

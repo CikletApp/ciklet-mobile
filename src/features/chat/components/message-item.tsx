@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageType } from "@ciklet/embedded-activities-sdk/types";
 
 import { api } from "@/api/client";
+import { openApplicationIfRequired } from "@/features/join-application/join-application-sheet";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import { Avatar, Icon, StyledName, emojify, type IconName } from "@/components/ui";
@@ -46,6 +47,9 @@ import {
   readThread,
 } from "@/lib/message-extras";
 import { readMessageComponents } from "@/lib/message-components";
+import { readSafetyAlert } from "@/lib/safety";
+import { useT } from "@/lib/i18n";
+import { SafetyAlertCard } from "./safety-alert-card";
 import { EphemeralFooter, InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
 import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
@@ -968,7 +972,26 @@ function PollResultNotice({ message, onJump }: { message: ChatMessagePayload; on
 }
 
 function SystemMessage({ message }: { message: ChatMessagePayload }) {
+  const scope = useChatScope();
+  // Güvenlik uyarısı (web lib/safety): eylem düğmeli kart.
+  const safetyAlert = (message.type as string) === "AUTOMOD_ALERT" ? readSafetyAlert(message.metadata) : null;
+  if (safetyAlert) return <SafetyAlertCard serverId={scope?.serverId} messageId={message.id} alert={safetyAlert} createdAt={message.createdAt} />;
+  return <PlainSystemMessage message={message} />;
+}
+
+/** AutoMod v2 uyarısının kural etiketi (web chat-message-group ile aynı: ad · gönderildi · karantina). */
+function automodRuleTag(metadata: unknown, t: ReturnType<typeof useT>): string | null {
+  const automod = metadata && typeof metadata === "object" ? (metadata as { automod?: unknown }).automod : null;
+  if (!automod || typeof automod !== "object") return null;
+  const a = automod as { ruleName?: unknown; allowed?: unknown; quarantined?: unknown };
+  if (typeof a.ruleName !== "string") return null;
+  return `${a.ruleName}${a.allowed === true ? ` · ${t("safety.alert.allowedTag")}` : ""}${a.quarantined === true ? ` · ${t("safety.alert.quarantinedTag")}` : ""}`;
+}
+
+function PlainSystemMessage({ message }: { message: ChatMessagePayload }) {
+  const t = useT();
   const { icon, tint } = systemStyle(message.type);
+  const ruleTag = (message.type as string) === "AUTOMOD_ALERT" ? automodRuleTag(message.metadata, t) : null;
 
   return (
     <View
@@ -984,6 +1007,7 @@ function SystemMessage({ message }: { message: ChatMessagePayload }) {
       <Icon name={icon} size={14} color={tint} />
       <Text style={{ ...typography.caption, color: colors.muted, flexShrink: 1 }}>
         {message.content}
+        {ruleTag ? <Text style={{ ...fw(600) }}>{`  [${ruleTag}]`}</Text> : null}
       </Text>
       <Text style={{ fontSize: 10, color: colors.muted }}>
         {formatTime(message.createdAt)}
@@ -1033,6 +1057,10 @@ function ServerInviteCard({ inviteCode }: { inviteCode: string | null }) {
     onSuccess: async ({ serverId }) => {
       await queryClient.invalidateQueries({ queryKey: qk.memberships });
       router.replace(`/servers/${serverId}`);
+    },
+    // Katılım başvurusu gerekiyorsa form açılır (web davet sayfası ile aynı).
+    onError: (reason) => {
+      if (invite.data) openApplicationIfRequired(reason, invite.data.id, inviteCode);
     },
   });
   if (!inviteCode) return null;

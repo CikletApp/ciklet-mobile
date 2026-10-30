@@ -80,10 +80,32 @@ export const endpoints = {
   botCommands: (serverId: string, channelId: string) =>
     `/api/servers/${encodeURIComponent(serverId)}/bot-commands${qs({ channelId })}`,
   invite: (code: string) => `/api/i/${encodeURIComponent(code)}`,
+  /** GET liste / POST oluştur (süre, kullanım, geçici üyelik, roller, etkinlik). */
+  serverInvites: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/invites`,
+  /** PATCH { paused } / DELETE. */
+  serverInviteItem: (serverId: string, code: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/invites/${encodeURIComponent(code)}`,
 
   // ── Moderasyon ve entegrasyonlar (web Ayarlar › Moderasyon / Entegrasyonlar) ──
   /** GET sunucu + moderasyon/AutoMod alanları (yalnızca Sunucuyu Yönet'e dolu). */
   serverModeration: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}${qs({ moderation: 1 })}`,
+  /** GET `{ invitesPausedUntil, dmsPausedUntil, … }` / POST `{ invitesHours?, dmsHours? }` (0 = yeniden aç) — Güvenlik Eylemleri. */
+  serverSafety: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/safety`,
+  /** POST `{ action }` — güvenlik uyarısı satırındaki tek tık eylem. */
+  serverSafetyAlert: (serverId: string, messageId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/safety/alerts/${encodeURIComponent(messageId)}`,
+  /** GET `{ members }` — karantinadaki üyeler; DELETE `/:memberId` kaldırır. */
+  serverQuarantine: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/quarantine`,
+  serverQuarantineMember: (serverId: string, memberId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/quarantine/${encodeURIComponent(memberId)}`,
+  /** GET form + kendi başvurum (`?code=` davet) / POST `{ code?, answers, rulesAccepted }` — başvuran. */
+  joinApplication: (serverId: string, code?: string | null) =>
+    `/api/servers/${encodeURIComponent(serverId)}/join-application${qs({ code: code ?? undefined })}`,
+  /** GET `{ applications }` (moderatör kuyruğu) — `?status=PENDING`. */
+  joinApplications: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/join-applications${qs({ status: "PENDING" })}`,
+  /** PATCH `{ action: "approve" | "reject", reason? }`. */
+  joinApplicationReview: (serverId: string, applicationId: string) =>
+    `/api/servers/${encodeURIComponent(serverId)}/join-applications/${encodeURIComponent(applicationId)}`,
   /** GET kurulu botlar; DELETE `/:botId` botu kaldırır (Sunucuyu Yönet). */
   serverIntegrations: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/integrations`,
   serverIntegration: (serverId: string, botId: string) =>
@@ -434,6 +456,15 @@ export const endpoints = {
   /** POST `{ locked }` — alt başlığı kilitle / kilidi aç ("Alt Başlıkları Yönet"). */
   threadLock: (threadId: string) =>
     `/api/channels/${encodeURIComponent(threadId)}/lock`,
+  /**
+   * GET alt başlık üyeleri + oturum sahibinin durumu (`ThreadMembersState`);
+   * PATCH `{ invitable }` — özel alt başlıkta "Herkes davet edebilir".
+   */
+  threadMembers: (threadId: string) =>
+    `/api/channels/${encodeURIComponent(threadId)}/thread-members`,
+  /** PUT katıl/ekle, DELETE ayrıl/çıkar; `userId` kendisi için `@me`. */
+  threadMember: (threadId: string, userId: string) =>
+    `/api/channels/${encodeURIComponent(threadId)}/thread-members/${encodeURIComponent(userId)}`,
   /** POST `{ pinned }` — forum gönderisini sabitle / sabitini kaldır (forum başına bir). */
   forumPin: (postId: string) =>
     `/api/channels/${encodeURIComponent(postId)}/forum-pin`,

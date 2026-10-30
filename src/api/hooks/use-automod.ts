@@ -24,6 +24,13 @@ export interface ServerModerationSettings {
   automodTimeoutSeconds?: number;
   automodAlertChannelId?: string | null;
   automodRules?: unknown;
+  /** AutoMod v2 (web lib/automod-rules): kaydedilmemişse eski ayarlardan türetilmiş liste. */
+  automodRuleList?: unknown;
+  automodRuleListLegacy?: boolean;
+  safetyAlertsChannelId?: string | null;
+  invitesPausedUntil?: string | null;
+  dmsPausedUntil?: string | null;
+  joinApplication?: unknown;
 }
 
 export interface ServerModerationUpdate {
@@ -37,6 +44,9 @@ export interface ServerModerationUpdate {
   automodTimeoutSeconds?: number;
   automodAlertChannelId?: string | null;
   automodRules?: unknown;
+  automodRuleList?: unknown;
+  safetyAlertsChannelId?: string | null;
+  joinApplication?: unknown;
   clearRaidLock?: true;
 }
 

@@ -528,3 +528,23 @@ export function readMessageComponents(metadata: unknown): ReadComponents {
 export function accentHex(color: number | null | undefined): string | null {
   return typeof color === "number" ? `#${color.toString(16).padStart(6, "0")}` : null;
 }
+
+/**
+ * Mesaj metni yokken önizleme/bildirim için V2 metinlerinin düz özeti —
+ * web `componentsPlainText` ile aynı (iç içe Metin bileşenleri, 200 sınırı).
+ */
+export function componentsPlainText(components: readonly unknown[], max = 200): string {
+  const parts: string[] = [];
+  const walk = (list: readonly unknown[]) => {
+    for (const raw of list) {
+      const c = obj(raw);
+      if (!c || typeof c.type !== "number") continue;
+      if (c.type === ComponentType.TEXT_DISPLAY && typeof c.content === "string") parts.push(c.content);
+      if (Array.isArray(c.components)) walk(c.components);
+      if (c.accessory) walk([c.accessory]);
+    }
+  };
+  walk(components);
+  const joined = parts.join("\n").trim();
+  return joined.length > max ? `${joined.slice(0, max - 1)}…` : joined;
+}

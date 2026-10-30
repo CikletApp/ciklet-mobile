@@ -281,6 +281,10 @@ export const pickAndUploadProfileBanner = (onProgress?: (progress: number) => vo
 export const pickAndUploadServerBanner = (onProgress?: (progress: number) => void) =>
   pickAndUploadImage("serverBanner", [3, 1], onProgress);
 
+/** Etkinlik kapağı (16:9) — web etkinlik formuyla aynı `serverBanner` rotası. */
+export const pickAndUploadEventCover = (onProgress?: (progress: number) => void) =>
+  pickAndUploadImage("serverBanner", [16, 9], onProgress);
+
 /** Rol simgesinin tavanı — web UploadThing `roleIcon` rotası (256 KB). */
 const ROLE_ICON_MAX_BYTES = 256 * 1024;
 /** Simge adın yanında 16-20 px çizilir; 128 px fazlasıyla yeter. */

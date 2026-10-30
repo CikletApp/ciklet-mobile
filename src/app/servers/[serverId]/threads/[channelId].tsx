@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlatList, Text, View } from "react-native";
+import { FlatList, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
@@ -25,7 +25,8 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * Bir kanalın alt başlıkları — web kanal başlığındaki "Alt başlıklar"
  * listesi: Açık / Arşiv sekmeleri, satıra dokununca alt başlık açılır,
  * üstte yeni alt başlık açma alanı (üst kanala yazabilen herkes açabilir;
- * yetki sunucuda denetlenir).
+ * yetki sunucuda denetlenir). "Özel alt başlık" (web create-thread-dialog
+ * ile aynı): yalnızca davet edilenler ve moderatörler görür.
  */
 export default function ChannelThreadsScreen() {
   const { serverId, channelId } = useLocalSearchParams<{ serverId: string; channelId: string }>();
@@ -34,15 +35,19 @@ export default function ChannelThreadsScreen() {
   const threads = useChannelThreads(serverId, channelId, tab === "archived");
   const create = useCreateThread(serverId, channelId);
   const [name, setName] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [invitable, setInvitable] = useState(true);
 
   const submit = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     create.mutate(
-      { name: trimmed },
+      { name: trimmed, ...(isPrivate ? { private: true, invitable } : {}) },
       {
         onSuccess: (thread) => {
           setName("");
+          setIsPrivate(false);
+          setInvitable(true);
           openThread(serverId, channelId, thread);
         },
         onError: (error) =>
@@ -66,6 +71,28 @@ export default function ChannelThreadsScreen() {
           />
         </View>
         <Button label="Aç" icon="plus" disabled={!name.trim()} loading={create.isPending} onPress={submit} />
+      </View>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <Icon name="eye-off" size={17} color={colors.muted} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ ...typography.bodyStrong, color: colors.bright }}>Özel alt başlık</Text>
+            <Text style={{ ...typography.caption, color: colors.muted }}>
+              Yalnızca davet ettiğin kişiler ve moderatörler görebilir.
+            </Text>
+          </View>
+          <Switch value={isPrivate} onValueChange={setIsPrivate} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />
+        </View>
+        {isPrivate ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <Icon name="users" size={17} color={colors.muted} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ ...typography.bodyStrong, color: colors.bright }}>Herkes davet edebilir</Text>
+              <Text style={{ ...typography.caption, color: colors.muted }}>Kapalıysa yalnızca moderatörler üye ekleyebilir.</Text>
+            </View>
+            <Switch value={invitable} onValueChange={setInvitable} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />
+          </View>
+        ) : null}
       </View>
 
       <SegmentedTabs
@@ -99,7 +126,7 @@ export default function ChannelThreadsScreen() {
             <Pressable
               onPress={() => openThread(serverId, channelId, item)}
               accessibilityRole="button"
-              accessibilityLabel={`${item.name} alt başlığı${item.locked ? ", kilitli" : ""}${item.archivedAt ? ", arşivde" : ""}`}
+              accessibilityLabel={`${item.name} alt başlığı${item.private ? ", özel" : ""}${item.joined ? ", takip ediliyor" : ""}${item.locked ? ", kilitli" : ""}${item.archivedAt ? ", arşivde" : ""}`}
               style={({ pressed }) => ({
                 flexDirection: "row",
                 alignItems: "center",
@@ -120,6 +147,8 @@ export default function ChannelThreadsScreen() {
                     : `Açıldı · ${formatChatListTime(item.createdAt)}`}
                 </Text>
               </View>
+              {item.private ? <Icon name="eye-off" size={15} color={colors.muted} /> : null}
+              {item.joined ? <Icon name="bell" size={15} color={colors.brand} /> : null}
               {item.locked ? <Icon name="lock" size={15} color={colors.muted} /> : null}
               <Icon name="chevron-right" size={16} color={colors.muted} />
             </Pressable>

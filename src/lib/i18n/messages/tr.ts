@@ -1,4 +1,5 @@
 import { automodTr, streamingTr } from "./automod.tr";
+import { safetyTr } from "./safety.tr";
 import { serverGuideTr } from "./server-guide.tr";
 
 /**
@@ -207,6 +208,7 @@ export const tr = {
   },
   /** AutoMod ayarları (Sunucu Ayarları → Moderasyon) — automod.tr.ts. */
   automod: automodTr,
+  safety: safetyTr,
   /** Yayın bağlantıları ve bağlantılı roller — automod.tr.ts. */
   streaming: streamingTr,
   /** Sunucu Rehberi (web ile aynı anahtarlar) — server-guide.tr.ts. */

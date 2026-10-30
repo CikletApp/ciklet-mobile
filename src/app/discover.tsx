@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/api/client";
+import { openApplicationIfRequired } from "@/features/join-application/join-application-sheet";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import type { DiscoverAppItem, DiscoverServerItem } from "@/api/types";
@@ -130,11 +131,14 @@ function ServerList({ query }: { query: string }) {
       void queryClient.invalidateQueries({ queryKey: qk.discover("servers", query) });
       router.push(`/servers/${serverId}`);
     },
-    onError: (reason) =>
+    onError: (reason, serverId) => {
+      // Katılım başvurusu (web lib/join-application): form açılır, hata değil.
+      if (openApplicationIfRequired(reason, serverId)) return;
       showDialog(
         "Katılınamadı",
         reason instanceof ApiError ? reason.message : "Sunucuya katılınamadı."
-      ),
+      );
+    },
   });
 
   if (list.isLoading) {

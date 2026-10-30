@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable as RNPressable, ScrollView, Switch, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
@@ -17,10 +17,8 @@ import {
   ActionSheet,
   Button,
   EmptyState,
-  Icon,
   type IconName,
   KeyboardAvoider,
-  Pressable,
   Screen,
   ScreenLoader,
   TextField,
@@ -31,8 +29,6 @@ import {
   AUTOMOD_CAPS_MIN_LETTERS_RANGE,
   AUTOMOD_CAPS_PERCENT_RANGE,
   AUTOMOD_MAX_DOMAINS,
-  AUTOMOD_MAX_WORDS,
-  AUTOMOD_MENTION_LIMIT_MAX,
   AUTOMOD_SPAM_DUPLICATES_RANGE,
   AUTOMOD_SPAM_MESSAGES_RANGE,
   AUTOMOD_SPAM_WINDOW_RANGE,
@@ -49,6 +45,12 @@ import {
   type AutomodRules,
 } from "@/lib/automod";
 import { formatTime } from "@/lib/format";
+import { normalizeAutomodRuleList, type AutomodRuleV2 } from "@/lib/automod-rules";
+import { normalizeJoinApplicationConfig, type JoinApplicationConfig } from "@/lib/join-application";
+import { AutomodRulesEditor } from "@/features/moderation/automod-rules-editor";
+import { JoinApplicationSection } from "@/features/moderation/join-application-section";
+import { SafetySection } from "@/features/moderation/safety-section";
+import { Card, CardHeader, PillPicker, SelectRow, SubTitle, Toggle, Warning } from "@/features/moderation/ui";
 import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -88,6 +90,12 @@ interface ModerationDraft {
   rulesRequired: boolean;
   rulesText: string;
   automod: AutomodDraft;
+  /** AutoMod v2 kuralları (web lib/automod-rules) — kaydedilmemişse eski ayarlardan türetilmiş. */
+  ruleList: AutomodRuleV2[];
+  /** Güvenlik uyarıları kanalı (web lib/safety). */
+  alertsChannelId: string | null;
+  /** Katılım başvurusu (web lib/join-application). */
+  joinApp: JoinApplicationConfig;
 }
 
 function automodDraftFrom(base: {
@@ -138,6 +146,9 @@ function draftFrom(server: ServerModerationSettings): ModerationDraft {
       alertChannelId: server.automodAlertChannelId ?? null,
       rules: normalizeAutomodRules(server.automodRules),
     }),
+    ruleList: normalizeAutomodRuleList(server.automodRuleList).rules,
+    alertsChannelId: server.safetyAlertsChannelId ?? null,
+    joinApp: normalizeJoinApplicationConfig(server.joinApplication),
   };
 }
 
@@ -166,10 +177,11 @@ const digitsOnly = (value: string) => value.replace(/[^0-9]/g, "");
 
 /**
  * Sunucu Ayarları › Moderasyon — web `moderation-tab.tsx`'in mobil
- * karşılığı: kural kabul ekranı, doğrulama seviyesi, baskın kilidi ve
- * AutoMod (Türkçe hazır küfür filtresi + izin listesi, yasaklı kelimeler,
- * bahsetme seli, spam sezgisi, büyük harf seli, bağlantı/davet/engelli alan
- * filtreleri, profil süzgeci, eylemler, muafiyetler). Kaydet başlıkta
+ * karşılığı: kural kabul ekranı, doğrulama seviyesi, baskın kilidi, AutoMod
+ * v2 kuralları (anahtar kelime / hazır liste / bahsetme spam'i / üye
+ * profili), ek filtreler (spam sezgisi, büyük harf seli, bağlantı/davet/
+ * engelli alan), ortak eylemler, muafiyetler, Güvenlik Eylemleri +
+ * karantina ve Katılım Başvurusu. Kaydet başlıkta
  * (settings.tsx deseni); web gibi tek PATCH. AutoMod metinleri i18n
  * (automod.settings.*). Yetki "Sunucuyu Yönet" — uç da denetler.
  */
@@ -185,6 +197,9 @@ export default function ServerModerationScreen() {
   const [draft, setDraft] = useState<ModerationDraft | null>(null);
   const [saved, setSaved] = useState<ModerationDraft | null>(null);
   const [picker, setPicker] = useState<"level" | "timeout" | "alert" | null>(null);
+  // Kaydet/Geri Al sonrası düzenleyici taslaklarını yeniden kurmak için.
+  const [editorVersion, setEditorVersion] = useState(0);
+  const [ruleListLegacy, setRuleListLegacy] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!server || saved) return;
@@ -192,6 +207,7 @@ export default function ServerModerationScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(initial);
     setSaved(initial);
+    setRuleListLegacy(server.automodRuleListLegacy === true);
   }, [server, saved]);
 
   if (isLoading || (server && !draft)) return <ScreenLoader label="Moderasyon ayarları yükleniyor…" />;
@@ -216,7 +232,6 @@ export default function ServerModerationScreen() {
   const textChannels = (channels ?? []).filter((c) => c.type === ChannelType.TEXT);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const locked = isRaidLocked(server.raidLockUntil);
-  const wordCount = parseBlockedWordsText(draft.wordsText).length;
   const alertChannel = textChannels.find((c) => c.id === automod.alertChannelId);
 
   const save = () => {
@@ -237,6 +252,9 @@ export default function ServerModerationScreen() {
         automodTimeoutSeconds: automod.timeoutSeconds,
         automodAlertChannelId: automod.alertChannelId,
         automodRules: rules,
+        automodRuleList: draft.ruleList,
+        safetyAlertsChannelId: draft.alertsChannelId,
+        joinApplication: draft.joinApp,
       },
       {
         onSuccess: () => {
@@ -253,9 +271,15 @@ export default function ServerModerationScreen() {
               alertChannelId: automod.alertChannelId,
               rules,
             }),
+            // Sunucunun normalleştirdiği hâlle eşitle (boş sorular atılır).
+            ruleList: normalizeAutomodRuleList(draft.ruleList).rules,
+            alertsChannelId: draft.alertsChannelId,
+            joinApp: normalizeJoinApplicationConfig(draft.joinApp),
           };
           setDraft(normalized);
           setSaved(normalized);
+          setRuleListLegacy(false);
+          setEditorVersion((v) => v + 1);
           showToast("Moderasyon ayarları kaydedildi.");
         },
         onError: (reason) => showToast(reason instanceof ApiError ? reason.message : "Kaydedilemedi.", "error"),
@@ -263,7 +287,10 @@ export default function ServerModerationScreen() {
     );
   };
 
-  const reset = () => setDraft(saved);
+  const reset = () => {
+    setDraft(saved);
+    setEditorVersion((v) => v + 1);
+  };
 
   const clearRaidLock = () => {
     update.mutate(
@@ -346,53 +373,23 @@ export default function ServerModerationScreen() {
             )}
           </Card>
 
-          {/* Türkçe hazır küfür filtresi: tek dokunuşla açılan ön ayar. */}
-          <Card highlight={!automod.profanityPreset}>
-            <CardHeader
-              icon="sparkles"
-              title={t("automod.settings.preset.title")}
-              description={t("automod.settings.preset.description")}
-              toggle={automod.profanityPreset ? <Toggle value disabled={disabled} onChange={(v) => patchAutomod({ profanityPreset: v })} /> : null}
-            />
-            {!automod.profanityPreset ? (
-              <Button label={t("automod.settings.preset.enable")} disabled={disabled} onPress={() => patchAutomod({ profanityPreset: true })} />
-            ) : null}
-            <SubTitle text={t("automod.settings.preset.allowTitle")} hint={t("automod.settings.preset.allowDescription")} />
-            <TextField
-              value={automod.allowWordsText}
-              editable={!disabled}
-              multiline
-              autoCapitalize="none"
-              onChangeText={(v) => patchAutomod({ allowWordsText: v })}
-              placeholder={t("automod.settings.preset.allowPlaceholder")}
-            />
-          </Card>
 
-          {/* Yasaklı kelimeler */}
-          <Card>
-            <CardHeader title={t("automod.settings.words.title")} description={t("automod.settings.words.description", { max: AUTOMOD_MAX_WORDS })} />
-            <TextField
-              value={draft.wordsText}
-              editable={!disabled}
-              multiline
-              autoCapitalize="none"
-              onChangeText={(v) => patch({ wordsText: v })}
-              placeholder={t("automod.settings.words.placeholder")}
-            />
-            <Text style={{ ...typography.caption, color: colors.muted }}>{t("automod.settings.words.count", { count: wordCount })}</Text>
-          </Card>
+          {/* AutoMod v2 kuralları */}
+          <AutomodRulesEditor
+            rules={draft.ruleList}
+            legacy={ruleListLegacy === true}
+            disabled={disabled}
+            roles={(roles ?? []).map((r) => ({ id: r.id, name: r.name, color: r.color ?? null }))}
+            channels={textChannels}
+            version={editorVersion}
+            onChange={(ruleList) => patch({ ruleList })}
+          />
 
-          {/* Bahsetme seli */}
-          <Card>
-            <CardHeader icon="users" title={t("automod.settings.mentions.title")} description={t("automod.settings.mentions.description", { max: AUTOMOD_MENTION_LIMIT_MAX })} />
-            <TextField
-              value={automod.mentionLimit}
-              editable={!disabled}
-              keyboardType="number-pad"
-              onChangeText={(v) => patchAutomod({ mentionLimit: digitsOnly(v) })}
-              placeholder={t("automod.settings.mentions.off")}
-            />
-          </Card>
+          {/* Ek filtreler */}
+          <View style={{ gap: 2 }}>
+            <Text style={{ ...typography.overline, color: colors.muted }}>{t("safety.extras.title").toLocaleUpperCase("tr-TR")}</Text>
+            <Text style={{ ...typography.caption, color: colors.muted }}>{t("safety.extras.description")}</Text>
+          </View>
 
           {/* Spam sezgisi */}
           <Card>
@@ -457,16 +454,6 @@ export default function ServerModerationScreen() {
             />
           </Card>
 
-          {/* Profil süzgeci */}
-          <Card>
-            <CardHeader
-              icon="user"
-              title={t("automod.settings.profile.title")}
-              description={t("automod.settings.profile.description")}
-              toggle={<Toggle value={automod.profileFilter} disabled={disabled} onChange={(v) => patchAutomod({ profileFilter: v })} />}
-            />
-          </Card>
-
           {/* Eylemler */}
           <Card>
             <CardHeader icon="timer" title={t("automod.settings.actionsSection.title")} description={t("automod.settings.actionsSection.description")} />
@@ -516,6 +503,26 @@ export default function ServerModerationScreen() {
               onToggle={(id) => toggleIn("exemptChannelIds", id)}
             />
           </Card>
+
+          {/* Güvenlik Eylemleri + karantina */}
+          <SafetySection
+            serverId={serverId}
+            canManage={canManage}
+            channels={textChannels}
+            alertsChannelId={draft.alertsChannelId}
+            onAlertsChannelChange={(alertsChannelId) => patch({ alertsChannelId })}
+          />
+
+          {/* Katılım Başvurusu */}
+          <JoinApplicationSection
+            serverId={serverId}
+            config={draft.joinApp}
+            disabled={disabled}
+            canReview={canManage}
+            hasRules={Boolean(draft.rulesText.trim())}
+            version={editorVersion}
+            onChange={(joinApp) => patch({ joinApp })}
+          />
 
         </ScrollView>
       </KeyboardAvoider>
@@ -575,64 +582,6 @@ export default function ServerModerationScreen() {
   );
 }
 
-function Card({ children, highlight }: { children: ReactNode; highlight?: boolean }) {
-  return (
-    <View
-      style={{
-        gap: spacing.sm,
-        padding: spacing.lg,
-        borderRadius: radii.xl,
-        borderCurve: "continuous",
-        borderWidth: 1,
-        borderColor: highlight ? colors.brand : colors.border,
-        backgroundColor: colors.panel,
-      }}
-    >
-      {children}
-    </View>
-  );
-}
-
-function CardHeader({ icon, title, description, toggle }: { icon?: IconName; title: string; description: string; toggle?: ReactNode }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-          {icon ? <Icon name={icon} size={14} color={colors.muted} /> : null}
-          <Text style={{ ...typography.overline, color: colors.muted, flexShrink: 1 }}>{title.toLocaleUpperCase("tr-TR")}</Text>
-        </View>
-        <Text style={{ ...typography.caption, color: colors.muted }}>{description}</Text>
-      </View>
-      {toggle}
-    </View>
-  );
-}
-
-function SubTitle({ text, hint }: { text: string; hint?: string }) {
-  return (
-    <View style={{ gap: 2, marginTop: spacing.xs }}>
-      <Text style={{ ...typography.caption, ...fw(600), color: colors.text }}>{text}</Text>
-      {hint ? <Text style={{ ...typography.caption, color: colors.muted }}>{hint}</Text> : null}
-    </View>
-  );
-}
-
-function Warning({ text }: { text: string }) {
-  return <Text style={{ ...typography.caption, color: colors.warning }}>{text}</Text>;
-}
-
-function Toggle({ value, disabled, onChange }: { value: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <Switch
-      value={value}
-      disabled={disabled}
-      onValueChange={onChange}
-      trackColor={{ false: colors.border, true: colors.brand }}
-      thumbColor="#ffffff"
-    />
-  );
-}
-
 function NumberField({
   label,
   value,
@@ -656,83 +605,5 @@ function NumberField({
       maxLength={String(range.max).length}
       onChangeText={(v) => onChange(digitsOnly(v))}
     />
-  );
-}
-
-function SelectRow({ label, disabled, onPress }: { label: string; disabled?: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      haptic="light"
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        gap: spacing.sm,
-        minHeight: 44,
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.md,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: pressed ? colors.raised : "transparent",
-        opacity: disabled ? 0.6 : 1,
-      })}
-    >
-      <Text style={{ ...typography.body, color: colors.text, flex: 1 }} numberOfLines={2}>
-        {label}
-      </Text>
-      <Icon name="chevron-down" size={16} color={colors.muted} />
-    </Pressable>
-  );
-}
-
-/** Çoklu seçim: seçili öğe vurgulu hap (web PillPicker). */
-function PillPicker({
-  items,
-  selected,
-  disabled,
-  emptyLabel,
-  onToggle,
-}: {
-  items: { id: string; label: string; color?: string | null }[];
-  selected: string[];
-  disabled: boolean;
-  emptyLabel: string;
-  onToggle: (id: string) => void;
-}) {
-  if (items.length === 0) return <Text style={{ ...typography.caption, color: colors.muted }}>{emptyLabel}</Text>;
-  return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-      {items.map((item) => {
-        const on = selected.includes(item.id);
-        return (
-          <Pressable
-            key={item.id}
-            onPress={() => onToggle(item.id)}
-            disabled={disabled}
-            haptic="light"
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: on, disabled }}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              minHeight: 32,
-              paddingHorizontal: 10,
-              borderRadius: radii.full,
-              borderWidth: 1,
-              borderColor: on ? colors.brand : colors.border,
-              backgroundColor: on ? colors.brandSoft : "transparent",
-              opacity: disabled ? 0.6 : 1,
-            }}
-          >
-            {item.color !== undefined ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color || "#99aab5" }} /> : null}
-            <Text style={{ ...typography.caption, ...fw(on ? 700 : 500), color: on ? colors.bright : colors.muted }}>{item.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
   );
 }

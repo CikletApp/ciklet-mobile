@@ -5,7 +5,7 @@ import { ChannelType, type Channel } from "@ciklet/embedded-activities-sdk/types
 import { ApiError, api } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
-import type { ChannelExtras, ForumResponse, ServerThread, ThreadSummary } from "../types";
+import type { ChannelExtras, ForumResponse, ServerThread, ThreadMembersState, ThreadSummary } from "../types";
 
 /**
  * Alt başlıklar (thread) ve forum gönderileri.
@@ -177,7 +177,8 @@ export function useThreadParent(
 export function useCreateThread(serverId: string, channelId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name: string }) =>
+    /** `private` + `invitable`: özel alt başlık (web lib/threads; yalnızca mesajsız açılış). */
+    mutationFn: (input: { name: string; private?: boolean; invitable?: boolean }) =>
       api<{ id: string; name: string }>(endpoints.channelThreads(channelId), { method: "POST", body: input }),
     onSuccess: (thread) => {
       addSidebarThread(queryClient, serverId, {
@@ -235,6 +236,44 @@ export function useThreadState(serverId: string | undefined, parentId: string | 
   const thread = inOpen ?? inArchive;
   const known = Boolean(inOpen) || Boolean(archived.data);
   return { thread, archived: known ? !inOpen && Boolean(inArchive) : undefined };
+}
+
+// ── Alt başlık üyeliği (takip) ──────────────────────────────────────
+//
+// Web lib/server/thread-members: katılmak = takip etmek (kenar listesi,
+// okunmamış, bildirim); özel alt başlığı yalnızca üyeler ve "Alt
+// Başlıkları Yönet" görür. Kurallar sunucuda; arayüz `ThreadMembersState`
+// bayraklarına bakar.
+
+export function useThreadMembers(serverId: string | undefined, threadId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.threadMembers(serverId ?? "yok", threadId ?? "yok"),
+    enabled: Boolean(serverId && threadId) && enabled,
+    queryFn: () => api<ThreadMembersState>(endpoints.threadMembers(threadId!)),
+    staleTime: 30_000,
+  });
+}
+
+/** Takip Et (`join: true`) / Takibi Bırak; ekle (`userId`) / çıkar. */
+export function useThreadMembership(serverId: string, threadId: string) {
+  const queryClient = useQueryClient();
+  // Kenar listesi, alt başlık listeleri ve üye listesi aynı anahtar altında.
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: qk.channels(serverId) });
+  return useMutation({
+    mutationFn: ({ userId, add }: { userId: string; add: boolean }) =>
+      api<null>(endpoints.threadMember(threadId, userId), { method: add ? "PUT" : "DELETE" }),
+    onSuccess: refresh,
+  });
+}
+
+/** Özel alt başlıkta "Herkes davet edebilir". */
+export function useSetThreadInvitable(serverId: string, threadId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invitable: boolean) =>
+      api<{ invitable: boolean }>(endpoints.threadMembers(threadId), { method: "PATCH", body: { invitable } }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: qk.threadMembers(serverId, threadId) }),
+  });
 }
 
 // ── Forum ───────────────────────────────────────────────────────────

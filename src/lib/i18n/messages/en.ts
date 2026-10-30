@@ -1,4 +1,5 @@
 import { automodEn, streamingEn } from "./automod.en";
+import { safetyEn } from "./safety.en";
 import { serverGuideEn } from "./server-guide.en";
 import type { Messages } from "./tr";
 
@@ -195,6 +196,7 @@ export const en = {
     },
   },
   automod: automodEn,
+  safety: safetyEn,
   streaming: streamingEn,
   serverGuide: serverGuideEn,
 } satisfies Messages;
