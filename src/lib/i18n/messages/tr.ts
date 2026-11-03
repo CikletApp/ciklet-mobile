@@ -4,6 +4,8 @@ import { voiceE2eeTr } from "./voice-e2ee.tr";
 import { serverGuideTr } from "./server-guide.tr";
 import { serverTagTr } from "./server-tag.tr";
 import { serverBoostTr } from "./server-boost.tr";
+import { accountSwitcherTr } from "./account-switcher.tr";
+import { familyCenterTr } from "./family-center.tr";
 
 /**
  * Türkçe sözlük — KAYNAK. Anahtar yapısı buradan türer; diğer diller
@@ -227,6 +229,10 @@ export const tr = {
   serverTag: serverTagTr,
   /** Sunucu Takviyesi (web ile aynı anahtarlar) — server-boost.tr.ts. */
   serverBoost: serverBoostTr,
+  /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.tr.ts. */
+  accountSwitcher: accountSwitcherTr,
+  /** Aile Merkezi (web ile aynı anahtarlar) — family-center.tr.ts. */
+  familyCenter: familyCenterTr,
 } as const;
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

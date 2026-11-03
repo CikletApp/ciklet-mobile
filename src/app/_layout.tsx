@@ -256,6 +256,9 @@ export default function RootLayout() {
                   <Stack.Screen name="servers/[serverId]/threads/[channelId]" />
                   <Stack.Screen name="servers/[serverId]/thread-members/[channelId]" />
                   <Stack.Screen name="settings/account" />
+                  <Stack.Screen name="settings/accounts" />
+                  <Stack.Screen name="settings/family-center" />
+                  <Stack.Screen name="settings/family-center-scan" />
                   <Stack.Screen name="settings/activity" />
                   <Stack.Screen name="settings/authorized-apps" />
                   <Stack.Screen name="settings/boosts" />

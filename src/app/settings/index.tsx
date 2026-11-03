@@ -106,6 +106,13 @@ export default function SettingsScreen() {
               onPress={() => router.push("/settings/privacy")}
             />
             <Divider inset={52} />
+            {/* Aile Merkezi (Discord) — web Ayarlar → Aile Merkezi ile aynı. */}
+            <ListRow
+              icon="heart"
+              title={t("familyCenter.title")}
+              onPress={() => router.push("/settings/family-center")}
+            />
+            <Divider inset={52} />
             <ListRow
               icon="users"
               title={t("settings.rows.friendRequests")}
@@ -181,6 +188,13 @@ export default function SettingsScreen() {
         <SectionHeader title={t("settings.sections.session")} />
         <View style={{ paddingHorizontal: spacing.lg }}>
           <ListGroup>
+            {/* Hesap değiştirici (Discord "Hesap Değiştir") — web kullanıcı menüsü. */}
+            <ListRow
+              icon="users"
+              title={t("accountSwitcher.menuItem")}
+              onPress={() => router.push("/settings/accounts")}
+            />
+            <Divider inset={52} />
             <ListRow
               icon="logout"
               iconTint={colors.danger}

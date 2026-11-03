@@ -52,6 +52,12 @@ export const endpoints = {
   /** POST mağaza satın alması doğrulama → güncel plan (`/api/mentol/me` biçimi) + `store`. */
   mentolIapVerify: "/api/mentol/iap/verify",
   /** Sunucu Takviyesi — "Takviyelerim" (GET), uygula (POST), aktar (POST), iptal (PATCH). */
+  // Aile Merkezi (web ile aynı uçlar).
+  familyCenter: "/api/family-center",
+  familyCenterCode: "/api/family-center/code",
+  familyCenterLinks: "/api/family-center/links",
+  familyCenterLink: (linkId: string) => `/api/family-center/links/${encodeURIComponent(linkId)}`,
+  familyCenterSummary: "/api/family-center/summary",
   boosts: "/api/boosts",
   boostsApply: "/api/boosts/apply",
   boost: (boostId: string) => `/api/boosts/${encodeURIComponent(boostId)}`,

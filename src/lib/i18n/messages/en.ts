@@ -4,6 +4,8 @@ import { voiceE2eeEn } from "./voice-e2ee.en";
 import { serverGuideEn } from "./server-guide.en";
 import { serverTagEn } from "./server-tag.en";
 import { serverBoostEn } from "./server-boost.en";
+import { accountSwitcherEn } from "./account-switcher.en";
+import { familyCenterEn } from "./family-center.en";
 import type { Messages } from "./tr";
 
 /** İngilizce sözlük — `tr.ts` ile aynı şekli taşımak zorunda. */
@@ -211,4 +213,8 @@ export const en = {
   serverGuide: serverGuideEn,
   serverTag: serverTagEn,
   serverBoost: serverBoostEn,
+  /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.en.ts. */
+  accountSwitcher: accountSwitcherEn,
+  /** Aile Merkezi (web ile aynı anahtarlar) — family-center.en.ts. */
+  familyCenter: familyCenterEn,
 } satisfies Messages;

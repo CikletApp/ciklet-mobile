@@ -10,6 +10,7 @@ import { setListenAlongProfile, stopListenAlong } from "@/features/spotify/liste
 import { SESSION_REFRESH_LEEWAY_MS } from "@/lib/config";
 import { clearNativeCookies } from "@/lib/cookies";
 import { kvGet, kvSet } from "@/lib/local-db";
+import { removeAccount as forgetSavedAccount, upsertAccount } from "@/lib/account-vault";
 import { unregisterPushToken } from "@/lib/notifications";
 import { clearNsfwAcknowledgements } from "@/lib/nsfw-ack";
 import { clearDecorations } from "@/stores/decorations";
@@ -59,6 +60,13 @@ interface AuthState {
   profile: OwnProfile | null;
   /** `banned` durumunda ekranda gösterilecek gerekçe ve süre. */
   ban: apiClient.BanNotice | null;
+  /**
+   * "Hesap ekle" sürüyor (features/account-switcher): giriş ekranı açık ama
+   * önceki hesap kasada bekliyor; "Vazgeç" o hesaba geri geçer.
+   */
+  addingFrom: string | null;
+  /** Oturumu düşmüş kayıtlı hesap: karşılama ekranı girişi bu adla açar. */
+  loginHint: string | null;
 
   /** Açılışta bir kez: depodan oturumu yükler, gerekiyorsa tazeler. */
   bootstrap: () => Promise<void>;
@@ -85,6 +93,8 @@ export const useAuth = create<AuthState>((set, get) => ({
   status: "loading",
   profile: null,
   ban: null,
+  addingFrom: null,
+  loginHint: null,
 
   bootstrap: async () => {
     // Önceki sürümün WebView'ının kavanoza bıraktığı çerezler kimlik
@@ -159,10 +169,14 @@ export const useAuth = create<AuthState>((set, get) => ({
     // Profil okunamadıysa sunucunun giriş yanıtındaki bayrak yedek.
     const gateProfile = current ?? (res.eulaRequired ? { ...res.profile, eulaAccepted: false } : null);
     rememberProfile(current);
-    set({ status: gateStatus(gateProfile, res.phoneVerificationRequired === true), profile: current ?? res.profile });
+    set({ status: gateStatus(gateProfile, res.phoneVerificationRequired === true), profile: current ?? res.profile, addingFrom: null });
   },
 
   logout: async () => {
+    // Hesap değiştirici: çıkan hesap bu cihazın listesinden düşer (diğer
+    // kayıtlı hesaplar kalır — Discord gibi).
+    const leavingId = get().profile?.id;
+    if (leavingId) await forgetSavedAccount(leavingId).catch(() => {});
     // Birlikte dinleme "stop"u kimlikli gitmeli: token düşmeden önce.
     await stopListenAlong();
     // Token'ı ÖNCE düşür: çıkıştan sonra kimlik başlığı kalmaz.
@@ -239,16 +253,30 @@ useAuth.subscribe((state, prev) => {
   const prevProfileId = prev.status === "signedIn" ? (prev.profile?.id ?? null) : null;
   if (profileId !== prevProfileId) setListenAlongProfile(profileId);
 
+  // Oturumdaki hesap bu cihazın hesap listesinde (hesap değiştirici).
+  if (state.status === "signedIn" && state.profile?.id) {
+    const p = state.profile;
+    if (p !== prev.profile) {
+      void upsertAccount({ id: p.id, username: p.username, name: p.name ?? null, imageUrl: p.imageUrl ?? null }).catch(() => {});
+    }
+  }
+
   const signedOut = state.status === "signedOut" || state.status === "banned";
   const wasSignedOut = prev.status === "signedOut" || prev.status === "banned";
-  if (signedOut && !wasSignedOut) {
-    clearDecorations();
-    clearNameStyles();
-    resetInteractionModal();
-    resetEphemeralMessages();
-    void clearNsfwAcknowledgements().catch(() => {});
-  }
+  if (signedOut && !wasSignedOut) resetAccountScopedStores();
 });
+
+/**
+ * Hesaba bağlı bellek içi depoları sıfırlar — çıkışta ve hesap geçişinde
+ * (features/account-switcher). Disk tarafını clearPersistedCache siler.
+ */
+export function resetAccountScopedStores(): void {
+  clearDecorations();
+  clearNameStyles();
+  resetInteractionModal();
+  resetEphemeralMessages();
+  void clearNsfwAcknowledgements().catch(() => {});
+}
 
 apiClient.onAccountBanned((notice) => {
   void clearPersistedCache().catch(() => {});

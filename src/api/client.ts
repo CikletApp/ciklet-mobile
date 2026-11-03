@@ -379,6 +379,42 @@ async function performRefresh(): Promise<boolean> {
   }
 }
 
+// ── Hesap değiştirici (features/account-switcher) ───────────────────
+
+/**
+ * Kayıtlı (etkin olmayan) bir hesabın oturumunu sunucuda doğrular ve
+ * tazeler: yenileme ucu web'deki geçişle AYNI kuralları uygular (hesap
+ * var, ban yok, parola değişimi / "her yerden çıkış" ile iptal edilmemiş).
+ * Etkin oturuma DOKUNMAZ.
+ *  - taze oturum → geçişe hazır
+ *  - "invalid"   → yeniden giriş gerekli
+ *  - "network"   → şu an doğrulanamadı (çevrimdışı)
+ */
+export async function validateStoredSession(session: StoredSession): Promise<StoredSession | "invalid" | "network"> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${API_BASE_URL}${endpoints.auth.refresh}`, {
+      method: "POST",
+      headers: { Accept: "application/json", Cookie: cookieHeaderFor(session) },
+      signal: controller.signal,
+      credentials: "omit",
+    });
+    if (!res.ok) return res.status >= 500 ? "network" : "invalid";
+    const data = (await res.json()) as MobileAuthRefreshResponse;
+    return { token: data.token, cookieName: data.cookieName, expiresAt: data.expiresAt };
+  } catch {
+    return "network";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Doğrulanmış kayıtlı oturumu etkin oturum yapar (geçişin son adımı). */
+export async function adoptSession(session: StoredSession): Promise<void> {
+  await persist(session);
+}
+
 export async function logout(): Promise<void> {
   cachedSession = null;
   sessionLoaded = true;

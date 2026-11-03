@@ -6,6 +6,7 @@ import { ApiError, banNoticeFrom } from "@/api/client";
 import { Button } from "@/components/ui";
 import { AuthField, AuthShell } from "@/features/auth/auth-shell";
 import { VerifyEmailForm } from "@/features/auth/verify-email-form";
+import { useT } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
 import { fw } from "@/theme/fonts";
 import { authBrand, colors, spacing, typography } from "@/theme/tokens";
@@ -46,6 +47,9 @@ export default function LoginScreen() {
   const params = useLocalSearchParams<{ username?: string; verified?: string; reset?: string }>();
   const login = useAuth((s) => s.login);
   const showBan = useAuth((s) => s.showBan);
+  // "Hesap ekle" (features/account-switcher): önceki hesap kasada bekliyor.
+  const adding = useAuth((s) => s.addingFrom !== null);
+  const t = useT();
   const passwordRef = useRef<TextInput>(null);
   const [username, setUsername] = useState(params.username ?? "");
   const [password, setPassword] = useState("");
@@ -132,8 +136,8 @@ export default function LoginScreen() {
 
   return (
     <AuthShell
-      title={step === "totp" ? "İki adımlı doğrulama" : "Tekrar hoş geldin!"}
-      subtitle={step === "totp" ? "Hesabını korumak için bir doğrulama kodu daha gerekiyor." : "Seni yeniden gördüğümüze sevindik."}
+      title={step === "totp" ? "İki adımlı doğrulama" : adding ? t("accountSwitcher.addTitle") : "Tekrar hoş geldin!"}
+      subtitle={step === "totp" ? "Hesabını korumak için bir doğrulama kodu daha gerekiyor." : adding ? t("accountSwitcher.addDescription") : "Seni yeniden gördüğümüze sevindik."}
       onBack={step === "totp" ? backToCredentials : () => router.back()}
     >
       {notice && step === "credentials" ? (
