@@ -30,6 +30,8 @@ import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import { displayNameOf } from "@/lib/format";
 import { STORE_KIND_LABEL, formatPriceTry } from "@/lib/profile-extras";
 import { PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
+import { formatCountdown, groupByCollection, hasMobileRenderer } from "@/lib/store-display";
+import { useNow } from "@/lib/use-now";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -45,8 +47,14 @@ import { fw } from "@/theme/fonts";
  * Ücretsiz mağaza modunda (`data.free`, web STORE_FREE_MODE) para akışı
  * olmadığından tüm platformlarda bütün ürünler listelenir ve "Ücretsiz al"
  * `POST /api/store/claim` çağırır; hediye gizli.
+ *
+ * Katalog veritabanından (web root → Mağaza Yönetimi): öne çıkan ürünler
+ * üstte, kalanı koleksiyon başlıklarıyla (root'un sırası); süreli ürün
+ * "Sınırlı süre" + geri sayım, kampanya üstü çizili fiyat + "-%X" + geri
+ * sayım, "Mentol'e dahil" ürünü Mentol üyesi ücretsiz alır (`item.free`).
+ * Çizimi bu sürümde olmayan ürün listelenmez (lib/store-display).
  */
-type Item = StoreCatalogResponse["items"][number];
+type Item = StoreCatalogResponse["items"][number] & { kind: StoreItemKind };
 
 const KIND_FIELD: Record<StoreItemKind, keyof UpdateProfileInput> = {
   decoration: "avatarDecorationId",
@@ -71,7 +79,16 @@ export default function StoreScreen() {
 
   const data = catalog.data;
   const free = Boolean(data.free);
-  const items = data.items.filter((item) => item.kind === kind && (PURCHASES_ENABLED || free || item.owned));
+  const items = data.items.filter(
+    (item): item is Item =>
+      item.kind === kind && hasMobileRenderer(item.kind, item.id) && (PURCHASES_ENABLED || free || item.owned || Boolean(item.free))
+  );
+  // Öne çıkanlar üstte (sahip olunmayanlar), kalanı koleksiyonlara göre.
+  const picks = items.filter((item) => item.featured && !item.owned);
+  const groups = groupByCollection(
+    items.filter((item) => !picks.includes(item)),
+    data.collections
+  );
 
   return (
     <Screen>
@@ -104,14 +121,21 @@ export default function StoreScreen() {
             description="Sahip olduğun ürünler burada görünür; takıp çıkarabilirsin."
           />
         ) : null}
-        {items.map((item) => (
-          <StoreCard
-            key={item.id}
-            item={item}
-            equipped={data.equipped[item.kind] === item.id}
-            purchasable={data.purchasable}
-            profile={profile ? { id: profile.id, imageUrl: profile.imageUrl, username: profile.username, title: displayNameOf(profile) } : null}
-          />
+        {[...(picks.length ? [{ id: "__picks", title: "Öne çıkan ürünler", items: picks }] : []), ...groups].map((group) => (
+          <View key={group.id ?? "__rest"} style={{ gap: spacing.md }}>
+            {group.title && (picks.length > 0 || groups.length > 1 || group.id === "__picks") ? (
+              <Text style={{ ...typography.title, color: colors.bright, marginTop: spacing.sm }}>{group.title}</Text>
+            ) : null}
+            {group.items.map((item) => (
+              <StoreCard
+                key={item.id}
+                item={item}
+                equipped={data.equipped[item.kind] === item.id}
+                purchasable={data.purchasable}
+                profile={profile ? { id: profile.id, imageUrl: profile.imageUrl, username: profile.username, title: displayNameOf(profile) } : null}
+              />
+            ))}
+          </View>
         ))}
       </ScrollView>
     </Screen>
@@ -136,8 +160,10 @@ function StoreCard({
   const [giftOpen, setGiftOpen] = useState(false);
   const [giftTo, setGiftTo] = useState("");
   const free = Boolean(item.free);
-  // Ücretli akış (fiyat, satın al, hediye) yalnızca ödeme açık platformda ve ücretsiz mod kapalıyken.
-  const paid = PURCHASES_ENABLED && !free;
+  // Ücretli akış (fiyat, satın al, hediye) yalnızca ödeme açık platformda,
+  // ücretsiz alım yokken ve ürün parayla satılıyorsa.
+  const moneyless = item.priceAvailable === false;
+  const paid = PURCHASES_ENABLED && !free && !moneyless && item.forSale !== false;
   const discounted = item.finalPrice < item.price;
 
   const toggleEquip = () => {
@@ -190,7 +216,9 @@ function StoreCard({
               ) : null}
               Ücretsiz
             </Text>
-          ) : !PURCHASES_ENABLED ? null : (
+          ) : !PURCHASES_ENABLED ? null : moneyless ? (
+            <Text style={{ ...typography.caption, ...fw(700), color: colors.muted }}>Yalnızca Ciklet ile</Text>
+          ) : (
             <Text style={{ ...typography.bodyStrong, color: colors.bright }}>
               {discounted ? (
                 <Text style={{ ...typography.caption, color: colors.muted, textDecorationLine: "line-through" }}>
@@ -202,6 +230,7 @@ function StoreCard({
           )}
         </View>
         <Text style={{ ...typography.caption, color: colors.muted }}>{item.description}</Text>
+        <StoreBadges item={item} />
 
         <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs }}>
           {item.owned ? (
@@ -214,7 +243,7 @@ function StoreCard({
             />
           ) : free ? (
             <Button label="Ücretsiz al" icon="sparkles" onPress={claimFree} loading={claim.isPending} style={{ flex: 1 }} />
-          ) : !PURCHASES_ENABLED ? null : (
+          ) : !paid ? null : (
             <Button
               label="Satın al"
               onPress={() => buy({ kind: "store", itemId: item.id })}
@@ -258,6 +287,40 @@ function StoreCard({
           <Text style={{ ...typography.caption, color: colors.muted }}>Satın alma şu an kapalı.</Text>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+/**
+ * Rozetler (web kartıyla aynı metinler): kampanya "-%X" + "İndirim bitimine
+ * …", süreli ürün "Sınırlı süre" + "… kaldı", "Mentol'e dahil", "Satıştan
+ * kalktı". Geri sayım dakikada bir, son bir saatte saniyede bir tazelenir.
+ */
+function StoreBadges({ item }: { item: Item }) {
+  const ends = item.owned ? null : item.saleEndsAt ?? item.availableUntil ?? null;
+  const end = ends ? Date.parse(ends) : NaN;
+  const coarse = useNow(Number.isFinite(end) ? 60_000 : 0);
+  const fine = useNow(Number.isFinite(end) && end - coarse < 3_600_000 ? 1000 : 0);
+  const now = Number.isFinite(end) && end - coarse < 3_600_000 ? fine : coarse;
+  const left = Number.isFinite(end) && end > now ? formatCountdown(end - now) : null;
+  const chips: { label: string; color: string }[] = [];
+  if (!item.owned && item.salePercent) chips.push({ label: `-%${item.salePercent}`, color: "#ff5e8a" });
+  if (!item.owned && item.availableUntil) chips.push({ label: "Sınırlı süre", color: "#ff9a3d" });
+  if (!item.owned && item.mentolIncluded) chips.push({ label: "Mentol'e dahil", color: colors.brand });
+  if (item.forSale === false) chips.push({ label: "Satıştan kalktı", color: colors.muted });
+  if (!chips.length && !left) return null;
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.xs }}>
+      {chips.map((chip) => (
+        <Text key={chip.label} style={{ ...typography.caption, ...fw(700), color: chip.color }}>
+          {chip.label}
+        </Text>
+      ))}
+      {left ? (
+        <Text style={{ ...typography.caption, ...fw(700), color: item.saleEndsAt ? "#ff5e8a" : "#ff9a3d" }}>
+          {item.saleEndsAt ? `İndirim bitimine ${left}` : `${left} kaldı`}
+        </Text>
+      ) : null}
     </View>
   );
 }

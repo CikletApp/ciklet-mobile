@@ -915,14 +915,54 @@ export interface StoreCatalogResponse {
    * ile ücretsiz alınır; `finalPrice` 0, `price` liste fiyatı. Eski sunucuda yok.
    */
   free?: boolean;
+  /**
+   * Veritabanı kataloğu (root → Mağaza Yönetimi): vitrindeki koleksiyonlar,
+   * sırasıyla. Eski sunucuda yok.
+   */
+  collections?: {
+    id: string;
+    name: string;
+    nameEn?: string | null;
+    subtitle?: string | null;
+    subtitleEn?: string | null;
+    bannerKey: string;
+    sortOrder?: number;
+    availableUntil?: string | null;
+  }[];
+  /**
+   * Web ad stili türlerini de (nameFont / nameEffect) gönderir; mobil mağaza
+   * yalnızca `StoreItemKind` türlerini listeler.
+   */
   items: {
     id: string;
-    kind: StoreItemKind;
+    kind: StoreItemKind | "nameFont" | "nameEffect";
     name: string;
+    nameEn?: string | null;
     description: string;
+    descriptionEn?: string | null;
+    /** Liste fiyatı (TL). */
     price: number;
+    /** Kampanya sonrası, Mentol öncesi (TL). */
+    salePrice?: number;
+    /** Ödenecek (kampanya + Mentol). */
     finalPrice: number;
+    /** Kampanya indirimi yüzdesi ve bitişi (ISO). */
+    salePercent?: number | null;
+    saleEndsAt?: string | null;
+    /** false → parayla satılmıyor (yalnızca Ciklet). */
+    priceAvailable?: boolean;
+    pointsPrice?: number | null;
+    /** Mentol (Plus+) üyesi ücretsiz alır. */
+    mentolIncluded?: boolean;
+    featured?: boolean;
+    sortOrder?: number;
+    collection?: string | null;
+    /** Süreli ürün: bitiş (ISO) — "Sınırlı süre" + geri sayım. */
+    availableUntil?: string | null;
+    /** false → satıştan kalktı, sende olduğu için listede (yalnızca takılır). */
+    forSale?: boolean;
     owned: boolean;
+    /** Bu kişi ücretsiz alabilir (ücretsiz mod ya da Mentol'e dahil). */
     free?: boolean;
   }[];
   equipped: {
