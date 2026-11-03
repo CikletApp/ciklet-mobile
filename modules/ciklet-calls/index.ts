@@ -33,6 +33,8 @@ export type CallActionEvent = { action: "decline" | "accept" | "show" | "hangup"
 
 type CikletCallsEvents = {
   onCallAction: (event: CallActionEvent) => void;
+  /** Android: etkinlik resim içinde resim kipine girdi/çıktı. */
+  onPictureInPictureChange: (event: { active: boolean }) => void;
 };
 
 declare class CikletCallsModule extends NativeModule<CikletCallsEvents> {
@@ -62,6 +64,15 @@ declare class CikletCallsModule extends NativeModule<CikletCallsEvents> {
    * yüze yaklaşınca ekran kararır. Eski derlemede yoktur — çağıran denetler.
    */
   setProximityScreenOff?(enabled: boolean): void;
+  /**
+   * Resim içinde resim (yalnızca Android; iOS'ta `VideoTrack iosPIP`).
+   * Eski derlemede yoktur — çağıran denetler.
+   */
+  isPictureInPictureSupported?(): boolean;
+  isInPictureInPicture?(): boolean;
+  /** Açıkken uygulamadan çıkılınca görüşme PiP'e geçer; `width`/`height` pencere oranı. */
+  setAutoPictureInPicture?(enabled: boolean, width: number, height: number): Promise<void>;
+  enterPictureInPicture?(): Promise<boolean>;
 }
 
 // ── iOS: CallKit + PushKit ───────────────────────────────────────────────

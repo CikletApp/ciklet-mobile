@@ -27,6 +27,7 @@ import { displayNameOf } from "@/lib/format";
 import { useAuth } from "@/stores/auth";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { iosPipOptions, useCallPip } from "./use-call-pip";
 import { useCallTimer } from "./use-call-timer";
 import { VoiceE2EEPill } from "./voice-e2ee";
 
@@ -52,6 +53,11 @@ import { VoiceE2EEPill } from "./voice-e2ee";
  * ekranı olur (kırpılmadan, `contain`), kameralar küçük pencerede;
  * uzun basınca tam ekran. Kendi paylaşımın çizilmez (yansıma döngüsü),
  * kontrollerin üstünde "paylaşıyorsun" kartı görünür.
+ *
+ * Resim içinde resim (use-call-pip): uygulamadan çıkınca görüşme sistemin
+ * küçük penceresinde sürer. Android'de tüm etkinlik küçülür — o sırada
+ * yalnızca ana görüntü çizilir; iOS'ta ana görüntü (karşı tarafın kamerası
+ * ya da ekranı) AVPictureInPictureController'a taşınır.
  */
 
 /** Dokunmadan bu kadar sonra kontroller gizlenir. */
@@ -189,6 +195,9 @@ export function VideoCallStage({
     Animated.timing(opacity, { toValue: chromeShown ? 1 : 0, duration: 220, useNativeDriver: true }).start();
   }, [chromeShown, opacity]);
 
+  const systemPip = useCallPip(true, Boolean(remoteShare));
+  const inSystemPip = systemPip.active;
+
   const mainIdentity = identityOf(main);
   const pipIdentity = identityOf(pip);
 
@@ -209,6 +218,7 @@ export function VideoCallStage({
             style={{ flex: 1 }}
             objectFit="contain"
             zOrder={0}
+            iosPIP={iosPipOptions(true, true)}
           />
         ) : main.on && main.ref ? (
           <VideoTrack
@@ -218,6 +228,7 @@ export function VideoCallStage({
             objectFit="cover"
             zOrder={0}
             mirror={main.isLocal && facing === "user"}
+            iosPIP={iosPipOptions(!main.isLocal)}
           />
         ) : (
           <View
@@ -226,7 +237,7 @@ export function VideoCallStage({
               alignItems: "center",
               justifyContent: "center",
               gap: spacing.md,
-              paddingBottom: controlsHeight / 2,
+              paddingBottom: inSystemPip ? 0 : controlsHeight / 2,
             }}
           >
             <View
@@ -240,12 +251,14 @@ export function VideoCallStage({
               <Avatar
                 imageUrl={mainIdentity.imageUrl}
                 fallbackText={mainIdentity.username}
-                size={112}
+                size={inSystemPip ? 56 : 112}
                 backgroundColor={TILE_BACKGROUND}
               />
             </View>
-            <Text style={{ ...typography.display, color: OVERLAY_TEXT }}>{mainIdentity.name}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+            <Text numberOfLines={1} style={{ ...(inSystemPip ? typography.bodyStrong : typography.display), color: OVERLAY_TEXT }}>
+              {mainIdentity.name}
+            </Text>
+            <View style={{ display: inSystemPip ? "none" : "flex", flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
               {remote || main.isLocal ? (
                 <Icon name="video-off" size={16} color="rgba(255,255,255,0.7)" />
               ) : null}
@@ -255,149 +268,154 @@ export function VideoCallStage({
         )}
       </View>
 
-      {/* Görüntüye dokunmak kontrolleri açar/kapatır. */}
-      <Pressable
-        noHitSlop
-        onPress={() => (chromeShown && canHide ? setChrome(false) : poke())}
-        onLongPress={remoteShare ? () => setShareFullscreen(true) : undefined}
-        accessibilityRole="button"
-        accessibilityLabel={chromeShown ? "Kontrolleri gizle" : "Kontrolleri göster"}
-        accessibilityHint={remoteShare ? `${sharerName(remoteShare)} ekranını tam ekran açmak için basılı tut` : undefined}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Sistem PiP penceresinde (Android) yalnızca ana görüntü: kontroller dokunulamaz ve sığmaz. */}
+      {inSystemPip ? null : (
+        <>
+        {/* Görüntüye dokunmak kontrolleri açar/kapatır. */}
+        <Pressable
+          noHitSlop
+          onPress={() => (chromeShown && canHide ? setChrome(false) : poke())}
+          onLongPress={remoteShare ? () => setShareFullscreen(true) : undefined}
+          accessibilityRole="button"
+          accessibilityLabel={chromeShown ? "Kontrolleri gizle" : "Kontrolleri göster"}
+          accessibilityHint={remoteShare ? `${sharerName(remoteShare)} ekranını tam ekran açmak için basılı tut` : undefined}
+          style={StyleSheet.absoluteFill}
+        />
 
-      {/* Kendi görüntün / yer değiştirince karşı taraf */}
-      {showPip ? (
-        <GestureDetector gesture={pipDrag}>
-        <Reanimated.View
-          style={[
-            pipDragStyle,
-            {
-              position: "absolute",
-              [pipCorner.side]: spacing.lg,
-              ...(pipCorner.edge === "bottom"
-                ? { bottom: chromeShown ? controlsHeight + spacing.sm : insets.bottom + spacing.lg }
-                : { top: insets.top + (chromeShown ? 64 : spacing.sm) }),
+        {/* Kendi görüntün / yer değiştirince karşı taraf */}
+        {showPip ? (
+          <GestureDetector gesture={pipDrag}>
+          <Reanimated.View
+            style={[
+              pipDragStyle,
+              {
+                position: "absolute",
+                [pipCorner.side]: spacing.lg,
+                ...(pipCorner.edge === "bottom"
+                  ? { bottom: chromeShown ? controlsHeight + spacing.sm : insets.bottom + spacing.lg }
+                  : { top: insets.top + (chromeShown ? 64 : spacing.sm) }),
+                width: PIP_WIDTH,
+                height: PIP_HEIGHT,
+              },
+            ]}
+          >
+          <Pressable
+            haptic="light"
+            noHitSlop
+            onPress={() => setSwapped((value) => !value)}
+            accessibilityRole="button"
+            accessibilityLabel="Görüntüleri değiştir"
+            accessibilityHint="Köşeye taşımak için sürükle"
+            style={{
               width: PIP_WIDTH,
               height: PIP_HEIGHT,
-            },
-          ]}
-        >
-        <Pressable
-          haptic="light"
-          noHitSlop
-          onPress={() => setSwapped((value) => !value)}
-          accessibilityRole="button"
-          accessibilityLabel="Görüntüleri değiştir"
-          accessibilityHint="Köşeye taşımak için sürükle"
+              // Android'de SurfaceView köşe kırpmasını yok sayar; büyük yarıçap
+              // videonun köşelerini çerçevenin dışına taşırır.
+              borderRadius: Platform.OS === "ios" ? radii.lg : radii.sm,
+              borderCurve: "continuous",
+              overflow: "hidden",
+              backgroundColor: TILE_BACKGROUND,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.25)",
+            }}
+          >
+            {pip.on && pip.ref ? (
+              <VideoTrack
+                key={`pip-${pip.ref.participant.identity}`}
+                trackRef={pip.ref}
+                style={{ flex: 1 }}
+                objectFit="cover"
+                zOrder={1}
+                mirror={pip.isLocal && facing === "user"}
+              />
+            ) : (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
+                <Avatar
+                  imageUrl={pipIdentity.imageUrl}
+                  fallbackText={pipIdentity.username}
+                  size={48}
+                  backgroundColor={TILE_BACKGROUND}
+                />
+                <Icon name="video-off" size={16} color="rgba(255,255,255,0.7)" />
+              </View>
+            )}
+          </Pressable>
+          </Reanimated.View>
+          </GestureDetector>
+        ) : null}
+
+        {/* Üst çubuk: küçült · karşı taraf + süre · sohbet */}
+        <Animated.View
+          pointerEvents={chromeShown ? "box-none" : "none"}
           style={{
-            width: PIP_WIDTH,
-            height: PIP_HEIGHT,
-            // Android'de SurfaceView köşe kırpmasını yok sayar; büyük yarıçap
-            // videonun köşelerini çerçevenin dışına taşırır.
-            borderRadius: Platform.OS === "ios" ? radii.lg : radii.sm,
-            borderCurve: "continuous",
-            overflow: "hidden",
-            backgroundColor: TILE_BACKGROUND,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.25)",
+            position: "absolute",
+            top: insets.top + spacing.sm,
+            left: spacing.md,
+            right: spacing.md,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            opacity,
           }}
         >
-          {pip.on && pip.ref ? (
-            <VideoTrack
-              key={`pip-${pip.ref.participant.identity}`}
-              trackRef={pip.ref}
-              style={{ flex: 1 }}
-              objectFit="cover"
-              zOrder={1}
-              mirror={pip.isLocal && facing === "user"}
-            />
-          ) : (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
-              <Avatar
-                imageUrl={pipIdentity.imageUrl}
-                fallbackText={pipIdentity.username}
-                size={48}
-                backgroundColor={TILE_BACKGROUND}
-              />
-              <Icon name="video-off" size={16} color="rgba(255,255,255,0.7)" />
-            </View>
-          )}
-        </Pressable>
-        </Reanimated.View>
-        </GestureDetector>
-      ) : null}
-
-      {/* Üst çubuk: küçült · karşı taraf + süre · sohbet */}
-      <Animated.View
-        pointerEvents={chromeShown ? "box-none" : "none"}
-        style={{
-          position: "absolute",
-          top: insets.top + spacing.sm,
-          left: spacing.md,
-          right: spacing.md,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: spacing.sm,
-          opacity,
-        }}
-      >
-        <TopButton icon="chevron-down" label="Görüşmeyi küçült" onPress={onMinimize} />
-        <View pointerEvents="box-none" style={{ flex: 1, alignItems: "center", gap: 2 }}>
-          <Text pointerEvents="none" numberOfLines={1} style={{ ...typography.title, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>
-            {peerName}
-          </Text>
-          <Text pointerEvents="none" style={{ ...typography.caption, color: reconnecting ? "#ffd166" : OVERLAY_TEXT, ...TEXT_SHADOW }}>
-            {reconnecting ? "Yeniden bağlanılıyor…" : elapsed}
-          </Text>
-          {/* Uçtan uca şifreleme durumu + ses gizlilik kodu. */}
-          <VoiceE2EEPill onDark />
-        </View>
-        {screenShare.canShare ? (
-          <TopButton
-            icon={screenShare.sharing ? "screen-share-off" : "screen-share"}
-            label={screenShare.sharing ? "Ekran paylaşımını durdur" : "Ekranı paylaş"}
-            active={screenShare.sharing}
-            onPress={() => {
-              poke();
-              void screenShare.toggle();
-            }}
-          />
-        ) : null}
-        {onOpenChat ? (
-          <TopButton icon="message" label="Mesajlara git" onPress={onOpenChat} />
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
-      </Animated.View>
-
-      {/* Kontroller görüntünün üstünde */}
-      <Animated.View
-        pointerEvents={chromeShown ? "box-none" : "none"}
-        onLayout={(event) => setControlsHeight(Math.round(event.nativeEvent.layout.height))}
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          paddingTop: spacing.lg,
-          paddingBottom: insets.bottom + spacing.xl,
-          experimental_backgroundImage: "linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.45))",
-          opacity,
-        }}
-      >
-        {screenShare.sharing ? (
-          <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
-            <ScreenShareSelfCard variant="overlay" onStop={() => void screenShare.stop()} busy={screenShare.busy} />
+          <TopButton icon="chevron-down" label="Görüşmeyi küçült" onPress={onMinimize} />
+          <View pointerEvents="box-none" style={{ flex: 1, alignItems: "center", gap: 2 }}>
+            <Text pointerEvents="none" numberOfLines={1} style={{ ...typography.title, color: OVERLAY_TEXT, ...TEXT_SHADOW }}>
+              {peerName}
+            </Text>
+            <Text pointerEvents="none" style={{ ...typography.caption, color: reconnecting ? "#ffd166" : OVERLAY_TEXT, ...TEXT_SHADOW }}>
+              {reconnecting ? "Yeniden bağlanılıyor…" : elapsed}
+            </Text>
+            {/* Uçtan uca şifreleme durumu + ses gizlilik kodu. */}
+            <VoiceE2EEPill onDark />
           </View>
-        ) : null}
-        <CallControls onHangUp={onHangUp} showCamera variant="overlay" allowEarpiece={false} onInteract={poke} />
-      </Animated.View>
+          {screenShare.canShare ? (
+            <TopButton
+              icon={screenShare.sharing ? "screen-share-off" : "screen-share"}
+              label={screenShare.sharing ? "Ekran paylaşımını durdur" : "Ekranı paylaş"}
+              active={screenShare.sharing}
+              onPress={() => {
+                poke();
+                void screenShare.toggle();
+              }}
+            />
+          ) : null}
+          {onOpenChat ? (
+            <TopButton icon="message" label="Mesajlara git" onPress={onOpenChat} />
+          ) : (
+            <View style={{ width: 40 }} />
+          )}
+        </Animated.View>
 
-      <ScreenShareFullscreen
-        trackRef={shareFullscreen ? remoteShare : undefined}
-        onClose={() => setShareFullscreen(false)}
-      />
+        {/* Kontroller görüntünün üstünde */}
+        <Animated.View
+          pointerEvents={chromeShown ? "box-none" : "none"}
+          onLayout={(event) => setControlsHeight(Math.round(event.nativeEvent.layout.height))}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingTop: spacing.lg,
+            paddingBottom: insets.bottom + spacing.xl,
+            experimental_backgroundImage: "linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.45))",
+            opacity,
+          }}
+        >
+          {screenShare.sharing ? (
+            <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+              <ScreenShareSelfCard variant="overlay" onStop={() => void screenShare.stop()} busy={screenShare.busy} />
+            </View>
+          ) : null}
+          <CallControls onHangUp={onHangUp} showCamera variant="overlay" allowEarpiece={false} onInteract={poke} />
+        </Animated.View>
+
+        <ScreenShareFullscreen
+          trackRef={shareFullscreen ? remoteShare : undefined}
+          onClose={() => setShareFullscreen(false)}
+        />
+        </>
+      )}
       {screenShare.picker}
     </View>
   );

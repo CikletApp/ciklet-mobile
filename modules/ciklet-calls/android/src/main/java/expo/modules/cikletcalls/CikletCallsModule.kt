@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import expo.modules.kotlin.exception.CodedException
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
@@ -26,17 +27,30 @@ class CikletCallsModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("CikletCalls")
 
-    Events("onCallAction")
+    Events("onCallAction", "onPictureInPictureChange")
 
     OnCreate {
       actionListener = { action, callId ->
         sendEvent("onCallAction", mapOf("action" to action, "callId" to callId))
+      }
+      CallPictureInPicture.listener = { active ->
+        sendEvent("onPictureInPictureChange", mapOf("active" to active))
       }
     }
 
     OnDestroy {
       actionListener = null
       releaseProximityLock()
+      CallPictureInPicture.release()
+    }
+
+    // Görüntülü görüşme açıkken uygulamadan çıkılınca PiP (API 26–30; 31+ sistem kendisi).
+    OnUserLeavesActivity {
+      CallPictureInPicture.onUserLeave(appContext.currentActivity)
+    }
+
+    OnActivityEntersBackground {
+      CallPictureInPicture.sync(appContext.currentActivity)
     }
 
     // Uygulama zaten açıkken bildirimden geldi (singleTask → onNewIntent).
@@ -49,6 +63,8 @@ class CikletCallsModule : Module() {
     // Soğuk açılış: etkinlik tam ekran niyetiyle yaratıldı.
     OnActivityEntersForeground {
       val activity = appContext.currentActivity
+      CallPictureInPicture.observe(activity)
+      CallPictureInPicture.sync(activity)
       if (activity != null && IncomingCallNotifier.isCallIntent(activity.intent)) {
         IncomingCallNotifier.applyLockScreenFlags(activity, true)
       }
@@ -120,6 +136,28 @@ class CikletCallsModule : Module() {
      * uygulamalarının kullandığı PROXIMITY_SCREEN_OFF_WAKE_LOCK — ekranı
      * sistem kapatır/açar, sensörü uygulama okumaz.
      */
+    /** Cihaz PiP destekliyor mu (Android 8+ ve sistem özelliği; Android Go'da yok). */
+    Function("isPictureInPictureSupported") {
+      CallPictureInPicture.isSupported(appContext.currentActivity)
+    }
+
+    Function("isInPictureInPicture") {
+      CallPictureInPicture.isActive(appContext.currentActivity)
+    }
+
+    /**
+     * Görüntülü görüşme ekranı açıkken `true`: uygulamadan çıkınca görüşme
+     * küçük pencerede sürer. `width`/`height` pencere oranı (ör. 9×16).
+     */
+    AsyncFunction("setAutoPictureInPicture") { enabled: Boolean, width: Int, height: Int ->
+      CallPictureInPicture.configure(appContext.currentActivity, enabled, width, height)
+    }.runOnQueue(Queues.MAIN)
+
+    /** Elle PiP'e geç (düğme). Geçildiyse `true`. */
+    AsyncFunction("enterPictureInPicture") {
+      CallPictureInPicture.enter(appContext.currentActivity)
+    }.runOnQueue(Queues.MAIN)
+
     Function("setProximityScreenOff") { enabled: Boolean ->
       if (enabled) acquireProximityLock() else releaseProximityLock()
     }
