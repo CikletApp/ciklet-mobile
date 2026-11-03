@@ -5,6 +5,10 @@ import { useAuthorizedApps, useRevokeAuthorizedApp } from "@/api/hooks";
 import { Avatar, EmptyState, IconButton, ListGroup, ListRow, ListSkeleton, Screen, SectionHeader, showDialog } from "@/components/ui";
 import { colors, spacing, typography } from "@/theme/tokens";
 
+/** Web (settings-apps-tab `settingsGeneral.apps.userInstalled`) ile aynı metin. */
+const USER_INSTALLED_NOTE =
+  "Hesabına kurulu — komutları DM'lerinde, grup DM'lerinde ve izin veren sunucularda kullanabilirsin.";
+
 export default function AuthorizedAppsScreen() {
   const { data: apps, isLoading } = useAuthorizedApps();
   const revoke = useRevokeAuthorizedApp();
@@ -29,7 +33,11 @@ export default function AuthorizedAppsScreen() {
                 <ListRow
                   key={authorization.id}
                   title={authorization.application.name}
-                  subtitle={authorization.application.description ?? "Ciklet hesabına erişebilir."}
+                  subtitle={
+                    authorization.userInstalledAt
+                      ? USER_INSTALLED_NOTE
+                      : (authorization.application.description ?? "Ciklet hesabına erişebilir.")
+                  }
                   chevron={false}
                   leading={
                     <Avatar

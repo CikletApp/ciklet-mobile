@@ -146,6 +146,8 @@ export interface AuthorizedApplication {
   applicationId: string;
   createdAt: string;
   scopes?: string[];
+  /** Kullanıcıya kurulum (applications.commands; web settings-apps-tab ile aynı). */
+  userInstalledAt?: string | null;
   application: {
     name: string;
     description: string | null;
