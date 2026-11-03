@@ -90,5 +90,8 @@ export const serverBoostEn = {
     verifyFailed: "We couldn't verify the purchase. You can contact support.",
     noServers: "You have no servers to boost.",
     loadFailed: "Couldn't load boost info.",
+    restore: "Restore Purchases",
+    restoreNone: "There's no boost subscription to restore on this store account.",
+    restored: "Your boost subscription was restored.",
   },
 } satisfies Widen<typeof serverBoostTr>;

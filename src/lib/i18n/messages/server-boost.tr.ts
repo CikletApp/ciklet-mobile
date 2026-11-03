@@ -92,5 +92,8 @@ export const serverBoostTr = {
     verifyFailed: "Satın alma doğrulanamadı. Destekle iletişime geçebilirsin.",
     noServers: "Takviye uygulanabilecek bir sunucun yok.",
     loadFailed: "Takviye bilgisi yüklenemedi.",
+    restore: "Satın Alımları Geri Yükle",
+    restoreNone: "Bu mağaza hesabında geri yüklenecek bir takviye aboneliği yok.",
+    restored: "Takviye aboneliğin geri yüklendi.",
   },
 } as const;

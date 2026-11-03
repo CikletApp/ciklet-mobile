@@ -5,7 +5,7 @@ import type { BoostSlot } from "@/api/hooks";
 import { Button } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import { IAP_ENABLED, PURCHASES_ENABLED } from "@/lib/purchases";
-import { BOOST_IAP_PRODUCT_ID } from "@/lib/server-boost";
+import { boostSku } from "@/features/mentol/iap-products";
 import { colors, spacing, typography } from "@/theme/tokens";
 import { useBoostIap } from "./use-boost-iap";
 
@@ -65,6 +65,15 @@ function StoreBuyButton({ variant, onVerified }: { variant: "primary" | "seconda
       <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>
         {t("serverBoost.mobile.perMonth", { price: iap.product.displayPrice })}
       </Text>
+      {/* App Store 3.1.1: satın alınabilen her abonelik için geri yükleme yolu. */}
+      <Button
+        label={t("serverBoost.mobile.restore")}
+        variant="ghost"
+        fullWidth
+        loading={iap.restoring}
+        disabled={iap.busy}
+        onPress={() => void iap.restore()}
+      />
     </View>
   );
 }
@@ -75,5 +84,5 @@ function Hint({ text }: { text: string }) {
 
 /** Mağazanın abonelik ayarları — STORE takviyesi orada iptal edilir. */
 export function openStoreBoostSubscription(onError: () => void) {
-  void deepLinkToSubscriptions({ skuAndroid: BOOST_IAP_PRODUCT_ID, packageNameAndroid: "com.ciklet.mobile" }).catch(onError);
+  void deepLinkToSubscriptions({ skuAndroid: boostSku(), packageNameAndroid: "com.ciklet.mobile" }).catch(onError);
 }

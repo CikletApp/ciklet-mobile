@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ErrorCode,
   deepLinkToSubscriptions,
@@ -17,7 +17,8 @@ import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import type { MentolPlan, MentolStoreSubscription } from "@/api/hooks/use-settings";
 import { showDialog, showToast } from "@/components/ui";
-import { MENTOL_IAP_SKUS, iapProductDef } from "./iap-products";
+import { iapProductDef, mentolSkus } from "./iap-products";
+import { IAP_INFO_KEY, useIapInfo, validAccountToken } from "./use-iap-info";
 
 /**
  * Mentol'ün App Store / Google Play aboneliği (expo-iap, StoreKit 2 ve Play
@@ -35,13 +36,6 @@ import { MENTOL_IAP_SKUS, iapProductDef } from "./iap-products";
  * hesabına geçilip aynı Apple/Google hesabıyla geri yükleme yapılırsa sunucu
  * 409 döner ve abonelik ilk hesapta kalır.
  */
-
-interface IapInfo {
-  apple: boolean;
-  google: boolean;
-  accountToken: string;
-  store: MentolStoreSubscription | null;
-}
 
 type VerifyResponse = MentolPlan & { store: MentolStoreSubscription | null };
 
@@ -87,16 +81,14 @@ export function useMentolIap() {
   /** Kullanıcının bu oturumda başlattığı satın alma; açılışta yeniden gelen işlemler sessiz işlenir. */
   const userInitiated = useRef(false);
 
-  const info = useQuery({
-    queryKey: ["mentol-iap"],
-    queryFn: () => api<IapInfo>(endpoints.mentolIap),
-    staleTime: 60 * 1000,
-  });
+  const info = useIapInfo();
+  // Katalog sunucudan gelince (ilk yanıt) ürünler yeniden çekilsin.
+  const skuKey = info.data ? mentolSkus().join(",") : "";
   const serverReady = Platform.OS === "ios" ? info.data?.apple === true : info.data?.google === true;
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["mentol-plan"] });
-    void queryClient.invalidateQueries({ queryKey: ["mentol-iap"] });
+    void queryClient.invalidateQueries({ queryKey: IAP_INFO_KEY });
   };
 
   /** Mağaza işlemini sunucuya doğrulatır; başarıda işlemi kapatır. */
@@ -152,8 +144,8 @@ export function useMentolIap() {
   const { connected, fetchProducts } = iap;
 
   useEffect(() => {
-    if (connected) void fetchProducts({ skus: [...MENTOL_IAP_SKUS], type: "subs" }).catch(() => undefined);
-  }, [connected, fetchProducts]);
+    if (connected) void fetchProducts({ skus: mentolSkus(), type: "subs" }).catch(() => undefined);
+  }, [connected, fetchProducts, skuKey]);
 
   // Ekran açılınca mağazadaki Mentol satın almaları sessizce doğrulanır:
   // yarıda kalmış (doğrulanmamış / onaylanmamış) satın alma tamamlanır.
@@ -181,7 +173,7 @@ export function useMentolIap() {
   const purchase = async (product: ProductSubscription) => {
     if (busySku) return;
     const token = info.data?.accountToken;
-    if (!serverReady || !token) {
+    if (!serverReady || !validAccountToken(token)) {
       showDialog("Şu anda kullanılamıyor", "Mağaza satın alımları şu anda kullanılamıyor. Biraz sonra tekrar dene.");
       return;
     }
@@ -253,7 +245,7 @@ export function useMentolIap() {
 
   /** Mağazanın abonelik yönetim ekranı (iptal, plan değiştirme, ödeme yöntemi). */
   const manage = (productId?: string | null) => {
-    void deepLinkToSubscriptions({ skuAndroid: productId ?? info.data?.store?.productId ?? MENTOL_IAP_SKUS[0], packageNameAndroid: ANDROID_PACKAGE }).catch(() =>
+    void deepLinkToSubscriptions({ skuAndroid: productId ?? info.data?.store?.productId ?? mentolSkus()[0], packageNameAndroid: ANDROID_PACKAGE }).catch(() =>
       showToast("Abonelik ayarları açılamadı.", "error"),
     );
   };
@@ -270,6 +262,6 @@ export function useMentolIap() {
     purchase,
     restore,
     manage,
-    reloadProducts: () => void fetchProducts({ skus: [...MENTOL_IAP_SKUS], type: "subs" }).catch(() => undefined),
+    reloadProducts: () => void fetchProducts({ skus: mentolSkus(), type: "subs" }).catch(() => undefined),
   };
 }

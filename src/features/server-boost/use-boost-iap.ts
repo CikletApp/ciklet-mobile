@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { useQuery } from "@tanstack/react-query";
 import {
   ErrorCode,
   finishTransaction,
   getAvailablePurchases,
+  restorePurchases as restoreStorePurchases,
   useIAP,
   type ProductSubscription,
   type Purchase,
@@ -15,9 +15,10 @@ import { ApiError, api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useInvalidateBoosts, type BoostSlot } from "@/api/hooks";
 import { showDialog, showToast } from "@/components/ui";
+import { boostSku, isBoostSku } from "@/features/mentol/iap-products";
+import { useIapInfo, validAccountToken } from "@/features/mentol/use-iap-info";
 import { useT } from "@/lib/i18n";
 import { IAP_ENABLED } from "@/lib/purchases";
-import { BOOST_IAP_PRODUCT_ID } from "@/lib/server-boost";
 
 /**
  * Sunucu Takviyesinin App Store / Google Play aboneliği (web lib/iap/products
@@ -32,18 +33,17 @@ import { BOOST_IAP_PRODUCT_ID } from "@/lib/server-boost";
  *
  * Mentol hook'u da `useIAP` dinliyor: her iki dinleyici de kendi ürün
  * kimliğine bakıp diğerinin satın almasını yok sayar.
+ *
+ * Ürün kimliği sunucunun kataloğundan (GET /api/mentol/iap `boostProducts`,
+ * bkz. features/mentol/iap-products). İptal/iade durumu sunucudan okunur:
+ * mağaza bildirimi (App Store Server Notifications / Play RTDN) slotun
+ * `canceledAt`/`expiresAt` alanını günceller, iade edilen slot kalkar.
  */
-
-interface IapInfo {
-  apple: boolean;
-  google: boolean;
-  accountToken: string;
-}
 
 type VerifyOutcome = { kind: "ok"; slots: BoostSlot[] } | { kind: "conflict" | "unavailable" | "failed" };
 
 function isBoostPurchase(purchase: Purchase): boolean {
-  return purchase.productId === BOOST_IAP_PRODUCT_ID && Boolean(purchase.purchaseToken);
+  return isBoostSku(purchase.productId) && Boolean(purchase.purchaseToken);
 }
 
 /**
@@ -54,6 +54,7 @@ export function useBoostIap(onVerified?: (slots: BoostSlot[]) => void) {
   const t = useT();
   const invalidate = useInvalidateBoosts();
   const [busy, setBusy] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const silentSyncDone = useRef(false);
   const userInitiated = useRef(false);
   const verifiedRef = useRef(onVerified);
@@ -61,12 +62,8 @@ export function useBoostIap(onVerified?: (slots: BoostSlot[]) => void) {
     verifiedRef.current = onVerified;
   }, [onVerified]);
 
-  const info = useQuery({
-    queryKey: ["mentol-iap"],
-    queryFn: () => api<IapInfo>(endpoints.mentolIap),
-    staleTime: 60 * 1000,
-    enabled: IAP_ENABLED,
-  });
+  const info = useIapInfo(IAP_ENABLED);
+  const sku = info.data ? boostSku() : "";
   const serverReady = IAP_ENABLED && (Platform.OS === "ios" ? info.data?.apple === true : info.data?.google === true);
 
   const errorMessage = (error: PurchaseError): string | null => {
@@ -140,8 +137,8 @@ export function useBoostIap(onVerified?: (slots: BoostSlot[]) => void) {
   const { connected, fetchProducts } = iap;
 
   useEffect(() => {
-    if (IAP_ENABLED && connected) void fetchProducts({ skus: [BOOST_IAP_PRODUCT_ID], type: "subs" }).catch(() => undefined);
-  }, [connected, fetchProducts]);
+    if (IAP_ENABLED && connected && sku) void fetchProducts({ skus: [sku], type: "subs" }).catch(() => undefined);
+  }, [connected, fetchProducts, sku]);
 
   // Yarıda kalmış (doğrulanmamış / onaylanmamış) takviye satın alması
   // sessizce tamamlanır — Mentol hook'uyla aynı kural.
@@ -163,13 +160,13 @@ export function useBoostIap(onVerified?: (slots: BoostSlot[]) => void) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, serverReady]);
 
-  const product: ProductSubscription | null = iap.subscriptions.find((p) => p.id === BOOST_IAP_PRODUCT_ID) ?? null;
+  const product: ProductSubscription | null = (sku && iap.subscriptions.find((p) => p.id === sku)) || null;
 
   /** Tek takviye aboneliği satın alır; sonuç dinleyiciden gelir. */
   const purchase = async () => {
     if (busy) return;
     const token = info.data?.accountToken;
-    if (!serverReady || !token || !product) {
+    if (!serverReady || !validAccountToken(token) || !product) {
       showDialog(t("serverBoost.actions.buy"), t("serverBoost.mobile.unavailable"));
       return;
     }
@@ -200,6 +197,39 @@ export function useBoostIap(onVerified?: (slots: BoostSlot[]) => void) {
     }
   };
 
+  /**
+   * Satın alımları geri yükle (App Store kuralı 3.1.1: geri yükleme yolu
+   * zorunlu). Bu mağaza hesabındaki takviye aboneliği sunucuya yeniden
+   * doğrulatılır; slot zaten varsa sunucu idempotent davranır.
+   */
+  const restore = async () => {
+    if (restoring) return;
+    if (!serverReady) {
+      showDialog(t("serverBoost.title"), t("serverBoost.mobile.unavailable"));
+      return;
+    }
+    setRestoring(true);
+    try {
+      await restoreStorePurchases().catch(() => undefined);
+      const purchases = (await getAvailablePurchases()).filter(isBoostPurchase);
+      if (purchases.length === 0) {
+        showDialog(t("serverBoost.title"), t("serverBoost.mobile.restoreNone"));
+        return;
+      }
+      const outcomes: VerifyOutcome["kind"][] = [];
+      for (const p of purchases) outcomes.push((await verify(p)).kind);
+      invalidate();
+      if (outcomes.includes("ok")) showToast(t("serverBoost.mobile.restored"));
+      else if (outcomes.includes("conflict")) showDialog(t("serverBoost.title"), t("serverBoost.mobile.conflict"));
+      else if (outcomes.includes("unavailable")) showDialog(t("serverBoost.title"), t("serverBoost.mobile.verifyLater"));
+      else showDialog(t("serverBoost.title"), t("serverBoost.mobile.verifyFailed"));
+    } catch (error) {
+      showDialog(t("serverBoost.title"), errorMessage(error as PurchaseError) ?? t("serverBoost.actions.failed"));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   return {
     enabled: IAP_ENABLED,
     connected,
@@ -207,6 +237,8 @@ export function useBoostIap(onVerified?: (slots: BoostSlot[]) => void) {
     loading: IAP_ENABLED && (info.isLoading || !connected),
     product,
     busy,
+    restoring,
     purchase,
+    restore,
   };
 }
