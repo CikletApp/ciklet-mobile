@@ -80,6 +80,21 @@ export function openFullScreenCallSettings(): void {
 
 export type PendingCallAction = "accept" | "show";
 
+/**
+ * Derin bağlantıdaki "kabul" gerçekten bildirimin Cevapla düğmesinden mi
+ * geliyor? Yalnızca yerel modülün verdiği tek kullanımlık jeton kanıtlar;
+ * jetonsuz/yanlış jetonlu (başka uygulama, web sayfası) kabul zil ekranını
+ * açar, aramayı kullanıcı onaylar. iOS'ta kabul CallKit'ten gelir.
+ */
+export function isTrustedAnswerLink(callId: string | undefined, token: string | undefined): boolean {
+  if (!callId || !token || !nativeIncomingCalls?.consumeAnswerToken) return false;
+  try {
+    return nativeIncomingCalls.consumeAnswerToken(callId, token) === true;
+  } catch {
+    return false;
+  }
+}
+
 interface PendingCall {
   callId: string;
   action: PendingCallAction;

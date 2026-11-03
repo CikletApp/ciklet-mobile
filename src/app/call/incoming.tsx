@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   acceptIncomingCall,
   dismissIncomingCallNotification,
+  isTrustedAnswerLink,
   setPendingCallAction,
 } from "@/features/call/incoming-call";
 import { pollPendingInvites } from "@/realtime/use-call-events";
@@ -13,7 +14,7 @@ import { useCall } from "@/stores/call";
 import { colors } from "@/theme/tokens";
 
 /**
- * `ciklet://call/incoming?callId=&action=show|accept&directId=`
+ * `ciklet://call/incoming?callId=&action=show|accept&directId=&token=`
  *
  * Gelen arama sistem bildiriminden açılış (tam ekran niyeti, karta dokunma
  * ya da "Cevapla"). Ekranın kendisi boş: zil/çağrı katmanı (CallOverlay)
@@ -21,17 +22,20 @@ import { colors } from "@/theme/tokens";
  * gelindiyse kabul edilir ve kullanıcı ilgili sohbete bırakılır.
  */
 export default function IncomingCallRoute() {
-  const { callId, action, directId } = useLocalSearchParams<{
+  const { callId, action, directId, token } = useLocalSearchParams<{
     callId?: string;
     action?: string;
     directId?: string;
+    token?: string;
   }>();
   const status = useAuth((s) => s.status);
 
   useEffect(() => {
     // Oturum yoksa giriş akışı devreye girer; davet o sürede düşer.
     if (status !== "signedIn") return;
-    const wanted = action === "accept" ? "accept" : "show";
+    // Kabul yalnızca bildirimin "Cevapla" eyleminden (yerel tek kullanımlık
+    // jeton) gelir; dışarıdan açılan derin bağlantı yalnızca zil ekranını açar.
+    const wanted = action === "accept" && isTrustedAnswerLink(callId, token) ? "accept" : "show";
 
     if (callId) {
       const session = useCall.getState().session;
@@ -48,7 +52,7 @@ export default function IncomingCallRoute() {
     }
 
     router.replace(directId ? `/chat/direct/${encodeURIComponent(directId)}` : "/(tabs)");
-  }, [action, callId, directId, status]);
+  }, [action, callId, directId, status, token]);
 
   return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
 }

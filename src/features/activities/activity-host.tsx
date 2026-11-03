@@ -3,6 +3,7 @@ import { BackHandler, Keyboard, Platform, Text, useWindowDimensions, View } from
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import type { ShouldStartLoadRequest, WebViewOpenWindowEvent } from "react-native-webview/lib/WebViewTypes";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useAnimatedKeyboard,
@@ -34,6 +35,7 @@ import {
   validateExternalFetchUrl,
   type RPCMessage,
 } from "@/features/activities/bridge";
+import { externalOpenableUrl, isHostDocumentUrl, navigationDecision } from "@/features/activities/url-guard";
 import { ActivityInviteSheet } from "@/features/activities/invite-sheet";
 import { openActivityHelp } from "@/features/activities/invite";
 import { resolveCardActivity } from "@/features/activities/card-state";
@@ -711,6 +713,9 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
 
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
+      // Köprü yalnızca host belgeden konuşur: üst çerçeve başka bir sayfaya
+      // gitmişse (gezinme engeli atlatılsa bile) o sayfanın iletileri yok sayılır.
+      if (!isHostDocumentUrl(event.nativeEvent.url, ACTIVITY_BASE_URL)) return;
       let payload: { type?: string; message?: unknown };
       try {
         payload = JSON.parse(event.nativeEvent.data);
@@ -789,6 +794,31 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
       void handleCommand(data, activity);
     },
     [activity, chatId, consented, descriptor.id, instanceId, profile, handleCommand, send, leave, launchId, launchContext]
+  );
+
+  const openOutside = useCallback(
+    (raw: string | undefined) => {
+      const target = externalOpenableUrl(raw);
+      if (target) void WebBrowser.openBrowserAsync(target, { toolbarColor: deepColor });
+    },
+    [deepColor]
+  );
+
+  const onShouldStartLoad = useCallback(
+    (request: ShouldStartLoadRequest) => {
+      const decision = navigationDecision(request, ACTIVITY_BASE_URL);
+      if (decision === "allow") return true;
+      if (decision === "external") openOutside(request.url);
+      return false;
+    },
+    [openOutside]
+  );
+
+  const onOpenWindow = useCallback(
+    (event: WebViewOpenWindowEvent) => {
+      openOutside(event.nativeEvent.targetUrl);
+    },
+    [openOutside]
   );
 
   const html = useMemo(
@@ -1070,9 +1100,14 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
               // Aktivite kendi origin'inde çalışır; dosya sistemine erişemez.
               allowFileAccess={false}
               allowUniversalAccessFromFileURLs={false}
-              // Yeni pencere isteği aynı WebView'de açılmaz; aktiviteler dış
-              // bağlantı için openExternalLink kullanmalı.
-              setSupportMultipleWindows={false}
+              // Üst çerçevede yalnızca host belge kalır (köprü ona bağlı); dış
+              // bağlantılar (`_top`, `_blank`, window.open) sistem tarayıcısında
+              // açılır — Discord gibi. `setSupportMultipleWindows` AÇIK kalmalı:
+              // kapalıyken Android `_blank`'ı ana WebView'e yükler.
+              originWhitelist={["https://*", "http://*", "about:*", "blob:*", "data:*"]}
+              onShouldStartLoadWithRequest={onShouldStartLoad}
+              setSupportMultipleWindows
+              onOpenWindow={onOpenWindow}
               style={{ flex: 1, backgroundColor: deepColor }}
             />
           )}

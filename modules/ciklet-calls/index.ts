@@ -41,6 +41,12 @@ declare class CikletCallsModule extends NativeModule<CikletCallsEvents> {
   canUseFullScreenIntent(): boolean;
   openFullScreenIntentSettings(): void;
   showIncomingCall(options: IncomingCallOptions): Promise<void>;
+  /**
+   * "Cevapla" bildirim eyleminin derin bağlantısındaki tek kullanımlık jeton
+   * doğru mu? Dışarıdan açılan `ciklet://call/incoming?action=accept` jetonu
+   * bilemez. Eski derlemede yoktur — çağıran denetler.
+   */
+  consumeAnswerToken?(callId: string, token: string): boolean;
   /** Bildirimi düşürür ve kilit ekranı bayraklarını kapatır. */
   dismissIncomingCall(callId?: string | null): void;
   setShowWhenLocked(enabled: boolean): void;

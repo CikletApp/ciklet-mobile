@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "@/lib/config";
 import { buildActivityFrameUrl, type ActivityLaunchContext } from "@/features/activities/sdk-host";
+import { isBlockedHost, originOf } from "@/features/activities/url-guard";
 
 /**
  * Aktivite köprüsü — gömülü uygulama ⇄ React Native.
@@ -51,6 +52,10 @@ export const ACTIVITY_BASE_URL = API_BASE_URL;
  */
 export function buildHostDocument(params: ActivityFrameParams): string {
   const frameSrc = buildActivityUrl(params);
+  // Röle yalnızca aktivitenin KENDİ kökeniyle konuşur: iframe başka bir
+  // sayfaya gitse (bağlantı, yönlendirme) o sayfanın iletileri RN'e
+  // ulaşmaz, RN'in yanıtları (yetki kodu dahil) ona gitmez.
+  const frameOrigin = originOf(frameSrc) ?? "null";
 
   return `<!doctype html>
 <html lang="tr">
@@ -73,6 +78,7 @@ export function buildHostDocument(params: ActivityFrameParams): string {
 <script>
 (function () {
   var frame = document.getElementById('activity');
+  var ORIGIN = ${JSON.stringify(frameOrigin)};
 
   function toNative(payload) {
     if (window.ReactNativeWebView) {
@@ -83,13 +89,14 @@ export function buildHostDocument(params: ActivityFrameParams): string {
   // iframe → RN
   window.addEventListener('message', function (event) {
     if (!frame || event.source !== frame.contentWindow) return;
+    if (event.origin !== ORIGIN) return;
     toNative({ type: 'rpc', message: event.data });
   });
 
   // RN → iframe. RN tarafı bu fonksiyonu injectJavaScript ile çağırır.
   window.__cikletDeliver = function (message) {
     if (!frame || !frame.contentWindow) return;
-    frame.contentWindow.postMessage(message, '*');
+    frame.contentWindow.postMessage(message, ORIGIN);
   };
 
   frame.addEventListener('load', function () {
@@ -187,6 +194,7 @@ export function parseAllowEntry(entry: unknown): FetchAllowRule | null {
   try {
     const url = new URL(entry);
     if (url.protocol !== "https:" || url.username || url.password) return null;
+    if (isBlockedHost(url.hostname)) return null;
     const pathPrefix = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
     return { origin: url.origin.toLowerCase(), pathPrefix };
   } catch {
@@ -251,8 +259,6 @@ export function fetchAllowlistFor(activity: {
   return [];
 }
 
-const IPV4_RE = /^(d{1,3}.){3}d{1,3}$/;
-
 /**
  * İstek adresini doğrular: https, kimlik bilgisi yok, origin bir kuralla
  * birebir aynı ve yol o kuralın önekiyle başlıyor; ana bilgisayar bir IP ya
@@ -268,18 +274,10 @@ export function validateExternalFetchUrl(raw: unknown, rules: readonly FetchAllo
   }
   if (url.protocol !== "https:") return null;
   if (url.username || url.password) return null;
-  const host = url.hostname.toLowerCase();
-  if (
-    !host ||
-    IPV4_RE.test(host) ||
-    host.includes(":") ||
-    host === "localhost" ||
-    host.endsWith(".local") ||
-    host.endsWith(".internal") ||
-    host.endsWith(".localhost")
-  ) {
-    return null;
-  }
+  // IP değişmezi (IPv4/IPv6, sayısal kısaltmalar) ya da yerel/özel ad: hiçbir
+  // zaman. Ana bilgisayar adı izin listesiyle birebir eşleşmek zorunda olduğu
+  // için DNS sonrası denetim gerekmiyor (masaüstü fetch_external ile aynı).
+  if (isBlockedHost(url.hostname)) return null;
   const origin = url.origin.toLowerCase();
   const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
   const allowed = rules.some((rule) => rule.origin === origin && path.startsWith(rule.pathPrefix));

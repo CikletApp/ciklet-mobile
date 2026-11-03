@@ -91,6 +91,11 @@ class CikletCallsModule : Module() {
       )
     }
 
+    /** "Cevapla" derin bağlantısının jetonu doğru mu (tek kullanımlık)? */
+    Function("consumeAnswerToken") { callId: String, token: String ->
+      IncomingCallNotifier.consumeAnswerToken(context, callId, token)
+    }
+
     Function("dismissIncomingCall") { callId: String? ->
       IncomingCallNotifier.dismiss(context, callId)
       appContext.currentActivity?.let { IncomingCallNotifier.applyLockScreenFlags(it, false) }

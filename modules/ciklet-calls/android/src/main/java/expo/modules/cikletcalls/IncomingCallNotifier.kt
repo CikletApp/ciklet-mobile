@@ -18,6 +18,8 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import java.security.MessageDigest
+import java.security.SecureRandom
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -61,14 +63,22 @@ object IncomingCallNotifier {
   private const val SCHEME = "ciklet"
   private const val HOST = "call"
   private const val DEFAULT_TIMEOUT_MS = 45_000L
+  private const val PREFS = "ciklet-calls"
+  private const val KEY_ANSWER_CALL = "answer_call_id"
+  private const val KEY_ANSWER_TOKEN = "answer_token"
+  private const val KEY_ANSWER_AT = "answer_issued_at"
+  private const val ANSWER_TOKEN_TTL_MS = 120_000L
 
   private val VIBRATION = longArrayOf(0, 600, 400, 600, 400, 600, 400, 600)
 
   fun show(context: Context, call: IncomingCall) {
     ensureChannel(context)
 
-    val showIntent = activityIntent(context, call, "show", 1)
-    val answerIntent = activityIntent(context, call, "accept", 2)
+    val showIntent = activityIntent(context, call, "show", 1, null)
+    // "Cevapla" derin bağlantısı tek kullanımlık bir jeton taşır: başka bir
+    // uygulama ya da web sayfası `ciklet://call/incoming?action=accept` açsa
+    // bile jetonu bilemez, JS aramayı kabul etmez (yalnızca zil ekranı açılır).
+    val answerIntent = activityIntent(context, call, "accept", 2, issueAnswerToken(context, call.callId))
     val declineIntent = PendingIntent.getBroadcast(
       context,
       3,
@@ -150,13 +160,52 @@ object IncomingCallNotifier {
     }
   }
 
-  private fun activityIntent(context: Context, call: IncomingCall, action: String, requestCode: Int): PendingIntent {
+  /** Bu arama için yeni "Cevapla" jetonu; süreç ölse de bildirim yaşadığı için diske yazılır. */
+  private fun issueAnswerToken(context: Context, callId: String): String {
+    val bytes = ByteArray(16)
+    SecureRandom().nextBytes(bytes)
+    val token = bytes.joinToString("") { "%02x".format(it) }
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+      .putString(KEY_ANSWER_CALL, callId)
+      .putString(KEY_ANSWER_TOKEN, token)
+      .putLong(KEY_ANSWER_AT, System.currentTimeMillis())
+      .apply()
+    return token
+  }
+
+  /**
+   * Derin bağlantıdaki jeton bu aramanın "Cevapla" jetonu mu? Tek kullanımlık:
+   * doğruysa silinir. Süre: en uzun bildirim ömrü + pay.
+   */
+  fun consumeAnswerToken(context: Context, callId: String, token: String): Boolean {
+    if (callId.isBlank() || token.isBlank()) return false
+    val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val storedCall = prefs.getString(KEY_ANSWER_CALL, null) ?: return false
+    val storedToken = prefs.getString(KEY_ANSWER_TOKEN, null) ?: return false
+    val issuedAt = prefs.getLong(KEY_ANSWER_AT, 0L)
+    if (storedCall != callId) return false
+    if (System.currentTimeMillis() - issuedAt > ANSWER_TOKEN_TTL_MS) return false
+    val matches = MessageDigest.isEqual(storedToken.toByteArray(), token.toByteArray())
+    if (matches) {
+      prefs.edit().remove(KEY_ANSWER_CALL).remove(KEY_ANSWER_TOKEN).remove(KEY_ANSWER_AT).apply()
+    }
+    return matches
+  }
+
+  private fun activityIntent(
+    context: Context,
+    call: IncomingCall,
+    action: String,
+    requestCode: Int,
+    token: String?,
+  ): PendingIntent {
     val uri = Uri.Builder()
       .scheme(SCHEME)
       .authority(HOST)
       .appendPath("incoming")
       .appendQueryParameter("callId", call.callId)
       .appendQueryParameter("action", action)
+      .apply { token?.let { appendQueryParameter("token", it) } }
       .apply { call.directId?.let { appendQueryParameter("directId", it) } }
       .build()
     val intent = Intent(Intent.ACTION_VIEW, uri)
