@@ -3,6 +3,7 @@ import { create } from "zustand";
 
 import type { ReducedMotionPreference } from "@/lib/accessibility";
 import type { LocalePreference } from "@/lib/i18n";
+import { NOISE_SUPPRESSION_DEFAULT, readNoiseSuppressionMode, type NoiseSuppressionMode } from "@/lib/noise-suppression";
 
 const STORAGE_KEY = "ciklet.preferences";
 
@@ -12,6 +13,8 @@ interface PreferenceValues {
   linkPreviews: boolean;
   bigEmoji: boolean;
   inputMode: InputMode;
+  /** Gürültü engelleme (Ayarlar → Ses ve Video; lib/noise-suppression). */
+  noiseSuppressionMode: NoiseSuppressionMode;
   inputVolume: number;
   outputVolume: number;
   notificationsEnabled: boolean;
@@ -64,6 +67,7 @@ const defaults: PreferenceValues = {
   linkPreviews: true,
   bigEmoji: true,
   inputMode: "vad",
+  noiseSuppressionMode: NOISE_SUPPRESSION_DEFAULT,
   inputVolume: 100,
   outputVolume: 100,
   notificationsEnabled: true,
@@ -89,6 +93,7 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     linkPreviews: state.linkPreviews,
     bigEmoji: state.bigEmoji,
     inputMode: state.inputMode,
+    noiseSuppressionMode: state.noiseSuppressionMode,
     inputVolume: state.inputVolume,
     outputVolume: state.outputVolume,
     notificationsEnabled: state.notificationsEnabled,
@@ -121,7 +126,7 @@ export const usePreferences = create<PreferenceState>((set, get) => ({
       // Kaldırılan "Rahat / Kompakt" yoğunluk ayarı eski kayıtlarda kalmış
       // olabilir; duruma taşınmasın (bir sonraki kayıtta zaten düşer).
       delete (saved as Record<string, unknown>).chatDensity;
-      set({ ...defaults, ...saved, hydrated: true });
+      set({ ...defaults, ...saved, noiseSuppressionMode: readNoiseSuppressionMode(saved.noiseSuppressionMode), hydrated: true });
     } catch {
       set({ hydrated: true });
     }

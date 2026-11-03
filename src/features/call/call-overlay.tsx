@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { router } from "expo-router";
 import { LiveKitRoom, useConnectionState, useParticipants, useRoomContext } from "@livekit/react-native";
@@ -13,8 +13,11 @@ import { Avatar, IconButton, Pressable, showToast } from "@/components/ui";
 import { useCurrentAudioRoute } from "@/features/voice/audio-route";
 import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
+import { LiveVoiceSettingsBridge } from "@/features/voice/live-voice-settings";
 import { useVoiceE2EERoom, VoiceE2EEPill, VoiceE2EEProvider } from "@/features/call/voice-e2ee";
 import { LIVEKIT_URL } from "@/lib/livekit";
+import { noiseSuppressionConstraints } from "@/lib/noise-suppression";
+import { usePreferences } from "@/stores/preferences";
 import { displayNameOf } from "@/lib/format";
 import { ClientEvent } from "@/realtime/events";
 import { onGatewayOpen, sendGatewayEvent } from "@/realtime/gateway";
@@ -265,7 +268,13 @@ function ConnectedCall({
   });
 
   // Uçtan uca şifreli görüşme: oda ve ilk yerel anahtar bağlanmadan kurulur.
-  const e2ee = useVoiceE2EERoom(token, roomE2EE, DIRECT_CALL_ROOM_OPTIONS);
+  // Gürültü engelleme katılım anındaki tercihle (sonrası LiveVoiceSettingsBridge);
+  // nesne bağlantı başına bir kez kurulur.
+  const roomOptions = useMemo(
+    () => ({ ...DIRECT_CALL_ROOM_OPTIONS, audioCaptureDefaults: noiseSuppressionConstraints(usePreferences.getState().noiseSuppressionMode) }),
+    []
+  );
+  const e2ee = useVoiceE2EERoom(token, roomE2EE, roomOptions);
 
   const minimize = () => setMinimized(true);
   const openChat = () => {
@@ -307,11 +316,12 @@ function ConnectedCall({
       connect
       audio
       video={kind === "video"}
-      options={DIRECT_CALL_ROOM_OPTIONS}
+      options={roomOptions}
       room={e2ee.room}
     >
       <VoiceE2EEProvider mode={e2ee.mode} session={e2ee.session}>
       <VideoUpgradeBridge />
+      <LiveVoiceSettingsBridge />
       <CallPresenceBridge directId={directId} kind={initialKind} />
       <CallKitMuteSync />
       <CallSurface visible={!minimized} onRequestClose={minimize}>

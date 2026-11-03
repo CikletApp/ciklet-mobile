@@ -171,6 +171,12 @@ export const en = {
       ptt: "Push to talk",
       pttHint:
         "With push to talk on, your microphone starts muted in voice channels; hold the on-screen button to speak.",
+      noise: "NOISE SUPPRESSION",
+      noiseOff: "Off",
+      noiseStandard: "Standard",
+      noiseOffHint: "Your voice is sent unprocessed (instruments, studio mics).",
+      noiseStandardHint: "Your device's built-in noise suppression.",
+      noiseAdvancedNote: "Advanced noise suppression (RNNoise) is only on web and desktop for now.",
       inputVolume: "INPUT VOLUME",
       outputVolume: "OUTPUT VOLUME",
       deviceNote:

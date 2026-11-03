@@ -42,6 +42,7 @@ import {
   useVoiceModerationMenu,
 } from "@/features/voice/voice-moderation";
 import { useVoiceSession } from "@/features/voice/use-voice-session";
+import { useLiveVoiceSettings } from "@/features/voice/live-voice-settings";
 import { LIVEKIT_URL, roomOptionsFor, type VoiceModerationState } from "@/lib/livekit";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
@@ -105,7 +106,8 @@ export default function VoiceChannelScreen() {
 
   const { token, status, error, leave, moderation: joinModeration, voice, afk, e2ee: roomE2EE } = useVoiceSession(session);
   // Kanalın bit hızı / kamera kalitesi: oda seçenekleri bağlantı başına bir kez.
-  const roomOptions = useMemo(() => roomOptionsFor(voice), [voice]);
+  // Gürültü engelleme katılım anındaki tercihle; sonrası useLiveVoiceSettings.
+  const roomOptions = useMemo(() => roomOptionsFor(voice, usePreferences.getState().noiseSuppressionMode), [voice]);
   // Uçtan uca şifreli oda: karar token yanıtından (sunucu ana anahtarı +
   // sahne değil) — kanal verisi gecikirse ya da özellik kapalıysa web'le
   // uyuşmazlık olmasın.
@@ -247,6 +249,8 @@ function VoiceRoomBody({
   onRetry: () => void;
 }) {
   const participants = useVoice((s) => s.participants);
+  // Kanal ses ayarı / gürültü engelleme bağlıyken anında uygulanır.
+  useLiveVoiceSettings();
   const livekitParticipants = useParticipants();
   const { data: actor } = useMyPermissions(serverId);
   const moderation = useVoiceModerationMenu({ serverId, channelId, stage: isStage });

@@ -6,6 +6,7 @@ import { endpoints } from "@/api/endpoints";
 import { appleConfigFor } from "@/features/voice/audio-route";
 import { roomUsesE2EE } from "@/lib/voice-e2ee/session";
 import { readBitrate, readVideoQualityMode, type VideoQualityMode } from "@/lib/voice-settings";
+import { NOISE_SUPPRESSION_DEFAULT, noiseSuppressionConstraints, type NoiseSuppressionMode } from "@/lib/noise-suppression";
 
 /**
  * LiveKit köprüsü.
@@ -102,10 +103,13 @@ export interface RoomToken {
  * Oda yayın varsayılanları: kanalın bit hızı mikrofon kodlayıcısının tavanı;
  * "720p" kipinde kamera ağ kötüleşince çözünürlüğü korur (web lib/call-quality).
  */
-export function roomOptionsFor(voice: ChannelVoiceSettings | null) {
+export function roomOptionsFor(voice: ChannelVoiceSettings | null, noiseSuppression: NoiseSuppressionMode = NOISE_SUPPRESSION_DEFAULT) {
   return {
     adaptiveStream: true,
     dynacast: true,
+    // Gürültü engelleme "Kapalı" ise WebRTC bastırması da kapanır; görüşme
+    // sırasındaki değişim mikrofonu yeniden başlatır (features/voice/live-voice-settings).
+    audioCaptureDefaults: noiseSuppressionConstraints(noiseSuppression),
     ...(voice
       ? {
           publishDefaults: {

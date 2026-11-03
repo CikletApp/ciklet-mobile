@@ -182,6 +182,12 @@ export const tr = {
       ptt: "Bas konuş",
       pttHint:
         "Bas konuş açıkken mikrofon ses kanalında kapalı başlar; konuşmak için ekrandaki düğmeyi basılı tut.",
+      noise: "GÜRÜLTÜ AZALTMA",
+      noiseOff: "Kapalı",
+      noiseStandard: "Standart",
+      noiseOffHint: "Ses işlenmeden gider (müzik aleti, stüdyo mikrofonu).",
+      noiseStandardHint: "Cihazın yerleşik gürültü bastırması.",
+      noiseAdvancedNote: "Gelişmiş gürültü engelleme (RNNoise) şimdilik yalnızca web ve masaüstünde.",
       inputVolume: "MİKROFON SEVİYESİ",
       outputVolume: "HOPARLÖR SEVİYESİ",
       deviceNote:

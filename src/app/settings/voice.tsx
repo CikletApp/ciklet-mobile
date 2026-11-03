@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 
 import { Screen, SectionHeader, SegmentedTabs } from "@/components/ui";
 import { useT } from "@/lib/i18n";
+import type { NoiseSuppressionMode } from "@/lib/noise-suppression";
 import { usePreferences, type InputMode } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -10,6 +11,7 @@ const LEVELS = [50, 100, 150, 200] as const;
 
 export default function VoiceSettingsScreen() {
   const inputMode = usePreferences((state) => state.inputMode);
+  const noiseSuppressionMode = usePreferences((state) => state.noiseSuppressionMode);
   const inputVolume = usePreferences((state) => state.inputVolume);
   const outputVolume = usePreferences((state) => state.outputVolume);
   const setPreference = usePreferences((state) => state.setPreference);
@@ -33,6 +35,21 @@ export default function VoiceSettingsScreen() {
             {t("settings.voice.pttHint")}
           </Text>
         ) : null}
+
+        {/* Web Ayarlar → Ses "Gürültü Azaltma" ile aynı kipler; Gelişmiş yalnızca web/masaüstü. */}
+        <SectionHeader title={t("settings.voice.noise")} />
+        <SegmentedTabs
+          items={[
+            { id: "off" as NoiseSuppressionMode, label: t("settings.voice.noiseOff") },
+            { id: "standard" as NoiseSuppressionMode, label: t("settings.voice.noiseStandard") },
+          ]}
+          value={noiseSuppressionMode}
+          onChange={(value) => setPreference("noiseSuppressionMode", value)}
+        />
+        <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+          {t(noiseSuppressionMode === "off" ? "settings.voice.noiseOffHint" : "settings.voice.noiseStandardHint")}{" "}
+          {t("settings.voice.noiseAdvancedNote")}
+        </Text>
 
         <LevelPicker
           title={t("settings.voice.inputVolume")}
