@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { Animated, Easing, Pressable, Text, View, type LayoutChangeEvent } from "react-native";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -35,7 +35,7 @@ import { joinActivity, launchActivity, loadActivityCatalog, toDescriptor } from 
  * AUTHORIZE'ı "Yetkilendirme kodu alınamadı"ya düşürüyordu.
  */
 
-/** Web kartı katılmadan önce noktalı yükleme gösteriyor (1,8 sn). */
+/** Web kartıyla aynı: dokununca 1,8 sn noktalı yükleme, sonra katılım (köken kartı dahil). */
 const JOIN_DELAY_MS = 1_800;
 
 /** Web kartındaki metin opaklıkları (`text-theme-bright/70`, `/80`, `/60`). */
@@ -68,10 +68,11 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
   const cardRef = { activityId, activityUrl: activityUrl ?? null, activityName };
   const { data: catalog } = useActivities();
   const app = catalog ? resolveCardActivity(cardRef, catalog) : null;
-  const room = useActivitySession((s) => s.rooms[chatId]);
+  // Sohbetin UYGULAMA BAŞINA odaları: kart yalnızca kendi uygulamasınınkine bakar.
+  const rooms = useActivitySession((s) => s.rooms[chatId]);
   const session = cardSession(
     app ?? (activityId ? { id: activityId, url: activityUrl } : null),
-    crossChat ? null : room
+    crossChat ? null : rooms
   );
   const isActive = session.live;
   const participants = session.participants;
@@ -93,32 +94,26 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
     : null;
   const subtitle = inviteContext ?? INVITE_CARD_ENDED_TEXT;
 
+  // Web kartıyla AYNI akış: 1,8 sn noktalı yükleme, sonra gösterge kapanır
+  // ve katılım/başlatma yürür (köken kartı dahil).
   const onPress = () => {
     if (isJoined || joining) return;
-    if (origin) {
-      setJoining(true);
-      void joinFromInvite(origin.chatId, profile.id).finally(() => setJoining(false));
-      return;
-    }
     setJoining(true);
     setTimeout(() => {
+      setJoining(false);
+      if (origin) {
+        void joinFromInvite(origin.chatId, profile.id, activityId);
+        return;
+      }
       void (async () => {
-        try {
-          const action = cardTapAction(
-            cardRef,
-            await loadActivityCatalog(),
-            useActivitySession.getState().rooms[chatId]
-          );
-          if (action.kind === "unavailable") {
-            showToast("Bu etkinlik artık kullanılamıyor.", "error");
-            return;
-          }
-          // Kartın yazarı daveti paylaşan kişi (SDK `referrer_id`; web ile aynı).
-          if (action.kind === "join") joinActivity(toDescriptor(action.activity), { chatId, serverId, referrerId: profile.id });
-          else await launchActivity(action.activity, { chatId, serverId, referrerId: profile.id });
-        } finally {
-          setJoining(false);
+        const action = cardTapAction(cardRef, await loadActivityCatalog(), useActivitySession.getState().rooms[chatId]);
+        if (action.kind === "unavailable") {
+          showToast("Bu etkinlik artık kullanılamıyor.", "error");
+          return;
         }
+        // Kartın yazarı daveti paylaşan kişi (SDK `referrer_id`; web ile aynı).
+        if (action.kind === "join") joinActivity(toDescriptor(action.activity), { chatId, serverId, referrerId: profile.id });
+        else await launchActivity(action.activity, { chatId, serverId, referrerId: profile.id });
       })();
     }, JOIN_DELAY_MS);
   };
@@ -172,12 +167,9 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
         >
           {hasRemoteIcon ? (
             <>
-              <Image
-                source={{ uri: activityIcon }}
-                contentFit="cover"
-                blurRadius={40}
-                style={{ position: "absolute", inset: 0, opacity: 0.9, transform: [{ scale: 1.6 }] }}
-              />
+              {/* Web: canlı oturumda zemin 8 sn'de bir çapraz süzülür
+                  (globals.css `zigzag-blur`), değilse sabit 1,6 büyütme. */}
+              <DriftingBackdrop uri={activityIcon!} active={isActive} />
               <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.25)" }} />
             </>
           ) : (
@@ -251,7 +243,7 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
             </View>
             <Pressable
               onPress={onPress}
-              disabled={isJoined || joining || (!activityUrl && !activityId && !origin)}
+              disabled={isJoined || joining}
               accessibilityRole="button"
               accessibilityState={{ disabled: isJoined || joining }}
               accessibilityLabel={buttonLabel}
@@ -266,7 +258,7 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
               })}
             >
               {joining ? (
-                <ActivityIndicator size="small" color={colors.onBrand} />
+                <JoiningDots color={colors.onBrand} />
               ) : (
                 <Text style={{ fontSize: 14, lineHeight: 18, ...fw(700), color: isJoined ? BRIGHT_70 : colors.onBrand }}>{buttonLabel}</Text>
               )}
@@ -274,6 +266,98 @@ export function ActivityInviteMessage({ message }: { message: ChatMessagePayload
           </View>
         </View>
       </View>
+    </View>
+  );
+}
+
+/**
+ * Web kartının zemini: logodan bulanık görsel, canlıyken `zigzag-blur`
+ * (scale 1.6, translate −3% → +3%, 8 sn, ease-in-out, ileri-geri).
+ */
+function DriftingBackdrop({ uri, active }: { uri: string; active: boolean }) {
+  const [progress] = useState(() => new Animated.Value(0));
+  const [size, setSize] = useState({ width: 320, height: 160 });
+  useEffect(() => {
+    if (!active) {
+      progress.stopAnimation();
+      progress.setValue(0.5);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progress, { toValue: 1, duration: 8_000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(progress, { toValue: 0, duration: 8_000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    progress.setValue(0);
+    loop.start();
+    return () => loop.stop();
+  }, [active, progress]);
+  const onLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (width > 0 && height > 0) setSize({ width, height });
+  };
+  // CSS'teki yüzde, öğenin kendi boyutuna göre (ölçekten önce).
+  const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [-0.03 * size.width, 0.03 * size.width] });
+  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [-0.03 * size.height, 0.03 * size.height] });
+  return (
+    <Animated.View
+      onLayout={onLayout}
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        transform: active ? [{ scale: 1.6 }, { translateX }, { translateY }] : [{ scale: 1.6 }],
+      }}
+    >
+      <Image source={{ uri }} contentFit="cover" blurRadius={40} style={{ width: "100%", height: "100%", opacity: 0.9 }} />
+    </Animated.View>
+  );
+}
+
+/**
+ * Web kartının yükleme göstergesi: üç nokta 2 sn'de aşağı-yukarı, 0,2 sn
+ * arayla (SVG `animate cy 65;135;65`, 24 px yükseklikte).
+ */
+function JoiningDots({ color }: { color: string }) {
+  const [progress] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(progress, { toValue: 1, duration: 2_000, easing: Easing.linear, useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [progress]);
+  // SVG: 200 birimlik kutuda cy 65 ↔ 135, r 15 + 15 kontur; 24 px'e ölçekli.
+  const unit = 24 / 200;
+  const travel = 70 * unit;
+  const dot = 45 * unit;
+  const offsets = [0.2, 0.1, 0];
+  return (
+    <View style={{ width: 24, height: 24, flexDirection: "row", alignItems: "flex-start" }} accessibilityLabel="Katılınıyor">
+      {offsets.map((offset, index) => {
+        // Her nokta kendi fazında: 0 → aşağı → 0 (ease-in-out yaklaşımı).
+        const phase = Animated.modulo(Animated.add(progress, offset), 1);
+        const translateY = phase.interpolate({
+          inputRange: [0, 0.25, 0.5, 0.75, 1],
+          outputRange: [0, travel * 0.5, travel, travel * 0.5, 0],
+        });
+        return (
+          <Animated.View
+            key={index}
+            style={{
+              position: "absolute",
+              left: [40, 100, 160][index] * unit - dot / 2,
+              top: 65 * unit - dot / 2,
+              width: dot,
+              height: dot,
+              borderRadius: dot / 2,
+              backgroundColor: color,
+              transform: [{ translateY }],
+            }}
+          />
+        );
+      })}
     </View>
   );
 }

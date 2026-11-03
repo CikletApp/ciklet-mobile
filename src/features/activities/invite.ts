@@ -59,10 +59,15 @@ export function readActivityInviteOrigin(metadata: unknown): ActivityInviteOrigi
  * Köken sohbetteki oturuma katıl ve o sohbete git. Kartın içeriğine
  * güvenilmez: oturum ve aktivite tanımı sunucudan, erişim doğrulanarak gelir.
  */
-export async function joinFromInvite(originChatId: string, referrerId?: string | null): Promise<void> {
+export async function joinFromInvite(
+  originChatId: string,
+  referrerId?: string | null,
+  activityId?: string | null
+): Promise<void> {
   let session: ActivitySessionResponse;
   try {
-    session = await api<ActivitySessionResponse>(endpoints.activitySession(originChatId));
+    // Sohbette birden çok uygulamanın oturumu olabilir: kartın uygulaması.
+    session = await api<ActivitySessionResponse>(endpoints.activitySession(originChatId, activityId));
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) showToast("Bu etkinlik sona erdi.");
     else if (error instanceof ApiError && error.status === 403) showToast("Bu etkinliğin sohbetine erişimin yok.", "error");

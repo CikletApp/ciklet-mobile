@@ -362,8 +362,11 @@ class GatewayConnection {
         const chatId = typeof frame.chatId === "string" ? frame.chatId : null;
         if (frame.retryable === true && chatId) {
           this.retrySubscribe(chatId);
-        } else if (__DEV__) {
-          console.warn("[gateway] reddedildi:", frame.code, chatId ?? "");
+        } else {
+          if (__DEV__) console.warn("[gateway] reddedildi:", frame.code, chatId ?? "");
+          // Dinleyenlere de iletilir (web lib/gateway/client ile aynı):
+          // aktivite katılım reddi kullanıcıya söylenmeli.
+          this.emit("gateway.error", { ...frame, eventType: "gateway.error" } as GatewayFrame);
         }
       }
       return;

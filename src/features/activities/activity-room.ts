@@ -1,7 +1,7 @@
 import { ServerEvent } from "@/realtime/events";
 import { onGatewayEvent, onGatewayOpen, sendGatewayEvent } from "@/realtime/gateway";
 import { useActivitySession, type ActivityDescriptor } from "@/stores/activity";
-import { roomFromFrame } from "./card-state";
+import { roomFromFrame, roomKey } from "./card-state";
 
 /**
  * Sohbetlerin aktivite odası durumu — web `chat-page` "katılınabilir aktivite
@@ -37,7 +37,8 @@ function onRoomFrame(frame: Record<string, unknown>) {
   if (typeof frame.chatId !== "string") return;
   // Oda görüntüsü (uygulama, canlı üyeler, başlangıç) davet kartlarının tek
   // gerçeği — web chat-page ile aynı (card-state).
-  useActivitySession.getState().setRoom(frame.chatId, roomFromFrame(frame), parseDescriptor(frame.activity));
+  // Oda uygulama başına (`activityId`): aynı sohbette birden çok uygulama.
+  useActivitySession.getState().setRoom(frame.chatId, roomKey(frame as { activityId?: unknown }), roomFromFrame(frame), parseDescriptor(frame.activity));
 }
 
 function attach() {
@@ -46,7 +47,8 @@ function attach() {
   onGatewayEvent(ServerEvent.ACTIVITY_UPDATE, onRoomFrame);
   onGatewayEvent(ServerEvent.ACTIVITY_CURRENT_STATE, onRoomFrame);
   onGatewayEvent(ServerEvent.ACTIVITY_ENDED, (frame) => {
-    if (typeof frame.chatId === "string") useActivitySession.getState().clearRoom(frame.chatId);
+    // Yalnızca biten uygulamanın odası (eski oda: "").
+    if (typeof frame.chatId === "string") useActivitySession.getState().clearRoom(frame.chatId, roomKey(frame as { activityId?: unknown }));
   });
   onGatewayOpen(() => {
     for (const chatId of watched.keys()) sendGatewayEvent({ event_type: "activity.get", chat_id: chatId });

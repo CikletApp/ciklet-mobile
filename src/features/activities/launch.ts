@@ -6,6 +6,7 @@ import type { ActivitySummary } from "@/api/types";
 import type { MessageCache } from "@/features/chat/reaction-cache";
 import type { ChatMessagePayload } from "@/realtime/events";
 import { useActivitySession, type ActivityDescriptor } from "@/stores/activity";
+import { cardSession } from "./card-state";
 
 /**
  * Aktivite başlatma / katılma — web `chat-page` `activity:start` akışı.
@@ -105,15 +106,19 @@ export async function launchActivity(
     store.expand();
     return;
   }
+  // Başka bir aktivitedeysen: o oturum kapanır, bu açılır (tek aktivite
+  // kuralı — store tek oturum tutar, ağ geçidi önceki odadan düşürür).
 
   if (lastStart && lastStart.url === activity.url && Date.now() - lastStart.at < 3_000) return;
   lastStart = { url: activity.url, at: Date.now() };
 
   if (chatId) {
     // Hızlı yol: odada aktif bir oturum biliniyorsa yeni kart basma, katıl.
-    const existing = store.joinable[chatId];
-    if (existing) {
-      joinActivity(existing, context);
+    // Aynı uygulamanın bu sohbette canlı oturumu varsa ona katıl (kart
+    // yok). Oda uygulama başına: başka bir uygulamanın oturumu engel değil
+    // (çoklu oturum kapalıysa sunucu 409 ile oraya yönlendirir) — web ile aynı.
+    if (cardSession(activity, store.rooms[chatId]).live) {
+      joinActivity(activity, context);
       return;
     }
 

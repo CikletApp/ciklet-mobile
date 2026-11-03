@@ -337,7 +337,8 @@ export const endpoints = {
   activityInvite: "/api/activities/invite",
   activityInviteTargets: (chatId: string) => `/api/activities/invite${qs({ chatId })}`,
   /** GET — başka sohbete düşen davet kartından katılma (erişim yeniden doğrulanır). */
-  activitySession: (chatId: string) => `/api/activities/session${qs({ chatId })}`,
+  activitySession: (chatId: string, activityId?: string | null) =>
+    `/api/activities/session${qs(activityId ? { chatId, activityId } : { chatId })}`,
   /** GET `{ assets: { anahtar: adres } }` — SDK setActivity görsel anahtarları (Portal › Art Assets). */
   activityAssets: (clientId: string) => `/api/activities/assets${qs({ clientId })}`,
   /**

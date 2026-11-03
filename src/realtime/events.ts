@@ -132,8 +132,15 @@ export const ServerEvent = {
   ACTIVITY_UPDATE: "activity.update",
   /** `{ chatId, version, patch, transient, state, senderId, seq }` */
   ACTIVITY_SYNC: "activity.sync",
-  /** `{ chatId }` */
+  /** `{ chatId, activityId? }` — yalnızca o uygulamanın oturumu bitti. */
   ACTIVITY_ENDED: "activity.ended",
+  /**
+   * `{ chatId, activityId? }` — tek aktivite kuralı: bu hesap başka bir
+   * aktiviteye katıldı, bu odadan düşürüldü (başka cihaz/sekme dahil).
+   */
+  ACTIVITY_LEFT: "activity.left",
+  /** Nonce'suz ağ geçidi hatası (`{ code }`) — ör. `activity_full`, `activity_busy`. */
+  GATEWAY_ERROR: "gateway.error",
   /** `activity.request_state` yanıtı — `activity.update` ile aynı şekil. */
   ACTIVITY_CURRENT_STATE: "activity.current_state",
 } as const;

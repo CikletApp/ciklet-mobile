@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { EMPTY_ROOM, type ChatActivityRoom } from "@/features/activities/card-state";
+import type { ChatActivityRoom, ChatActivityRooms } from "@/features/activities/card-state";
 
 /**
  * Açık aktivite oturumu — web `hooks/use-activities` karşılığı.
@@ -60,20 +60,21 @@ interface ActivityState {
   /** Sohbet başına odadaki aktif aktivite (katılımcısı varsa). */
   joinable: Record<string, ActivityDescriptor | null>;
   /**
-   * Sohbet başına aktivite odası (ağ geçidi `activity.update`): davet
-   * kartlarının canlılığı, katılımcıları ve süresi BURADAN okunur
-   * (features/activities/card-state) — kartın metninden değil. Web
-   * `use-activities` `chatRooms` ile aynı.
+   * Sohbet başına aktivite ODALARI — uygulama başına bir oda (ağ geçidi
+   * `activity.update`, anahtar `roomKey`): davet kartlarının canlılığı,
+   * katılımcıları ve süresi BURADAN okunur (features/activities/card-state)
+   * — kartın metninden değil. Web `use-activities` `chatRooms` ile aynı.
    */
-  rooms: Record<string, ChatActivityRoom>;
+  rooms: Record<string, ChatActivityRooms>;
 
   start: (data: Omit<ActivitySession, "key">) => void;
   leave: () => void;
   minimize: () => void;
   expand: () => void;
   setLandscape: (landscape: boolean) => void;
-  setRoom: (chatId: string, room: ChatActivityRoom, activity: ActivityDescriptor | null) => void;
-  clearRoom: (chatId: string) => void;
+  setRoom: (chatId: string, key: string, room: ChatActivityRoom, activity: ActivityDescriptor | null) => void;
+  /** Odayı (ya da `key` yoksa sohbetin bütün odalarını) bitmiş say. */
+  clearRoom: (chatId: string, key?: string | null) => void;
 }
 
 let nextKey = 1;
@@ -91,18 +92,40 @@ export const useActivitySession = create<ActivityState>((set) => ({
   minimize: () => set((state) => (state.session ? { mode: "mini", landscape: false } : state)),
   expand: () => set((state) => (state.session ? { mode: "full" } : state)),
   setLandscape: (landscape) => set((state) => (state.session ? { landscape, mode: "full" } : state)),
-  setRoom: (chatId, room, activity) =>
-    set((state) => ({
-      channelParticipants: { ...state.channelParticipants, [chatId]: room.participants },
-      joinable: { ...state.joinable, [chatId]: room.participants.length > 0 ? activity : null },
-      rooms: { ...state.rooms, [chatId]: room },
-    })),
-  clearRoom: (chatId) =>
-    set((state) => ({
-      channelParticipants: { ...state.channelParticipants, [chatId]: [] },
-      joinable: { ...state.joinable, [chatId]: null },
-      rooms: { ...state.rooms, [chatId]: EMPTY_ROOM },
-    })),
+  setRoom: (chatId, key, room, activity) =>
+    set((state) => {
+      // Oda uygulama başına. "Katılınabilir": canlı odaların ilki (önceki
+      // hâlâ canlıysa korunur); katılımcı satırı açık aktivitemizin odasından.
+      const current = state.joinable[chatId] ?? null;
+      let joinable = current;
+      if (room.participants.length > 0 && activity) {
+        joinable = !current || current.id === activity.id ? activity : current;
+      } else if (current && (!key || current.id === key)) {
+        joinable = null;
+      }
+      const ours = state.session?.chatId !== chatId || !key || key === state.session.activity.id;
+      return {
+        rooms: { ...state.rooms, [chatId]: { ...state.rooms[chatId], [key]: room } },
+        joinable: { ...state.joinable, [chatId]: joinable },
+        channelParticipants: ours
+          ? { ...state.channelParticipants, [chatId]: room.participants }
+          : state.channelParticipants,
+      };
+    }),
+  clearRoom: (chatId, key) =>
+    set((state) => {
+      let next: ChatActivityRooms = {};
+      if (key != null) {
+        next = { ...state.rooms[chatId] };
+        delete next[key];
+      }
+      const clearsJoinable = !key || state.joinable[chatId]?.id === key;
+      return {
+        rooms: { ...state.rooms, [chatId]: next },
+        channelParticipants: clearsJoinable ? { ...state.channelParticipants, [chatId]: [] } : state.channelParticipants,
+        joinable: clearsJoinable ? { ...state.joinable, [chatId]: null } : state.joinable,
+      };
+    }),
 }));
 
 /** Bu sohbetteki bu aktivitenin içinde miyim (davet kartı "Katıldın"). */

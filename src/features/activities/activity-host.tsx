@@ -157,6 +157,16 @@ export function ActivityHost() {
   return <ActivitySessionView key={session.key} session={session} />;
 }
 
+/**
+ * Ağ geçidinin katılım reddi → kullanıcıya gösterilen metin (web
+ * activities-room `activityRefusalNotice` ile AYNI metinler).
+ */
+export function activityRefusalNotice(code: string | undefined): string | null {
+  if (code === "activity_full") return "Bu etkinlik dolu. Biri ayrılınca yeniden dene.";
+  if (code === "activity_busy") return "Bu sohbette şu an başka bir etkinlik sürüyor.";
+  return null;
+}
+
 function ActivitySessionView({ session }: { session: ActivitySession }) {
   const mode = useActivitySession((s) => s.mode);
   const landscape = useActivitySession((s) => s.landscape);
@@ -321,6 +331,8 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
     const releaseOpen = onGatewayOpen(join);
     const release = onGatewayEvent(ServerEvent.ACTIVITY_UPDATE, (frame) => {
       if (frame.chatId !== chatId || !Array.isArray(frame.participants)) return;
+      // Sohbette başka uygulamaların da odası olabilir (uygulama başına oda).
+      if (typeof frame.activityId === "string" && frame.activityId !== descriptor.id) return;
       const participants = (frame.participants as RoomParticipant[]).filter(
         (p) => typeof p?.id === "string" && typeof p?.username === "string"
       );
@@ -332,12 +344,30 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
         })
       );
     });
+    // Tek aktivite kuralı (Discord gibi): hesap başka bir cihazda/sekmede
+    // başka bir aktiviteye katıldı, ağ geçidi bizi bu odadan düşürdü.
+    const releaseLeft = onGatewayEvent(ServerEvent.ACTIVITY_LEFT, (frame) => {
+      if (frame.chatId !== chatId) return;
+      if (typeof frame.activityId === "string" && frame.activityId !== descriptor.id) return;
+      showToast(`${descriptor.name}: başka bir etkinliğe katıldığın için ayrıldın.`);
+      leave();
+    });
+    // Katılım reddi: katılımcı sınırı dolu ya da sohbette başka bir etkinlik
+    // sürüyor (web activities-room ile AYNI metinler).
+    const releaseError = onGatewayEvent(ServerEvent.GATEWAY_ERROR, (frame) => {
+      const notice = activityRefusalNotice(typeof frame.code === "string" ? frame.code : undefined);
+      if (!notice) return;
+      showToast(notice, "error");
+      leave();
+    });
     return () => {
       releaseOpen();
       release();
-      sendGatewayEvent({ event_type: "activity.leave", chat_id: chatId });
+      releaseLeft();
+      releaseError();
+      sendGatewayEvent({ event_type: "activity.leave", chat_id: chatId, activity_id: descriptor.id });
     };
-  }, [consented, chatId, descriptor, send]);
+  }, [consented, chatId, descriptor, send, leave]);
 
   // Görünüm değişimi aktiviteye bildirilir (SDK ACTIVITY_LAYOUT_MODE_UPDATE /
   // ORIENTATION_UPDATE) — PiP'te sade görünüme geçebilsin.
@@ -701,7 +731,7 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
         // chatId iframe'den ALINMAZ: aktivite yalnızca gömüldüğü sohbete yazar.
         const state = data.state;
         if (chatId && consented && state && typeof state === "object") {
-          sendGatewayEvent({ event_type: "activity.sync", chat_id: chatId, state });
+          sendGatewayEvent({ event_type: "activity.sync", chat_id: chatId, activity_id: descriptor.id, state });
         }
         return;
       }
@@ -758,7 +788,7 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
       if (!data.nonce) return;
       void handleCommand(data, activity);
     },
-    [activity, chatId, consented, instanceId, profile, handleCommand, send, leave, launchId, launchContext]
+    [activity, chatId, consented, descriptor.id, instanceId, profile, handleCommand, send, leave, launchId, launchContext]
   );
 
   const html = useMemo(

@@ -34,7 +34,10 @@ export interface CardRoomParticipant {
   imageUrl?: string | null;
 }
 
-/** Sohbetin aktivite odasının istemcideki görüntüsü (`activity.update`). */
+/**
+ * Sohbetin BİR aktivite odasının istemcideki görüntüsü (`activity.update`).
+ * Oda sohbet başına UYGULAMA başına (web ile aynı; ağ geçidi `activityId`).
+ */
 export interface ChatActivityRoom {
   activityId: string | null;
   activityUrl: string | null;
@@ -86,6 +89,20 @@ export interface CardSession {
   participants: CardRoomParticipant[];
 }
 
+/** Sohbetin odaları — anahtar `roomKey` (uygulama kimliği; eski oda ""). */
+export type ChatActivityRooms = Record<string, ChatActivityRoom>;
+
+/** Odanın sohbet içindeki anahtarı: karedeki `activityId`, eski odada "". */
+export function roomKey(frame: { activityId?: unknown }): string {
+  return typeof frame.activityId === "string" ? frame.activityId : "";
+}
+
+function roomsOf(rooms: ChatActivityRoom | ChatActivityRooms | null | undefined): ChatActivityRoom[] {
+  if (!rooms) return [];
+  if (Array.isArray((rooms as ChatActivityRoom).participants)) return [rooms as ChatActivityRoom];
+  return Object.values(rooms as ChatActivityRooms);
+}
+
 const ENDED: CardSession = { live: false, startTs: null, participants: [] };
 
 function roomRunsApp(room: ChatActivityRoom, app: { id: string; url?: string | null }): boolean {
@@ -95,14 +112,30 @@ function roomRunsApp(room: ChatActivityRoom, app: { id: string; url?: string | n
   return Boolean(roomUrl && appUrl && roomUrl === appUrl);
 }
 
-/** Kartın uygulamasının bu sohbetteki oturumu; yoksa bitmiş. */
+/**
+ * Kartın uygulamasının bu sohbetteki oturumu; yoksa bitmiş. Sohbette
+ * birden çok uygulamanın odası olabilir; kart yalnızca kendi uygulamasınınkine bakar.
+ */
 export function cardSession(
   app: { id: string; url?: string | null } | null,
-  room: ChatActivityRoom | null | undefined
+  rooms: ChatActivityRoom | ChatActivityRooms | null | undefined
 ): CardSession {
-  if (!app || !room || room.participants.length === 0) return ENDED;
-  if (!roomRunsApp(room, app)) return ENDED;
+  if (!app) return ENDED;
+  const room = roomsOf(rooms).find((candidate) => candidate.participants.length > 0 && roomRunsApp(candidate, app));
+  if (!room) return ENDED;
   return { live: true, startTs: room.startTs, participants: room.participants };
+}
+
+/** Sohbette biz dışında canlı üyesi olan ilk oda (web `joinableRoom`). */
+export function joinableRoom(
+  rooms: ChatActivityRoom | ChatActivityRooms | null | undefined,
+  selfId: string | null | undefined
+): ChatActivityRoom | null {
+  return (
+    roomsOf(rooms).find(
+      (room) => room.participants.length > 0 && !room.participants.some((participant) => participant.id === selfId)
+    ) ?? null
+  );
 }
 
 export type CardTapAction<T> =
@@ -113,11 +146,11 @@ export type CardTapAction<T> =
 export function cardTapAction<T extends CatalogEntry>(
   card: CardActivityRef,
   catalog: readonly T[],
-  room: ChatActivityRoom | null | undefined
+  rooms: ChatActivityRoom | ChatActivityRooms | null | undefined
 ): CardTapAction<T> {
   const activity = resolveCardActivity(card, catalog);
   if (!activity) return { kind: "unavailable" };
-  return cardSession(activity, room).live ? { kind: "join", activity } : { kind: "start", activity };
+  return cardSession(activity, rooms).live ? { kind: "join", activity } : { kind: "start", activity };
 }
 
 /** `activity.update` karesinden oda görüntüsü (biçimi bozuk alanlar düşer). */
@@ -133,7 +166,14 @@ export function roomFromFrame(frame: Record<string, unknown>): ChatActivityRoom 
     : [];
   const activity = (frame.activity ?? null) as { id?: unknown; url?: unknown } | null;
   return {
-    activityId: typeof activity?.id === "string" && activity.id ? activity.id : null,
+    // Odanın uygulaması (`activityId`) tanımdan önce: boşalan odanın
+    // görüntüsünde tanım olmayabilir.
+    activityId:
+      typeof frame.activityId === "string" && frame.activityId
+        ? frame.activityId
+        : typeof activity?.id === "string" && activity.id
+          ? activity.id
+          : null,
     activityUrl: typeof activity?.url === "string" && activity.url ? activity.url : null,
     startTs: typeof frame.startTs === "number" && Number.isFinite(frame.startTs) ? frame.startTs : null,
     participants,
