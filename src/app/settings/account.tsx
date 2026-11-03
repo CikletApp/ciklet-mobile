@@ -47,6 +47,13 @@ export default function AccountSettingsScreen() {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [totpCode, setTotpCode] = useState("");
   const [disablePassword, setDisablePassword] = useState("");
+  // Yeniden doğrulama (web ile aynı; sunucu lib/reauth): 2FA'yı açmak
+  // mevcut şifreyi, 2FA açıkken e-posta/şifre değiştirmek ve 2FA'yı
+  // kapatmak şifre + doğrulama kodunu ister.
+  const [enablePassword, setEnablePassword] = useState("");
+  const [disableTotp, setDisableTotp] = useState("");
+  const [emailTotp, setEmailTotp] = useState("");
+  const [passwordTotp, setPasswordTotp] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
 
   const twoFactor = useQuery({
@@ -67,9 +74,11 @@ export default function AccountSettingsScreen() {
     onSuccess: () => { setUsernamePassword(""); void refreshProfile(); showDialog("Tamam", "Kullanıcı adın güncellendi."); },
     onError: showError,
   });
+  const twoFactorOn = twoFactor.data?.enabled === true;
+  const totpReady = (code: string) => !twoFactorOn || code.trim().length >= 6;
   const startEmail = useMutation({
-    mutationFn: () => api<{ pendingEmail: string }>(endpoints.accountEmail, { method: "POST", body: { email, password: emailPassword } }),
-    onSuccess: (result) => { setPendingEmail(result.pendingEmail); setEmailPassword(""); },
+    mutationFn: () => api<{ pendingEmail: string }>(endpoints.accountEmail, { method: "POST", body: twoFactorOn ? { email, password: emailPassword, totp: emailTotp.trim() } : { email, password: emailPassword } }),
+    onSuccess: (result) => { setPendingEmail(result.pendingEmail); setEmailPassword(""); setEmailTotp(""); },
     onError: showError,
   });
   const verifyEmail = useMutation({
@@ -78,13 +87,13 @@ export default function AccountSettingsScreen() {
     onError: showError,
   });
   const changePassword = useMutation({
-    mutationFn: () => api(endpoints.changePassword, { method: "POST", body: { currentPassword, newPassword } }),
+    mutationFn: () => api(endpoints.changePassword, { method: "POST", body: twoFactorOn ? { currentPassword, newPassword, totp: passwordTotp.trim() } : { currentPassword, newPassword } }),
     onSuccess: () => { showDialog("Şifre güncellendi", "Güvenlik için tüm oturumların kapatıldı.", [{ text: "Giriş ekranına dön", onPress: () => void logout() }]); },
     onError: showError,
   });
   const startTwoFactor = useMutation({
-    mutationFn: () => api<Enrollment>(endpoints.accountTwoFactor, { method: "POST" }),
-    onSuccess: setEnrollment,
+    mutationFn: () => api<Enrollment>(endpoints.accountTwoFactor, { method: "POST", body: { password: enablePassword } }),
+    onSuccess: (result) => { setEnablePassword(""); setEnrollment(result); },
     onError: showError,
   });
   const enableTwoFactor = useMutation({
@@ -93,8 +102,8 @@ export default function AccountSettingsScreen() {
     onError: showError,
   });
   const disableTwoFactor = useMutation({
-    mutationFn: () => api(endpoints.accountTwoFactor, { method: "DELETE", body: { password: disablePassword } }),
-    onSuccess: () => { setDisablePassword(""); void twoFactor.refetch(); showDialog("Tamam", "İki adımlı doğrulama kapatıldı."); },
+    mutationFn: () => api(endpoints.accountTwoFactor, { method: "DELETE", body: { password: disablePassword, totp: disableTotp.trim() } }),
+    onSuccess: () => { setDisablePassword(""); setDisableTotp(""); void twoFactor.refetch(); showDialog("Tamam", "İki adımlı doğrulama kapatıldı."); },
     onError: showError,
   });
 
@@ -139,7 +148,8 @@ export default function AccountSettingsScreen() {
             <>
               <TextField label="YENİ E-POSTA" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
               <TextField label="MEVCUT ŞİFRE" value={emailPassword} onChangeText={setEmailPassword} secureTextEntry autoCapitalize="none" />
-              <Button label="Doğrulama Kodu Gönder" onPress={() => startEmail.mutate()} loading={startEmail.isPending} disabled={!email.includes("@") || !emailPassword} fullWidth />
+              {twoFactorOn ? <TextField label="DOĞRULAMA KODU" value={emailTotp} onChangeText={setEmailTotp} placeholder="6 haneli kod ya da kurtarma kodu" autoCapitalize="characters" maxLength={12} /> : null}
+              <Button label="Doğrulama Kodu Gönder" onPress={() => startEmail.mutate()} loading={startEmail.isPending} disabled={!email.includes("@") || !emailPassword || !totpReady(emailTotp)} fullWidth />
             </>
           )}
         </FormCard>
@@ -150,8 +160,10 @@ export default function AccountSettingsScreen() {
             <>
               <Text style={{ ...typography.bodyStrong, color: colors.success }}>Etkin</Text>
               <Text style={{ ...typography.caption, color: colors.muted }}>Kalan kurtarma kodu: {twoFactor.data.recoveryCodesLeft}</Text>
+              {!twoFactor.data.required ? <Text style={{ ...typography.caption, color: colors.muted }}>Kapatmak hesabını zayıflatır. Onaylamak için mevcut şifreni ve doğrulama kodunu gir.</Text> : null}
               {!twoFactor.data.required ? <TextField label="MEVCUT ŞİFRE" value={disablePassword} onChangeText={setDisablePassword} secureTextEntry /> : null}
-              {!twoFactor.data.required ? <Button label="2FA'yı Kapat" variant="danger" onPress={() => disableTwoFactor.mutate()} loading={disableTwoFactor.isPending} disabled={!disablePassword} fullWidth /> : null}
+              {!twoFactor.data.required ? <TextField label="DOĞRULAMA KODU" value={disableTotp} onChangeText={setDisableTotp} placeholder="6 haneli kod ya da kurtarma kodu" autoCapitalize="characters" maxLength={12} /> : null}
+              {!twoFactor.data.required ? <Button label="2FA'yı Kapat" variant="danger" onPress={() => disableTwoFactor.mutate()} loading={disableTwoFactor.isPending} disabled={!disablePassword || disableTotp.trim().length < 6} fullWidth /> : null}
             </>
           ) : enrollment ? (
             <>
@@ -162,7 +174,11 @@ export default function AccountSettingsScreen() {
               <Button label="Doğrula ve Etkinleştir" onPress={() => enableTwoFactor.mutate()} loading={enableTwoFactor.isPending} disabled={totpCode.length !== 6} fullWidth />
             </>
           ) : (
-            <Button label="2FA Kurulumunu Başlat" icon="shield" onPress={() => startTwoFactor.mutate()} loading={startTwoFactor.isPending} fullWidth />
+            <>
+              <Text style={{ ...typography.caption, color: colors.muted }}>Güvenliğin için önce mevcut şifreni gir.</Text>
+              <TextField label="MEVCUT ŞİFRE" value={enablePassword} onChangeText={setEnablePassword} secureTextEntry autoCapitalize="none" />
+              <Button label="2FA Kurulumunu Başlat" icon="shield" onPress={() => startTwoFactor.mutate()} loading={startTwoFactor.isPending} disabled={!enablePassword} fullWidth />
+            </>
           )}
           {recoveryCodes.length > 0 ? (
             <View style={{ padding: spacing.lg, borderRadius: radii.md, backgroundColor: colors.bg, gap: spacing.xs }}>
@@ -175,9 +191,10 @@ export default function AccountSettingsScreen() {
         <SectionHeader title="ŞİFRE" />
         <FormCard>
           <TextField label="MEVCUT ŞİFRE" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
+          {twoFactorOn ? <TextField label="DOĞRULAMA KODU" value={passwordTotp} onChangeText={setPasswordTotp} placeholder="6 haneli kod ya da kurtarma kodu" autoCapitalize="characters" maxLength={12} /> : null}
           <TextField label="YENİ ŞİFRE" value={newPassword} onChangeText={setNewPassword} secureTextEntry hint="6-200 karakter" />
           <TextField label="YENİ ŞİFRE (TEKRAR)" value={newPasswordAgain} onChangeText={setNewPasswordAgain} secureTextEntry error={newPasswordAgain && newPassword !== newPasswordAgain ? "Şifreler eşleşmiyor." : null} />
-          <Button label="Şifreyi Değiştir" onPress={() => changePassword.mutate()} loading={changePassword.isPending} disabled={!currentPassword || !passwordsMatch} fullWidth />
+          <Button label="Şifreyi Değiştir" onPress={() => changePassword.mutate()} loading={changePassword.isPending} disabled={!currentPassword || !passwordsMatch || !totpReady(passwordTotp)} fullWidth />
         </FormCard>
       </ScrollView>
     </Screen>
