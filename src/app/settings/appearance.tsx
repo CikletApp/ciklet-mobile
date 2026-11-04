@@ -1,11 +1,22 @@
-import { useRef, useState } from "react";
-import { ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { I18nManager, ScrollView, Switch, Text, TextInput, View } from "react-native";
 
 import { useMentolPlan } from "@/api/hooks";
 import { Icon, Pressable, Screen, SegmentedTabs, showToast } from "@/components/ui";
 import { ColorPickerSheet } from "@/features/appearance/color-picker-sheet";
 import { type ReducedMotionPreference } from "@/lib/accessibility";
-import { LOCALE_NAMES, deviceLocale, useT, type LocalePreference } from "@/lib/i18n";
+import {
+  INTL_LOCALES,
+  LOCALES,
+  LOCALE_NAMES,
+  deviceLocale,
+  isRtlLocale,
+  resolveLocale,
+  translate,
+  useLocale,
+  useT,
+  type LocalePreference,
+} from "@/lib/i18n";
 import { usePreferences } from "@/stores/preferences";
 import { TranslationTargetSetting } from "@/features/translation/language-picker";
 import { THEME_LABELS, darkThemeOf, useTheme } from "@/stores/theme";
@@ -193,7 +204,6 @@ export default function AppearanceScreen() {
 function MotionAndLanguage() {
   const t = useT();
   const reduceMotion = usePreferences((s) => s.reduceMotion);
-  const locale = usePreferences((s) => s.locale);
   const setPreference = usePreferences((s) => s.setPreference);
 
   return (
@@ -212,24 +222,83 @@ function MotionAndLanguage() {
         <Text style={{ ...typography.caption, color: colors.muted }}>{t("settings.appearance.motion.description")}</Text>
       </View>
 
-      <View style={{ gap: spacing.sm }}>
-        <Text style={{ ...typography.overline, color: colors.muted }}>{t("settings.appearance.language.title")}</Text>
-        <SegmentedTabs<LocalePreference>
-          items={[
-            { id: "system", label: t("common.system") },
-            { id: "tr", label: LOCALE_NAMES.tr },
-            { id: "en", label: LOCALE_NAMES.en },
-          ]}
-          value={locale}
-          onChange={(value) => setPreference("locale", value)}
-        />
-        <Text style={{ ...typography.caption, color: colors.muted }}>
-          {locale === "system" ? `${t("settings.appearance.language.system", { name: LOCALE_NAMES[deviceLocale()] })}. ` : ""}
-          {t("settings.appearance.language.description")}
-        </Text>
-      </View>
+      <LanguagePicker />
 
       <TranslationTargetSetting />
+    </View>
+  );
+}
+
+/**
+ * Dil seçici (web Ayarlar → Görünüm → Dil ile aynı): her dil KENDİ adıyla,
+ * altında arayüz dilindeki adı. Arapça sağdan sola: yön değişimi React
+ * Native'de uygulama yeniden açılınca uygulanır (I18nManager), kullanıcıya
+ * söylenir.
+ */
+function LanguagePicker() {
+  const t = useT();
+  const current = useLocale();
+  const locale = usePreferences((s) => s.locale);
+  const setPreference = usePreferences((s) => s.setPreference);
+  const displayNames = useMemo(() => {
+    try {
+      return new Intl.DisplayNames([INTL_LOCALES[current]], { type: "language" });
+    } catch {
+      return null;
+    }
+  }, [current]);
+
+  const choose = (value: LocalePreference) => {
+    if (value === locale) return;
+    setPreference("locale", value);
+    const rtl = isRtlLocale(resolveLocale(value));
+    if (rtl !== I18nManager.isRTL) {
+      I18nManager.allowRTL(rtl);
+      I18nManager.forceRTL(rtl);
+      showToast(translate(resolveLocale(value), "settings.appearance.language.restartRtl"));
+    }
+  };
+
+  const options: { id: LocalePreference; label: string; sub?: string }[] = [
+    { id: "system", label: t("common.system"), sub: t("settings.appearance.language.system", { name: LOCALE_NAMES[deviceLocale()] }) },
+    ...LOCALES.map((code) => {
+      const translated = code === current ? undefined : (displayNames?.of(code) ?? undefined);
+      return { id: code, label: LOCALE_NAMES[code], sub: translated && translated !== LOCALE_NAMES[code] ? translated : undefined };
+    }),
+  ];
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Text style={{ ...typography.overline, color: colors.muted }}>{t("settings.appearance.language.title")}</Text>
+      <View style={{ borderRadius: radii.lg, backgroundColor: colors.panel, overflow: "hidden" }}>
+        {options.map((option, index) => {
+          const active = option.id === locale;
+          return (
+            <Pressable
+              key={option.id}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active }}
+              onPress={() => choose(option.id)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.md,
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ ...typography.body, color: active ? colors.brand : colors.text, fontWeight: "600" }}>{option.label}</Text>
+                {option.sub ? <Text style={{ ...typography.caption, color: colors.muted }}>{option.sub}</Text> : null}
+              </View>
+              {active ? <Icon name="check" size={19} color={colors.brand} /> : null}
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={{ ...typography.caption, color: colors.muted }}>{t("settings.appearance.language.description")}</Text>
     </View>
   );
 }

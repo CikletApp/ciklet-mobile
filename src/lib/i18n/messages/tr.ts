@@ -176,6 +176,7 @@ export const tr = {
         title: "DİL",
         description: "Arayüz dili. Çeviri sürüyor; henüz çevrilmeyen metinler Türkçe görünür.",
         system: "Cihaz dili ({name})",
+        restartRtl: "Yazı yönünün değişmesi için uygulamayı kapatıp yeniden aç.",
       },
     },
     voice: {

@@ -165,6 +165,7 @@ export const en = {
         title: "LANGUAGE",
         description: "Interface language. Translation is in progress; untranslated text appears in Turkish.",
         system: "Device language ({name})",
+        restartRtl: "Close and reopen the app to apply the new text direction.",
       },
     },
     voice: {
