@@ -992,6 +992,8 @@ export interface StoreCatalogResponse {
     featured?: boolean;
     sortOrder?: number;
     collection?: string | null;
+    /** Tema kimlikleri (web lib/store-showcase STORE_THEMES) — mağaza filtresi. */
+    themes?: string[];
     /** Süreli ürün: bitiş (ISO) — "Sınırlı süre" + geri sayım. */
     availableUntil?: string | null;
     /** false → satıştan kalktı, sende olduğu için listede (yalnızca takılır). */

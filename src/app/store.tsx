@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -32,11 +32,22 @@ import { displayNameOf } from "@/lib/format";
 import { STORE_KIND_LABEL, formatPriceTry } from "@/lib/profile-extras";
 import { PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
 import { formatCountdown, groupByCollection, hasMobileRenderer } from "@/lib/store-display";
+import {
+  EMPTY_STORE_FILTERS,
+  STORE_SORTS,
+  STORE_THEMES,
+  activeFilterCount,
+  filterStoreItems,
+  hasActiveFilters,
+  sortStoreItems,
+  type StoreFilters,
+  type StoreSort,
+} from "@/lib/store-browse";
 import { useNow } from "@/lib/use-now";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { useBuyWithPoints } from "@/api/hooks/use-account-privacy";
-import { INTL_LOCALES, useLocale, useT } from "@/lib/i18n";
+import { INTL_LOCALES, useLocale, useT, type MessageKey } from "@/lib/i18n";
 
 /**
  * Mağaza (web `/magaza`) — avatar süsleri, isim plakaları, profil efektleri.
@@ -69,6 +80,10 @@ export default function StoreScreen() {
   const catalog = useStoreCatalog();
   const { data: profile } = useCurrentProfile();
   const [kind, setKind] = useState<StoreItemKind>("decoration");
+  // Arama + filtre + sıralama (web store-view / store-filters).
+  const [filters, setFilters] = useState<StoreFilters>(EMPTY_STORE_FILTERS);
+  const [sort, setSort] = useState<StoreSort | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
   const t = useT();
   const locale = useLocale();
 
@@ -92,12 +107,22 @@ export default function StoreScreen() {
       hasMobileRenderer(item.kind, item.id) &&
       (PURCHASES_ENABLED || free || item.owned || Boolean(item.free) || typeof item.pointsPrice === "number")
   );
+  const collectionName = (id: string | null | undefined) => data.collections?.find((c) => c.id === id)?.name ?? "";
+  const kindThemes = STORE_THEMES.filter((theme) => items.some((item) => item.themes?.includes(theme)));
+  const kindCollections = (data.collections ?? []).filter((c) => items.some((item) => item.collection === c.id));
+  const filtering = hasActiveFilters(filters) || sort !== null;
+  const filterCount = activeFilterCount(filters);
+  const results = filtering ? sortStoreItems(filterStoreItems(items, filters, (i) => collectionName(i.collection)), sort, locale) : [];
   // Öne çıkanlar üstte (sahip olunmayanlar), kalanı koleksiyonlara göre.
-  const picks = items.filter((item) => item.featured && !item.owned);
-  const groups = groupByCollection(
-    items.filter((item) => !picks.includes(item)),
-    data.collections
-  );
+  const picks = filtering ? [] : items.filter((item) => item.featured && !item.owned);
+  const groups = filtering
+    ? [{ id: "__results", title: t("parityScreens.store.browse.results", { count: results.length }), items: results }]
+    : groupByCollection(
+        items.filter((item) => !picks.includes(item)),
+        data.collections
+      );
+  const toggleTheme = (theme: string) =>
+    setFilters((f) => ({ ...f, themes: f.themes.includes(theme) ? f.themes.filter((x) => x !== theme) : [...f.themes, theme] }));
 
   return (
     <Screen>
@@ -105,9 +130,129 @@ export default function StoreScreen() {
       <SegmentedTabs
         variant="pill"
         value={kind}
-        onChange={setKind}
+        onChange={(next) => {
+          setKind(next);
+          // Tema / koleksiyon türe göre değişir; arama ve sıralama kalır.
+          setFilters((f) => ({ ...f, themes: [], collection: null }));
+        }}
         items={(Object.keys(STORE_KIND_LABEL) as StoreItemKind[]).map((id) => ({ id, label: STORE_KIND_LABEL[id] }))}
       />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+        <View
+          style={{
+            flex: 1,
+            minHeight: 40,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            paddingHorizontal: spacing.md,
+            borderRadius: radii.full,
+            backgroundColor: colors.panel,
+          }}
+        >
+          <Icon name="search" size={17} color={colors.muted} />
+          <TextInput
+            value={filters.query}
+            onChangeText={(query) => setFilters((f) => ({ ...f, query }))}
+            placeholder={t("parityScreens.store.search")}
+            placeholderTextColor={colors.muted}
+            accessibilityLabel={t("parityScreens.store.search")}
+            autoCorrect={false}
+            returnKeyType="search"
+            style={{ ...typography.body, flex: 1, color: colors.bright, paddingVertical: 6 }}
+          />
+          {filters.query ? (
+            <Pressable onPress={() => setFilters((f) => ({ ...f, query: "" }))} accessibilityRole="button" hitSlop={8}>
+              <Icon name="close" size={15} color={colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
+        <Pressable
+          onPress={() => setPanelOpen((open) => !open)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: panelOpen }}
+          style={{
+            minHeight: 40,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: spacing.md,
+            borderRadius: radii.full,
+            backgroundColor: filterCount > 0 || sort ? colors.brandSoft : colors.panel,
+          }}
+        >
+          <Icon name="list" size={16} color={filterCount > 0 || sort ? colors.brand : colors.text} />
+          <Text style={{ ...typography.caption, ...fw(700), color: filterCount > 0 || sort ? colors.brand : colors.text }}>
+            {panelOpen ? t("parityScreens.store.filters.hide") : t("parityScreens.store.filters.show")}
+            {filterCount > 0 ? ` (${filterCount})` : ""}
+          </Text>
+        </Pressable>
+      </View>
+      {panelOpen ? (
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
+          <FilterLabel title={t("parityScreens.store.filters.mine")} />
+          <FilterChips>
+            <FilterChip
+              label={t("parityScreens.store.filters.owned")}
+              active={filters.ownedOnly}
+              onPress={() => setFilters((f) => ({ ...f, ownedOnly: !f.ownedOnly }))}
+            />
+          </FilterChips>
+          {kindThemes.length > 0 ? (
+            <>
+              <FilterLabel title={t("parityScreens.store.filters.themes")} />
+              <FilterChips>
+                {kindThemes.map((theme) => (
+                  <FilterChip
+                    key={theme}
+                    label={t(`parityScreens.store.themes.${theme}` as MessageKey)}
+                    active={filters.themes.includes(theme)}
+                    onPress={() => toggleTheme(theme)}
+                  />
+                ))}
+              </FilterChips>
+            </>
+          ) : null}
+          {kindCollections.length > 0 ? (
+            <>
+              <FilterLabel title={t("parityScreens.store.filters.collection")} />
+              <FilterChips>
+                {kindCollections.map((c) => (
+                  <FilterChip
+                    key={c.id}
+                    label={c.name}
+                    active={filters.collection === c.id}
+                    onPress={() => setFilters((f) => ({ ...f, collection: f.collection === c.id ? null : c.id }))}
+                  />
+                ))}
+              </FilterChips>
+            </>
+          ) : null}
+          <FilterLabel title={t("parityScreens.store.sort.label")} />
+          <FilterChips>
+            {STORE_SORTS.map((option) => (
+              <FilterChip
+                key={option}
+                label={t(`parityScreens.store.sort.${option}` as MessageKey)}
+                active={sort === option}
+                onPress={() => setSort((current) => (current === option ? null : option))}
+              />
+            ))}
+          </FilterChips>
+          {filterCount > 0 || sort ? (
+            <Pressable
+              onPress={() => {
+                setFilters((f) => ({ ...EMPTY_STORE_FILTERS, query: f.query }));
+                setSort(null);
+              }}
+              accessibilityRole="button"
+              style={{ alignSelf: "flex-start", paddingVertical: 4 }}
+            >
+              <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>{t("parityScreens.store.filters.clearAll")}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["4xl"] }} keyboardShouldPersistTaps="handled">
         <Pressable
           onPress={() => router.push("/quests")}
@@ -144,16 +289,19 @@ export default function StoreScreen() {
               : `Mentol üyelerine %${data.discountPercent} indirim.`}{" "}
             Ödeme web ödeme sayfasında, tarayıcıda tamamlanır.
           </Text>
-        ) : items.length === 0 ? (
+        ) : null}
+        {filtering && results.length === 0 ? (
+          <EmptyState icon="search" title={t("parityScreens.store.browse.empty")} />
+        ) : !filtering && items.length === 0 && !free && !PURCHASES_ENABLED ? (
           <EmptyState
             icon="sparkles"
             title="Bu türde ürünün yok"
             description="Sahip olduğun ürünler burada görünür; takıp çıkarabilirsin."
           />
         ) : null}
-        {[...(picks.length ? [{ id: "__picks", title: "Öne çıkan ürünler", items: picks }] : []), ...groups].map((group) => (
+        {[...(picks.length ? [{ id: "__picks", title: "Öne çıkan ürünler", items: picks }] : []), ...groups.filter((g) => g.items.length > 0)].map((group) => (
           <View key={group.id ?? "__rest"} style={{ gap: spacing.md }}>
-            {group.title && (picks.length > 0 || groups.length > 1 || group.id === "__picks") ? (
+            {group.title && (picks.length > 0 || groups.length > 1 || group.id === "__picks" || group.id === "__results") ? (
               <Text style={{ ...typography.title, color: colors.bright, marginTop: spacing.sm }}>{group.title}</Text>
             ) : null}
             {group.items.map((item) => (
@@ -416,5 +564,34 @@ function Preview({
       <CosmeticBackdrop id={item.id} />
       <Avatar imageUrl={profile?.imageUrl} fallbackText={profile?.username} size={64} decorationId={item.id} />
     </View>
+  );
+}
+
+function FilterLabel({ title }: { title: string }) {
+  return <Text style={{ ...typography.overline, color: colors.muted }}>{title.toLocaleUpperCase()}</Text>;
+}
+
+function FilterChips({ children }: { children: React.ReactNode }) {
+  return <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>{children}</View>;
+}
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: active }}
+      style={{
+        minHeight: 32,
+        justifyContent: "center",
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.full,
+        borderWidth: 1,
+        borderColor: active ? colors.brand : colors.border,
+        backgroundColor: active ? colors.brandSoft : "transparent",
+      }}
+    >
+      <Text style={{ ...typography.caption, color: active ? colors.brand : colors.text }}>{label}</Text>
+    </Pressable>
   );
 }
