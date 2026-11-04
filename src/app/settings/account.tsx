@@ -58,6 +58,7 @@ export default function AccountSettingsScreen() {
   const [enablePassword, setEnablePassword] = useState("");
   const [disableTotp, setDisableTotp] = useState("");
   const [emailTotp, setEmailTotp] = useState("");
+  const [phoneVisible, setPhoneVisible] = useState(false);
   const [passwordTotp, setPasswordTotp] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
 
@@ -155,6 +156,27 @@ export default function AccountSettingsScreen() {
             </>
           )}
         </FormCard>
+
+        <SectionHeader title="TELEFON NUMARASI" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <ListGroup>
+            <ListRow
+              icon="smartphone"
+              title={
+                profile?.phoneMasked
+                  ? phoneVisible
+                    ? ((profile as { phoneNumber?: string | null }).phoneNumber ?? profile.phoneMasked)
+                    : profile.phoneMasked
+                  : "Kayıtlı numara yok"
+              }
+              subtitle={profile?.isPhoneVerified ? "Doğrulandı" : "Telegram ile ücretsiz doğrula"}
+              onPress={() => router.push("/settings/phone")}
+            />
+            {profile?.phoneMasked ? (
+              <ListRow icon={phoneVisible ? "eye-off" : "eye"} title={phoneVisible ? "Gizle" : "Göster"} onPress={() => setPhoneVisible((v) => !v)} />
+            ) : null}
+          </ListGroup>
+        </View>
 
         <SectionHeader title="İKİ ADIMLI DOĞRULAMA" />
         <FormCard>
