@@ -5,6 +5,7 @@ import { safetyTr } from "./safety.tr";
 import { voiceE2eeTr } from "./voice-e2ee.tr";
 import { serverGuideTr } from "./server-guide.tr";
 import { serverTagTr } from "./server-tag.tr";
+import { serverRailTr } from "./server-rail.tr";
 import { serverBoostTr } from "./server-boost.tr";
 import { accountSwitcherTr } from "./account-switcher.tr";
 import { familyCenterTr } from "./family-center.tr";
@@ -238,6 +239,7 @@ export const tr = {
   serverGuide: serverGuideTr,
   /** Sunucu etiketi (web ile aynı anahtarlar) — server-tag.tr.ts. */
   serverTag: serverTagTr,
+  serverRail: serverRailTr,
   /** Sunucu Takviyesi (web ile aynı anahtarlar) — server-boost.tr.ts. */
   serverBoost: serverBoostTr,
   /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.tr.ts. */

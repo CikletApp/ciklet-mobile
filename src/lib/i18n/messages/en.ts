@@ -5,6 +5,7 @@ import { safetyEn } from "./safety.en";
 import { voiceE2eeEn } from "./voice-e2ee.en";
 import { serverGuideEn } from "./server-guide.en";
 import { serverTagEn } from "./server-tag.en";
+import { serverRailEn } from "./server-rail.en";
 import { serverBoostEn } from "./server-boost.en";
 import { accountSwitcherEn } from "./account-switcher.en";
 import { gameStatsEn } from "./game-stats.en";
@@ -223,6 +224,7 @@ export const en = {
   streaming: streamingEn,
   serverGuide: serverGuideEn,
   serverTag: serverTagEn,
+  serverRail: serverRailEn,
   serverBoost: serverBoostEn,
   /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.en.ts. */
   accountSwitcher: accountSwitcherEn,

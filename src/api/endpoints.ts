@@ -172,6 +172,15 @@ export const endpoints = {
     `/api/folders/${encodeURIComponent(folderId)}/remove`,
   /** PATCH `{ items: [{type:'folder'|'server', id}] }` — kök sıralama. */
   sidebarReorder: "/api/sidebar/reorder",
+  /**
+   * PUT `{ items, origin }` — şerit düzeninin TAMAMI (kök sırası + klasörler
+   * + klasör içi sıra) tek istekte; şerit v2 bunu kullanır (web ile aynı uç).
+   */
+  sidebarLayout: "/api/sidebar/layout",
+  /** POST — sunucunun bütün kanallarını okundu yap. */
+  serverRead: (serverId: string) => `/api/servers/${encodeURIComponent(serverId)}/read`,
+  /** POST — klasördeki bütün sunucuları okundu yap. */
+  folderRead: (folderId: string) => `/api/folders/${encodeURIComponent(folderId)}/read`,
   /** PATCH `{ serverIds }` — klasörsüz sunucuların sırası. */
   serversReorder: "/api/servers/reorder",
 

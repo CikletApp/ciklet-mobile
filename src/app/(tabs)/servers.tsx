@@ -51,6 +51,8 @@ import { fw } from "@/theme/fonts";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
 import { useTabBarScrollHandler } from "@/components/ui/tab-bar-collapse";
 import { PendingApplicationRows } from "@/features/join-application/pending-applications";
+import ServersScreenV2 from "@/features/server-rail-v2/servers-screen-v2";
+import { SERVER_RAIL_VERSION } from "@/features/server-rail-v2/rail-version";
 
 /**
  * Sunucular — sunucuların kendi evi.
@@ -78,7 +80,15 @@ const REORDER_LAYOUT = LinearTransition.duration(REORDER_DURATION).easing(
 /** Bir satırın dikey adımı — sürüklemenin kaç sıra kaydığını bundan hesaplarız. */
 const ROW_STEP = 72;
 
+/**
+ * Sürüm seçimi tek yerden (features/server-rail-v2/rail-version.ts); v1
+ * aşağıda olduğu gibi duruyor, sorun çıkarsa `EXPO_PUBLIC_SERVER_RAIL=v1`.
+ */
 export default function ServersScreen() {
+  return SERVER_RAIL_VERSION === "v1" ? <ServersScreenV1 /> : <ServersScreenV2 />;
+}
+
+function ServersScreenV1() {
   const t = useT();
   const tabInset = useFloatingTabInset();
   const tabScroll = useTabBarScrollHandler();

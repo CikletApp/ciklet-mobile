@@ -3,6 +3,7 @@ import { safety } from "./safety";
 import { voiceE2ee } from "./voice-e2ee";
 import { serverGuide } from "./server-guide";
 import { serverTag } from "./server-tag";
+import { serverRail } from "./server-rail";
 import { serverBoost } from "./server-boost";
 import { accountSwitcher } from "./account-switcher";
 import { familyCenter } from "./family-center";
@@ -224,6 +225,7 @@ export const messages = {
   streaming: streaming,
   serverGuide: serverGuide,
   serverTag: serverTag,
+  serverRail: serverRail,
   serverBoost: serverBoost,
   /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.en.ts. */
   accountSwitcher: accountSwitcher,
