@@ -42,12 +42,16 @@ export default function SavedScreen() {
 
   const open = (entry: BookmarkEntry) => {
     if (entry.scope === "direct") {
-      router.push(`/chat/direct/${entry.chatId}`);
+      router.push(`/chat/direct/${entry.chatId}?m=${entry.messageId}`);
       return;
     }
     // Kayıt sunucu kimliğini ayrı taşımıyor; web adresinden okunur.
     const serverId = /^\/servers\/([^/]+)\//.exec(entry.url)?.[1];
-    router.push(serverId ? `/chat/channel/${entry.chatId}?serverId=${serverId}` : `/chat/channel/${entry.chatId}`);
+    router.push(
+      serverId
+        ? `/chat/channel/${entry.chatId}?serverId=${serverId}&m=${entry.messageId}`
+        : `/chat/channel/${entry.chatId}?m=${entry.messageId}`
+    );
   };
 
   const remove = (entry: BookmarkEntry) =>

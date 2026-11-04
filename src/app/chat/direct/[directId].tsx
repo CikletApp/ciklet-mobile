@@ -28,7 +28,7 @@ import { colors, spacing } from "@/theme/tokens";
  * seyrek kullanılan eylemlerin menüsü (sohbette ara, süreli mesajlar).
  */
 export default function DirectChatScreen() {
-  const { directId } = useLocalSearchParams<{ directId: string }>();
+  const { directId, m: focusMessageId } = useLocalSearchParams<{ directId: string; m?: string }>();
   const { data: direct, isListed } = useDirect(directId);
   const display = useDirectDisplay(direct);
   const { placeCall } = useCallActions();
@@ -183,6 +183,7 @@ export default function DirectChatScreen() {
       <ChatView
         kind="direct"
         chatId={directId}
+        focusMessageId={focusMessageId}
         readOnlyOfficial={isOfficial}
         oneToOne={!isGroup}
         // Okundu imleci listeden; sohbet satırı gelmeden ayraç tohumlanmaz.

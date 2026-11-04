@@ -41,6 +41,7 @@ import { isBurstRow } from "../reaction-groups";
 import { saveAttachment } from "./message-attachment";
 import { MessageItem, copyableText, type MessageAnchor } from "./message-item";
 import { useBookmarkAction, useReminderAction } from "@/features/social/bookmark";
+import { useMessageLink } from "../message-link";
 import { hasTranslatableText } from "@/lib/translation/core";
 import { nativeTranslationSupported, useMessageTranslation, useMessageTranslationEntry, useTranslateMessage } from "@/lib/translation/native";
 
@@ -190,6 +191,7 @@ export function MessageContextMenu({
   const attachment = savableAttachment(message);
   const bookmark = useBookmarkAction(message, onClose);
   const reminder = useReminderAction(message, onClose);
+  const linkFor = useMessageLink();
   // "Çevir" (cihaz üstü; lib/translation/native) — web mesaj menüsüyle aynı.
   const translation = useMessageTranslationEntry(message.id);
   const translateMessage = useTranslateMessage();
@@ -237,6 +239,19 @@ export function MessageContextMenu({
             },
           }
     );
+  }
+  // "Mesaj Bağlantısını Kopyala" (web ile aynı adres: sohbet + `?m=<id>`).
+  const link = linkFor(message.id);
+  if (link) {
+    actions.push({
+      key: "link",
+      icon: "link",
+      label: "Mesaj Bağlantısını Kopyala",
+      onPress: () => {
+        void copyText(link).then(() => showToast("Mesaj bağlantısı kopyalandı"));
+        onClose();
+      },
+    });
   }
   if (attachment) {
     actions.push({

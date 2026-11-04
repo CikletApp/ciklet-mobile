@@ -39,7 +39,7 @@ export default function MentionsScreen() {
               where={`#${item.channelName} · ${item.serverName}`}
               content={item.content}
               createdAt={item.createdAt}
-              onPress={() => router.push(`/chat/channel/${item.channelId}?serverId=${item.serverId}`)}
+              onPress={() => router.push(`/chat/channel/${item.channelId}?serverId=${item.serverId}&m=${item.messageId}`)}
             />
           )}
         />

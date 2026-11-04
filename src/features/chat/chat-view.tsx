@@ -128,6 +128,7 @@ export function ChatView({
   unreadSeed,
   intro,
   canStartThread = false,
+  focusMessageId,
 }: {
   kind: ChatKind;
   chatId: string;
@@ -159,6 +160,11 @@ export function ChatView({
   intro?: React.ReactNode;
   /** Sunucu metin kanalı (alt başlık ya da forum değil): mesajdan alt başlık açılabilir. */
   canStartThread?: boolean;
+  /**
+   * Açılışta kaydırılacak mesaj — rotanın `m` parametresi (mesaj bağlantısı,
+   * arama, bahsetmeler, kaydedilenler; web `?m=<id>` ile aynı).
+   */
+  focusMessageId?: string;
 }) {
   const {
     data,
@@ -488,6 +494,17 @@ export function ChatView({
     },
     [scrollToMessage, continueJump]
   );
+
+  // Rotadan gelen hedef (`?m=`): ilk sayfa yerleşince bir kez atlanır.
+  const focusedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusMessageId || focusedRef.current === focusMessageId || isLoading || items.length === 0) return;
+    const frame = requestAnimationFrame(() => {
+      focusedRef.current = focusMessageId;
+      jumpToMessage(focusMessageId);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusMessageId, isLoading, items.length, jumpToMessage]);
 
   // Atlama hedefi eski sayfalardaysa her yeni sayfada yeniden denenir. Yeni
   // satırlar listeye yerleşsin diye bir kare beklenir.

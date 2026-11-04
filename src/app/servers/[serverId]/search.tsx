@@ -142,7 +142,7 @@ export default function ServerSearchScreen() {
             return (
               <Pressable
                 onPress={() =>
-                  item.channelId ? router.push(`/chat/channel/${item.channelId}?serverId=${serverId}`) : undefined
+                  item.channelId ? router.push(`/chat/channel/${item.channelId}?serverId=${serverId}&m=${item.id}`) : undefined
                 }
                 accessibilityRole="button"
                 accessibilityLabel={channelName ? `#${channelName} kanalını aç` : "Kanalı aç"}

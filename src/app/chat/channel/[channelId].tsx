@@ -68,7 +68,9 @@ export default function ChannelChatScreen() {
     serverId,
     parentId: parentIdParam,
     threadName,
+    m: focusMessageId,
   } = useLocalSearchParams<{
+    m?: string;
     channelId: string;
     serverId?: string;
     parentId?: string;
@@ -400,6 +402,7 @@ export default function ChannelChatScreen() {
         <ChatView
           kind="channel"
           chatId={channelId}
+          focusMessageId={focusMessageId}
           serverId={serverId}
           unreadSeed={unreadCounts.data ? { count: unreadCounts.data.channelUnreads?.[channelId]?.count ?? 0 } : undefined}
           placeholder={

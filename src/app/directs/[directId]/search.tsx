@@ -142,7 +142,7 @@ export default function DirectSearchScreen() {
           }
           renderItem={({ item }) => (
             <Pressable
-              onPress={() => router.push(`/chat/direct/${directId}`)}
+              onPress={() => router.push(`/chat/direct/${directId}?m=${item.id}`)}
               accessibilityRole="button"
               accessibilityLabel="Sohbeti aç"
               style={({ pressed }) => ({

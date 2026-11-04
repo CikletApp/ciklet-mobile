@@ -63,6 +63,16 @@ export function openGuardedLink(url: string | null | undefined) {
       router.push(`/sablon/${template[1]}`);
       return;
     }
+    // Sohbet / mesaj bağlantısı (/servers/…/channels/…, /direct/…, `?m=`)
+    // uygulamada açılır ve mesaja kaydırılır (web ile aynı adres).
+    if (/^https?:\/\/[^/?#]+\/(servers\/[^/?#]+\/channels|direct)\//i.test(url.trim())) {
+      void import("@/features/chat/message-link")
+        .then((mod) => {
+          if (!mod.openMessageLink(url)) open(url);
+        })
+        .catch(() => open(url));
+      return;
+    }
     open(url);
     return;
   }
