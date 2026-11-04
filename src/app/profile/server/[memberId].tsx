@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import { useMyMemberships, useUpdateMemberProfile } from "@/api/hooks";
 import { Avatar, EmptyState, Icon, ScreenLoader } from "@/components/ui";
 import { UserFacingUploadError, pickAndUploadProfileImage } from "@/lib/uploads";
+import { BannerColorRow } from "@/features/profile/banner-color-row";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export default function ServerProfileEditScreen() {
@@ -146,6 +147,27 @@ export default function ServerProfileEditScreen() {
         ) : avatarError ? (
           <Text style={{ ...typography.caption, color: colors.danger }}>{avatarError}</Text>
         ) : null}
+
+        {membership.serverImageUrl ? (
+          <Pressable
+            onPress={() =>
+              update.mutate({ serverImageUrl: null }, { onError: () => setAvatarError("Avatar kaldırılamadı.") })
+            }
+            disabled={update.isPending}
+            accessibilityRole="button"
+            style={{ alignSelf: "flex-start" }}
+          >
+            <Text style={{ ...typography.bodyStrong, color: colors.danger }}>Avatarı kaldır</Text>
+          </Pressable>
+        ) : null}
+
+        <BannerColorRow
+          value={membership.serverBannerColor}
+          disabled={update.isPending}
+          onChange={(serverBannerColor) =>
+            update.mutate({ serverBannerColor }, { onError: () => setAvatarError("Afiş değiştirilemedi. Tekrar dene.") })
+          }
+        />
 
         <View style={{ gap: spacing.xs }}>
           <Text style={{ ...typography.display, color: colors.bright }}>

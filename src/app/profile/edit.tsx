@@ -28,6 +28,8 @@ import { UserFacingUploadError, pickAndUploadProfileBanner, pickAndUploadProfile
 import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
 import { ServerTagPicker } from "@/features/server-tag/server-tag-picker";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
+import { BannerColorRow } from "@/features/profile/banner-color-row";
+import { ActionSheet } from "@/components/ui/action-sheet";
 import { favoriteCandidates, favoriteGameTagLabel } from "@/lib/favorite-game";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -71,6 +73,7 @@ export default function EditProfileScreen() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [bannerBusy, setBannerBusy] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [avatarMenu, setAvatarMenu] = useState(false);
   const [favoritePicker, setFavoritePicker] = useState(false);
   const myGames = useMyGames();
   const favoriteGame = favoriteCandidates(myGames.data ?? []).find((g) => g.favorite) ?? null;
@@ -168,6 +171,17 @@ export default function EditProfileScreen() {
     }
   };
 
+  // Web: `imageUrl: null` → sunucu varsayılan (Multiavatar) üretir.
+  const onRemoveAvatar = () => {
+    setAvatarError(null);
+    updateProfile.mutate({ imageUrl: null }, { onError: () => setAvatarError("Avatar kaldırılamadı.") });
+  };
+
+  const onBannerColor = (bannerColor: string) => {
+    setBannerError(null);
+    updateProfile.mutate({ bannerColor }, { onError: (reason) => setBannerError(friendlyError(reason, "Afiş değiştirilemedi. Tekrar dene.")) });
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.panel }}>
       <Stack.Screen
@@ -255,7 +269,7 @@ export default function EditProfileScreen() {
               </View>
             </Pressable>
             <Pressable
-              onPress={onChangeAvatar}
+              onPress={() => (profile.imageUrl ? setAvatarMenu(true) : void onChangeAvatar())}
               disabled={avatarBusy}
               accessibilityRole="button"
               accessibilityLabel="Avatarı değiştir"
@@ -301,6 +315,16 @@ export default function EditProfileScreen() {
           ) : bannerError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>{bannerError}</Text>
           ) : null}
+
+          <BannerColorRow value={profile.bannerColor} onChange={onBannerColor} disabled={updateProfile.isPending} />
+          <ActionSheet
+            visible={avatarMenu}
+            onClose={() => setAvatarMenu(false)}
+            items={[
+              { key: "upload", label: "Avatarı değiştir", icon: "camera", onPress: () => void onChangeAvatar() },
+              { key: "remove", label: "Avatarı kaldır", icon: "trash", destructive: true, onPress: onRemoveAvatar },
+            ]}
+          />
 
           <View style={{ gap: spacing.xs }}>
             <StyledName
