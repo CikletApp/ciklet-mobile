@@ -710,7 +710,12 @@ export type ConnectionType =
   | "instagram"
   | "x"
   | "github"
-  | "spotify";
+  | "spotify"
+  | "kick"
+  | "battlenet"
+  | "discord"
+  | "reddit"
+  | "facebook";
 
 /** ciklet-web: `GET/PUT /api/profile/connections` ve kart ucu. */
 export interface ProfileConnectionView {
@@ -720,6 +725,8 @@ export interface ProfileConnectionView {
   url: string | null;
   verified: boolean;
   visible: boolean;
+  /** Yalnızca Spotify: çalan şarkı etkinlik olarak görünsün mü (web `showActivity`). */
+  showActivity?: boolean;
 }
 
 // ── Profil ek açıklamaları ──────────────────────────────────────────

@@ -270,3 +270,46 @@ export function useSpotifyNowPlaying(profileId: string | undefined, enabled = tr
     staleTime: 10_000,
   });
 }
+
+/** `GET /api/connections/providers` — bu sunucuda bağlanabilen sağlayıcılar. */
+export function useConnectionProviders() {
+  return useQuery({
+    queryKey: ["connection-providers"],
+    queryFn: () => api<{ configured: string[] }>("/api/connections/providers"),
+    staleTime: 10 * 60_000,
+  });
+}
+
+/**
+ * Bağlantı satırı güncellemesi (web use-profile-connections): profilde
+ * görünürlük `{ type, visible }` ya da Spotify `{ type: "spotify",
+ * showActivity }`. İyimser yazılır, hata olursa geri alınır. Elle tanıtıcı
+ * EKLEME YOK — uç `handle` içeren isteği reddeder.
+ */
+export function useUpdateConnection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { type: string; visible: boolean } | { type: "spotify"; showActivity: boolean }) =>
+      api(endpoints.profileConnections, { method: "PUT", body: input }),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: qk.profileConnections });
+      const previous = queryClient.getQueryData<ProfileConnectionView[]>(qk.profileConnections);
+      queryClient.setQueryData<ProfileConnectionView[]>(qk.profileConnections, (old) =>
+        old?.map((c) => (c.type === input.type ? { ...c, ...input, type: c.type } : c))
+      );
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(qk.profileConnections, context.previous);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.profileConnections });
+      invalidateOwnCard(queryClient);
+    },
+  });
+}
+
+/** `POST /api/connections/mobile-handoff` → sistem tarayıcısında açılacak tek kullanımlık adres. */
+export function requestConnectionHandoff(provider: string) {
+  return api<{ url: string }>("/api/connections/mobile-handoff", { method: "POST", body: { provider } });
+}

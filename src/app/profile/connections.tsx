@@ -1,20 +1,24 @@
 import { useState } from "react";
 import { ScrollView, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/api/client";
 import {
+  requestConnectionHandoff,
+  useConnectionProviders,
   useProfileConnections,
   useRemoveConnection,
-  useSaveConnection,
-  useSpotifyLink,
   useStreamingConnection,
   useUnlinkSpotify,
   useUnlinkStreaming,
+  useUpdateConnection,
   PLATFORM_COLORS,
   PLATFORM_LABELS,
   type StreamingPlatform,
 } from "@/api/hooks";
+import { qk } from "@/api/query-keys";
 import type { ConnectionType } from "@/api/types";
 import {
   Button,
@@ -24,208 +28,221 @@ import {
   Screen,
   ScreenLoader,
   SectionHeader,
-  TextField,
   showDialog,
   showToast,
 } from "@/components/ui";
-import { CONNECTION_TYPES, connectionMeta, normalizeHandle } from "@/lib/profile-extras";
-import { useT } from "@/lib/i18n";
+import { CONNECTION_PROVIDERS, providerLabel, readConnectionResults, type ConnectionProvider } from "@/lib/connection-providers";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
 /**
  * Profil → Bağlantılar (web: Ayarlar → Profil → Bağlantılar).
  *
- * Bağlantı bir GİRİŞ yöntemi değil; yalnızca profilde gösterilen hesap
- * tanıtıcısı. Platform başına tek kayıt (PUT aynı türü günceller), göz
- * düğmesi profilde gizler. Spotify gerçek hesapla OAuth üzerinden
- * doğrulanıyor ve dönüş adresi tarayıcı oturumu istiyor; bu yüzden mobilde
- * yalnızca durumu gösterilir ve kaldırılabilir, bağlama webden yapılır.
+ * Bağlantılar yalnızca sağlayıcıda oturum açılarak eklenir ve doğrulanmış
+ * görünür (elle kullanıcı adı yazılmaz; uç `handle`'lı isteği reddeder).
+ * Mobilde akış sistem tarayıcısında: oturumlu uçtan tek kullanımlık adres
+ * alınır (web lib/connections/mobile-handoff), sağlayıcının giriş ekranı
+ * açılır, dönüş `ciklet://me?<sağlayıcı>=<sonuç>` derin bağlantısıyla gelir.
+ * Satırda profilde göster/gizle, Spotify'da "etkinlik olarak göster".
  */
+const NOTICE_KEYS: Record<string, MessageKey> = {
+  linked: "parityScreens.connections.notice.linked",
+  denied: "parityScreens.connections.notice.denied",
+  invalid: "parityScreens.connections.notice.invalid",
+  failed: "parityScreens.connections.notice.failed",
+  unconfigured: "parityScreens.connections.notice.unconfigured",
+  taken: "parityScreens.connections.notice.taken",
+};
+
 export default function ConnectionsScreen() {
+  const t = useT();
+  const queryClient = useQueryClient();
   const { data: items, isLoading } = useProfileConnections();
-  const { data: spotify } = useSpotifyLink();
-  const save = useSaveConnection();
+  const { data: providers } = useConnectionProviders();
+  const update = useUpdateConnection();
   const remove = useRemoveConnection();
   const unlinkSpotify = useUnlinkSpotify();
-  const [type, setType] = useState<ConnectionType>("steam");
-  const [handle, setHandle] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const manualTypes = CONNECTION_TYPES.filter((c) => c.id !== "spotify");
-  const meta = connectionMeta(type);
-  const existing = new Set((items ?? []).map((c) => c.type));
-  const normalized = normalizeHandle(type, handle);
+  const configured = new Set(providers?.configured ?? []);
+  const connected = new Set((items ?? []).filter((c) => c.verified).map((c) => c.type));
 
-  const onAdd = () => {
-    if (!normalized) return;
-    save.mutate(
-      { type, handle: normalized },
-      {
-        onSuccess: () => {
-          setHandle("");
-          showToast(existing.has(type) ? "Bağlantı güncellendi." : "Bağlantı eklendi.");
-        },
-        onError: (error) =>
-          showToast(
-            error instanceof ApiError && error.status === 422 ? "Kullanıcı adı bu platform için geçersiz." : "Bağlantı kaydedilemedi.",
-            "error"
-          ),
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: qk.profileConnections });
+    void queryClient.invalidateQueries({ queryKey: qk.spotifyLink });
+    void queryClient.invalidateQueries({ queryKey: ["streaming-connection"] });
+    void queryClient.invalidateQueries({ queryKey: ["profile-card"] });
+  };
+
+  const link = async (provider: ConnectionProvider) => {
+    if (provider.flow === "soon") return;
+    if (!configured.has(provider.id)) {
+      showToast(t("parityScreens.connections.unconfigured"), "error");
+      return;
+    }
+    if (!provider.mobile) {
+      showToast(t("parityScreens.connections.webOnly"));
+      return;
+    }
+    setBusy(provider.id);
+    try {
+      const { url } = await requestConnectionHandoff(provider.id);
+      const session = await WebBrowser.openAuthSessionAsync(url, "ciklet://");
+      if (session.type === "success") {
+        for (const r of readConnectionResults(session.url)) {
+          showToast(t(NOTICE_KEYS[r.result], { platform: r.label }), r.result === "linked" ? "default" : "error");
+        }
       }
-    );
+    } catch (error) {
+      // 404: sunucuda mobilden bağlama kapalı (MOBILE_CONNECTION_LINKING) ya da eski sürüm.
+      showToast(
+        error instanceof ApiError
+          ? error.status === 404
+            ? t("parityScreens.connections.linkUnavailable")
+            : error.message || t("parityScreens.connections.saveFailed")
+          : t("parityScreens.connections.openFailed"),
+        "error"
+      );
+    } finally {
+      setBusy(null);
+      refresh();
+    }
   };
 
   const onRemove = (target: ConnectionType) => {
-    const label = connectionMeta(target)?.label ?? target;
-    showDialog("Bağlantıyı kaldır", `${label} bağlantısı profilinden kaldırılacak.`, [
-      { text: "Vazgeç", style: "cancel" },
+    const label = providerLabel(target);
+    showDialog(t("parityScreens.connections.remove"), label, [
+      { text: t("parityScreens.connections.back"), style: "cancel" },
       {
-        text: "Kaldır",
+        text: t("parityScreens.connections.remove"),
         style: "destructive",
-        onPress: () =>
-          target === "spotify"
-            ? unlinkSpotify.mutate(undefined, { onError: () => showToast("Bağlantı kaldırılamadı.", "error") })
-            : remove.mutate(target, { onError: () => showToast("Bağlantı kaldırılamadı.", "error") }),
+        onPress: () => {
+          const onError = () => showToast(t("parityScreens.connections.removeFailed"), "error");
+          if (target === "spotify") unlinkSpotify.mutate(undefined, { onError });
+          else remove.mutate(target, { onError });
+        },
       },
     ]);
   };
 
   if (isLoading) return <ScreenLoader />;
+  const saveFailed = () => showToast(t("parityScreens.connections.saveFailed"), "error");
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Bağlantılar" }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }} keyboardShouldPersistTaps="handled">
+      <Stack.Screen options={{ title: t("parityScreens.connections.title") }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
         <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
-          Oyun ve sosyal hesaplarını profilinde göster. Bir platforma tek hesap bağlanır.
+          {t("parityScreens.connections.description")}
         </Text>
 
-        {spotify?.configured ? (
-          <>
-            <SectionHeader title="SPOTIFY" />
-            <View
-              style={{
-                marginHorizontal: spacing.lg,
-                padding: spacing.md,
-                gap: spacing.sm,
-                borderRadius: radii.lg,
-                backgroundColor: colors.panel,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                <Icon name="headphones" size={18} color="#1DB954" />
-                <Text style={{ ...typography.bodyStrong, color: colors.bright, flex: 1 }} numberOfLines={1}>
-                  {spotify.linked ? (spotify.displayName ?? "Bağlı") : "Bağlı değil"}
-                </Text>
-                {spotify.linked ? (
-                  <Button label="Kaldır" variant="ghost" onPress={() => onRemove("spotify")} />
-                ) : null}
-              </View>
-              <Text style={{ ...typography.caption, color: colors.muted }}>
-                {spotify.linked
-                  ? spotify.premium
-                    ? "Doğrulandı. Çaldığın şarkı profilinde görünür, arkadaşların seninle birlikte dinleyebilir."
-                    : "Doğrulandı. Premium olmadığı için birlikte dinleme kapalı."
-                  : "Spotify gerçek hesabınla doğrulanır; bağlamak için web ya da masaüstünde Ayarlar → Profil → Bağlantılar'ı kullan."}
-              </Text>
-            </View>
-          </>
-        ) : null}
-
-        <StreamingConnectionRow platform="twitch" />
-        <StreamingConnectionRow platform="kick" />
-
-        <SectionHeader title="BAĞLANTI EKLE" />
-        <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-            {manualTypes.map((option) => {
-              const active = option.id === type;
+        <SectionHeader title={t("parityScreens.connections.dialogTitle").toLocaleUpperCase()} />
+        <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{t("parityScreens.connections.dialogDescription")}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+            {CONNECTION_PROVIDERS.map((provider) => {
+              const soon = provider.flow === "soon";
+              const off = !soon && providers !== undefined && !configured.has(provider.id);
+              const isConnected = connected.has(provider.id);
+              const state = soon
+                ? t("parityScreens.connections.soon")
+                : off
+                  ? t("parityScreens.connections.unconfigured")
+                  : isConnected
+                    ? t("parityScreens.connections.tileConnected")
+                    : busy === provider.id
+                      ? t("parityScreens.connections.redirecting")
+                      : null;
               return (
                 <Pressable
-                  key={option.id}
-                  onPress={() => setType(option.id)}
-                  haptic="light"
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
-                  style={{
-                    minHeight: 34,
-                    justifyContent: "center",
-                    paddingHorizontal: 12,
-                    borderRadius: radii.full,
+                  key={provider.id}
+                  disabled={soon || off || busy !== null}
+                  onPress={() => void link(provider)}
+                  accessibilityRole="button"
+                  accessibilityLabel={state ? `${provider.label}, ${state}` : provider.label}
+                  style={({ pressed }) => ({
+                    width: "31%",
+                    flexGrow: 1,
+                    minHeight: 64,
+                    padding: spacing.sm,
+                    gap: 4,
+                    borderRadius: radii.lg,
                     borderWidth: 1,
-                    borderColor: active ? colors.brand : colors.border,
-                    backgroundColor: active ? colors.brandSoft : "transparent",
-                  }}
+                    borderColor: isConnected ? `${provider.color}80` : colors.border,
+                    backgroundColor: pressed ? colors.raised : colors.panel,
+                    opacity: soon || off ? 0.5 : 1,
+                  })}
                 >
-                  <Text style={{ ...typography.caption, fontSize: 13, ...fw(active ? 700 : 600), color: active ? colors.brand : colors.text }}>
-                    {option.label}
-                    {existing.has(option.id) ? " ✓" : ""}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: provider.color }} />
+                    <Text style={{ ...typography.caption, ...fw(700), color: colors.bright, flex: 1 }} numberOfLines={1}>
+                      {provider.label}
+                    </Text>
+                    {isConnected ? <Icon name="badge-check" size={14} color={colors.success} /> : null}
+                  </View>
+                  {state ? (
+                    <Text style={{ fontSize: 11, lineHeight: 14, color: colors.muted }} numberOfLines={2}>
+                      {state}
+                    </Text>
+                  ) : null}
                 </Pressable>
               );
             })}
           </View>
-          <TextField
-            label={meta?.label.toLocaleUpperCase("tr-TR")}
-            value={handle}
-            onChangeText={setHandle}
-            placeholder={meta?.placeholder}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={80}
-            onSubmitEditing={onAdd}
-            error={handle.trim() && !normalized ? "Bu platform için geçerli bir ad değil." : null}
-          />
-          <Button
-            label={existing.has(type) ? "Güncelle" : "Ekle"}
-            icon="plus"
-            onPress={onAdd}
-            disabled={!normalized}
-            loading={save.isPending}
-            fullWidth
-          />
+          <Text style={{ ...typography.caption, color: colors.muted }}>{t("parityScreens.connections.privacyNote")}</Text>
         </View>
 
-        <SectionHeader title="BAĞLANTILARIN" />
+        <SectionHeader title={t("parityScreens.connections.title").toLocaleUpperCase()} />
         <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
-          {(items ?? []).filter((c) => c.type !== "spotify").length === 0 ? (
-            <Text style={{ ...typography.caption, color: colors.muted }}>Henüz bağlantı yok.</Text>
+          {(items ?? []).length === 0 ? (
+            <Text style={{ ...typography.caption, color: colors.muted }}>{t("parityScreens.connections.empty")}</Text>
           ) : null}
-          {(items ?? [])
-            .filter((c) => c.type !== "spotify")
-            .map((item) => (
-              <View
-                key={item.type}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.sm,
-                  padding: spacing.md,
-                  borderRadius: radii.lg,
-                  backgroundColor: colors.panel,
-                }}
-              >
+          {(items ?? []).map((item) => (
+            <View key={item.type} style={{ padding: spacing.md, gap: spacing.sm, borderRadius: radii.lg, backgroundColor: colors.panel }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ ...typography.overline, color: colors.muted }}>
-                    {(connectionMeta(item.type)?.label ?? item.type).toLocaleUpperCase("tr-TR")}
-                  </Text>
+                  <Text style={{ ...typography.overline, color: colors.muted }}>{providerLabel(item.type).toLocaleUpperCase()}</Text>
                   <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
                     {item.handle}
                   </Text>
+                  <Text style={{ fontSize: 11, color: item.verified ? colors.success : colors.warning }}>
+                    {item.verified ? t("parityScreens.connections.verified") : t("parityScreens.connections.unverified")}
+                  </Text>
                 </View>
-                <View style={{ alignItems: "center" }}>
+                <Switch
+                  value={item.visible}
+                  onValueChange={(visible) => update.mutate({ type: item.type, visible }, { onError: saveFailed })}
+                  trackColor={{ false: colors.border, true: colors.brand }}
+                  thumbColor={colors.onBrand}
+                  accessibilityLabel={item.visible ? t("parityScreens.connections.hideOnProfile") : t("parityScreens.connections.showOnProfile")}
+                />
+                <IconButton icon="trash" label={t("parityScreens.connections.remove")} tint={colors.danger} onPress={() => onRemove(item.type)} />
+              </View>
+              {!item.verified ? (
+                <Text style={{ ...typography.caption, color: colors.muted }}>{t("parityScreens.connections.unverifiedHint")}</Text>
+              ) : null}
+              {/* Spotify: çalan şarkı etkinlik olarak görünsün mü (web connections-list). */}
+              {typeof item.showActivity === "boolean" ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                  <Icon name="headphones" size={16} color={item.showActivity ? "#1DB954" : colors.muted} />
+                  <Text style={{ ...typography.caption, color: colors.text, flex: 1 }}>
+                    {item.showActivity ? t("parityScreens.connections.showActivityOn") : t("parityScreens.connections.showActivityOff")}
+                  </Text>
                   <Switch
-                    value={item.visible}
-                    onValueChange={(visible) => save.mutate({ type: item.type, handle: item.handle, visible })}
+                    value={item.showActivity}
+                    onValueChange={(showActivity) => update.mutate({ type: "spotify", showActivity }, { onError: saveFailed })}
                     trackColor={{ false: colors.border, true: colors.brand }}
                     thumbColor={colors.onBrand}
-                    accessibilityLabel={item.visible ? "Profilde gizle" : "Profilde göster"}
                   />
-                  <Text style={{ fontSize: 10, color: colors.muted }}>{item.visible ? "Görünür" : "Gizli"}</Text>
                 </View>
-                <IconButton icon="trash" label="Kaldır" tint={colors.danger} onPress={() => onRemove(item.type)} />
-              </View>
-            ))}
+              ) : null}
+            </View>
+          ))}
         </View>
+
+        <StreamingConnectionRow platform="twitch" />
+        <StreamingConnectionRow platform="kick" />
       </ScrollView>
     </Screen>
   );
