@@ -17,7 +17,8 @@ import {
   useT,
   type LocalePreference,
 } from "@/lib/i18n";
-import { usePreferences } from "@/stores/preferences";
+import { chatMessageText } from "@/lib/chat-font";
+import { usePreferences, type ChatFontSize } from "@/stores/preferences";
 import { TranslationTargetSetting } from "@/features/translation/language-picker";
 import { THEME_LABELS, darkThemeOf, useTheme } from "@/stores/theme";
 import {
@@ -208,6 +209,8 @@ function MotionAndLanguage() {
 
   return (
     <View style={{ gap: spacing.lg }}>
+      <FontSizeSetting />
+
       <View style={{ gap: spacing.sm }}>
         <Text style={{ ...typography.overline, color: colors.muted }}>{t("settings.appearance.motion.title")}</Text>
         <SegmentedTabs<ReducedMotionPreference>
@@ -225,6 +228,38 @@ function MotionAndLanguage() {
       <LanguagePicker />
 
       <TranslationTargetSetting />
+    </View>
+  );
+}
+
+const FONT_SIZES: readonly ChatFontSize[] = ["small", "medium", "large"];
+
+/**
+ * Yazı Boyutu (web Görünüm → Yazı Boyutu): Küçük / Orta / Büyük; mobilde
+ * sohbet mesajlarının metnine anında uygulanır (lib/chat-font).
+ */
+function FontSizeSetting() {
+  const t = useT();
+  const intl = INTL_LOCALES[useLocale()];
+  const fontSize = usePreferences((s) => s.chatFontSize);
+  const setPreference = usePreferences((s) => s.setPreference);
+  const sample = chatMessageText(fontSize);
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Text style={{ ...typography.overline, color: colors.muted }}>
+        {t("settingsMedia.appearance.fontSize.title").toLocaleUpperCase(intl)}
+      </Text>
+      <SegmentedTabs<ChatFontSize>
+        items={FONT_SIZES.map((id) => ({ id, label: t(`settingsMedia.appearance.fontSize.options.${id}.label`) }))}
+        value={fontSize}
+        onChange={(value) => setPreference("chatFontSize", value)}
+      />
+      <Text style={{ ...typography.caption, color: colors.muted }}>
+        {t(`settingsMedia.appearance.fontSize.options.${fontSize}.desc`)}
+        {fontSize === "medium" ? ` · ${t("settingsMedia.appearance.default")}` : ""}
+      </Text>
+      <Text style={{ ...typography.body, ...sample, color: colors.text }}>{t("settingsMedia.appearance.fontSize.description")}</Text>
     </View>
   );
 }

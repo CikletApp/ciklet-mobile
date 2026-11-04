@@ -4,7 +4,9 @@ import { Image } from "expo-image";
 
 import { openGuardedLink } from "@/lib/external-link";
 import { emojify, emojiSizeFor } from "@/components/ui";
+import { chatMessageText } from "@/lib/chat-font";
 import { useAuth } from "@/stores/auth";
+import { usePreferences } from "@/stores/preferences";
 import { colors, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { readable, withAlpha } from "@/theme/palette";
@@ -37,10 +39,10 @@ const EMOJI_SCALES: Record<EmojiScale, { emoji: number; text: TextStyle }> = {
 };
 
 /**
- * Mesaj metni: gövde yazısından bir tık ferah satır (15/22). 22'lik satırda
- * 16'lık emoji iniş payıyla birlikte sığar; 21'de Android'de tepeden kesiliyordu.
+ * Mesaj metni: gövde yazısından bir tık ferah satır (15/22; Görünüm → Yazı
+ * Boyutu ile ölçekli, lib/chat-font). 22'lik satırda 16'lık emoji iniş
+ * payıyla birlikte sığar; 21'de Android'de tepeden kesiliyordu.
  */
-const MESSAGE_TEXT: TextStyle = { fontSize: typography.body.fontSize, lineHeight: 22 };
 
 interface MessageMarkdownProps {
   value: string;
@@ -102,10 +104,12 @@ export function MessageMarkdown({ value, style, compact = false, color, emojiSca
   const emojis = useServerEmojis(scope?.serverId);
   const myUsername = useAuth((s) => s.profile?.username);
   const scale = emojiScale ? EMOJI_SCALES[emojiScale] : null;
+  const chatFontSize = usePreferences((s) => s.chatFontSize);
+  const messageText = useMemo(() => chatMessageText(chatFontSize), [chatFontSize]);
   // Emojiler Twemoji görseli (lib/emoji.ts). Boyut satır yüksekliğine göre
   // sınırlanır; sunucu emojisi de aynı boyda (eskiden 1.25 katıydı ve
   // satırdan taşıp kesiliyordu).
-  const emojiSize = scale ? scale.emoji : emojiSizeFor({ ...MESSAGE_TEXT, ...style }, typography.body.fontSize);
+  const emojiSize = scale ? scale.emoji : emojiSizeFor({ ...messageText, ...style }, typography.body.fontSize);
 
   const toggleSpoiler = useCallback((key: string) => {
     setRevealed((current) => {
@@ -146,7 +150,7 @@ export function MessageMarkdown({ value, style, compact = false, color, emojiSca
           <Text
             key={`h-${index}`}
             style={{
-              ...MESSAGE_TEXT,
+              ...messageText,
               color: textColor,
               ...style,
               fontSize: HEADING_SIZES[block.level][0],
@@ -161,7 +165,7 @@ export function MessageMarkdown({ value, style, compact = false, color, emojiSca
           // Alıntı: solda kalın çizgi (web `border-s-4 ps-3`).
           <View key={`q-${index}`} style={{ flexDirection: "row", gap: spacing.sm }}>
             <View style={{ width: 4, borderRadius: 2, backgroundColor: colors.muted, opacity: 0.5 }} />
-            <Text style={{ flex: 1, ...typography.body, ...MESSAGE_TEXT, color: textColor, ...style, ...scale?.text }}>
+            <Text style={{ flex: 1, ...typography.body, ...messageText, color: textColor, ...style, ...scale?.text }}>
               {renderInline(block.value, `q${index}`, ctx)}
               {index === last ? spacer : null}
             </Text>
@@ -170,7 +174,7 @@ export function MessageMarkdown({ value, style, compact = false, color, emojiSca
           // Seçilebilir DEĞİL: Android'de metin seçimi uzun basmayı yutuyor ve
           // mesaj eylemleri (yanıtla, tepki, kopyala) hiç açılmıyordu. Kopyalama
           // eylem sayfasında.
-          <Text key={`text-${index}`} style={{ ...typography.body, ...MESSAGE_TEXT, color: textColor, ...style, ...scale?.text }}>
+          <Text key={`text-${index}`} style={{ ...typography.body, ...messageText, color: textColor, ...style, ...scale?.text }}>
             {renderInline(block.value, `b${index}`, ctx)}
             {index === last ? spacer : null}
           </Text>
@@ -178,13 +182,13 @@ export function MessageMarkdown({ value, style, compact = false, color, emojiSca
     );
     if (trailing && blocks[last]?.kind === "code") {
       nodes.push(
-        <Text key="trailing" style={{ ...typography.body, ...MESSAGE_TEXT, textAlign: "right" }}>
+        <Text key="trailing" style={{ ...typography.body, ...messageText, textAlign: "right" }}>
           {spacer}
         </Text>
       );
     }
     return nodes;
-  }, [blocks, revealed, toggleSpoiler, emojiSize, roles, emojis, myUsername, style, color, scale, trailing]);
+  }, [blocks, revealed, toggleSpoiler, emojiSize, messageText, roles, emojis, myUsername, style, color, scale, trailing]);
 
   return <View style={{ gap: compact ? 2 : spacing.xs }}>{rendered}</View>;
 }
