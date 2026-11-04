@@ -120,17 +120,23 @@ export function GifPicker({
   bottomInset,
   onSearchFocusChange,
   chrome,
+  initialQuery,
+  selectedUrl,
 }: {
   onGif: (url: string) => void;
   bottomInset: number;
   onSearchFocusChange: (focused: boolean) => void;
   chrome?: CollapsingChrome;
+  /** Seçici bu aramayla açılır (web `initialQuery`; ör. yıl dönümü "Kutlama"). */
+  initialQuery?: string;
+  /** Seçim modu: seçili GIF çerçevelenir (web `selectedUrl`). */
+  selectedUrl?: string | null;
 }) {
   const screen = useWindowDimensions();
   const [width, setWidth] = useState(screen.width);
-  const [search, setSearch] = useState("");
-  const [mode, setMode] = useState<Mode>("categories");
-  const [activeQuery, setActiveQuery] = useState("");
+  const [search, setSearch] = useState(initialQuery ?? "");
+  const [mode, setMode] = useState<Mode>(initialQuery ? "search" : "categories");
+  const [activeQuery, setActiveQuery] = useState(initialQuery ?? "");
 
   // 200 ms gecikmeli arama. Boşa yazmak kategorilere döndürmez (son sonuçlar
   // kalır); yalnızca dolu metin modu değiştirir.
@@ -341,14 +347,22 @@ export function GifPicker({
               {attribution}
             </>
           }
-          renderItem={({ item }) => <GifBlock block={item} onGif={onGif} />}
+          renderItem={({ item }) => <GifBlock block={item} onGif={onGif} selectedUrl={selectedUrl} />}
         />
       )}
     </View>
   );
 }
 
-const GifBlock = memo(function GifBlock({ block, onGif }: { block: Block; onGif: (url: string) => void }) {
+const GifBlock = memo(function GifBlock({
+  block,
+  onGif,
+  selectedUrl,
+}: {
+  block: Block;
+  onGif: (url: string) => void;
+  selectedUrl?: string | null;
+}) {
   return (
     <View style={{ flexDirection: "row", gap: GAP, marginBottom: GAP }}>
       {block.columns.map((column, index) => (
@@ -363,6 +377,8 @@ const GifBlock = memo(function GifBlock({ block, onGif }: { block: Block; onGif:
                 height: tile.height,
                 borderRadius: 12,
                 overflow: "hidden",
+                borderWidth: selectedUrl && selectedUrl === tile.full ? 3 : 0,
+                borderColor: colors.brand,
                 backgroundColor: colors.panel,
                 opacity: pressed ? 0.85 : 1,
               })}

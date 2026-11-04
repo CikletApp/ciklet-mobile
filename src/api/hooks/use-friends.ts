@@ -33,6 +33,8 @@ export interface FriendEntry {
   /** Friend kaydının kimliği — kabul/sil işlemleri bunu kullanır. */
   id: string;
   profile: PublicProfile;
+  /** Arkadaşlığın başladığı an (`acceptedAt`, yoksa `createdAt`) — yıl dönümü (lib/friend-anniversary). */
+  since?: string;
 }
 
 /**
@@ -56,7 +58,8 @@ export function useFriends() {
       if (!myId) break;
       const iAmInitiator = row.profileOneId === myId;
       const other = iAmInitiator ? row.profileTwo : row.profileOne;
-      const entry: FriendEntry = { id: row.id, profile: other };
+      const since = (row as { acceptedAt?: string | null }).acceptedAt ?? row.createdAt;
+      const entry: FriendEntry = { id: row.id, profile: other, ...(since ? { since } : {}) };
 
       if (row.status === FriendRequestStatus.ACCEPTED) accepted.push(entry);
       else if (row.status === FriendRequestStatus.PENDING) {

@@ -3,12 +3,14 @@ import { View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
 import { useDirect, useDirectDisplay } from "@/api/hooks";
+import { useFriends } from "@/api/hooks/use-friends";
 import { Avatar, DropdownMenu, GroupAvatar, Icon, IconButton, type MenuItem } from "@/components/ui";
 import { OngoingCallBanner } from "@/features/call/ongoing-call-banner";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
 import { ChatWelcome } from "@/features/chat/components/chat-welcome";
 import { DirectExpirySheet } from "@/features/chat/components/direct-expiry-button";
+import { FriendAnniversaryBar } from "@/features/social/friend-anniversary";
 import { formatActivity, formatPresenceStatus } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
@@ -40,6 +42,8 @@ export default function DirectChatScreen() {
   const isNotes = display?.isSelf ?? false;
   const peer = display?.peer;
   const isOfficial = isOfficialProfile(peer);
+  const { accepted } = useFriends();
+  const friendship = !isGroup && !isNotes && peer ? accepted.find((entry) => entry.profile.id === peer.id) : undefined;
   const presence = usePresence(!isGroup && !isNotes ? peer?.id : undefined);
   // Yalnızca dinler; yazma bildirimi ChatView'daki örnekten gider.
   const { typers } = useTyping(directId);
@@ -180,6 +184,10 @@ export default function DirectChatScreen() {
       ) : null}
       {/* Süren görüşme: başka cihazındaysa "Buraya aktar", değilse "Katıl". */}
       {canCall && peer ? <OngoingCallBanner directId={directId} peer={peer} /> : null}
+      {/* Arkadaşlık yıl dönümü şeridi (web FriendAnniversaryBar). */}
+      {friendship?.since && peer ? (
+        <FriendAnniversaryBar friendshipId={friendship.id} since={friendship.since} friend={peer} directId={directId} />
+      ) : null}
       <ChatView
         kind="direct"
         chatId={directId}
