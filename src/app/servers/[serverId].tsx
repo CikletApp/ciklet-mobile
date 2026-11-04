@@ -7,6 +7,7 @@ import {
   type Channel,
 } from "@ciklet/embedded-activities-sdk/types";
 
+import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyMembership,
@@ -27,9 +28,12 @@ import {
   useWelcomeScreen,
 } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
+import { useCategoryMutations, useServerCategories } from "@/api/hooks/use-channel-admin";
+import { buildChannelTree, type LayoutCategory, type LayoutChannel } from "@/lib/channel-layout";
 import {
   ActionSheet,
   Avatar,
+  showDialog,
   Icon,
   IconButton,
   Pressable,
@@ -126,7 +130,11 @@ export default function ServerChannelsScreen() {
       })
     );
   })();
-  const sections = buildSections(shownChannels);
+  // Kategoriler (web kenar çubuğu): boş kategori yalnızca düzeni yönetene.
+  const { data: categories } = useServerCategories(serverId);
+  const sections = buildSections(shownChannels, categories ?? [], canManageChannels);
+  const categoryMutations = useCategoryMutations(serverId);
+  const [menuCategory, setMenuCategory] = useState<LayoutCategory | null>(null);
 
   // Sunucu Rehberi (web kenar çubuğu girişi + sunucu kökünün ilk
   // yönlendirmesi): rehber açık ve üye onu hiç açmamışsa bir kez rehbere.
@@ -195,6 +203,22 @@ export default function ServerChannelsScreen() {
       onPress: () => router.push(`/servers/${serverId}/boost`),
     },
     ...(serverTagItem ? [serverTagItem] : []),
+    ...(canManageChannels
+      ? [
+          {
+            key: "create-category",
+            label: "Kategori Oluştur",
+            icon: "folder" as const,
+            onPress: () => router.push(`/servers/${serverId}/category/new`),
+          },
+          {
+            key: "create-channel",
+            label: "Kanal Oluştur",
+            icon: "plus" as const,
+            onPress: () => router.push(`/servers/${serverId}/channels/new`),
+          },
+        ]
+      : []),
   ];
   /** Basılı tutulan kanal — eylem sayfası (bildirimler, düzenle). */
   const [menuChannel, setMenuChannel] = useState<Channel | null>(null);
@@ -226,8 +250,61 @@ export default function ServerChannelsScreen() {
                 icon: "pencil" as const,
                 onPress: () => router.push(`/servers/${serverId}/channels/${menuChannel.id}`),
               },
+              {
+                key: "permissions",
+                label: "İzinler",
+                icon: "shield" as const,
+                onPress: () => router.push(`/servers/${serverId}/channel-permissions?channelId=${menuChannel.id}`),
+              },
             ]
           : []),
+      ]
+    : [];
+
+  const categoryMenuItems: ActionSheetItem[] = menuCategory
+    ? [
+        {
+          key: "create-channel",
+          label: "Kanal Oluştur",
+          icon: "plus",
+          onPress: () => router.push(`/servers/${serverId}/channels/new?categoryId=${menuCategory.id}`),
+        },
+        {
+          key: "edit",
+          label: "Kategoriyi Düzenle",
+          icon: "pencil",
+          onPress: () => router.push(`/servers/${serverId}/category/${menuCategory.id}`),
+        },
+        {
+          key: "permissions",
+          label: "İzinler",
+          icon: "shield",
+          onPress: () => router.push(`/servers/${serverId}/channel-permissions?categoryId=${menuCategory.id}`),
+        },
+        {
+          key: "delete",
+          label: "Kategoriyi Sil",
+          icon: "trash",
+          destructive: true,
+          onPress: () => {
+            const category = menuCategory;
+            showDialog(
+              "Kategoriyi sil?",
+              `${category.name} kategorisini silmek istediğine emin misin? İçindeki kanallar silinmez, kategorisiz olarak listenin üstüne taşınır.`,
+              [
+                { text: "Vazgeç", style: "cancel" },
+                {
+                  text: "Kategoriyi Sil",
+                  style: "destructive",
+                  onPress: () =>
+                    categoryMutations.remove.mutate(category.id, {
+                      onError: (error) => showToast(error instanceof ApiError ? error.message : "Kategori silinemedi", "error"),
+                    }),
+                },
+              ]
+            );
+          },
+        },
       ]
     : [];
 
@@ -271,7 +348,7 @@ export default function ServerChannelsScreen() {
       ) : (
         <SectionList
           sections={sections.map((section) =>
-            collapsed.has(section.type) ? { ...section, data: [] } : section
+            collapsed.has(section.key) ? { ...section, data: [], all: section.data } : { ...section, all: section.data }
           )}
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled={false}
@@ -295,23 +372,22 @@ export default function ServerChannelsScreen() {
           }
           contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
           renderSectionHeader={({ section }) => {
-            const isCollapsed = collapsed.has(section.type);
+            // Kategorisiz kanallar başlıksız (web kenar çubuğu, Discord).
+            if (!section.title) return <View style={{ height: spacing.sm }} />;
+            const isCollapsed = collapsed.has(section.key);
             // Kategori sayısı kapalıyken görünür: katlanmış bir kategoride
             // okunmamış mesaj varsa kullanıcı bunu açmadan bilemezdi.
-            const hidden = isCollapsed
-              ? section.data.length ||
-                (channels ?? []).filter((c) => c.type === section.type).length
-              : 0;
+            const hidden = isCollapsed ? section.all.length : 0;
             // Kapalı kategorideki kanalların okunmamış toplamı.
             const hiddenUnread = isCollapsed
-              ? (channels ?? [])
-                  .filter((c) => c.type === section.type)
-                  .reduce((sum, c) => sum + (unread?.channelUnreads?.[c.id]?.count ?? 0), 0)
+              ? section.all.reduce((sum, c) => sum + (unread?.channelUnreads?.[c.id]?.count ?? 0), 0)
               : 0;
+            const category = section.category;
 
             return (
               <Pressable
-                onPress={() => toggleSection(section.type)}
+                onPress={() => toggleSection(section.key)}
+                onLongPress={canManageChannels && category ? () => setMenuCategory(category) : undefined}
                 haptic="light"
                 noHitSlop
                 accessibilityRole="button"
@@ -332,8 +408,8 @@ export default function ServerChannelsScreen() {
                   size={15}
                   color={colors.muted}
                 />
-                <Text style={{ ...typography.overline, color: colors.muted, flex: 1 }}>
-                  {section.title}
+                <Text style={{ ...typography.overline, color: colors.muted, flex: 1 }} numberOfLines={1}>
+                  {section.title.toLocaleUpperCase("tr")}
                 </Text>
                 {hiddenUnread > 0 ? (
                   <UnreadBadge count={hiddenUnread} tone="brand" />
@@ -406,6 +482,19 @@ export default function ServerChannelsScreen() {
           ) : undefined
         }
         items={menuItems}
+      />
+
+      <ActionSheet
+        visible={menuCategory !== null}
+        onClose={() => setMenuCategory(null)}
+        header={
+          menuCategory ? (
+            <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
+              {menuCategory.name}
+            </Text>
+          ) : undefined
+        }
+        items={categoryMenuItems}
       />
     </Screen>
   );
@@ -557,7 +646,9 @@ function ChannelRow({
     ? "list"
     : extras.stage
       ? "mic"
-      : extras.mediaOnly
+      : extras.announcement
+        ? "megaphone"
+        : extras.mediaOnly
         ? "image"
         : (CHANNEL_ICON[channel.type] ?? "hash");
   // Ses kanalı durumu (web: kenar çubuğunda adın altında).
@@ -660,16 +751,23 @@ function ThreadRow({ name, unread, onPress }: { name: string; unread: number; on
   );
 }
 
-function buildSections(channels: Channel[]) {
-  const groups: { title: string; type: string; data: Channel[] }[] = [
-    { title: "METİN KANALLARI", type: ChannelType.TEXT, data: [] },
-    { title: "SES KANALLARI", type: ChannelType.AUDIO, data: [] },
-    { title: "GÖRÜNTÜ KANALLARI", type: ChannelType.VIDEO, data: [] },
-  ];
+/** Kategorisiz kanalların bölüm anahtarı (başlıksız, en üstte). */
+const UNCATEGORIZED = "__none__";
 
-  for (const channel of channels) {
-    groups.find((g) => g.type === channel.type)?.data.push(channel);
+/**
+ * Kenar çubuğu bölümleri (web lib/channel-layout): kategorisiz kanallar en
+ * üstte başlıksız, sonra kategoriler `position` sırasıyla; kova içinde metin
+ * kanalları sesin üstünde. Boş kategori yalnızca düzeni yönetene görünür.
+ */
+function buildSections(channels: Channel[], categories: LayoutCategory[], showEmpty: boolean) {
+  const tree = buildChannelTree(channels as (Channel & ChannelExtras & LayoutChannel)[], categories);
+  const sections: { key: string; title: string | null; category: LayoutCategory | null; data: Channel[] }[] = [];
+  if (tree.uncategorized.length > 0) {
+    sections.push({ key: UNCATEGORIZED, title: null, category: null, data: tree.uncategorized });
   }
-
-  return groups.filter((g) => g.data.length > 0);
+  for (const { category, channels: inside } of tree.categories) {
+    if (inside.length === 0 && !showEmpty) continue;
+    sections.push({ key: category.id, title: category.name, category, data: inside });
+  }
+  return sections;
 }
