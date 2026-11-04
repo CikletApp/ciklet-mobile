@@ -14,6 +14,7 @@ import type { ChatMessagePayload } from "@/realtime/events";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { hasSilentPrefix, toggleSilentPrefix } from "../message-markup";
+import { applyTextFormat, TEXT_FORMATS, type TextFormat } from "../text-format";
 import type { ServerStickerLite } from "../server-assets";
 import { KeyboardGlyph } from "./composer-glyphs";
 import { ComposerPanel } from "./composer-picker";
@@ -139,6 +140,9 @@ export function Composer({
   const [searching, setSearching] = useState(false);
   /** İmleç — emoji sona değil imlecin olduğu yere girer. */
   const selection = useRef({ start: 0, end: 0 });
+  /** Metin seçili ve yazı kutusu odakta — biçim çubuğu yalnız o zaman (web FormattingToolbar). */
+  const [hasSelection, setHasSelection] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const canSend = commandMode || value.trim().length > 0 || attachments.length > 0;
   const isUploading = uploadProgress !== null;
@@ -241,6 +245,15 @@ export function Composer({
     onChangeText(value.slice(0, start) + text + value.slice(end));
     // Değer bir sonraki çizimde yerleşir; imleç ondan sonra taşınır.
     requestAnimationFrame(() => inputRef.current?.setSelection(caret, caret));
+  };
+
+  const applyFormat = (format: TextFormat) => {
+    const { start, end } = currentRange();
+    const next = applyTextFormat(value, start, end, format);
+    selection.current = { start: next.start, end: next.end };
+    onCaretChange?.(next.end);
+    onChangeText(next.value);
+    requestAnimationFrame(() => inputRef.current?.setSelection(next.start, next.end));
   };
 
   const insertEmoji = (emoji: string) => {
@@ -349,6 +362,43 @@ export function Composer({
         {/* Bekleyen zamanlanmış mesajlar (yoksa hiç çizilmez). */}
         {scheduleChatId ? <ScheduledMessagesStrip chatId={scheduleChatId} /> : null}
 
+        {hasSelection && inputFocused && !commandMode && !recording ? (
+          // Biçim çubuğu: metin seçiliyken (web FormattingToolbar ile aynı düğmeler).
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={{ gap: 2 }}>
+            {TEXT_FORMATS.map((format) => (
+              <Pressable
+                key={format.id}
+                onPress={() => applyFormat(format.id)}
+                accessibilityRole="button"
+                accessibilityLabel={format.label}
+                style={({ pressed }) => ({
+                  minWidth: 36,
+                  height: 32,
+                  paddingHorizontal: spacing.sm,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: radii.md,
+                  backgroundColor: pressed ? colors.border : colors.panel,
+                })}
+              >
+                <Text
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 18,
+                    color: colors.text,
+                    ...fw(format.id === "bold" || format.id === "heading" ? 700 : 600),
+                    fontStyle: format.id === "italic" ? "italic" : "normal",
+                    textDecorationLine: format.id === "underline" ? "underline" : format.id === "strike" ? "line-through" : "none",
+                    fontFamily: format.id === "code" || format.id === "codeBlock" ? "monospace" : undefined,
+                  }}
+                >
+                  {format.glyph}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+
         {/* Telegram düzeni: [+] [yazı kutusu (içinde "/" ve emoji/klavye)] [gönder].
             GIF ve aktiviteler artık panelin sekmeleri. */}
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
@@ -392,9 +442,13 @@ export function Composer({
               onChangeText={onChangeText}
               onSelectionChange={(event) => {
                 selection.current = event.nativeEvent.selection;
+                const selected = event.nativeEvent.selection.end !== event.nativeEvent.selection.start;
+                setHasSelection((current) => (current === selected ? current : selected));
                 onCaretChange?.(event.nativeEvent.selection.end);
               }}
+              onBlur={() => setInputFocused(false)}
               onFocus={() => {
+                setInputFocused(true);
                 // Panel aramasının klavyesi açıkken yazı kutusuna dönülürse
                 // `keyboardDidShow` gelmez; panel burada çekilir.
                 if (panelOpen && keyboardVisible) closePanel();

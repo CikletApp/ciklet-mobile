@@ -58,6 +58,9 @@ interface MessageMarkdownProps {
   trailing?: string;
 }
 
+/** Başlık yazı boyu / satır yüksekliği — web h1 `text-xl leading-7`, h2 `text-lg leading-6`, h3 `text-base leading-6`. */
+const HEADING_SIZES: Record<1 | 2 | 3, [number, number]> = { 1: [20, 28], 2: [18, 24], 3: [16, 24] };
+
 type InlineStyle = Pick<TextStyle, "fontFamily" | "fontWeight" | "fontStyle" | "textDecorationLine">;
 
 /**
@@ -138,6 +141,31 @@ export function MessageMarkdown({ value, style, compact = false, color, emojiSca
             {renderInline(block.value, `s${index}`, ctx)}
             {index === last ? spacer : null}
           </Text>
+        ) : block.kind === "heading" ? (
+          // Başlık (web h1/h2/h3: 20/18/16 px, kalın).
+          <Text
+            key={`h-${index}`}
+            style={{
+              ...MESSAGE_TEXT,
+              color: textColor,
+              ...style,
+              fontSize: HEADING_SIZES[block.level][0],
+              lineHeight: HEADING_SIZES[block.level][1],
+              ...fw(block.level === 3 ? 600 : 700),
+            }}
+          >
+            {renderInline(block.value, `h${index}`, ctx)}
+            {index === last ? spacer : null}
+          </Text>
+        ) : block.kind === "quote" ? (
+          // Alıntı: solda kalın çizgi (web `border-s-4 ps-3`).
+          <View key={`q-${index}`} style={{ flexDirection: "row", gap: spacing.sm }}>
+            <View style={{ width: 4, borderRadius: 2, backgroundColor: colors.muted, opacity: 0.5 }} />
+            <Text style={{ flex: 1, ...typography.body, ...MESSAGE_TEXT, color: textColor, ...style, ...scale?.text }}>
+              {renderInline(block.value, `q${index}`, ctx)}
+              {index === last ? spacer : null}
+            </Text>
+          </View>
         ) : (
           // Seçilebilir DEĞİL: Android'de metin seçimi uzun basmayı yutuyor ve
           // mesaj eylemleri (yanıtla, tepki, kopyala) hiç açılmıyordu. Kopyalama
@@ -176,6 +204,8 @@ export function InvisibleSpacer({ text }: { text: string }) {
 type Block =
   | { kind: "text"; value: string }
   | { kind: "subtext"; value: string }
+  | { kind: "heading"; level: 1 | 2 | 3; value: string }
+  | { kind: "quote"; value: string }
   | { kind: "code"; value: string; language: string | null };
 
 /** Kod blokları ayrılır; kalan metinde `-# ` satırları kendi bloklarına düşer. */
@@ -193,11 +223,20 @@ function splitBlocks(value: string): Block[] {
   return result.length > 0 ? result : [{ kind: "text", value }];
 }
 
+/**
+ * Satır blokları — web (remark) ile aynı işaretler: `-# ` alt metin,
+ * `# `/`## `/`### ` başlık, `> ` alıntı (art arda satırlar tek alıntı).
+ */
 function splitSubtext(text: string): Block[] {
-  if (!text.includes("-# ")) return [{ kind: "text", value: text }];
+  if (!/(^|\n)(-# |#{1,3} |> ?)/.test(text)) return [{ kind: "text", value: text }];
   const out: Block[] = [];
   let buffer: string[] = [];
+  let quote: string[] | null = null;
   const flush = () => {
+    if (quote) {
+      out.push({ kind: "quote", value: quote.join("\n") });
+      quote = null;
+    }
     if (buffer.length === 0) return;
     const joined = buffer.join("\n");
     if (joined.trim()) out.push({ kind: "text", value: joined });
@@ -205,10 +244,24 @@ function splitSubtext(text: string): Block[] {
   };
   for (const line of text.split("\n")) {
     const sub = /^-# (.+)$/.exec(line);
+    const heading = sub ? null : /^(#{1,3}) (.+)$/.exec(line);
+    const quoted = sub || heading ? null : /^> ?(.*)$/.exec(line);
+    if (quoted) {
+      if (!quote) {
+        flush();
+        quote = [];
+      }
+      quote.push(quoted[1]);
+      continue;
+    }
     if (sub) {
       flush();
       out.push({ kind: "subtext", value: sub[1] });
+    } else if (heading) {
+      flush();
+      out.push({ kind: "heading", level: heading[1].length as 1 | 2 | 3, value: heading[2] });
     } else {
+      if (quote) flush();
       buffer.push(line);
     }
   }
