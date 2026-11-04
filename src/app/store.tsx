@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { Stack } from "expo-router";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { router, Stack } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/api/client";
@@ -18,6 +18,7 @@ import {
   Avatar,
   Button,
   EmptyState,
+  Icon,
   Screen,
   ScreenLoader,
   SegmentedTabs,
@@ -34,6 +35,8 @@ import { formatCountdown, groupByCollection, hasMobileRenderer } from "@/lib/sto
 import { useNow } from "@/lib/use-now";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { useBuyWithPoints } from "@/api/hooks/use-account-privacy";
+import { INTL_LOCALES, useLocale, useT } from "@/lib/i18n";
 
 /**
  * Mağaza (web `/magaza`) — avatar süsleri, isim plakaları, profil efektleri.
@@ -66,6 +69,8 @@ export default function StoreScreen() {
   const catalog = useStoreCatalog();
   const { data: profile } = useCurrentProfile();
   const [kind, setKind] = useState<StoreItemKind>("decoration");
+  const t = useT();
+  const locale = useLocale();
 
   if (catalog.isLoading) return <ScreenLoader />;
   if (!catalog.data) {
@@ -79,9 +84,13 @@ export default function StoreScreen() {
 
   const data = catalog.data;
   const free = Boolean(data.free);
+  // Ciklet puanı (görevlerden; gerçek para değeri yok) — web katalog yanıtındaki `points`.
+  const points = (data as { points?: number }).points ?? 0;
   const items = data.items.filter(
     (item): item is Item =>
-      item.kind === kind && hasMobileRenderer(item.kind, item.id) && (PURCHASES_ENABLED || free || item.owned || Boolean(item.free))
+      item.kind === kind &&
+      hasMobileRenderer(item.kind, item.id) &&
+      (PURCHASES_ENABLED || free || item.owned || Boolean(item.free) || typeof item.pointsPrice === "number")
   );
   // Öne çıkanlar üstte (sahip olunmayanlar), kalanı koleksiyonlara göre.
   const picks = items.filter((item) => item.featured && !item.owned);
@@ -100,6 +109,27 @@ export default function StoreScreen() {
         items={(Object.keys(STORE_KIND_LABEL) as StoreItemKind[]).map((id) => ({ id, label: STORE_KIND_LABEL[id] }))}
       />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["4xl"] }} keyboardShouldPersistTaps="handled">
+        <Pressable
+          onPress={() => router.push("/quests")}
+          accessibilityRole="link"
+          accessibilityLabel={t("quests.store.earn")}
+          style={({ pressed }) => ({
+            alignSelf: "flex-start",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: spacing.md,
+            paddingVertical: 6,
+            borderRadius: radii.full,
+            backgroundColor: colors.brand,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <Icon name="flag" size={14} color={colors.onBrand} />
+          <Text style={{ ...typography.caption, ...fw(700), color: colors.onBrand }}>
+            {points.toLocaleString(INTL_LOCALES[locale])} {t("quests.unit")}
+          </Text>
+        </Pressable>
         {free ? (
           <View style={{ gap: 2, padding: spacing.md, borderRadius: radii.lg, borderCurve: "continuous", backgroundColor: colors.brandSoft }}>
             <Text style={{ ...typography.bodyStrong, color: colors.bright }}>🎉 Mağaza şimdilik ücretsiz!</Text>
@@ -132,6 +162,7 @@ export default function StoreScreen() {
                 item={item}
                 equipped={data.equipped[item.kind] === item.id}
                 purchasable={data.purchasable}
+                points={points}
                 profile={profile ? { id: profile.id, imageUrl: profile.imageUrl, username: profile.username, title: displayNameOf(profile) } : null}
               />
             ))}
@@ -146,17 +177,23 @@ function StoreCard({
   item,
   equipped,
   purchasable,
+  points,
   profile,
 }: {
   item: Item;
   equipped: boolean;
   purchasable: boolean;
+  points: number;
   profile: { id: string; imageUrl: string | null; username: string; title: string } | null;
 }) {
   const queryClient = useQueryClient();
   const update = useUpdateProfile();
   const checkout = useCheckout();
   const claim = useClaimStoreItem();
+  const buyPoints = useBuyWithPoints();
+  const t = useT();
+  const locale = INTL_LOCALES[useLocale()];
+  const pointsPrice = typeof item.pointsPrice === "number" ? item.pointsPrice : null;
   const [giftOpen, setGiftOpen] = useState(false);
   const [giftTo, setGiftTo] = useState("");
   const free = Boolean(item.free);
@@ -263,6 +300,25 @@ function StoreCard({
             />
           ) : null}
         </View>
+        {!item.owned && pointsPrice !== null && item.forSale !== false ? (
+          <Button
+            label={
+              points < pointsPrice
+                ? t("quests.store.notEnough", { points: pointsPrice.toLocaleString(locale) })
+                : t("quests.store.buyWithPoints", { points: pointsPrice.toLocaleString(locale) })
+            }
+            variant="secondary"
+            fullWidth
+            disabled={points < pointsPrice || buyPoints.isPending}
+            loading={buyPoints.isPending}
+            onPress={() =>
+              buyPoints.mutate(item.id, {
+                onSuccess: () => showToast(t("quests.store.bought", { name: item.name })),
+                onError: (error) => showToast(error instanceof ApiError ? error.message : t("quests.toast.failed"), "error"),
+              })
+            }
+          />
+        ) : null}
         {paid && giftOpen ? (
           <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
             <TextField
