@@ -101,6 +101,12 @@ export default function SettingsScreen() {
             />
             <Divider inset={52} />
             <ListRow
+              icon="flag"
+              title={t("quests.title")}
+              onPress={() => router.push("/quests")}
+            />
+            <Divider inset={52} />
+            <ListRow
               icon="shield"
               title={t("settings.rows.privacy")}
               onPress={() => router.push("/settings/privacy")}

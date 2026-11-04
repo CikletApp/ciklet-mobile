@@ -310,7 +310,8 @@ export interface QuestsResponse {
 const questsKey = ["quests"] as const;
 
 export function useQuests() {
-  return useQuery({ queryKey: questsKey, queryFn: () => api<QuestsResponse>(accountEndpoints.quests) });
+  // İlerleme sunucuda hesaplanır; ekran açıkken dakikada bir tazelenir (web ile aynı).
+  return useQuery({ queryKey: questsKey, queryFn: () => api<QuestsResponse>(accountEndpoints.quests), refetchInterval: 60_000 });
 }
 
 export interface QuestClaimResult {
