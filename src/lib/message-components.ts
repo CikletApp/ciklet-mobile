@@ -46,11 +46,13 @@ const MAX_SECTION_TEXTS = 3;
 export interface ButtonComponent {
   type: 2;
   id?: number;
-  style: 1 | 2 | 3 | 4 | 5;
+  style: 1 | 2 | 3 | 4 | 5 | 6;
   label?: string;
   emoji?: string;
   custom_id?: string;
   url?: string;
+  /** Premium buton (style 6): uygulamanın ürünü (web lib/app-monetization). */
+  sku_id?: string;
   disabled?: boolean;
 }
 
@@ -215,7 +217,15 @@ function safeUrl(value: unknown): string | undefined {
 }
 
 function button(raw: Record<string, unknown>): ButtonComponent | null {
-  const style = ([1, 2, 3, 4, 5] as const).find((s) => s === Number(raw.style)) ?? 2;
+  const style = ([1, 2, 3, 4, 5, 6] as const).find((s) => s === Number(raw.style)) ?? 2;
+  if (style === 6) {
+    // Premium buton: yalnızca sku_id; görünüm ürünün adı ve fiyatından.
+    const sku = str(raw.sku_id, 64);
+    if (!sku) return null;
+    const premium: ButtonComponent = { type: 2, ...idOf(raw), style: 6, sku_id: sku };
+    if (raw.disabled === true) premium.disabled = true;
+    return premium;
+  }
   const label = str(raw.label, 80);
   const emoji = emojiOf(raw.emoji);
   if (!label && !emoji) return null;

@@ -3,6 +3,8 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { Image } from "expo-image";
 
 import { openGuardedLink } from "@/lib/external-link";
+import { formatKurus, useAppSkuOffer } from "@/api/hooks";
+import { useSkuPurchase } from "@/features/app-store/sku-purchase-sheet";
 import { Icon, Pressable, emojify, showToast } from "@/components/ui";
 import { openImageViewer } from "@/components/ui/image-viewer";
 import { classifyAttachment } from "@/lib/attachments";
@@ -366,7 +368,45 @@ function buttonColors(style: ButtonComponent["style"]): { background: string; te
   }
 }
 
+/** Premium buton (Discord style 6): ürün adı + fiyat; dokununca satın alma sayfası (web ile aynı). */
+function PremiumButton({ component }: { component: ButtonComponent }) {
+  const scope = useChatScope();
+  const offer = useAppSkuOffer(component.sku_id ?? null, scope?.serverId ?? null);
+  const unavailable = Boolean(component.disabled) || !component.sku_id || offer.isError;
+  const label = unavailable
+    ? "Ürün kullanılamıyor"
+    : offer.data
+      ? `${offer.data.sku.name} · ${formatKurus(offer.data.sku.price.amount, offer.data.sku.price.currency)}`
+      : "…";
+  return (
+    <Pressable
+      onPress={() => component.sku_id && useSkuPurchase.getState().open(component.sku_id, scope?.serverId ?? null)}
+      disabled={unavailable || !offer.data}
+      haptic="light"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        alignSelf: "flex-start",
+        gap: 6,
+        height: 32,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
+        backgroundColor: colors.brand,
+        opacity: unavailable ? 0.5 : pressed ? 0.85 : 1,
+      })}
+    >
+      <Icon name="gem" size={13} color={colors.onBrand} />
+      <Text numberOfLines={1} style={{ fontSize: 13, lineHeight: 17, ...fw(600), color: colors.onBrand, maxWidth: 220 }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 function ComponentButton({ component, busy, onPress }: { component: ButtonComponent; busy: boolean; onPress: () => void }) {
+  if (component.style === 6) return <PremiumButton component={component} />;
   const tone = buttonColors(component.style);
   const disabled = Boolean(component.disabled) || busy;
   return (

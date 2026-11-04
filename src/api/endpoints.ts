@@ -70,6 +70,11 @@ export const endpoints = {
   sessions: "/api/sessions",
   session: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}`,
   authorizedApps: "/api/oauth/authorized-apps",
+  /** Uygulama ürünleri (Discord SKU; web lib/app-monetization). */
+  appSku: (skuId: string) => `/api/app-skus/${encodeURIComponent(skuId)}`,
+  appSkuCheckout: (skuId: string) => `/api/app-skus/${encodeURIComponent(skuId)}/checkout`,
+  appPurchases: "/api/app-skus/mine",
+  activityStore: (clientId: string) => `/api/activities/store${qs({ clientId })}`,
 
   // ── Sunucular ─────────────────────────────────────────────────────
   /**

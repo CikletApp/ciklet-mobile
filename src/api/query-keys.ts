@@ -75,6 +75,8 @@ export const qk = {
 
   sessions: ["sessions"] as const,
   authorizedApps: ["authorized-apps"] as const,
+  appSku: (skuId: string) => ["app-sku", skuId] as const,
+  appPurchases: ["app-purchases"] as const,
 
   /** Kendi profil bağlantıların (Steam, Twitch…). */
   profileConnections: ["profile-connections"] as const,

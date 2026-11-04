@@ -12,6 +12,7 @@ import { persistOptions, queryClient } from "@/api/query-client";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { InAppNoticeHost } from "@/components/in-app-notice";
 import { DialogHost, ToastHost } from "@/components/ui";
+import { SkuPurchaseHost } from "@/features/app-store/sku-purchase-sheet";
 import { ReminderSheetHost } from "@/features/social/reminder-sheet";
 import { ImageViewerHost } from "@/components/ui/image-viewer";
 import { ActivityHost } from "@/features/activities/activity-host";
@@ -311,6 +312,7 @@ export default function RootLayout() {
             <JoinApplicationHost key={`join-application-${themeRevision}`} />
             <DialogHost key={`dialog-${themeRevision}`} />
             <ToastHost key={`toast-${themeRevision}`} />
+            <SkuPurchaseHost />
             <ReminderSheetHost key={`reminder-${themeRevision}`} />
             {/* Ön planda gelen DM / etiketlenme kartı. */}
             <InAppNoticeHost key={`notice-${themeRevision}`} />

@@ -37,6 +37,7 @@ import {
 } from "@/features/activities/bridge";
 import { externalOpenableUrl, isHostDocumentUrl, navigationDecision } from "@/features/activities/url-guard";
 import { ActivityInviteSheet } from "@/features/activities/invite-sheet";
+import { useSkuPurchase } from "@/features/app-store/sku-purchase-sheet";
 import { openActivityHelp } from "@/features/activities/invite";
 import { resolveCardActivity } from "@/features/activities/card-state";
 import {
@@ -604,6 +605,46 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
           } finally {
             clearTimeout(timer);
           }
+          return;
+        }
+
+        case "GET_SKUS_EMBEDDED":
+        case "GET_ENTITLEMENTS_EMBEDDED": {
+          // Discord getSkus / getEntitlements (web activities-room ile aynı uç ve kodlar).
+          try {
+            const store = await api<{ skus: unknown[]; entitlements: unknown[] }>(endpoints.activityStore(current.id));
+            send(rpcResponse(cmd, nonce, cmd === "GET_SKUS_EMBEDDED" ? { skus: store.skus } : { entitlements: store.entitlements }));
+          } catch {
+            send(rpcError(cmd, nonce, 5002, "Store could not be read"));
+          }
+          return;
+        }
+
+        case "START_PURCHASE": {
+          // Mağaza kuralları gereği uygulama içi dijital ürün satışı yok: ürün
+          // sayfası açılır ("Web'de Satın Al" → sistem tarayıcısı) ve komut
+          // HEMEN 1002 ile yanıtlanır (web host: satın alma penceresi + haklar).
+          const skuId = typeof args.sku_id === "string" ? args.sku_id : "";
+          if (!consented || useActivitySession.getState().mode === "mini") {
+            send(rpcError(cmd, nonce, 4005, "The user is not in this activity session"));
+            return;
+          }
+          if (!skuId) {
+            send(rpcError(cmd, nonce, 5002, "sku_id is required"));
+            return;
+          }
+          try {
+            const offer = await api<{ application?: { clientId?: string } }>(endpoints.appSku(skuId));
+            if (offer.application?.clientId !== current.id) {
+              send(rpcError(cmd, nonce, 5002, "SKU is not available for this application"));
+              return;
+            }
+          } catch {
+            send(rpcError(cmd, nonce, 5002, "SKU is not available"));
+            return;
+          }
+          useSkuPurchase.getState().open(skuId, serverId ?? null);
+          send(rpcError(cmd, nonce, 1002, "In-app purchases are completed on the web on mobile"));
           return;
         }
 
