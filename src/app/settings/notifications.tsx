@@ -11,6 +11,7 @@ import {
 } from "@/features/call/incoming-call";
 import { openNotificationSettings } from "@/features/notifications/notification-sheet";
 import { SoundSettingsSection } from "@/features/notifications/sound-settings-section";
+import { HighlightKeywordsSection } from "@/features/notifications/highlight-keywords-section";
 import { LEVEL_LABELS, muteRemainingLabel, settingKey, type NotificationSettingRecord } from "@/lib/notification-settings";
 import { useNow } from "@/lib/use-now";
 import { registerPushToken, setupNotifications, unregisterPushToken } from "@/lib/notifications";
@@ -95,6 +96,8 @@ export default function NotificationSettingsScreen() {
             </View>
           </>
         ) : null}
+
+        <HighlightKeywordsSection />
 
         {permissionError ? <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>{permissionError}</Text> : null}
       </ScrollView>
