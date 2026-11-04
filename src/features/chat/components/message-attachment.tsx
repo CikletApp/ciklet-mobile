@@ -16,7 +16,7 @@ import {
 } from "@/lib/attachments";
 import { downloadAttachment } from "@/lib/downloads";
 import { localMediaUri, useLocalMedia } from "@/lib/media-cache";
-import { isSensitive, isSpoilerName, readVoice } from "@/lib/message-extras";
+import { formatClipDuration, isSensitive, isSpoilerName, readClip, readVoice, type ClipMeta } from "@/lib/message-extras";
 import { MediaGate } from "./media-gate";
 import { VoiceMessagePlayer } from "./voice-message-player";
 import { fw } from "@/theme/fonts";
@@ -104,6 +104,15 @@ export function MessageAttachment({
     );
   }
   if (kind === "video") {
+    // Klip: yayından kaydedilen video, kart başlığıyla (web clip-card).
+    const clip = readClip(metadata);
+    if (clip) {
+      return (
+        <MediaGate spoiler={spoiler} sensitive={sensitive}>
+          <ClipCard url={url} info={info} meta={clip} overlay={overlay} fill={fill} onLongPress={onLongPress} />
+        </MediaGate>
+      );
+    }
     return (
       <MediaGate spoiler={spoiler} sensitive={sensitive}>
         <VideoAttachment url={url} info={info} overlay={overlay} fill={fill} onLongPress={onLongPress} />
@@ -242,6 +251,80 @@ function ImageAttachment({
 }
 
 /**
+ * Klip kartı — web `components/chat/v2/clip-card.tsx`: başlık (yoksa "Klip"),
+ * kimin yayınından olduğu ve süre şeridi, altında oynatıcı. Dosya sıradan bir
+ * video eki; kart yalnızca süsler.
+ */
+function ClipCard({
+  url,
+  info,
+  meta,
+  overlay,
+  fill,
+  onLongPress,
+}: {
+  url: string;
+  info: AttachmentInfo | null;
+  meta: ClipMeta;
+  overlay?: ReactNode;
+  fill: boolean;
+  onLongPress?: () => void;
+}) {
+  const download = useDownload(url, info);
+  const subtitle = `${meta.streamerName ? `${meta.streamerName} yayınından · ` : ""}${formatClipDuration(meta.durationMs)}`;
+  return (
+    <View
+      style={{
+        width: fill ? "100%" : MAX_WIDTH,
+        maxWidth: "100%",
+        borderRadius: fill ? 0 : radii.lg,
+        borderCurve: "continuous",
+        overflow: "hidden",
+        borderWidth: fill ? 0 : 1,
+        borderColor: colors.border,
+        backgroundColor: colors.panel,
+      }}
+    >
+      <Pressable
+        noHitSlop
+        onLongPress={onLongPress}
+        delayLongPress={LONG_PRESS_DELAY}
+        style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}
+      >
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: radii.md,
+            backgroundColor: colors.brandSoft,
+          }}
+        >
+          <Icon name="video" size={16} color={colors.brand} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ ...typography.caption, ...fw(700), color: colors.bright }}>
+            {meta.title ?? "Klip"}
+          </Text>
+          <Text numberOfLines={1} style={{ fontSize: 11, lineHeight: 14, color: colors.muted }}>
+            {subtitle}
+          </Text>
+        </View>
+        {download.busy ? (
+          <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator color={colors.muted} size="small" />
+          </View>
+        ) : (
+          <IconButton icon="download" label="İndir" onPress={download.start} size={32} tint={colors.muted} background="transparent" />
+        )}
+      </Pressable>
+      <VideoAttachment url={url} info={info} overlay={overlay} fill bare onLongPress={onLongPress} />
+    </View>
+  );
+}
+
+/**
  * Video — dokununca oynatıcı kurulur. Web `preload="metadata"` ile ilk kareyi
  * gösteriyor; telefonda her video mesajı için oynatıcı açmak, kullanıcı
  * izlemese de mobil veriyi harcardı.
@@ -251,12 +334,15 @@ function VideoAttachment({
   info,
   overlay,
   fill,
+  bare = false,
   onLongPress,
 }: {
   url: string;
   info: AttachmentInfo | null;
   overlay?: ReactNode;
   fill: boolean;
+  /** Klip kartında: ad ve İndir kartın başlığında, kapakta tekrarlanmaz. */
+  bare?: boolean;
   onLongPress?: () => void;
 }) {
   const [started, setStarted] = useState(false);
@@ -306,7 +392,7 @@ function VideoAttachment({
       >
         <Icon name="play" size={24} color="#ffffff" filled />
       </View>
-      <View style={{ position: "absolute", top: spacing.xs, right: spacing.xs }}>
+      {bare ? null : <View style={{ position: "absolute", top: spacing.xs, right: spacing.xs }}>
         {download.busy ? (
           <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
             <ActivityIndicator color="#ffffff" size="small" />
@@ -314,8 +400,8 @@ function VideoAttachment({
         ) : (
           <IconButton icon="download" label="Videoyu indir" onPress={download.start} size={32} background="rgba(0,0,0,0.45)" tint="#ffffff" />
         )}
-      </View>
-      {info?.name || sizeLabel ? (
+      </View>}
+      {!bare && (info?.name || sizeLabel) ? (
         <Text
           numberOfLines={1}
           style={{

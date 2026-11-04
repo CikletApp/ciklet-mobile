@@ -243,3 +243,39 @@ export function formatVoiceDuration(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
+
+/** Klip mesajı (`metadata.clip`) — web lib/clips/meta `normalizeClipMeta` ile aynı doğrulama. */
+export interface ClipMeta {
+  durationMs: number;
+  title?: string;
+  streamerId?: string;
+  streamerName?: string;
+}
+
+const CLIP_MAX_MS = 70_000;
+
+function cleanClipText(value: unknown, max: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+  return text.length > 0 ? text : undefined;
+}
+
+export function readClip(metadata: unknown): ClipMeta | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const v = (metadata as { clip?: unknown }).clip;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const r = v as Record<string, unknown>;
+  if (typeof r.durationMs !== "number" || !Number.isFinite(r.durationMs) || r.durationMs <= 0) return null;
+  const out: ClipMeta = { durationMs: Math.min(CLIP_MAX_MS, Math.round(r.durationMs)) };
+  const title = cleanClipText(r.title, 100);
+  if (title) out.title = title;
+  if (typeof r.streamerId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(r.streamerId)) out.streamerId = r.streamerId;
+  const streamerName = cleanClipText(r.streamerName, 64);
+  if (streamerName) out.streamerName = streamerName;
+  return out;
+}
+
+export function formatClipDuration(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
