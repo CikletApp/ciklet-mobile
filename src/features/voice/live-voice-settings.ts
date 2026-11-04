@@ -2,9 +2,10 @@ import { useEffect, useRef } from "react";
 import { useRoomContext } from "@livekit/react-native";
 import { RoomEvent, Track, type LocalVideoTrack, type Room } from "livekit-client";
 
-import { noiseSuppressionConstraints, type NoiseSuppressionMode } from "@/lib/noise-suppression";
+import { audioCaptureConstraints, type AudioCaptureSettings } from "@/lib/noise-suppression";
 import { applySenderMaxBitrate, parseRoomVoiceMetadata } from "@/lib/voice-live-settings";
 import { usePreferences } from "@/stores/preferences";
+import { useCallStreamQuality } from "./stream-quality";
 
 /**
  * Bağlıyken değişen ses ayarları yeniden bağlanmadan uygulanır — web
@@ -17,8 +18,8 @@ import { usePreferences } from "@/stores/preferences";
  *  - Görüntü kalitesi: mobilde kamera plan çözünürlüğüyle yakalanmıyor
  *    (cihaz varsayılanı), değişen tek şey kodlayıcının bozulma tercihi —
  *    açık kameraya hemen, sonra açılana yayın varsayılanından uygulanır.
- *  - Gürültü engelleme (Ayarlar → Ses ve Video): mikrofon parçası yeni
- *    kısıtla yeniden başlatılır.
+ *  - Gürültü engelleme, Yankı Giderme, Otomatik Kazanç (Ayarlar → Ses ve
+ *    Video): mikrofon parçası yeni kısıtlarla yeniden başlatılır.
  */
 export function useLiveVoiceSettings() {
   const room = useRoomContext();
@@ -28,6 +29,8 @@ export function useLiveVoiceSettings() {
       const next = parseRoomVoiceMetadata(metadata);
       if (!next) return;
       applyPublishDefaults(room, next.bitrate, next.videoQualityMode === "full");
+      // Takviye seviyesi değişti: yayın kalitesi tavanı bir sonraki paylaşımda geçerli.
+      useCallStreamQuality.getState().setBoostMax(next.streamQualityMax);
 
       const sender = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack?.sender;
       applySenderMaxBitrate(sender, next.bitrate).catch(() => {
@@ -45,13 +48,16 @@ export function useLiveVoiceSettings() {
   }, [room]);
 
   const noiseSuppressionMode = usePreferences((s) => s.noiseSuppressionMode);
-  const appliedMode = useRef(noiseSuppressionMode);
+  const echoCancellation = usePreferences((s) => s.echoCancellation);
+  const autoGainControl = usePreferences((s) => s.autoGainControl);
+  const applied = useRef(`${noiseSuppressionMode}|${echoCancellation}|${autoGainControl}`);
   useEffect(() => {
-    // İlk çizimde oda zaten bu kısıtla açıldı.
-    if (appliedMode.current === noiseSuppressionMode) return;
-    appliedMode.current = noiseSuppressionMode;
-    restartMicWithNoiseSuppression(room, noiseSuppressionMode);
-  }, [room, noiseSuppressionMode]);
+    // İlk çizimde oda zaten bu kısıtlarla açıldı.
+    const key = `${noiseSuppressionMode}|${echoCancellation}|${autoGainControl}`;
+    if (applied.current === key) return;
+    applied.current = key;
+    restartMicWithCapture(room, { noiseSuppressionMode, echoCancellation, autoGainControl });
+  }, [room, noiseSuppressionMode, echoCancellation, autoGainControl]);
 }
 
 /** Odanın yayın varsayılanları (sonradan yayınlanan mikrofon/kamera için). */
@@ -62,8 +68,8 @@ function applyPublishDefaults(room: Room, bitrate: number, keepResolution: boole
   room.options.publishDefaults = defaults;
 }
 
-function restartMicWithNoiseSuppression(room: Room, mode: NoiseSuppressionMode) {
-  const capture = { ...room.options.audioCaptureDefaults, ...noiseSuppressionConstraints(mode) };
+function restartMicWithCapture(room: Room, settings: AudioCaptureSettings) {
+  const capture = { ...room.options.audioCaptureDefaults, ...audioCaptureConstraints(settings) };
   room.options.audioCaptureDefaults = capture;
   const mic = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack;
   mic?.restartTrack(capture).catch(() => undefined);

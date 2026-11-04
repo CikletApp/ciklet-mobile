@@ -44,6 +44,7 @@ import {
 } from "@/features/voice/voice-moderation";
 import { useVoiceSession } from "@/features/voice/use-voice-session";
 import { useLiveVoiceSettings } from "@/features/voice/live-voice-settings";
+import { useCallStreamQuality } from "@/features/voice/stream-quality";
 import { LIVEKIT_URL, roomOptionsFor, type VoiceModerationState } from "@/lib/livekit";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
@@ -109,7 +110,12 @@ export default function VoiceChannelScreen() {
   const { token, status, error, leave, moderation: joinModeration, voice, afk, e2ee: roomE2EE } = useVoiceSession(session);
   // Kanalın bit hızı / kamera kalitesi: oda seçenekleri bağlantı başına bir kez.
   // Gürültü engelleme katılım anındaki tercihle; sonrası useLiveVoiceSettings.
-  const roomOptions = useMemo(() => roomOptionsFor(voice, usePreferences.getState().noiseSuppressionMode), [voice]);
+  const roomOptions = useMemo(() => roomOptionsFor(voice, usePreferences.getState()), [voice]);
+  // Takviye seviyesinin yayın kalitesi tavanı (sonrası oda metadata'sıyla).
+  const boostQualityMax = voice?.streamQualityMax ?? null;
+  useEffect(() => {
+    useCallStreamQuality.getState().setBoostMax(boostQualityMax);
+  }, [boostQualityMax]);
   // Uçtan uca şifreli oda: karar token yanıtından (sunucu ana anahtarı +
   // sahne değil) — kanal verisi gecikirse ya da özellik kapalıysa web'le
   // uyuşmazlık olmasın.

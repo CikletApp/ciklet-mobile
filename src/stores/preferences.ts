@@ -4,10 +4,14 @@ import { create } from "zustand";
 import type { ReducedMotionPreference } from "@/lib/accessibility";
 import type { LocalePreference } from "@/lib/i18n";
 import { NOISE_SUPPRESSION_DEFAULT, readNoiseSuppressionMode, type NoiseSuppressionMode } from "@/lib/noise-suppression";
+import { STREAM_QUALITY_DEFAULT, isStreamQuality, type StreamQuality } from "@/lib/stream-quality";
 
 const STORAGE_KEY = "ciklet.preferences";
 
 export type InputMode = "vad" | "ptt";
+/** Sohbet yazı boyutu — web Görünüm → Yazı Boyutu (14 / 16 / 18 px oranı). */
+export type ChatFontSize = "small" | "medium" | "large";
+const CHAT_FONT_SIZES: readonly ChatFontSize[] = ["small", "medium", "large"];
 
 interface PreferenceValues {
   linkPreviews: boolean;
@@ -15,6 +19,13 @@ interface PreferenceValues {
   inputMode: InputMode;
   /** Gürültü engelleme (Ayarlar → Ses ve Video; lib/noise-suppression). */
   noiseSuppressionMode: NoiseSuppressionMode;
+  /** Yankı Giderme ve Otomatik Kazanç (web ile aynı; varsayılan açık). */
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+  /** Yayın Kalitesi (ekran paylaşımı ve kamera; lib/stream-quality). */
+  streamQuality: StreamQuality;
+  /** Sohbet yazı boyutu (Görünüm). */
+  chatFontSize: ChatFontSize;
   inputVolume: number;
   outputVolume: number;
   notificationsEnabled: boolean;
@@ -74,6 +85,10 @@ const defaults: PreferenceValues = {
   bigEmoji: true,
   inputMode: "vad",
   noiseSuppressionMode: NOISE_SUPPRESSION_DEFAULT,
+  echoCancellation: true,
+  autoGainControl: true,
+  streamQuality: STREAM_QUALITY_DEFAULT,
+  chatFontSize: "medium",
   inputVolume: 100,
   outputVolume: 100,
   notificationsEnabled: true,
@@ -103,6 +118,10 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     bigEmoji: state.bigEmoji,
     inputMode: state.inputMode,
     noiseSuppressionMode: state.noiseSuppressionMode,
+    echoCancellation: state.echoCancellation,
+    autoGainControl: state.autoGainControl,
+    streamQuality: state.streamQuality,
+    chatFontSize: state.chatFontSize,
     inputVolume: state.inputVolume,
     outputVolume: state.outputVolume,
     notificationsEnabled: state.notificationsEnabled,
@@ -138,7 +157,14 @@ export const usePreferences = create<PreferenceState>((set, get) => ({
       // Kaldırılan "Rahat / Kompakt" yoğunluk ayarı eski kayıtlarda kalmış
       // olabilir; duruma taşınmasın (bir sonraki kayıtta zaten düşer).
       delete (saved as Record<string, unknown>).chatDensity;
-      set({ ...defaults, ...saved, noiseSuppressionMode: readNoiseSuppressionMode(saved.noiseSuppressionMode), hydrated: true });
+      set({
+        ...defaults,
+        ...saved,
+        noiseSuppressionMode: readNoiseSuppressionMode(saved.noiseSuppressionMode),
+        streamQuality: isStreamQuality(saved.streamQuality) ? saved.streamQuality : STREAM_QUALITY_DEFAULT,
+        chatFontSize: CHAT_FONT_SIZES.includes(saved.chatFontSize as ChatFontSize) ? (saved.chatFontSize as ChatFontSize) : "medium",
+        hydrated: true,
+      });
     } catch {
       set({ hydrated: true });
     }

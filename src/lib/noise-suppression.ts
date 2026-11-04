@@ -26,3 +26,26 @@ export function readNoiseSuppressionMode(value: unknown): NoiseSuppressionMode {
 export function noiseSuppressionConstraints(mode: NoiseSuppressionMode): { noiseSuppression: boolean } {
   return { noiseSuppression: mode !== "off" };
 }
+
+/**
+ * Mikrofon yakalama kısıtları — gürültü engelleme + Yankı Giderme + Otomatik
+ * Kazanç (web Ayarlar → Ses ve Video ile aynı üç anahtar). react-native-webrtc
+ * `echoCancellation` / `autoGainControl` kısıtlarını yerel ses işlemcisine iletir.
+ */
+export interface AudioCaptureSettings {
+  noiseSuppressionMode: NoiseSuppressionMode;
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+}
+
+export function audioCaptureConstraints(settings: AudioCaptureSettings): {
+  noiseSuppression: boolean;
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+} {
+  return {
+    ...noiseSuppressionConstraints(settings.noiseSuppressionMode),
+    echoCancellation: settings.echoCancellation,
+    autoGainControl: settings.autoGainControl,
+  };
+}

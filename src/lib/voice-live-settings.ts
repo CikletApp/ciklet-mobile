@@ -8,6 +8,7 @@
  * sunucu yazabilir; istemci `RoomEvent.RoomMetadataChanged` ile alır ve
  * yayınladığı parçanın kodlayıcısını yeniden bağlanmadan günceller.
  */
+import { isStreamQuality, type StreamQuality } from "@/lib/stream-quality";
 import { readBitrate, readVideoQualityMode, type VideoQualityMode } from "@/lib/voice-settings";
 
 export const ROOM_VOICE_METADATA_VERSION = 1;
@@ -15,6 +16,8 @@ export const ROOM_VOICE_METADATA_VERSION = 1;
 export interface RoomVoiceSettings {
   bitrate: number;
   videoQualityMode: VideoQualityMode;
+  /** Takviye seviyesinin yayın kalitesi tavanı; eski metadata'da yok. */
+  streamQualityMax: StreamQuality | null;
 }
 
 /** Oda metadata'sını okur; boş, bozuk ya da başka biçimde metadata `null`. */
@@ -29,10 +32,11 @@ export function parseRoomVoiceMetadata(raw: string | null | undefined): RoomVoic
   if (!parsed || typeof parsed !== "object") return null;
   const record = parsed as { v?: unknown; voice?: unknown };
   if (record.v !== ROOM_VOICE_METADATA_VERSION || !record.voice || typeof record.voice !== "object") return null;
-  const voice = record.voice as { bitrate?: unknown; videoQualityMode?: unknown };
+  const voice = record.voice as { bitrate?: unknown; videoQualityMode?: unknown; streamQualityMax?: unknown };
   return {
     bitrate: readBitrate(voice.bitrate),
     videoQualityMode: readVideoQualityMode(voice.videoQualityMode),
+    streamQualityMax: isStreamQuality(voice.streamQualityMax) ? voice.streamQualityMax : null,
   };
 }
 

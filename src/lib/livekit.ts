@@ -6,7 +6,8 @@ import { endpoints } from "@/api/endpoints";
 import { appleConfigFor } from "@/features/voice/audio-route";
 import { roomUsesE2EE } from "@/lib/voice-e2ee/session";
 import { readBitrate, readVideoQualityMode, type VideoQualityMode } from "@/lib/voice-settings";
-import { NOISE_SUPPRESSION_DEFAULT, noiseSuppressionConstraints, type NoiseSuppressionMode } from "@/lib/noise-suppression";
+import { NOISE_SUPPRESSION_DEFAULT, audioCaptureConstraints, type AudioCaptureSettings } from "@/lib/noise-suppression";
+import { isStreamQuality, type StreamQuality } from "@/lib/stream-quality";
 
 /**
  * LiveKit köprüsü.
@@ -41,7 +42,7 @@ export async function fetchRoomToken(room: string, username: string): Promise<Ro
   const res = await api<
     LiveKitTokenResponse & {
       moderation?: Partial<VoiceModerationState> | null;
-      voice?: { bitrate?: unknown; videoQualityMode?: unknown } | null;
+      voice?: { bitrate?: unknown; videoQualityMode?: unknown; streamQualityMax?: unknown } | null;
       afk?: boolean;
       stage?: unknown;
       e2ee?: unknown;
@@ -58,6 +59,7 @@ export async function fetchRoomToken(room: string, username: string): Promise<Ro
       ? {
           bitrate: readBitrate(res.voice.bitrate),
           videoQualityMode: readVideoQualityMode(res.voice.videoQualityMode),
+          streamQualityMax: isStreamQuality(res.voice.streamQualityMax) ? res.voice.streamQualityMax : null,
         }
       : null,
     afk: res.afk === true,
@@ -73,6 +75,8 @@ export async function fetchRoomToken(room: string, username: string): Promise<Ro
 export interface ChannelVoiceSettings {
   bitrate: number;
   videoQualityMode: VideoQualityMode;
+  /** Sunucunun Takviye seviyesinin yayın kalitesi tavanı (web `streamQualityMax`). */
+  streamQualityMax?: StreamQuality | null;
 }
 
 /**
@@ -103,13 +107,15 @@ export interface RoomToken {
  * Oda yayın varsayılanları: kanalın bit hızı mikrofon kodlayıcısının tavanı;
  * "720p" kipinde kamera ağ kötüleşince çözünürlüğü korur (web lib/call-quality).
  */
-export function roomOptionsFor(voice: ChannelVoiceSettings | null, noiseSuppression: NoiseSuppressionMode = NOISE_SUPPRESSION_DEFAULT) {
+const DEFAULT_CAPTURE: AudioCaptureSettings = { noiseSuppressionMode: NOISE_SUPPRESSION_DEFAULT, echoCancellation: true, autoGainControl: true };
+
+export function roomOptionsFor(voice: ChannelVoiceSettings | null, capture: AudioCaptureSettings = DEFAULT_CAPTURE) {
   return {
     adaptiveStream: true,
     dynacast: true,
     // Gürültü engelleme "Kapalı" ise WebRTC bastırması da kapanır; görüşme
     // sırasındaki değişim mikrofonu yeniden başlatır (features/voice/live-voice-settings).
-    audioCaptureDefaults: noiseSuppressionConstraints(noiseSuppression),
+    audioCaptureDefaults: audioCaptureConstraints(capture),
     ...(voice
       ? {
           publishDefaults: {

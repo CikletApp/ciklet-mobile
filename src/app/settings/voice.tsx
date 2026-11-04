@@ -1,8 +1,18 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
-import { Screen, SectionHeader, SegmentedTabs } from "@/components/ui";
-import { useT } from "@/lib/i18n";
+import { useMentolPlan } from "@/api/hooks/use-settings";
+import { Icon, Screen, SectionHeader, SegmentedTabs } from "@/components/ui";
+import { useMicTest } from "@/features/voice/mic-test";
+import { INTL_LOCALES, useLocale, useT } from "@/lib/i18n";
+import {
+  BOOST_STREAM_QUALITIES,
+  PLAN_MAX_STREAM_QUALITY,
+  STREAM_QUALITY_HINT_KEYS,
+  STREAM_QUALITY_OPTIONS,
+  clampStreamQuality,
+  qualityAllowed,
+} from "@/lib/stream-quality";
 import type { NoiseSuppressionMode } from "@/lib/noise-suppression";
 import { usePreferences, type InputMode } from "@/stores/preferences";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -14,8 +24,16 @@ export default function VoiceSettingsScreen() {
   const noiseSuppressionMode = usePreferences((state) => state.noiseSuppressionMode);
   const inputVolume = usePreferences((state) => state.inputVolume);
   const outputVolume = usePreferences((state) => state.outputVolume);
+  const echoCancellation = usePreferences((state) => state.echoCancellation);
+  const autoGainControl = usePreferences((state) => state.autoGainControl);
+  const streamQuality = usePreferences((state) => state.streamQuality);
   const setPreference = usePreferences((state) => state.setPreference);
   const t = useT();
+  const intl = INTL_LOCALES[useLocale()];
+  const { isTesting, volumeLevel, toggleTest } = useMicTest();
+  // Web ile aynı: plan tavanı üstü kilitli; Takviye kaliteleri her planda seçilebilir.
+  const planMax = PLAN_MAX_STREAM_QUALITY[useMentolPlan().data?.plan ?? "FREE"];
+  const shownQuality = BOOST_STREAM_QUALITIES.has(streamQuality) ? streamQuality : clampStreamQuality(streamQuality, planMax);
 
   return (
     <Screen>
@@ -51,6 +69,45 @@ export default function VoiceSettingsScreen() {
           {t("settings.voice.noiseAdvancedNote")}
         </Text>
 
+        <View style={{ marginHorizontal: spacing.lg, marginTop: spacing.md, borderRadius: radii.lg, borderCurve: "continuous", backgroundColor: colors.panel, overflow: "hidden" }}>
+          <SwitchRow
+            title={t("settingsMedia.voice.noise.echoTitle")}
+            description={t("settingsMedia.voice.noise.echoDescription")}
+            value={echoCancellation}
+            onChange={(value) => setPreference("echoCancellation", value)}
+          />
+          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: spacing.md }} />
+          <SwitchRow
+            title={t("settingsMedia.voice.noise.gainTitle")}
+            description={t("settingsMedia.voice.noise.gainDescription")}
+            value={autoGainControl}
+            onChange={(value) => setPreference("autoGainControl", value)}
+          />
+          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: spacing.md }} />
+          <View style={{ padding: spacing.md, gap: spacing.sm }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ ...typography.caption, color: colors.muted }}>{t("settingsMedia.voice.noise.micTest")}</Text>
+              <Pressable
+                onPress={toggleTest}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isTesting }}
+                style={({ pressed }) => ({
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: 6,
+                  borderRadius: radii.full,
+                  backgroundColor: isTesting ? colors.danger : colors.brand,
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <Text style={{ ...typography.caption, fontWeight: "700", color: colors.onBrand }}>
+                  {isTesting ? t("settingsMedia.voice.noise.stop") : t("settingsMedia.voice.noise.test")}
+                </Text>
+              </Pressable>
+            </View>
+            <MicLevelMeter level={volumeLevel} active={isTesting} />
+          </View>
+        </View>
+
         <LevelPicker
           title={t("settings.voice.inputVolume")}
           value={inputVolume}
@@ -61,6 +118,50 @@ export default function VoiceSettingsScreen() {
           value={outputVolume}
           onChange={(value) => setPreference("outputVolume", value)}
         />
+
+        <SectionHeader title={t("settingsMedia.voice.streamQuality.title").toLocaleUpperCase(intl)} />
+        <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
+          {t("settingsMedia.voice.streamQuality.description")}
+        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg }}>
+          {STREAM_QUALITY_OPTIONS.map((option) => {
+            const allowed = qualityAllowed(option.id, planMax) || BOOST_STREAM_QUALITIES.has(option.id);
+            const selected = shownQuality === option.id;
+            return (
+              <Pressable
+                key={option.id}
+                disabled={!allowed}
+                onPress={() => setPreference("streamQuality", option.id)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected, disabled: !allowed }}
+                style={({ pressed }) => ({
+                  flexBasis: "47%",
+                  flexGrow: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.sm,
+                  padding: spacing.md,
+                  borderRadius: radii.lg,
+                  borderCurve: "continuous",
+                  borderWidth: 1,
+                  borderColor: selected ? colors.brand : colors.border,
+                  backgroundColor: selected ? colors.brandSoft : pressed ? colors.raised : colors.panel,
+                  opacity: allowed ? 1 : 0.6,
+                })}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ ...typography.bodyStrong, color: colors.text }} numberOfLines={1}>
+                    {option.id === "source" ? t("settingsMedia.voice.streamQuality.sourceLabel") : option.label}
+                  </Text>
+                  <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
+                    {t(`settingsMedia.voice.streamQuality.hints.${STREAM_QUALITY_HINT_KEYS[option.id]}`)}
+                  </Text>
+                </View>
+                {!allowed ? <Icon name="lock" size={16} color={colors.muted} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
 
         <Text style={{ ...typography.caption, color: colors.muted, padding: spacing.lg }}>
           {t("settings.voice.deviceNote")}
@@ -99,6 +200,28 @@ function LevelPicker({ title, value, onChange }: { title: string; value: number;
           );
         })}
       </View>
+    </View>
+  );
+}
+
+function SwitchRow({ title, description, value, onChange }: { title: string; description: string; value: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ ...typography.bodyStrong, color: colors.text }}>{title}</Text>
+        <Text style={{ ...typography.caption, color: colors.muted }}>{description}</Text>
+      </View>
+      <Switch value={value} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" accessibilityLabel={title} />
+    </View>
+  );
+}
+
+/** Web `MicLevelMeter`: 0-1 seviye, test kapalıyken sönük. */
+function MicLevelMeter({ level, active }: { level: number; active: boolean }) {
+  const pct = Math.round(Math.max(0, Math.min(1, level)) * 100);
+  return (
+    <View style={{ height: 8, borderRadius: radii.full, backgroundColor: colors.raised, overflow: "hidden", opacity: active ? 1 : 0.5 }}>
+      <View style={{ width: `${pct}%`, height: "100%", borderRadius: radii.full, backgroundColor: pct > 85 ? colors.danger : colors.online }} />
     </View>
   );
 }

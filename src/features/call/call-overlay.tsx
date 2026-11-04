@@ -18,7 +18,8 @@ import { LiveVoiceSettingsBridge } from "@/features/voice/live-voice-settings";
 import { useVoiceE2EERoom, VoiceE2EEPill, VoiceE2EEProvider } from "@/features/call/voice-e2ee";
 import { LiveCaptionsButton, LiveCaptionsController, LiveCaptionsOverlay } from "@/features/voice/live-captions";
 import { LIVEKIT_URL } from "@/lib/livekit";
-import { noiseSuppressionConstraints } from "@/lib/noise-suppression";
+import { audioCaptureConstraints } from "@/lib/noise-suppression";
+import { useCallStreamQuality } from "@/features/voice/stream-quality";
 import { usePreferences } from "@/stores/preferences";
 import { displayNameOf } from "@/lib/format";
 import { ClientEvent } from "@/realtime/events";
@@ -273,10 +274,14 @@ function ConnectedCall({
   // Gürültü engelleme katılım anındaki tercihle (sonrası LiveVoiceSettingsBridge);
   // nesne bağlantı başına bir kez kurulur.
   const roomOptions = useMemo(
-    () => ({ ...DIRECT_CALL_ROOM_OPTIONS, audioCaptureDefaults: noiseSuppressionConstraints(usePreferences.getState().noiseSuppressionMode) }),
+    () => ({ ...DIRECT_CALL_ROOM_OPTIONS, audioCaptureDefaults: audioCaptureConstraints(usePreferences.getState()) }),
     []
   );
   const e2ee = useVoiceE2EERoom(token, roomE2EE, roomOptions);
+  // DM aramasında Takviye yok: yayın kalitesi yalnızca planla sınırlı.
+  useEffect(() => {
+    useCallStreamQuality.getState().setBoostMax(null);
+  }, []);
 
   const minimize = () => setMinimized(true);
   const openChat = () => {

@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { findNodeHandle, NativeModules, Platform, View } from "react-native";
 import { useLocalParticipant, useLocalParticipantPermissions } from "@livekit/react-native";
 import { ScreenCapturePickerView } from "@livekit/react-native-webrtc";
-import { ScreenSharePresets, Track } from "livekit-client";
+import { Track } from "livekit-client";
 
 import { showToast } from "@/components/ui";
+import { screenSharePreset, useEffectiveStreamQuality } from "@/features/voice/stream-quality";
 
 /** `TrackSource.SCREEN_SHARE` (livekit_models.proto); @livekit/protocol doğrudan bağımlılık değil. */
 const PROTO_SCREEN_SHARE = 3;
@@ -44,6 +45,9 @@ export function useScreenShare(): {
   const permissions = useLocalParticipantPermissions();
   const [busy, setBusy] = useState(false);
   const pickerRef = useRef(null);
+  // Yayın Kalitesi (web ile aynı ön ayarlar; plan/Takviye tavanına kırpılmış).
+  const quality = useEffectiveStreamQuality();
+  const preset = useMemo(() => screenSharePreset(quality), [quality]);
 
   // `canPublishSources` boşsa her kaynak serbest (LiveKit kuralı).
   const sources = permissions?.canPublishSources ?? [];
@@ -62,10 +66,10 @@ export function useScreenShare(): {
     }
     await localParticipant.setScreenShareEnabled(
       true,
-      { audio: false },
-      { screenShareEncoding: ScreenSharePresets.h1080fps15.encoding }
+      { audio: false, resolution: preset.resolution },
+      { screenShareEncoding: preset.encoding }
     );
-  }, [localParticipant]);
+  }, [localParticipant, preset]);
 
   const stop = useCallback(async () => {
     if (busy) return;

@@ -9,6 +9,7 @@ import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { showSystemRoutePicker, useAudioRoute, type AudioRoute } from "./audio-route";
 import { useSelfDeafen } from "./local-audio";
+import { cameraPreset, useEffectiveStreamQuality } from "./stream-quality";
 
 const DEFAULT_HANG_UP_LABEL = "Görüşmeyi bitir";
 
@@ -110,6 +111,7 @@ export function CallControls({
   }, [localParticipant, isMicrophoneEnabled, busy, serverMuted, deafen]);
 
   const facing = useCall((s) => s.cameraFacing);
+  const streamQuality = useEffectiveStreamQuality();
   const setFacing = useCall((s) => s.setCameraFacing);
 
   const toggleCamera = useCallback(async () => {
@@ -118,11 +120,17 @@ export function CallControls({
     try {
       // Yeniden açılan kamera son seçilen yönle gelsin (arka kamerada
       // kapatıp açınca öne atlamasın).
-      await localParticipant.setCameraEnabled(!isCameraEnabled, isCameraEnabled ? undefined : { facingMode: facing });
+      // Yayın Kalitesi (Ayarlar → Ses ve Video; plan/Takviye tavanına kırpılmış).
+      const preset = cameraPreset(streamQuality);
+      await localParticipant.setCameraEnabled(
+        !isCameraEnabled,
+        isCameraEnabled ? undefined : { facingMode: facing, resolution: preset.resolution },
+        isCameraEnabled ? undefined : { videoEncoding: preset.encoding }
+      );
     } finally {
       setBusy(false);
     }
-  }, [localParticipant, isCameraEnabled, busy, facing]);
+  }, [localParticipant, isCameraEnabled, busy, facing, streamQuality]);
 
   /**
    * Ön ↔ arka kamera (WhatsApp'taki çevir düğmesi). Yayın kesilmeden iz

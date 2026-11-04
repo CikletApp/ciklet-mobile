@@ -4,6 +4,7 @@ import { RoomEvent, type RemoteParticipant, type Room } from "livekit-client";
 
 import { showToast } from "@/components/ui";
 import { moveOffEarpiece } from "@/features/voice/audio-route";
+import { cameraPreset, currentStreamQuality } from "@/features/voice/stream-quality";
 import { ensureCameraPermission } from "@/features/voice/use-voice-token";
 import { useCall } from "@/stores/call";
 
@@ -62,7 +63,12 @@ async function send(room: Room, action: UpgradeAction): Promise<void> {
 async function goVideo(room: Room): Promise<void> {
   const { cameraFacing, switchToVideo } = useCall.getState();
   try {
-    await room.localParticipant.setCameraEnabled(true, { facingMode: cameraFacing });
+    const preset = cameraPreset(currentStreamQuality());
+    await room.localParticipant.setCameraEnabled(
+      true,
+      { facingMode: cameraFacing, resolution: preset.resolution },
+      { videoEncoding: preset.encoding }
+    );
   } catch {
     showToast("Kamera açılamadı.");
   }
