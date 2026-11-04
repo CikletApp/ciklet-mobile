@@ -40,6 +40,19 @@ export function InteractionLabel({ interaction, pending }: { interaction: Intera
   );
 }
 
+/** Takip edilen duyuru kanalından gelen kopya: "📢 Sunucu #kanal" (web CrosspostLabel). */
+export function CrosspostLabel({ crosspost }: { crosspost: { sourceServerName: string; sourceChannelName: string } }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+      <Icon name="megaphone" size={12} color={colors.muted} />
+      <Text style={LABEL_TEXT} numberOfLines={1}>
+        <Text style={{ ...fw(600), color: colors.text }}>{crosspost.sourceServerName}</Text>
+        {` #${crosspost.sourceChannelName}`}
+      </Text>
+    </View>
+  );
+}
+
 /**
  * Yalnızca bu kullanıcıya görünen mesaj (botun flags 64 yanıtı): sunucuda
  * geçmişi yok, uygulama yeniden açılınca kaybolur. "Bu mesajları kapat"

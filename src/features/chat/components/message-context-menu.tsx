@@ -134,6 +134,7 @@ export function MessageContextMenu({
   canDeleteOthers = false,
   onSelectMessages,
   apps = [],
+  onPublish,
 }: {
   message: ChatMessagePayload;
   /** Basılı tutulan balonun pencere koordinatları — kopya buraya çizilir. */
@@ -170,6 +171,8 @@ export function MessageContextMenu({
   onSelectMessages?: () => void;
   /** Sohbetteki botların MESSAGE komutları; boşsa "Uygulamalar" görünmez. */
   apps?: MessageAppAction[];
+  /** Duyuru kanalında moderatör: "Yayınla" (takipçi kanallara kopyalar; web ile aynı). */
+  onPublish?: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -276,6 +279,17 @@ export function MessageContextMenu({
   }
   if (bookmark) actions.push(bookmark);
   if (reminder) actions.push(reminder);
+  if (onPublish) {
+    actions.push({
+      key: "publish",
+      icon: "megaphone",
+      label: "Yayınla",
+      onPress: () => {
+        onClose();
+        onPublish();
+      },
+    });
+  }
   if (onForward) actions.push({ key: "forward", icon: "forward", label: "İlet", onPress: onForward });
   if (thread) actions.push({ key: "thread", icon: "message", label: "Alt başlık oluştur", onPress: () => setMode("thread") });
   if (onSelectMessages) actions.push({ key: "select", icon: "check", label: "Mesajları Seç", onPress: onSelectMessages });

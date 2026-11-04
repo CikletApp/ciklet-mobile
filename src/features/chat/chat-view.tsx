@@ -17,7 +17,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
 import { ApiError } from "@/api/client";
-import { hasServerPermission, useChatMessages, useIgnoredIds, useMentolPlan, useMyMembership, useMyPermissions, type ChatKind } from "@/api/hooks";
+import { hasServerPermission, useChannel, useChatMessages, useIgnoredIds, useMentolPlan, useMyMembership, useMyPermissions, type ChatKind } from "@/api/hooks";
+import { publishMessage } from "@/api/hooks/use-channel-admin";
+import type { ChannelExtras } from "@/api/types";
+import { canPublishMessage } from "@/lib/announcement";
 import { EmptyState, ErrorState, Icon, ListSkeleton, Pressable, showDialog, showToast } from "@/components/ui";
 import { launchActivityById } from "@/features/activities/launch";
 import { useChatStream } from "@/realtime/use-chat-stream";
@@ -215,6 +218,11 @@ export function ChatView({
       membership.data?.role === MemberRole.MODERATOR ||
       hasServerPermission(permissions.data, "MANAGE_MESSAGES"));
   const selection = useMessageSelection(chatId, serverId);
+  // Duyuru kanalı: yönetici/moderatör mesajı takipçi kanallara "Yayınla"r (web ile aynı kural).
+  const currentChannel = useChannel(kind === "channel" ? serverId : undefined, chatId) as ChannelExtras | undefined;
+  const announcementChannel = kind === "channel" && currentChannel?.announcement === true;
+  const canPublish =
+    announcementChannel && (membership.data?.role === MemberRole.ADMIN || membership.data?.role === MemberRole.MODERATOR);
 
   // Canlı akış: gelen mesajlar doğrudan cache'e yazılır; kopuklukta telafi edilir.
   useChatStream(kind, chatId);
@@ -1163,6 +1171,18 @@ export function ChatView({
                 }
           }
           serverId={serverId}
+          onPublish={
+            canPublish && canPublishMessage(selected.message)
+              ? () => {
+                  const target = selected.message.id;
+                  void publishMessage(chatId, target).then(
+                    (res) =>
+                      showToast(res.followers === 0 ? "Yayınlandı (henüz takipçi yok)." : `${res.delivered} kanala yayınlandı.`),
+                    (error: unknown) => showToast(error instanceof ApiError ? error.message : "Yayınlanamadı", "error")
+                  );
+                }
+              : undefined
+          }
           apps={messageApps.map((app) => ({
             key: `${app.bot.id}:${app.command.id}`,
             label: localize(app.command.name, app.command.name_localizations, locale),

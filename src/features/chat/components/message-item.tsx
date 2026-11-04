@@ -62,7 +62,8 @@ import { readMessageComponents } from "@/lib/message-components";
 import { readSafetyAlert } from "@/lib/safety";
 import { useT } from "@/lib/i18n";
 import { SafetyAlertCard } from "./safety-alert-card";
-import { EphemeralFooter, InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
+import { CrosspostLabel, EphemeralFooter, InteractionLabel, SilentLabel, ThreadLink } from "./message-labels";
+import { readCrosspostMeta } from "@/lib/announcement";
 import { MessageComponents } from "./message-components";
 import { useChatScope } from "../chat-scope";
 import { emojiOnlyCount, parseCustomEmojiToken } from "../message-markup";
@@ -306,7 +307,9 @@ export function MessageItem({
   // WhatsApp gibi: altyazısız görsel/video balonsuz çizilir, saat medyanın
   // üstüne biner. Gönderen adı, alıntı ya da "İletildi" varsa balon kalır —
   // o bilgilerin duracağı bir zemin gerekiyor. Dev emoji de aynı kuralla.
-  const needsSurface = showHeader || hasQuote || forwarded || Boolean(interaction) || silent;
+  // Takip edilen duyuru kanalından kopya (web CrosspostLabel).
+  const crosspost = message.deleted ? null : readCrosspostMeta(message.metadata);
+  const needsSurface = showHeader || hasQuote || forwarded || Boolean(interaction) || silent || Boolean(crosspost);
   const bareMedia = visualMedia && hideAttachmentUrl && !needsSurface;
   const bareEmoji = emojiScale === "jumbo" && !needsSurface;
   // Telegram gibi: altyazılı görsel/video TEK balondur. Medya balonun üst ve
@@ -381,8 +384,9 @@ export function MessageItem({
     </View>
   ) : null;
 
-  const metaLabels = interaction || silent ? (
+  const metaLabels = interaction || silent || crosspost ? (
     <>
+      {crosspost ? <CrosspostLabel crosspost={crosspost} /> : null}
       {interaction ? <InteractionLabel interaction={interaction.interaction} pending={interaction.pending} /> : null}
       {silent ? <SilentLabel /> : null}
     </>

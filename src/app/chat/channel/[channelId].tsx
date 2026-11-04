@@ -43,6 +43,7 @@ import { ServerJoinGate } from "@/features/server/join-flow";
 import { QuarantineBanner } from "@/features/server/quarantine-banner";
 import { QUARANTINE_COMPOSER_PLACEHOLDER } from "@/lib/quarantine";
 import { ForumView } from "@/features/server/forum-view";
+import { FollowChannelSheet } from "@/features/server/follow-channel-sheet";
 import { MediaGallery } from "@/features/server/media-gallery";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -99,6 +100,9 @@ export default function ChannelChatScreen() {
   const isForum = !isThread && extras?.forum === true;
   const isMedia = !isThread && extras?.mediaOnly === true;
   const [view, setView] = useState<"chat" | "gallery">("chat");
+  // Duyuru kanalı: başka sunucuya takip (web sohbet başlığındaki "Takip et").
+  const isAnnouncement = !isThread && extras?.announcement === true;
+  const [followOpen, setFollowOpen] = useState(false);
 
   const thread = useThreadState(serverId, isThread ? parentId : undefined, channelId);
   const archive = useArchiveThread(serverId ?? "");
@@ -331,6 +335,15 @@ export default function ChannelChatScreen() {
           ),
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              {isAnnouncement ? (
+                <IconButton
+                  icon="megaphone"
+                  label="Duyuru kanalını takip et"
+                  background="transparent"
+                  tint={colors.bright}
+                  onPress={() => setFollowOpen(true)}
+                />
+              ) : null}
               {isMedia ? (
                 <IconButton
                   icon={view === "chat" ? "image" : "message"}
@@ -429,6 +442,16 @@ export default function ChannelChatScreen() {
           channelName={(isThread ? parent?.name : channel?.name) ?? "kanal"}
           onAccept={nsfw.acknowledge}
           onBack={() => router.back()}
+        />
+      ) : null}
+
+      {isAnnouncement ? (
+        <FollowChannelSheet
+          visible={followOpen}
+          onClose={() => setFollowOpen(false)}
+          channelId={channelId}
+          channelName={channel?.name ?? ""}
+          sourceServerId={serverId}
         />
       ) : null}
 
