@@ -102,7 +102,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node scripts/typed-routes.mjs && tsc --noEmit",
+    "typed-routes": "node scripts/typed-routes.mjs",
+    "postinstall": "node scripts/typed-routes.mjs --soft",
     "apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk.ps1",
     "doctor": "npx expo-doctor"
   },
