@@ -20,6 +20,7 @@ import {
   sessionDurationLabel,
 } from "@/lib/profile-extras";
 import { BOOST_PINK } from "@/lib/server-boost";
+import { VerifiedGameBadge } from "@/features/profile/game-stats";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 
@@ -158,9 +159,12 @@ export function CollectionGrid({ items }: { items: ProfileGameView[] }) {
                 </Text>
               )}
             </View>
-            <Text style={{ fontSize: 11, ...fw(600), color: colors.bright }} numberOfLines={1}>
-              {game.name}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+              <Text style={{ fontSize: 11, ...fw(600), color: colors.bright, flexShrink: 1 }} numberOfLines={1}>
+                {game.name}
+              </Text>
+              {game.verified ? <VerifiedGameBadge size={11} /> : null}
+            </View>
           </Pressable>
         );
       })}

@@ -6,6 +6,7 @@ import { serverTagTr } from "./server-tag.tr";
 import { serverBoostTr } from "./server-boost.tr";
 import { accountSwitcherTr } from "./account-switcher.tr";
 import { familyCenterTr } from "./family-center.tr";
+import { gameStatsTr } from "./game-stats.tr";
 import { liveCaptionsTr, translationTr } from "./live-language.tr";
 
 /**
@@ -233,6 +234,7 @@ export const tr = {
   serverBoost: serverBoostTr,
   /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.tr.ts. */
   accountSwitcher: accountSwitcherTr,
+  gameStats: gameStatsTr,
   /** Aile Merkezi (web ile aynı anahtarlar) — family-center.tr.ts. */
   familyCenter: familyCenterTr,
   translation: translationTr,

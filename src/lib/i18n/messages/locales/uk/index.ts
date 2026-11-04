@@ -6,6 +6,7 @@ import { serverTag } from "./server-tag";
 import { serverBoost } from "./server-boost";
 import { accountSwitcher } from "./account-switcher";
 import { familyCenter } from "./family-center";
+import { gameStats } from "./game-stats";
 import { liveCaptions, translation } from "./live-language";
 import type { Messages } from "../../tr";
 import type { Translation } from "../../translation";
@@ -220,6 +221,7 @@ export const messages = {
   accountSwitcher: accountSwitcher,
   /** Aile Merkezi (web ile aynı anahtarlar) — family-center.en.ts. */
   familyCenter: familyCenter,
+  gameStats: gameStats,
   translation: translation,
   liveCaptions: liveCaptions,
 } satisfies Translation<Messages>;

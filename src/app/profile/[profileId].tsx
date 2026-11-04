@@ -30,6 +30,8 @@ import { ActivityReplySheet, type ActivityReplyTarget } from "@/features/presenc
 import { isMobileActivity } from "@/features/presence/media-activity";
 import { UserAppsCard } from "@/features/chat/user-apps";
 import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
+import { GameStatsCards } from "@/features/profile/game-stats";
+import { useLocale, useT } from "@/lib/i18n";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import {
   ActivityList,
@@ -113,6 +115,8 @@ export default function ProfileScreen() {
   const [tab, setTab] = useState<CardTab>("pano");
   const [replyTarget, setReplyTarget] = useState<ActivityReplyTarget | null>(null);
   const myId = useAuth((s) => s.profile?.id);
+  const t = useT();
+  const locale = useLocale();
   const [favoritePicker, setFavoritePicker] = useState(false);
 
   const cached = useMemo<ProfileView | undefined>(() => {
@@ -169,6 +173,7 @@ export default function ProfileScreen() {
   const programs = data?.collection?.programs ?? [];
   const connections = data?.connections ?? [];
   const favoriteGame = data?.favoriteGame ?? null;
+  const gameStats = data?.gameStats ?? [];
   const customStatus = activeCustomStatus(profile);
   const title = annotation?.nickname?.trim() || displayNameOf(profile);
   const friendship = data?.friendship;
@@ -508,6 +513,12 @@ export default function ProfileScreen() {
               {games.length > 0 ? (
                 <Card title={isSelf ? "OYUNLARIN" : "SEVDİĞİ OYUNLAR"}>
                   <CollectionGrid items={games} />
+                </Card>
+              ) : null}
+
+              {gameStats.length > 0 ? (
+                <Card title={t("gameStats.card.title").toLocaleUpperCase(locale)}>
+                  <GameStatsCards cards={gameStats} />
                 </Card>
               ) : null}
 

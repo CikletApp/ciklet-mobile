@@ -113,7 +113,9 @@ export type IconName =
   | "languages"
   | "captions"
   // Sunucu Takviyesi (web lucide "Gem")
-  | "gem";
+  | "gem"
+  // Onaylı oyun rozeti (web lucide "BadgeCheck")
+  | "badge-check";
 
 interface IconProps {
   name: IconName;
@@ -329,6 +331,10 @@ const PATHS: Record<IconName, string[]> = {
   "arrow-up-right": ["M7 7h10v10", "M7 17 17 7"],
   smartphone: ["M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M12 18h.01"],
   gem: ["M6 3h12l4 6-10 13L2 9z", "M11 3 8 9l4 13 4-13-3-6", "M2 9h20"],
+  "badge-check": [
+    "M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z",
+    "m9 12 2 2 4-4",
+  ],
   languages: ["m5 8 6 6", "m4 14 6-6 2-3", "M2 5h12", "M7 2h1", "m22 22-5-10-5 10", "M14 18h6"],
   captions: ["M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z", "M7 15h4", "M15 15h2", "M7 11h2", "M13 11h4"],
 };

@@ -582,6 +582,8 @@ export interface ProfileCardResponse {
   favoriteGame?: FavoriteGameView | null;
   /** Adın yanındaki sunucu etiketi (web lib/server-tag); yoksa null, eski sunucuda alan yok. */
   primaryGuild?: PrimaryGuild | null;
+  /** Oyun istatistiği kartları (web lib/game-stats); görünürlük kapalıysa boş, eski sunucuda yok. */
+  gameStats?: GameStatsCardView[];
 }
 
 /**
@@ -653,6 +655,30 @@ export interface ProfileGameView {
   lastPlayedAt: string;
   coverUrl: string | null;
   iconUrl: string | null;
+  hidden: boolean;
+  /** Sahibi doğrulanmış oyun (web lib/game-claims) — "Onaylı" rozeti. Eski sunucuda yok. */
+  verified?: boolean;
+}
+
+/** ciklet-web `lib/game-stats` → `GameStatView`. `type` 1 sayı, 2 metin, 3 tarih. */
+export interface GameStatView {
+  key: string;
+  name: string;
+  nameLocalizations?: Record<string, string>;
+  type: 1 | 2 | 3;
+  value: number | string;
+}
+
+/** ciklet-web `lib/game-stats` → `GameStatsCard` (profil "Oyun İstatistikleri"). */
+export interface GameStatsCardView {
+  application: { id: string; name: string; iconUrl: string | null };
+  game: { name: string; coverUrl: string | null; iconUrl: string | null; verified: boolean } | null;
+  fields: GameStatView[];
+  updatedAt: string;
+}
+
+/** `GET /api/profile/game-stats` satırı — kendi kartların (gizliler dahil). */
+export interface OwnGameStatsCard extends GameStatsCardView {
   hidden: boolean;
 }
 

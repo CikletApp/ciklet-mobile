@@ -374,6 +374,8 @@ export const endpoints = {
   profileConnections: "/api/profile/connections",
   /** Kendi oyun koleksiyonun (gizli + tanınmayan dahil, favori işaretli). */
   profileGames: "/api/profile/games",
+  /** Oyun istatistiği kartları — Ayarlar › Gizlilik (GET / PATCH { applicationId, hidden } / DELETE). */
+  profileGameStats: "/api/profile/game-stats",
   /** PUT `{ name, type, tag? }` favori yapar; DELETE kaldırır. */
   profileFavoriteGame: "/api/profile/games/favorite",
   /** Sunucu etiketi (web lib/server-tag): GET durum + seçenekler, PUT `{ serverId }`, DELETE kaldırır. */

@@ -22,6 +22,7 @@ import { Avatar, Button, Divider, EmptyState, ListGroup, ListRow, Screen, Sectio
 import { formatDate } from "@/lib/format";
 import { getDeviceId } from "@/lib/device";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { GameStatsPrivacySection } from "@/features/profile/game-stats-privacy";
 
 type DmPermission = NonNullable<CurrentProfile["dmPermission"]>;
 type SpamFilter = NonNullable<CurrentProfile["spamFilter"]>;
@@ -201,6 +202,8 @@ export default function PrivacySettingsScreen() {
             <EmptyState icon="users" title="Sunucu yok" description="Sunucu bazlı DM tercihi bulunmuyor." />
           )}
         </View>
+
+        <GameStatsPrivacySection />
 
         <SectionHeader title="ENGELLENEN KULLANICILAR" />
         <View style={{ paddingHorizontal: spacing.lg }}>
