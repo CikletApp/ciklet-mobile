@@ -6,6 +6,7 @@ import { serverTagEn } from "./server-tag.en";
 import { serverBoostEn } from "./server-boost.en";
 import { accountSwitcherEn } from "./account-switcher.en";
 import { gameStatsEn } from "./game-stats.en";
+import { gameDetailEn } from "./game-detail.en";
 import { complianceEn } from "./compliance.en";
 import { questsEn } from "./quests.en";
 import { settingsAccountEn } from "./settings-account.en";
@@ -224,6 +225,7 @@ export const en = {
   /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.en.ts. */
   accountSwitcher: accountSwitcherEn,
   gameStats: gameStatsEn,
+  gameDetail: gameDetailEn,
   compliance: complianceEn,
   quests: questsEn,
   settingsAccount: settingsAccountEn,

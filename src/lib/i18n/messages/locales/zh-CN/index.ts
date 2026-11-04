@@ -7,6 +7,7 @@ import { serverBoost } from "./server-boost";
 import { accountSwitcher } from "./account-switcher";
 import { familyCenter } from "./family-center";
 import { gameStats } from "./game-stats";
+import { gameDetail } from "./game-detail";
 import { compliance } from "./compliance";
 import { quests } from "./quests";
 import { settingsAccount } from "./settings-account";
@@ -227,6 +228,7 @@ export const messages = {
   /** Aile Merkezi (web ile aynı anahtarlar) — family-center.en.ts. */
   familyCenter: familyCenter,
   gameStats: gameStats,
+  gameDetail: gameDetail,
   compliance: compliance,
   quests: quests,
   settingsAccount: settingsAccount,

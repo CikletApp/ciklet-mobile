@@ -7,6 +7,7 @@ import { serverBoostTr } from "./server-boost.tr";
 import { accountSwitcherTr } from "./account-switcher.tr";
 import { familyCenterTr } from "./family-center.tr";
 import { gameStatsTr } from "./game-stats.tr";
+import { gameDetailTr } from "./game-detail.tr";
 import { complianceTr } from "./compliance.tr";
 import { questsTr } from "./quests.tr";
 import { settingsAccountTr } from "./settings-account.tr";
@@ -240,6 +241,7 @@ export const tr = {
   /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.tr.ts. */
   accountSwitcher: accountSwitcherTr,
   gameStats: gameStatsTr,
+  gameDetail: gameDetailTr,
   compliance: complianceTr,
   quests: questsTr,
   settingsAccount: settingsAccountTr,
