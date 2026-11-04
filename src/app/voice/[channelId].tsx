@@ -497,6 +497,17 @@ function VoiceRoomBody({
               onPress={() => void screenShare.toggle()}
             />
           ) : null}
+          {/* "Etkinlik başlat" (web kontrol çubuğu): kanalın aktivite seçicisi. */}
+          {!isStage && serverId ? (
+            <IconButton
+              icon="gamepad"
+              label="Etkinlik başlat"
+              size={48}
+              background={colors.raised}
+              tint={colors.bright}
+              onPress={() => router.push(`/activities?chatId=${channelId}&serverId=${serverId}`)}
+            />
+          ) : null}
           {!isStage && serverId ? (
             <IconButton
               icon="sparkles"
