@@ -31,6 +31,12 @@ import { isMobileActivity } from "@/features/presence/media-activity";
 import { UserAppsCard } from "@/features/chat/user-apps";
 import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
 import { GameStatsCards } from "@/features/profile/game-stats";
+import {
+  ProfileFriendButton,
+  ProfileMoreSheet,
+  SquareIcon,
+  useProfileFriendship,
+} from "@/features/profile/profile-actions";
 import { useLocale, useT } from "@/lib/i18n";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
 import {
@@ -118,6 +124,12 @@ export default function ProfileScreen() {
   const t = useT();
   const locale = useLocale();
   const [favoritePicker, setFavoritePicker] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const friendActions = useProfileFriendship(
+    card.data?.friendship ?? null,
+    { id: profileId, username: card.data?.profile.username ?? "" },
+    myId
+  );
 
   const cached = useMemo<ProfileView | undefined>(() => {
     const friend = accepted.find((f) => f.profile.id === profileId)?.profile;
@@ -183,6 +195,8 @@ export default function ProfileScreen() {
       : null;
   // Kendi etkinliğine ya da bota yanıt verilmez (kart gelmeden de bilinsin).
   const canReplyToActivity = !isSelf && profile.id !== myId && profile.isBot !== true;
+  // Bot ve resmî hesapla arkadaşlık/engel yok (web `isPerson`).
+  const isPerson = !isOfficial && profile.isBot !== true;
   const showSpotify = connections.some((c) => c.type === "spotify" && c.verified);
 
   const tabs: TabItem<CardTab>[] = [
@@ -302,7 +316,7 @@ export default function ProfileScreen() {
                 }
                 loading={openDirect.isPending}
               />
-              {!isOfficial ? (
+              {!isOfficial && !friendActions.isBlocked ? (
                 <>
                   <Button
                     label="Sesli"
@@ -324,6 +338,14 @@ export default function ProfileScreen() {
               ) : null}
             </View>
           )}
+
+          {/* Arkadaşlık düğmesi + "Diğer" menüsü (web full-profile-dialog). */}
+          {!isSelf && data ? (
+            <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center" }}>
+              {isPerson ? <ProfileFriendButton friendship={friendActions} /> : null}
+              <SquareIcon icon="more" label="Diğer" onPress={() => setMoreOpen(true)} />
+            </View>
+          ) : null}
 
           <UserAppsCard chatId={chatId} targetId={profile.id} />
 
@@ -543,6 +565,17 @@ export default function ProfileScreen() {
       </ScrollView>
       <ListenAlongBar />
       <ActivityReplySheet target={replyTarget} onClose={() => setReplyTarget(null)} />
+      {!isSelf && data ? (
+        <ProfileMoreSheet
+          visible={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          profileId={profile.id}
+          displayName={title}
+          isPerson={isPerson}
+          friendship={friendActions}
+          onCall={startCall}
+        />
+      ) : null}
       {isSelf ? <FavoriteGameSheet visible={favoritePicker} onClose={() => setFavoritePicker(false)} /> : null}
     </Screen>
   );
