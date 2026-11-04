@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -18,14 +18,27 @@ import { formatChatListTime } from "@/lib/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { formatMessagePreview } from "@/lib/message-preview";
+import { useDirect, useDirectDisplay } from "@/api/hooks";
+import { useAuth } from "@/stores/auth";
+import {
+  EMPTY_FILTERS,
+  SearchFilterBar,
+  SearchFiltersSheet,
+  activeFilterCount,
+  filtersKey,
+  withFilters,
+  type SearchFilters,
+  type SearchOrder,
+  type SearchParticipant,
+} from "@/features/search/search-filters";
 
 /**
  * DM sohbetinin İÇİNDE arama — web'deki süzgeçli arama panelinin mobil
  * karşılığı (`GET /api/direct-messages/search`).
  *
- * Uç en az bir ölçüt ister; mobil ilk sürümde metin araması sunar (yazar/
- * içerik süzgeçleri web'de). Sonuçlar en yeniden eskiye sayfalıdır; satıra
- * dokununca sohbet açılır.
+ * Uç en az bir ölçüt ister: metin ya da süzgeç (Tarafından, Şunu içeren,
+ * Bahsedilmeler, Tarih — web ile aynı). Sıralama En yeni / En eski; satıra
+ * dokununca sohbet o mesaja kaydırılarak açılır.
  */
 
 const MIN_QUERY = 2;
@@ -40,6 +53,26 @@ export default function DirectSearchScreen() {
   const { directId } = useLocalSearchParams<{ directId: string }>();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS);
+  const [order, setOrder] = useState<SearchOrder>("newest");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const { data: direct } = useDirect(directId);
+  const display = useDirectDisplay(direct);
+  const me = useAuth((s) => s.profile);
+  // Seçilebilecek kişiler: sohbetin üyeleri (birebirde karşı taraf + sen).
+  const participants = useMemo<SearchParticipant[]>(() => {
+    const people = display?.isGroup ? display.members : display?.peer ? [display.peer] : [];
+    const rows: SearchParticipant[] = people.map((p) => ({
+      id: p.id,
+      username: p.username,
+      name: p.name ?? null,
+      imageUrl: p.imageUrl ?? null,
+    }));
+    if (me && !rows.some((p) => p.id === me.id)) {
+      rows.push({ id: me.id, username: me.username, name: me.name ?? null, imageUrl: me.imageUrl ?? null });
+    }
+    return rows;
+  }, [display, me]);
 
   // Her tuşta istek atmamak için kısa bir bekleme.
   useEffect(() => {
@@ -47,14 +80,19 @@ export default function DirectSearchScreen() {
     return () => clearTimeout(timer);
   }, [input]);
 
-  const enabled = Boolean(directId) && query.length >= MIN_QUERY;
+  const filterCount = activeFilterCount(filters);
+  const enabled = Boolean(directId) && (query.length >= MIN_QUERY || filterCount > 0);
   const search = useInfiniteQuery({
-    queryKey: qk.directSearch(directId ?? "yok", query),
+    queryKey: [...qk.directSearch(directId ?? "yok", query), filtersKey(filters, order)],
     enabled,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       api<SearchPage>(
-        endpoints.directMessageSearch(directId!, { q: query, cursor: pageParam })
+        withFilters(
+          endpoints.directMessageSearch(directId!, { q: query.length >= MIN_QUERY ? query : undefined, cursor: pageParam }),
+          filters,
+          order
+        )
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: 30_000,
@@ -101,11 +139,26 @@ export default function DirectSearchScreen() {
         }}
       />
 
+      <SearchFilterBar
+        filters={filters}
+        order={order}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onOrderChange={setOrder}
+        onClear={() => setFilters(EMPTY_FILTERS)}
+      />
+      <SearchFiltersSheet
+        visible={filtersOpen}
+        value={filters}
+        source={{ kind: "fixed", participants }}
+        onClose={() => setFiltersOpen(false)}
+        onApply={setFilters}
+      />
+
       {!enabled ? (
         <EmptyState
           icon="search"
           title="Bu sohbette ara"
-          description={`En az ${MIN_QUERY} karakter yaz.`}
+          description={`En az ${MIN_QUERY} karakter yaz ya da bir filtre seç.`}
         />
       ) : search.isLoading ? (
         <ActivityIndicator color={colors.muted} style={{ marginTop: spacing["2xl"] }} />
@@ -120,7 +173,7 @@ export default function DirectSearchScreen() {
         <EmptyState
           icon="search"
           title="Sonuç yok"
-          description={`“${query}” bu sohbette geçmiyor.`}
+          description={query ? `“${query}” bu sohbette geçmiyor.` : "Bu ölçütlere uyan mesaj yok."}
         />
       ) : (
         <FlatList

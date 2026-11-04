@@ -12,6 +12,16 @@ import { formatChatListTime } from "@/lib/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { formatMessagePreview } from "@/lib/message-preview";
+import {
+  EMPTY_FILTERS,
+  SearchFilterBar,
+  SearchFiltersSheet,
+  activeFilterCount,
+  filtersKey,
+  withFilters,
+  type SearchFilters,
+  type SearchOrder,
+} from "@/features/search/search-filters";
 
 /**
  * Sunucu içi mesaj arama — web kanal başlığındaki arama kutusunun mobil
@@ -39,6 +49,9 @@ export default function ServerSearchScreen() {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<"channel" | "server">(channel ? "channel" : "server");
+  const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS);
+  const [order, setOrder] = useState<SearchOrder>("newest");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Her tuşta istek atmamak için kısa bir bekleme.
   useEffect(() => {
@@ -47,13 +60,24 @@ export default function ServerSearchScreen() {
   }, [input]);
 
   const onlyChannel = scope === "channel" ? channel : undefined;
-  const enabled = Boolean(serverId) && query.length >= MIN_QUERY;
+  const filterCount = activeFilterCount(filters);
+  const enabled = Boolean(serverId) && (query.length >= MIN_QUERY || filterCount > 0);
   const search = useInfiniteQuery({
-    queryKey: qk.serverSearch(serverId ?? "yok", `${onlyChannel ?? "*"}:${query}`),
+    queryKey: [...qk.serverSearch(serverId ?? "yok", `${onlyChannel ?? "*"}:${query}`), filtersKey(filters, order)],
     enabled,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
-      api<SearchPage>(endpoints.serverMessageSearch(serverId!, { q: query, cursor: pageParam, channel: onlyChannel })),
+      api<SearchPage>(
+        withFilters(
+          endpoints.serverMessageSearch(serverId!, {
+            q: query.length >= MIN_QUERY ? query : undefined,
+            cursor: pageParam,
+            channel: onlyChannel,
+          }),
+          filters,
+          order
+        )
+      ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: 30_000,
   });
@@ -107,8 +131,23 @@ export default function ServerSearchScreen() {
         />
       ) : null}
 
+      <SearchFilterBar
+        filters={filters}
+        order={order}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onOrderChange={setOrder}
+        onClear={() => setFilters(EMPTY_FILTERS)}
+      />
+      <SearchFiltersSheet
+        visible={filtersOpen}
+        value={filters}
+        source={{ kind: "server", serverId: serverId ?? "" }}
+        onClose={() => setFiltersOpen(false)}
+        onApply={setFilters}
+      />
+
       {!enabled ? (
-        <EmptyState icon="search" title="Sunucuda ara" description={`En az ${MIN_QUERY} karakter yaz.`} />
+        <EmptyState icon="search" title="Sunucuda ara" description={`En az ${MIN_QUERY} karakter yaz ya da bir filtre seç.`} />
       ) : search.isLoading ? (
         <ActivityIndicator color={colors.muted} style={{ marginTop: spacing["2xl"] }} />
       ) : search.error ? (
@@ -117,7 +156,7 @@ export default function ServerSearchScreen() {
           onRetry={() => void search.refetch()}
         />
       ) : items.length === 0 ? (
-        <EmptyState icon="search" title="Sonuç yok" description={`“${query}” bu sunucuda geçmiyor.`} />
+        <EmptyState icon="search" title="Sonuç yok" description={query ? `“${query}” bu sunucuda geçmiyor.` : "Bu ölçütlere uyan mesaj yok."} />
       ) : (
         <FlatList
           data={items}
