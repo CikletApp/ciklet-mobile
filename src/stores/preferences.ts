@@ -55,6 +55,12 @@ interface PreferenceValues {
   shareMusicActivity: boolean;
   /** Video (YouTube) — web "Video" kategorisi. */
   shareVideoActivity: boolean;
+  /** "Çevir"in hedef dili; "auto" arayüz dili (lib/translation/core). */
+  translationTarget: string;
+  /** Sesli kanal/aramada "Altyazıları göster" (lib/live-captions). */
+  captionsShow: boolean;
+  /** Canlı altyazı konuşma dili; "auto" arayüz dili. */
+  captionsSpeechLang: string;
 }
 
 interface PreferenceState extends PreferenceValues {
@@ -86,6 +92,9 @@ const defaults: PreferenceValues = {
   shareMediaActivity: false,
   shareMusicActivity: true,
   shareVideoActivity: true,
+  translationTarget: "auto",
+  captionsShow: false,
+  captionsSpeechLang: "auto",
 };
 
 function persistedValues(state: PreferenceState): PreferenceValues {
@@ -112,6 +121,9 @@ function persistedValues(state: PreferenceState): PreferenceValues {
     shareMediaActivity: state.shareMediaActivity,
     shareMusicActivity: state.shareMusicActivity,
     shareVideoActivity: state.shareVideoActivity,
+    translationTarget: state.translationTarget,
+    captionsShow: state.captionsShow,
+    captionsSpeechLang: state.captionsSpeechLang,
   };
 }
 

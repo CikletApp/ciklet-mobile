@@ -99,6 +99,13 @@
         }
       ],
       "expo-audio",
+      [
+        "expo-speech-recognition",
+        {
+          "speechRecognitionPermission": "Canlı altyazı açıkken konuşmanı yazıya çevirmek için konuşma tanıma izni gerekir.",
+          "androidSpeechServicePackages": ["com.google.android.as", "com.google.android.googlequicksearchbox"]
+        }
+      ],
       "expo-iap",
       [
         "expo-camera",

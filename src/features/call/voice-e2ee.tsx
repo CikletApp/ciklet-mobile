@@ -6,6 +6,7 @@ import { Room, RoomEvent, type RoomOptions } from "livekit-client";
 
 import { Icon, Pressable, showToast, type IconName } from "@/components/ui";
 import { useT } from "@/lib/i18n";
+import type { CaptionKeyring } from "@/lib/live-captions/crypto";
 import { NativeVoiceE2EE } from "@/lib/voice-e2ee/livekit-native";
 import type { VoiceE2EESession, VoiceE2EESnapshot } from "@/lib/voice-e2ee/session";
 import { fw } from "@/theme/fonts";
@@ -59,7 +60,14 @@ export function useVoiceE2EERoom(
   encrypted: boolean,
   options: RoomOptions,
   attempt = 0
-): { ready: boolean; mode: VoiceE2EEMode; session: VoiceE2EESession | null; room: Room | undefined } {
+): {
+  ready: boolean;
+  mode: VoiceE2EEMode;
+  session: VoiceE2EESession | null;
+  room: Room | undefined;
+  /** Canlı altyazı şifrelemesi (lib/live-captions/crypto); şifresiz odada null. */
+  captionKeys: CaptionKeyring | null;
+} {
   const key = token ? `${attempt}:${encrypted ? 1 : 0}:${token}` : null;
   const [prepared, setPrepared] = useState<PreparedRoom | null>(null);
 
@@ -100,8 +108,14 @@ export function useVoiceE2EERoom(
     // Seçenekler token'la birlikte gelir (kanalın ses ayarları); bağlantı başına bir kez.
   }, [key, token, encrypted, options]);
 
-  if (!prepared || prepared.key !== key) return { ready: false, mode: "off", session: null, room: undefined };
-  return { ready: true, mode: prepared.mode, session: prepared.handle?.session ?? null, room: prepared.room ?? undefined };
+  if (!prepared || prepared.key !== key) return { ready: false, mode: "off", session: null, room: undefined, captionKeys: null };
+  return {
+    ready: true,
+    mode: prepared.mode,
+    session: prepared.handle?.session ?? null,
+    room: prepared.room ?? undefined,
+    captionKeys: prepared.handle?.captionKeys ?? null,
+  };
 }
 
 // ── Durum ────────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import {
 } from "@/features/screen-share/screen-share-view";
 import { useScreenShare } from "@/features/screen-share/use-screen-share";
 import { CallControls } from "@/features/voice/call-controls";
+import { LiveCaptionsButton, LiveCaptionsOverlay } from "@/features/voice/live-captions";
 import { displayNameOf } from "@/lib/format";
 import { useAuth } from "@/stores/auth";
 import { useCall } from "@/stores/call";
@@ -380,6 +381,7 @@ export function VideoCallStage({
               }}
             />
           ) : null}
+          <LiveCaptionsButton size={40} />
           {onOpenChat ? (
             <TopButton icon="message" label="Mesajlara git" onPress={onOpenChat} />
           ) : (
@@ -409,6 +411,14 @@ export function VideoCallStage({
           ) : null}
           <CallControls onHangUp={onHangUp} showCamera variant="overlay" allowEarpiece={false} onInteract={poke} />
         </Animated.View>
+
+        {/* Canlı altyazı: kontrollerin üstünde (kontroller gizliyken altta). */}
+        <View
+          pointerEvents="none"
+          style={{ position: "absolute", left: 0, right: 0, bottom: chromeShown ? controlsHeight + spacing.sm : insets.bottom + spacing.lg }}
+        >
+          <LiveCaptionsOverlay />
+        </View>
 
         <ScreenShareFullscreen
           trackRef={shareFullscreen ? remoteShare : undefined}

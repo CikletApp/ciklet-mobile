@@ -6,6 +6,7 @@ import { serverTagTr } from "./server-tag.tr";
 import { serverBoostTr } from "./server-boost.tr";
 import { accountSwitcherTr } from "./account-switcher.tr";
 import { familyCenterTr } from "./family-center.tr";
+import { liveCaptionsTr, translationTr } from "./live-language.tr";
 
 /**
  * Türkçe sözlük — KAYNAK. Anahtar yapısı buradan türer; diğer diller
@@ -233,6 +234,8 @@ export const tr = {
   accountSwitcher: accountSwitcherTr,
   /** Aile Merkezi (web ile aynı anahtarlar) — family-center.tr.ts. */
   familyCenter: familyCenterTr,
+  translation: translationTr,
+  liveCaptions: liveCaptionsTr,
 } as const;
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

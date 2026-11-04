@@ -49,6 +49,7 @@ import { useVoice, type ActiveVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useOngoingCallService } from "@/features/call/use-ongoing-call-service";
 import { E2EEParticipantBadge, useVoiceE2EERoom, VoiceE2EEPill, VoiceE2EEProvider } from "@/features/call/voice-e2ee";
+import { CaptionsBadge, LiveCaptionsButton, LiveCaptionsController, LiveCaptionsOverlay } from "@/features/voice/live-captions";
 
 /**
  * Sesli kanal ekranı.
@@ -195,6 +196,8 @@ export default function VoiceChannelScreen() {
     >
       <Stack.Screen options={{ title: channel?.name ?? "" }} />
       <VoiceE2EEProvider mode={e2ee.mode} session={e2ee.session}>
+      {/* Canlı altyazı: kendi konuşmanı cihazında yazıya çevirip odaya yollar (web ile aynı). */}
+      <LiveCaptionsController e2eeMode={e2ee.mode} keyring={e2ee.captionKeys} />
       <VoiceRoomBody
         title={channel?.name ?? "Ses kanalı"}
         subtitle={isStage ? `${server?.name ?? "Sunucu"} · Sahne` : (extras?.voiceStatus?.trim() || server?.name)}
@@ -440,6 +443,7 @@ function VoiceRoomBody({
                   {participant.name?.trim() || participant.username}
                 </Text>
                 <E2EEParticipantBadge identity={participant.username} compact />
+                <CaptionsBadge identity={participant.username} />
               </Pressable>
               );
             })
@@ -473,32 +477,34 @@ function VoiceRoomBody({
           </View>
         ) : null}
 
-        {pushToTalk || (!isStage && serverId) || screenShare.canShare ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <View style={{ flex: 1 }}>{pushToTalk ? <PushToTalkButton disabled={selfMuted} /> : null}</View>
-            {screenShare.canShare ? (
-              <IconButton
-                icon={screenShare.sharing ? "screen-share-off" : "screen-share"}
-                label={screenShare.sharing ? "Ekran paylaşımını durdur" : "Ekranı paylaş"}
-                size={48}
-                background={screenShare.sharing ? colors.brand : colors.raised}
-                tint={screenShare.sharing ? colors.onBrand : colors.bright}
-                disabled={screenShare.busy}
-                onPress={() => void screenShare.toggle()}
-              />
-            ) : null}
-            {!isStage && serverId ? (
-              <IconButton
-                icon="sparkles"
-                label="Soundboard"
-                size={48}
-                background={colors.raised}
-                tint={colors.bright}
-                onPress={() => setSoundboardOpen(true)}
-              />
-            ) : null}
-          </View>
-        ) : null}
+        <LiveCaptionsOverlay />
+
+        {/* Satır her zaman var: "Altyazılar" düğmesi her odada (web kontrol çubuğu gibi). */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>{pushToTalk ? <PushToTalkButton disabled={selfMuted} /> : null}</View>
+          <LiveCaptionsButton />
+          {screenShare.canShare ? (
+            <IconButton
+              icon={screenShare.sharing ? "screen-share-off" : "screen-share"}
+              label={screenShare.sharing ? "Ekran paylaşımını durdur" : "Ekranı paylaş"}
+              size={48}
+              background={screenShare.sharing ? colors.brand : colors.raised}
+              tint={screenShare.sharing ? colors.onBrand : colors.bright}
+              disabled={screenShare.busy}
+              onPress={() => void screenShare.toggle()}
+            />
+          ) : null}
+          {!isStage && serverId ? (
+            <IconButton
+              icon="sparkles"
+              label="Soundboard"
+              size={48}
+              background={colors.raised}
+              tint={colors.bright}
+              onPress={() => setSoundboardOpen(true)}
+            />
+          ) : null}
+        </View>
 
         <View style={{ paddingBottom: spacing.lg }}>
           <CallControls

@@ -39,6 +39,7 @@ import {
   type Room,
 } from "livekit-client";
 
+import { CaptionKeyring } from "../live-captions/crypto";
 import { E2EE_KEYRING_SIZE, E2EE_RATCHET_SALT, E2EE_TOPIC } from "./protocol";
 import { livekitTokenClaims, VoiceE2EESession } from "./session";
 
@@ -106,6 +107,8 @@ class CikletE2EEManager extends RNE2EEManager {
 export class NativeVoiceE2EE {
   readonly session: VoiceE2EESession;
   private readonly keyProvider = new CikletNativeKeyProvider();
+  /** Canlı altyazı şifrelemesi için anahtarların kopyası (lib/live-captions/crypto). */
+  readonly captionKeys = new CaptionKeyring();
   private readonly manager: CikletE2EEManager;
   private room: Room | null = null;
   private detachRoom: (() => void) | null = null;
@@ -124,8 +127,12 @@ export class NativeVoiceE2EE {
         setLocalKey: async (passphrase, index) => {
           await this.keyProvider.setKey(identity, passphrase, index);
           if (this.room) await this.manager.useLocalKeyIndex(this.room, index);
+          this.captionKeys.setLocal(passphrase, index);
         },
-        setRemoteKey: (peer, passphrase, index) => this.keyProvider.setKey(peer, passphrase, index),
+        setRemoteKey: async (peer, passphrase, index) => {
+          await this.keyProvider.setKey(peer, passphrase, index);
+          this.captionKeys.setRemote(peer, passphrase, index);
+        },
       },
       transport: {
         send: async (payload, to) => {
@@ -202,6 +209,7 @@ export class NativeVoiceE2EE {
     this.detachRoom?.();
     this.detachRoom = null;
     this.session.dispose();
+    this.captionKeys.clear();
     this.room = null;
     // Yerel anahtar sağlayıcısı oda kapandıktan sonra bırakılır.
     const provider = this.keyProvider;

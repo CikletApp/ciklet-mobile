@@ -7,6 +7,7 @@ import { ColorPickerSheet } from "@/features/appearance/color-picker-sheet";
 import { type ReducedMotionPreference } from "@/lib/accessibility";
 import { LOCALE_NAMES, deviceLocale, useT, type LocalePreference } from "@/lib/i18n";
 import { usePreferences } from "@/stores/preferences";
+import { TranslationTargetSetting } from "@/features/translation/language-picker";
 import { THEME_LABELS, darkThemeOf, useTheme } from "@/stores/theme";
 import {
   THEMES,
@@ -227,6 +228,8 @@ function MotionAndLanguage() {
           {t("settings.appearance.language.description")}
         </Text>
       </View>
+
+      <TranslationTargetSetting />
     </View>
   );
 }

@@ -6,6 +6,7 @@ import { serverTagEn } from "./server-tag.en";
 import { serverBoostEn } from "./server-boost.en";
 import { accountSwitcherEn } from "./account-switcher.en";
 import { familyCenterEn } from "./family-center.en";
+import { liveCaptionsEn, translationEn } from "./live-language.en";
 import type { Messages } from "./tr";
 
 /** İngilizce sözlük — `tr.ts` ile aynı şekli taşımak zorunda. */
@@ -217,4 +218,6 @@ export const en = {
   accountSwitcher: accountSwitcherEn,
   /** Aile Merkezi (web ile aynı anahtarlar) — family-center.en.ts. */
   familyCenter: familyCenterEn,
+  translation: translationEn,
+  liveCaptions: liveCaptionsEn,
 } satisfies Messages;

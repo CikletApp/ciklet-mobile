@@ -41,6 +41,8 @@ import { MessageEmbeds, hasEmbeds } from "./message-embeds";
 import { MEDIA_BUBBLE_WIDTH, MessageAttachment } from "./message-attachment";
 import { FLASH_DURATION, useMessageFlash } from "./message-flash";
 import { InvisibleSpacer, MessageMarkdown, type EmojiScale } from "./message-markdown";
+import { MessageTranslationFooter } from "./message-translation";
+import { useMessageTranslationEntry } from "@/lib/translation/native";
 import { LinkPreviewCard } from "./link-preview-card";
 import { PollCard } from "./poll-message";
 import { MessageActivityReply } from "./message-activity-reply";
@@ -166,6 +168,10 @@ export function MessageItem({
   const bigEmoji = usePreferences((state) => state.bigEmoji);
   const linkPreviews = usePreferences((state) => state.linkPreviews);
   const flash = useMessageFlash(message.id);
+  // "Çevir" sonucu (lib/translation/native): metin yerine çeviri, altında
+  // "Orijinali göster" (web MessageContent ile aynı).
+  const translation = useMessageTranslationEntry(message.id);
+  const translatedText = translation?.status === "done" && !translation.showOriginal ? translation.text : null;
   const scope = useChatScope();
   const bubbleRef = useRef<View>(null);
   // Sohbetten açılan profil, "Uygulamalar" (USER komutları) için sohbeti bilir.
@@ -502,7 +508,10 @@ export function MessageItem({
   const caption = poll ? (
     <PollCard message={message} poll={poll} />
   ) : message.content && !sticker ? (
-    <MessageMarkdown value={message.content} color={textColor} emojiScale={emojiScale} trailing={spacerText} />
+    <>
+      <MessageMarkdown value={translatedText ?? message.content} color={textColor} emojiScale={emojiScale} trailing={spacerText} />
+      {translation ? <MessageTranslationFooter messageId={message.id} entry={translation} color={mutedColor} /> : null}
+    </>
   ) : null;
 
   // Köşeler: grubun dışa bakan köşeleri yuvarlak; gönderen tarafında balonlar

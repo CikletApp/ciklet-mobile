@@ -15,6 +15,7 @@ import { CallControls } from "@/features/voice/call-controls";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LiveVoiceSettingsBridge } from "@/features/voice/live-voice-settings";
 import { useVoiceE2EERoom, VoiceE2EEPill, VoiceE2EEProvider } from "@/features/call/voice-e2ee";
+import { LiveCaptionsButton, LiveCaptionsController, LiveCaptionsOverlay } from "@/features/voice/live-captions";
 import { LIVEKIT_URL } from "@/lib/livekit";
 import { noiseSuppressionConstraints } from "@/lib/noise-suppression";
 import { usePreferences } from "@/stores/preferences";
@@ -324,6 +325,7 @@ function ConnectedCall({
       <LiveVoiceSettingsBridge />
       <CallPresenceBridge directId={directId} kind={initialKind} />
       <CallKitMuteSync />
+      <LiveCaptionsController e2eeMode={e2ee.mode} keyring={e2ee.captionKeys} />
       <CallSurface visible={!minimized} onRequestClose={minimize}>
         <View style={{ flex: 1, backgroundColor: background }}>
           {kind === "video" ? (
@@ -444,6 +446,7 @@ function CallStage({
             background={upgrade === "outgoing" ? colors.brand : colors.raised}
             tint={upgrade === "outgoing" ? colors.onBrand : colors.bright}
           />
+          <LiveCaptionsButton size={40} />
           <IconButton icon="message" label="Mesajlara git" onPress={onOpenChat} size={40} background={colors.raised} tint={colors.bright} />
         </View>
       </View>
@@ -486,6 +489,8 @@ function CallStage({
 
       {/* Sessize alma ve ses çıkışı LiveKit odasının İÇİNDE olmak zorunda —
           kontroller odanın kendi durumunu okuyor. */}
+      <LiveCaptionsOverlay />
+
       <View style={{ paddingBottom: insets.bottom + spacing["2xl"] }}>
         <CallControls onHangUp={onHangUp} />
       </View>

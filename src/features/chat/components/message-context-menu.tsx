@@ -41,6 +41,8 @@ import { isBurstRow } from "../reaction-groups";
 import { saveAttachment } from "./message-attachment";
 import { MessageItem, copyableText, type MessageAnchor } from "./message-item";
 import { useBookmarkAction, useReminderAction } from "@/features/social/bookmark";
+import { hasTranslatableText } from "@/lib/translation/core";
+import { nativeTranslationSupported, useMessageTranslation, useMessageTranslationEntry, useTranslateMessage } from "@/lib/translation/native";
 
 /**
  * Mesajın bağlam menüsü — Telegram düzeni.
@@ -106,6 +108,8 @@ interface MenuAction {
   icon: IconName;
   label: string;
   onPress: () => void;
+  /** Soluk ve basılamaz (ör. bu cihazda çeviri yok). */
+  disabled?: boolean;
 }
 
 export function MessageContextMenu({
@@ -186,6 +190,10 @@ export function MessageContextMenu({
   const attachment = savableAttachment(message);
   const bookmark = useBookmarkAction(message, onClose);
   const reminder = useReminderAction(message, onClose);
+  // "Çevir" (cihaz üstü; lib/translation/native) — web mesaj menüsüyle aynı.
+  const translation = useMessageTranslationEntry(message.id);
+  const translateMessage = useTranslateMessage();
+  const canTranslate = (message.type as string) !== "POLL" && hasTranslatableText(message.content);
 
   // Telegram sırası: yanıtla, kopyala, kaydet, sabitle, ilet, düzenle;
   // yıkıcı olan en altta, ayraçla ayrı.
@@ -200,6 +208,35 @@ export function MessageContextMenu({
         onClose();
       },
     });
+  }
+  if (canTranslate) {
+    const supported = nativeTranslationSupported();
+    actions.push(
+      translation?.status === "done"
+        ? {
+            key: "translate",
+            icon: "languages",
+            label: t("translation.menu.remove"),
+            onPress: () => {
+              useMessageTranslation.getState().dismiss(message.id);
+              onClose();
+            },
+          }
+        : {
+            key: "translate",
+            icon: "languages",
+            label: !supported
+              ? t("translation.menu.unsupportedDevice")
+              : translation?.status === "loading"
+                ? t("translation.menu.translating")
+                : t("translation.menu.translate"),
+            disabled: !supported || translation?.status === "loading",
+            onPress: () => {
+              translateMessage(message.id, message.content ?? "");
+              onClose();
+            },
+          }
+    );
   }
   if (attachment) {
     actions.push({
@@ -775,11 +812,13 @@ function useSystemInsets(): EdgeInsets {
 }
 
 function MenuRow({ action, destructive = false }: { action: MenuAction; destructive?: boolean }) {
-  const tint = destructive ? colors.danger : colors.bright;
+  const tint = destructive ? colors.danger : action.disabled ? colors.muted : colors.bright;
   return (
     <Pressable
       onPress={action.onPress}
+      disabled={action.disabled}
       accessibilityRole="button"
+      accessibilityState={{ disabled: Boolean(action.disabled) }}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
