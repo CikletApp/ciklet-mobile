@@ -70,6 +70,8 @@ export interface ListRowProps {
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
   onPress?: () => void;
+  /** Basılı tutma (ör. arkadaş satırı menüsü). */
+  onLongPress?: () => void;
   disabled?: boolean;
   /** Sağda ok göster (gezinme satırı). Varsayılan: onPress varsa evet. */
   chevron?: boolean;
@@ -86,6 +88,7 @@ export function ListRow({
   leading,
   trailing,
   onPress,
+  onLongPress,
   disabled,
   chevron,
   titleColor = colors.text,
@@ -97,6 +100,8 @@ export function ListRow({
   return (
     <Pressable
       onPress={interactive ? onPress : undefined}
+      onLongPress={interactive ? onLongPress : undefined}
+      delayLongPress={onLongPress ? 350 : undefined}
       disabled={!interactive}
       haptic={interactive ? "light" : undefined}
       noHitSlop

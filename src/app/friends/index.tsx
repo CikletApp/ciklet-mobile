@@ -20,6 +20,7 @@ import {
   Screen,
   SegmentedTabs,
 } from "@/components/ui";
+import { FriendActionsSheet } from "@/features/social/friend-actions-sheet";
 import { customStatusOf, formatCustomStatus } from "@/lib/custom-status";
 import { displayNameOf, initialOf } from "@/lib/format";
 import { colors, spacing, typography } from "@/theme/tokens";
@@ -42,6 +43,7 @@ export default function FriendsScreen() {
   const openDirect = useOpenDirect();
   const acceptRequest = useAcceptFriendRequest();
   const removeFriend = useRemoveFriend();
+  const [menuFor, setMenuFor] = useState<FriendEntry | null>(null);
 
   const sections = useMemo(() => {
     if (tab === "incoming") {
@@ -142,6 +144,8 @@ export default function FriendsScreen() {
                 title={displayNameOf(item.profile)}
                 subtitle={status ? formatCustomStatus(status) : `@${item.profile.username}`}
                 onPress={() => router.push(`/profile/${item.profile.id}`)}
+                onLongPress={tab === "friends" ? () => setMenuFor(item) : undefined}
+                accessibilityHint={tab === "friends" ? "Basılı tutunca seçenekler açılır" : undefined}
                 chevron={false}
                 leading={
                   <Avatar
@@ -165,6 +169,7 @@ export default function FriendsScreen() {
           }}
         />
       )}
+      <FriendActionsSheet entry={menuFor} onClose={() => setMenuFor(null)} />
     </Screen>
   );
 }
