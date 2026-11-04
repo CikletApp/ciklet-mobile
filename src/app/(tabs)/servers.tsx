@@ -21,6 +21,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import {
+  FOLDER_COLOR_RE,
   useMyPendingApplications,
   useRailItems,
   useReorderRail,
@@ -34,6 +35,7 @@ import {
   EmptyState,
   HeaderButton,
   Icon,
+  IconButton,
   ListSkeleton,
   ModernRefreshIndicator,
   Pressable,
@@ -43,6 +45,7 @@ import {
 } from "@/components/ui";
 import { qk } from "@/api/query-keys";
 import { useAuth } from "@/stores/auth";
+import { useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { useFloatingTabInset } from "@/components/ui/tab-bar";
@@ -76,6 +79,7 @@ const REORDER_LAYOUT = LinearTransition.duration(REORDER_DURATION).easing(
 const ROW_STEP = 72;
 
 export default function ServersScreen() {
+  const t = useT();
   const tabInset = useFloatingTabInset();
   const tabScroll = useTabBarScrollHandler();
   const { items, isLoading } = useRailItems();
@@ -214,6 +218,16 @@ export default function ServersScreen() {
             {needle ? null : (
               <Text style={{ ...typography.caption, color: colors.muted, paddingBottom: spacing.xs }}>
                 {totalServers} sunucu · sıralamak için basılı tutup sürükle
+                {totalServers >= 2 ? (
+                  <Text
+                    onPress={() => router.push("/folders/new")}
+                    accessibilityRole="link"
+                    style={{ color: colors.brand }}
+                  >
+                    {" · "}
+                    {t("parityScreens.folders.newFolder")}
+                  </Text>
+                ) : null}
               </Text>
             )}
           </View>
@@ -396,8 +410,11 @@ function FolderSection({
     (sum, m) => sum + unreadOf(m.serverId),
     0
   );
-  // Webden gelen klasör rengini biçimine göre elemeden aynen kullan.
-  const tint = item.folder.color?.trim() || colors.brand;
+  const t = useT();
+  // Web'in eski varsayılanı `var(--theme-deep)` RN'de çizilemez; hex değilse marka rengi.
+  const raw = item.folder.color?.trim() ?? "";
+  const tint = FOLDER_COLOR_RE.test(raw) || raw.startsWith("hsl(") ? raw : colors.brand;
+  const folderName = item.folder.name || t("parityScreens.folders.defaultName");
 
   return (
     <View>
@@ -407,7 +424,7 @@ function FolderSection({
         noHitSlop
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${item.folder.name ?? "Klasör"}, ${item.members.length} sunucu, ${open ? "açık" : "kapalı"}`}
+        accessibilityLabel={`${folderName}, ${item.members.length} sunucu, ${open ? "açık" : "kapalı"}`}
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
@@ -437,7 +454,7 @@ function FolderSection({
             style={{ ...typography.bodyStrong, color: colors.text }}
             numberOfLines={1}
           >
-            {item.folder.name ?? "Klasör"}
+            {folderName}
           </Text>
           <Text style={{ ...typography.caption, color: colors.muted }}>
             {item.members.length} sunucu
@@ -445,6 +462,15 @@ function FolderSection({
         </View>
 
         {!open && folderUnread > 0 ? <UnreadBadge count={folderUnread} tone="brand" /> : null}
+        {/* Klasör Ayarları (web klasör sağ-tık menüsü): ad, renk, sunucular. */}
+        <IconButton
+          icon="settings"
+          size={32}
+          background="transparent"
+          tint={colors.muted}
+          label={t("parityScreens.folders.openSettings", { name: folderName })}
+          onPress={() => router.push(`/folders/${item.id}`)}
+        />
         <Icon
           name={open ? "chevron-down" : "chevron-right"}
           size={18}

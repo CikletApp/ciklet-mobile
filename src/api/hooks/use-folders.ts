@@ -127,3 +127,51 @@ export function useReorderFolder(folderId: string) {
     },
   });
 }
+
+/** Klasör hex rengi (#rrggbb); web'in eski `var(--…)` varsayılanı geçersiz sayılır. */
+export const FOLDER_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** Klasör adı üst sınırı (web `PATCH /api/folders/:id` ile aynı). */
+export const FOLDER_NAME_MAX_LENGTH = 100;
+
+/**
+ * Klasör oluşturma / düzenleme — web Klasör Ayarları modalı ve sürükle-bırak
+ * ile klasör kurma (`POST /api/folders`, en az iki sunucu), sunucu ekleme ve
+ * çıkarma (bir sunucu kalınca klasör sunucuda silinir).
+ */
+export function useFolderMutations() {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: qk.folders });
+    void queryClient.invalidateQueries({ queryKey: qk.memberships });
+  };
+
+  const create = useMutation({
+    mutationFn: (serverIds: string[]) =>
+      api<{ id: string }>(endpoints.folders, { method: "POST", body: { serverIds } }),
+    onSettled: refresh,
+  });
+  const update = useMutation({
+    mutationFn: ({ folderId, name, color }: { folderId: string; name?: string; color?: string }) =>
+      api(endpoints.folder(folderId), {
+        method: "PATCH",
+        body: {
+          ...(name !== undefined ? { name } : {}),
+          ...(color !== undefined ? { color } : {}),
+        },
+      }),
+    onSettled: refresh,
+  });
+  const addServer = useMutation({
+    mutationFn: ({ folderId, serverId }: { folderId: string; serverId: string }) =>
+      api(endpoints.folderAdd(folderId), { method: "POST", body: { serverId } }),
+    onSettled: refresh,
+  });
+  const removeServer = useMutation({
+    mutationFn: ({ folderId, serverId }: { folderId: string; serverId: string }) =>
+      api(endpoints.folderRemove(folderId), { method: "POST", body: { serverId } }),
+    onSettled: refresh,
+  });
+
+  return { create, update, addServer, removeServer };
+}

@@ -1,3 +1,27 @@
 /** 2. tur mobil eşitlik ekranları (klasörler, kanal davetleri, bağlantılar vb.) — Türkçe kaynak; İngilizcesi parity-screens.en.ts. */
 export const parityScreensTr = {
+  folders: {
+    createTitle: "Klasör Oluştur",
+    settingsTitle: "Klasör Ayarları",
+    nameLabel: "KLASÖR ADI",
+    defaultName: "Sunucu Klasörü",
+    colorLabel: "KLASÖR RENGİ",
+    currentColor: "Seçili renk",
+    customColor: "Özel renk",
+    pickServers: "SUNUCULAR",
+    pickHint: "Klasöre koymak için en az iki sunucu seç.",
+    inFolder: "KLASÖRDEKİ SUNUCULAR ({count})",
+    removeServer: "{name} sunucusunu klasörden çıkar",
+    removeHint: "Klasörde tek sunucu kalınca klasör kaldırılır.",
+    addServers: "SUNUCU EKLE",
+    addServer: "{name} sunucusunu klasöre ekle",
+    create: "Klasör Oluştur",
+    done: "Bitti",
+    createFailed: "Klasör oluşturulamadı",
+    saveFailed: "Klasör kaydedilemedi",
+    removeFailed: "Sunucu klasörden çıkarılamadı",
+    addFailed: "Sunucu klasöre eklenemedi",
+    newFolder: "Klasör oluştur",
+    openSettings: "{name} klasör ayarları",
+  },
 } as const;
