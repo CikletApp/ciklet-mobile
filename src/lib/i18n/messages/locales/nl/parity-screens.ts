@@ -32,4 +32,11 @@ export const parityScreens = {
     subtitle: "Uitnodigingslinks naar dit kanaal",
     intro: "Uitnodigingslinks naar #{channel}. Wie lid wordt, komt direct in dit kanaal terecht.",
   },
+  threads: {
+    autoArchive: "ARCHIVEREN NA INACTIVITEIT",
+    archive1h: "1 uur",
+    archive24h: "24 uur",
+    archive3d: "3 dagen",
+    archive1w: "1 week",
+  },
 } satisfies Translation<typeof parityScreensTr>;

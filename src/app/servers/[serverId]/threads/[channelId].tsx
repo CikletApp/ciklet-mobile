@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { openThread } from "@/features/server/thread-nav";
 import { formatChatListTime } from "@/lib/format";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -28,6 +29,16 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * yetki sunucuda denetlenir). "Özel alt başlık" (web create-thread-dialog
  * ile aynı): yalnızca davet edilenler ve moderatörler görür.
  */
+/** Web lib/threads `AUTO_ARCHIVE_CHOICES` / `DEFAULT_AUTO_ARCHIVE_MINUTES`. */
+const AUTO_ARCHIVE_CHOICES = [60, 1440, 4320, 10080] as const;
+const DEFAULT_AUTO_ARCHIVE_MINUTES = 1440;
+const ARCHIVE_LABEL_KEYS: Record<number, MessageKey> = {
+  60: "parityScreens.threads.archive1h",
+  1440: "parityScreens.threads.archive24h",
+  4320: "parityScreens.threads.archive3d",
+  10080: "parityScreens.threads.archive1w",
+};
+
 export default function ChannelThreadsScreen() {
   const { serverId, channelId } = useLocalSearchParams<{ serverId: string; channelId: string }>();
   const parent = useChannel(serverId, channelId);
@@ -37,17 +48,20 @@ export default function ChannelThreadsScreen() {
   const [name, setName] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [invitable, setInvitable] = useState(true);
+  const [autoArchive, setAutoArchive] = useState<number>(DEFAULT_AUTO_ARCHIVE_MINUTES);
+  const t = useT();
 
   const submit = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     create.mutate(
-      { name: trimmed, ...(isPrivate ? { private: true, invitable } : {}) },
+      { name: trimmed, autoArchiveMinutes: autoArchive, ...(isPrivate ? { private: true, invitable } : {}) },
       {
         onSuccess: (thread) => {
           setName("");
           setIsPrivate(false);
           setInvitable(true);
+          setAutoArchive(DEFAULT_AUTO_ARCHIVE_MINUTES);
           openThread(serverId, channelId, thread);
         },
         onError: (error) =>
@@ -93,6 +107,35 @@ export default function ChannelThreadsScreen() {
             <Switch value={invitable} onValueChange={setInvitable} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />
           </View>
         ) : null}
+        {/* Hareketsizlikte arşiv süresi (web create-thread-dialog `AUTO_ARCHIVE_CHOICES`). */}
+        <Text style={{ ...typography.overline, color: colors.muted, marginTop: spacing.xs }}>
+          {t("parityScreens.threads.autoArchive")}
+        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }} accessibilityRole="radiogroup">
+          {AUTO_ARCHIVE_CHOICES.map((minutes) => {
+            const chosen = minutes === autoArchive;
+            return (
+              <Pressable
+                key={minutes}
+                onPress={() => setAutoArchive(minutes)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: chosen }}
+                style={{
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm,
+                  borderRadius: radii.full,
+                  borderWidth: 1,
+                  borderColor: chosen ? colors.brand : colors.border,
+                  backgroundColor: chosen ? colors.brandSoft : colors.panel,
+                }}
+              >
+                <Text style={{ ...typography.caption, color: chosen ? colors.brand : colors.text }}>
+                  {t(ARCHIVE_LABEL_KEYS[minutes])}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
       <SegmentedTabs

@@ -32,4 +32,11 @@ export const parityScreens = {
     subtitle: "Посилання-запрошення до цього каналу",
     intro: "Посилання-запрошення до #{channel}. Ті, хто приєднається, одразу потраплять до цього каналу.",
   },
+  threads: {
+    autoArchive: "АРХІВУВАТИ ПІСЛЯ НЕАКТИВНОСТІ",
+    archive1h: "1 година",
+    archive24h: "24 години",
+    archive3d: "3 дні",
+    archive1w: "1 тиждень",
+  },
 } satisfies Translation<typeof parityScreensTr>;

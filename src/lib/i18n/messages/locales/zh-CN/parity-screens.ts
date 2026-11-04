@@ -32,4 +32,11 @@ export const parityScreens = {
     subtitle: "指向此频道的邀请链接",
     intro: "#{channel} 的邀请链接。加入的人会直接进入此频道。",
   },
+  threads: {
+    autoArchive: "不活跃后归档",
+    archive1h: "1 小时",
+    archive24h: "24 小时",
+    archive3d: "3 天",
+    archive1w: "1 周",
+  },
 } satisfies Translation<typeof parityScreensTr>;

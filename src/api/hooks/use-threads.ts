@@ -178,7 +178,7 @@ export function useCreateThread(serverId: string, channelId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     /** `private` + `invitable`: özel alt başlık (web lib/threads; yalnızca mesajsız açılış). */
-    mutationFn: (input: { name: string; private?: boolean; invitable?: boolean }) =>
+    mutationFn: (input: { name: string; private?: boolean; invitable?: boolean; autoArchiveMinutes?: number }) =>
       api<{ id: string; name: string }>(endpoints.channelThreads(channelId), { method: "POST", body: input }),
     onSuccess: (thread) => {
       addSidebarThread(queryClient, serverId, {

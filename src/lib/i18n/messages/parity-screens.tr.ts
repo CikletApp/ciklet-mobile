@@ -29,4 +29,11 @@ export const parityScreensTr = {
     subtitle: "Bu kanala açılan davet bağlantıları",
     intro: "#{channel} kanalına açılan davet bağlantıları. Katılan kişi doğrudan bu kanala düşer.",
   },
+  threads: {
+    autoArchive: "HAREKETSİZLİKTE ARŞİVLE",
+    archive1h: "1 saat",
+    archive24h: "24 saat",
+    archive3d: "3 gün",
+    archive1w: "1 hafta",
+  },
 } as const;

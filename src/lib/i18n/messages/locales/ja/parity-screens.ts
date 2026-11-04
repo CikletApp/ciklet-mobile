@@ -32,4 +32,11 @@ export const parityScreens = {
     subtitle: "このチャンネルへの招待リンク",
     intro: "#{channel} への招待リンクです。参加した人はこのチャンネルに直接移動します。",
   },
+  threads: {
+    autoArchive: "非アクティブ後にアーカイブ",
+    archive1h: "1時間",
+    archive24h: "24時間",
+    archive3d: "3日",
+    archive1w: "1週間",
+  },
 } satisfies Translation<typeof parityScreensTr>;

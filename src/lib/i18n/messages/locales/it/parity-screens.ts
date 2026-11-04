@@ -32,4 +32,11 @@ export const parityScreens = {
     subtitle: "Link d’invito a questo canale",
     intro: "Link d’invito a #{channel}. Chi entra arriva direttamente in questo canale.",
   },
+  threads: {
+    autoArchive: "ARCHIVIA DOPO INATTIVITÀ",
+    archive1h: "1 ora",
+    archive24h: "24 ore",
+    archive3d: "3 giorni",
+    archive1w: "1 settimana",
+  },
 } satisfies Translation<typeof parityScreensTr>;

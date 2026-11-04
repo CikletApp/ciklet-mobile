@@ -32,4 +32,11 @@ export const parityScreensEn = {
     subtitle: "Invite links that open this channel",
     intro: "Invite links to #{channel}. People who join land straight in this channel.",
   },
+  threads: {
+    autoArchive: "ARCHIVE AFTER INACTIVITY",
+    archive1h: "1 hour",
+    archive24h: "24 hours",
+    archive3d: "3 days",
+    archive1w: "1 week",
+  },
 } as const satisfies Widen<typeof parityScreensTr>;

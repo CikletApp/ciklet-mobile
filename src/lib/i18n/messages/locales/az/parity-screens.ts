@@ -32,4 +32,11 @@ export const parityScreens = {
     subtitle: "Bu kanala açılan dəvət keçidləri",
     intro: "#{channel} kanalına açılan dəvət keçidləri. Qoşulan şəxs birbaşa bu kanala düşür.",
   },
+  threads: {
+    autoArchive: "FƏALİYYƏTSİZLİKDƏ ARXİVLƏ",
+    archive1h: "1 saat",
+    archive24h: "24 saat",
+    archive3d: "3 gün",
+    archive1w: "1 həftə",
+  },
 } satisfies Translation<typeof parityScreensTr>;
