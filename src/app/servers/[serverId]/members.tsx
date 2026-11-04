@@ -22,6 +22,7 @@ import {
   useServerSummary,
   useTimeoutMember,
 } from "@/api/hooks";
+import { useChangeMemberRole } from "@/api/hooks/use-server-admin";
 import type { ChannelExtras, ServerMemberListItem } from "@/api/types";
 import {
   ActionSheet,
@@ -90,6 +91,7 @@ export default function ServerMembersScreen() {
   const kick = useKickMember(serverId);
   const ban = useBanMember(serverId);
   const bulkBan = useBulkBan(serverId);
+  const changeRole = useChangeMemberRole(serverId);
   const [selected, setSelected] = useState<ServerMemberListItem | null>(null);
   const [timeoutTarget, setTimeoutTarget] = useState<ServerMemberListItem | null>(null);
   /** Yasak sayfası: tek üye ya da seçim ("bulk"). */
@@ -159,6 +161,29 @@ export default function ServerMembersScreen() {
       onPress: () => router.push(`/profile/${selected.profileId}`),
     });
     if (appItems.length > 0) menuItems.push("separator", ...appItems);
+    // Taban rol (web Üyeler › Rol): yalnızca sahip, kendisi dışındakilere.
+    if (ownerId && ownerId === myId && selected.profileId !== myId) {
+      const target = selected;
+      const setRole = (role: "GUEST" | "MODERATOR") => {
+        if (target.role === role) return;
+        changeRole.mutate(
+          { memberId: target.id, role },
+          { onError: (error) => fail(error, "Rol değiştirilemedi") }
+        );
+      };
+      menuItems.push(
+        "separator",
+        { heading: "Rol" },
+        { key: "role-guest", label: "Misafir", detail: target.role === "GUEST" ? "✓" : undefined, icon: "shield", onPress: () => setRole("GUEST") },
+        {
+          key: "role-moderator",
+          label: "Moderatör",
+          detail: target.role === "MODERATOR" ? "✓" : undefined,
+          icon: "badge-check",
+          onPress: () => setRole("MODERATOR"),
+        }
+      );
+    }
     if (can.timeout || can.kick || can.ban) menuItems.push("separator");
     if (can.timeout) {
       if (isTimedOut(selected.timedOutUntil, now)) {
