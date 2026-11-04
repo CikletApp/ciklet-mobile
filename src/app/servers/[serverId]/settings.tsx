@@ -16,7 +16,13 @@ import {
   useUpdateServer,
 } from "@/api/hooks";
 import { Avatar, Divider, Icon, type IconName, ListGroup, ListRow, Screen, ScreenLoader, SectionHeader, TextField, showDialog } from "@/components/ui";
-import { pickAndUploadServerBanner, pickAndUploadServerImage } from "@/lib/uploads";
+import { pickAndUploadEventCover, pickAndUploadServerBanner, pickAndUploadServerImage } from "@/lib/uploads";
+import {
+  normalizeVanityCode,
+  useServerNsfw,
+  useUpdateServerOverview,
+  type ServerOverviewExtras,
+} from "@/api/hooks/use-server-overview";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import type { ChannelExtras } from "@/api/types";
@@ -37,6 +43,7 @@ export default function ServerSettingsScreen() {
   const update = useUpdateServer(serverId);
   const remove = useDeleteServer(serverId);
   const leave = useLeaveServer(serverId);
+  const overview = useUpdateServerOverview(serverId);
   const t = useT();
 
   const [name, setName] = useState("");
@@ -47,7 +54,10 @@ export default function ServerSettingsScreen() {
   // AFK kanalı + zaman aşımı (web Sunucu Ayarları → Genel Görünüm ile aynı).
   const [afkChannelId, setAfkChannelId] = useState<string | null>(null);
   const [afkTimeout, setAfkTimeout] = useState(AFK_TIMEOUT_DEFAULT);
-  const [mediaBusy, setMediaBusy] = useState<"image" | "banner" | null>(null);
+  // Özel davet adresi + yaş sınırlı sunucu (web Genel Görünüm; Kaydet ile).
+  const [vanityCode, setVanityCode] = useState("");
+  const [nsfw, setNsfw] = useState<boolean | null>(null);
+  const [mediaBusy, setMediaBusy] = useState<"image" | "banner" | "splash" | null>(null);
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaError, setMediaError] = useState<string | null>(null);
 
@@ -61,7 +71,15 @@ export default function ServerSettingsScreen() {
     setSystemChannelId(server.systemChannelId);
     setAfkChannelId(server.afkChannelId ?? null);
     setAfkTimeout(server.afkTimeout ?? AFK_TIMEOUT_DEFAULT);
+    setVanityCode(server.vanityCode ?? "");
   }, [server?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const savedNsfwQuery = useServerNsfw(serverId, hasServerPermission(permissions, "MANAGE_SERVER") || server?.profileId === myId);
+  const savedNsfw = savedNsfwQuery.data ?? null;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNsfw(savedNsfw);
+  }, [savedNsfw]);
 
   if (isLoading || !server) return <ScreenLoader label="Sunucu ayarları yükleniyor…" />;
 
@@ -90,6 +108,9 @@ export default function ServerSettingsScreen() {
   // Etkin sınır sunucudan (premiumPerks); istemci seviyeden türetmez.
   const perks = effectiveServerPerks(server);
   const bannerLocked = !perks.banner && !server.bannerUrl;
+  const splashUrl = (server as ServerOverviewExtras).inviteSplashUrl ?? null;
+  const savedVanityCode = server.vanityCode ?? "";
+  const vanityDisabled = !perks.vanityUrl && !savedVanityCode;
   const savedAfkChannelId = server.afkChannelId ?? null;
   const savedAfkTimeout = server.afkTimeout ?? AFK_TIMEOUT_DEFAULT;
   // AFK kanalı olabilecekler: ses/görüntü kanalı; sahne ve alt başlık değil.
@@ -105,18 +126,34 @@ export default function ServerSettingsScreen() {
     systemChannelId !== server.systemChannelId ||
     afkChannelId !== savedAfkChannelId ||
     afkTimeout !== savedAfkTimeout;
+  const extrasDirty = vanityCode !== savedVanityCode || (nsfw !== null && savedNsfw !== null && nsfw !== savedNsfw);
+  const saving = update.isPending || overview.isPending;
 
-  const save = () => {
-    if (!canEdit || !dirty || update.isPending) return;
-    update.mutate({
-      name: name.trim(),
-      description: description.trim() || null,
-      isPublic,
-      isDiscoverable: isPublic && isDiscoverable,
-      systemChannelId,
-      ...(afkChannelId !== savedAfkChannelId ? { afkChannelId } : {}),
-      ...(afkTimeout !== savedAfkTimeout ? { afkTimeout } : {}),
-    });
+  const save = async () => {
+    if (!canEdit || (!dirty && !extrasDirty) || saving) return;
+    try {
+      if (dirty) {
+        await update.mutateAsync({
+          name: name.trim(),
+          description: description.trim() || null,
+          isPublic,
+          isDiscoverable: isPublic && isDiscoverable,
+          systemChannelId,
+          ...(afkChannelId !== savedAfkChannelId ? { afkChannelId } : {}),
+          ...(afkTimeout !== savedAfkTimeout ? { afkTimeout } : {}),
+        });
+      }
+      if (extrasDirty) {
+        await overview.mutateAsync({
+          ...(vanityCode !== savedVanityCode ? { vanityCode } : {}),
+          ...(nsfw !== null && nsfw !== savedNsfw ? { nsfw } : {}),
+        });
+        // Sunucu kanonik biçimi kaydeder (web: "Kaydedilince: …").
+        setVanityCode(normalizeVanityCode(vanityCode));
+      }
+    } catch {
+      // Hata metni ekranın altında (update / overview.error).
+    }
   };
 
   const leaveOrDelete = () => {
@@ -137,16 +174,20 @@ export default function ServerSettingsScreen() {
     );
   };
 
-  const changeMedia = async (kind: "image" | "banner") => {
-    if (mediaBusy || update.isPending) return;
+  const changeMedia = async (kind: "image" | "banner" | "splash") => {
+    if (mediaBusy || saving) return;
     setMediaBusy(kind);
     setMediaProgress(0);
     setMediaError(null);
     try {
       const url = await (kind === "image"
         ? pickAndUploadServerImage(setMediaProgress)
-        : pickAndUploadServerBanner(setMediaProgress));
-      if (url) await update.mutateAsync(kind === "image" ? { imageUrl: url } : { bannerUrl: url });
+        : kind === "banner"
+          ? pickAndUploadServerBanner(setMediaProgress)
+          : // Davet arka planı: web ile aynı `serverBanner` rotası, 16:9.
+            pickAndUploadEventCover(setMediaProgress));
+      if (url && kind === "splash") await overview.mutateAsync({ inviteSplashUrl: url });
+      else if (url) await update.mutateAsync(kind === "image" ? { imageUrl: url } : { bannerUrl: url });
     } catch (reason) {
       setMediaError(reason instanceof Error ? reason.message : "Görsel değiştirilemedi.");
     } finally {
@@ -161,8 +202,8 @@ export default function ServerSettingsScreen() {
           title: "Sunucu Ayarları",
           headerRight: canEdit
             ? () => (
-                <Pressable onPress={save} disabled={!dirty || update.isPending} accessibilityRole="button">
-                  {update.isPending ? <ActivityIndicator color={colors.brand} /> : <Text style={{ ...typography.bodyStrong, color: dirty ? colors.brand : colors.muted }}>Kaydet</Text>}
+                <Pressable onPress={() => void save()} disabled={(!dirty && !extrasDirty) || saving} accessibilityRole="button">
+                  {saving ? <ActivityIndicator color={colors.brand} /> : <Text style={{ ...typography.bodyStrong, color: dirty || extrasDirty ? colors.brand : colors.muted }}>Kaydet</Text>}
                 </Pressable>
               )
             : undefined,
@@ -210,12 +251,105 @@ export default function ServerSettingsScreen() {
               <TextField label="AÇIKLAMA" value={description} onChangeText={setDescription} multiline maxLength={300} />
             </View>
 
+            <SectionHeader title="ÖZEL DAVET ADRESİ" />
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+              {!perks.vanityUrl ? (
+                <View style={{ alignSelf: "flex-start" }}>
+                  <BoostLockedPill tier={requiredTier("vanityUrl")} />
+                </View>
+              ) : null}
+              <Text style={{ ...typography.caption, color: colors.muted }}>
+                Akılda kalır bir bağlantı: harf, rakam ve tire; 3-32 karakter. Yalnızca sunucu sahibi değiştirebilir.
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, opacity: vanityDisabled ? 0.5 : 1 }}>
+                <Text style={{ ...typography.body, color: colors.muted }}>ciklet.xyz/i/</Text>
+                <View style={{ flex: 1 }}>
+                  <TextField
+                    value={vanityCode}
+                    onChangeText={(value) => setVanityCode(value.slice(0, 40))}
+                    maxLength={40}
+                    placeholder="sunucum"
+                    editable={!vanityDisabled}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              </View>
+              {vanityCode && normalizeVanityCode(vanityCode) !== vanityCode ? (
+                <Text style={{ ...typography.caption, fontSize: 11, color: colors.muted }}>
+                  Kaydedilince: {normalizeVanityCode(vanityCode) || "—"}
+                </Text>
+              ) : null}
+            </View>
+
+            <SectionHeader title="DAVET ARKA PLANI" />
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+              <Text style={{ ...typography.caption, color: colors.muted }}>
+                Davet bağlantısı açıldığında katılma kartının arkasında görünür. 1920x1080 önerilir.
+              </Text>
+              <Pressable
+                onPress={() => void changeMedia("splash")}
+                disabled={!perks.inviteSplash}
+                accessibilityRole="button"
+                accessibilityLabel={splashUrl ? "Davet arka planını değiştir" : "Davet arka planı yükle"}
+                accessibilityState={{ disabled: !perks.inviteSplash }}
+                style={{ aspectRatio: 16 / 9, alignSelf: "stretch", borderRadius: radii.xl, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.deep, alignItems: "center", justifyContent: "center" }}
+              >
+                {splashUrl ? (
+                  <Image source={{ uri: splashUrl }} contentFit="cover" style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }} />
+                ) : mediaBusy === "splash" ? (
+                  <ActivityIndicator color={colors.muted} />
+                ) : (
+                  <Icon name="image" size={30} color={colors.muted} />
+                )}
+                {!perks.inviteSplash ? (
+                  <View style={{ position: "absolute", right: spacing.sm, top: spacing.sm }}>
+                    <BoostLockedPill tier={requiredTier("inviteSplash")} />
+                  </View>
+                ) : (
+                  <View style={{ position: "absolute", right: spacing.sm, bottom: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radii.md, backgroundColor: colors.scrim }}>
+                    {mediaBusy === "splash" && splashUrl ? (
+                      <ActivityIndicator size="small" color={colors.bright} />
+                    ) : (
+                      <Text style={{ ...typography.caption, color: colors.bright }}>{splashUrl ? "Değiştir" : "Yükle"}</Text>
+                    )}
+                  </View>
+                )}
+                {splashUrl ? (
+                  <Pressable
+                    onPress={() => overview.mutate({ inviteSplashUrl: null })}
+                    disabled={saving}
+                    accessibilityRole="button"
+                    accessibilityLabel="Davet arka planını kaldır"
+                    hitSlop={8}
+                    style={{ position: "absolute", right: spacing.sm, top: spacing.sm, width: 26, height: 26, borderRadius: radii.full, alignItems: "center", justifyContent: "center", backgroundColor: colors.danger }}
+                  >
+                    <Icon name="close" size={14} color={colors.bright} />
+                  </Pressable>
+                ) : null}
+              </Pressable>
+            </View>
+
             <SectionHeader title="GİZLİLİK VE KEŞFET" />
             <View style={{ paddingHorizontal: spacing.lg }}>
               <ListGroup>
                 <ToggleRow title="Herkese açık" value={isPublic} onChange={(value) => { setIsPublic(value); if (!value) setIsDiscoverable(false); }} />
                 <Divider inset={16} />
                 <ToggleRow title="Keşfette göster" value={isDiscoverable} disabled={!isPublic} onChange={setIsDiscoverable} />
+                {nsfw !== null ? (
+                  <>
+                    <Divider inset={16} />
+                    {/* Yaş sınırlı sunucu: yetişkinliği doğrulanmamış hesaplar
+                        katılamaz ve kanallarını okuyamaz (web lib/age-policy). */}
+                    <ToggleRow
+                      title={t("compliance.serverNsfw.label")}
+                      subtitle={t("compliance.serverNsfw.desc")}
+                      value={nsfw}
+                      onChange={setNsfw}
+                      danger
+                    />
+                  </>
+                ) : null}
               </ListGroup>
             </View>
 
@@ -375,7 +509,11 @@ export default function ServerSettingsScreen() {
           </ListGroup>
         </View>
 
-        {update.isError ? <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>{update.error instanceof ApiError ? update.error.message : "Sunucu kaydedilemedi."}</Text> : null}
+        {update.isError || overview.isError ? (
+          <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>
+            {(update.error ?? overview.error) instanceof ApiError ? (update.error ?? overview.error)!.message : "Sunucu kaydedilemedi."}
+          </Text>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -400,11 +538,29 @@ function SettingsLinks({ links }: { links: SettingsLink[] }) {
   );
 }
 
-function ToggleRow({ title, value, onChange, disabled }: { title: string; value: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+function ToggleRow({
+  title,
+  subtitle,
+  value,
+  onChange,
+  disabled,
+  danger,
+}: {
+  title: string;
+  subtitle?: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+  /** Web yaş sınırı anahtarı açıkken kırmızı. */
+  danger?: boolean;
+}) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.lg, opacity: disabled ? 0.45 : 1 }}>
-      <Text style={{ ...typography.body, color: colors.text, flex: 1 }}>{title}</Text>
-      <Switch value={value} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, opacity: disabled ? 0.45 : 1 }}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ ...typography.body, color: colors.text }}>{title}</Text>
+        {subtitle ? <Text style={{ ...typography.caption, color: colors.muted }}>{subtitle}</Text> : null}
+      </View>
+      <Switch value={value} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.border, true: danger ? colors.danger : colors.brand }} thumbColor="#ffffff" />
     </View>
   );
 }
