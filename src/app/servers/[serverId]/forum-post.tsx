@@ -3,8 +3,10 @@ import { ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
-import { useChannel, useCreateForumPost, useForumPosts } from "@/api/hooks";
-import { Button, KeyboardAvoider, Pressable, TextField } from "@/components/ui";
+import { useChannel, useCreateForumPost } from "@/api/hooks";
+import { useForumFeed } from "@/api/hooks/use-channel-admin";
+import { Button, EmojiText, Icon, KeyboardAvoider, Pressable, TextField } from "@/components/ui";
+import { MAX_APPLIED_TAGS, forumTagLabel, type ForumTag } from "@/lib/forum";
 import { openThread } from "@/features/server/thread-nav";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -12,13 +14,19 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 /**
  * Yeni forum gönderisi — başlık + içerik + etiket (web "Yeni gönderi").
  * Sunucu alt başlığı ve ilk mesajı birlikte açar; ardından gönderi açılır.
+ * Moderasyonlu etiketleri yalnızca moderatör seçer; "Etiket zorunlu"
+ * forumda en az bir etiket istenir (web forum-view ile aynı).
  */
 export default function ForumPostScreen() {
   const { serverId, channelId } = useLocalSearchParams<{ serverId: string; channelId: string }>();
   const forum = useChannel(serverId, channelId);
-  const posts = useForumPosts(serverId, channelId, { sort: "activity", archived: false });
+  const posts = useForumFeed(serverId, channelId, { archived: false });
   const create = useCreateForumPost(serverId, channelId);
-  const tags = posts.data?.tags ?? [];
+  const canModerate = posts.data?.canModerate === true;
+  const requireTag = posts.data?.settings?.requireTag === true;
+  const allTags: ForumTag[] =
+    posts.data?.availableTags ?? (posts.data?.tags ?? []).map((name) => ({ id: name, name, emoji: null, moderated: false }));
+  const tags = allTags.filter((tag) => canModerate || !tag.moderated);
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -26,10 +34,16 @@ export default function ForumPostScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const toggle = (tag: string) =>
-    setSelected((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
+    setSelected((current) =>
+      current.includes(tag) ? current.filter((item) => item !== tag) : current.length >= MAX_APPLIED_TAGS ? current : [...current, tag]
+    );
 
   const submit = () => {
     setError(null);
+    if (requireTag && tags.length > 0 && selected.length === 0) {
+      setError("Bu forumda en az bir etiket seçmelisin.");
+      return;
+    }
     create.mutate(
       { title: title.trim(), content: content.trim(), tags: selected },
       {
@@ -48,19 +62,22 @@ export default function ForumPostScreen() {
         <TextField label="İÇERİK" value={content} onChangeText={setContent} maxLength={4000} multiline />
         {tags.length > 0 ? (
           <View style={{ gap: spacing.sm }}>
-            <Text style={{ ...typography.overline, color: colors.muted }}>ETİKETLER</Text>
+            <Text style={{ ...typography.overline, color: colors.muted }}>{requireTag ? "ETİKETLER · ZORUNLU" : "ETİKETLER"}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
               {tags.map((tag) => {
-                const on = selected.includes(tag);
+                const on = selected.includes(tag.id);
                 return (
                   <Pressable
-                    key={tag}
-                    onPress={() => toggle(tag)}
+                    key={tag.id}
+                    onPress={() => toggle(tag.id)}
                     haptic="light"
                     noHitSlop
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: on }}
                     style={({ pressed }) => ({
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
                       paddingHorizontal: spacing.md,
                       paddingVertical: spacing.sm,
                       borderRadius: radii.full,
@@ -69,9 +86,10 @@ export default function ForumPostScreen() {
                       backgroundColor: on ? colors.brandSoft : pressed ? colors.raised : colors.panel,
                     })}
                   >
-                    <Text style={{ ...typography.caption, ...fw(on ? 700 : 500), color: on ? colors.brand : colors.text }}>
-                      {tag}
-                    </Text>
+                    <EmojiText style={{ ...typography.caption, ...fw(on ? 700 : 500), color: on ? colors.brand : colors.text }}>
+                      {forumTagLabel(tag)}
+                    </EmojiText>
+                    {tag.moderated ? <Icon name="shield" size={11} color={on ? colors.brand : colors.muted} /> : null}
                   </Pressable>
                 );
               })}

@@ -3,8 +3,13 @@ import { FlatList, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 
 import { ApiError } from "@/api/client";
-import { useForumPosts, useLockThread, usePinForumPost } from "@/api/hooks";
-import type { ForumPost } from "@/api/types";
+import { useLockThread, usePinForumPost } from "@/api/hooks";
+import {
+  useForumFeed,
+  useForumPostTags,
+  useToggleForumReaction,
+  type ForumFeedPost,
+} from "@/api/hooks/use-channel-admin";
 import {
   ActionSheet,
   Avatar,
@@ -12,6 +17,7 @@ import {
   EmptyState,
   ErrorState,
   Icon,
+  EmojiText,
   ListSkeleton,
   Pressable,
   SegmentedTabs,
@@ -23,6 +29,8 @@ import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { openThread } from "./thread-nav";
 import { usePullRefresh } from "@/lib/use-pull-refresh";
+import { MAX_APPLIED_TAGS, forumTagLabel, type ForumLayout, type ForumSort, type ForumTag } from "@/lib/forum";
+import { useAuth } from "@/stores/auth";
 
 /**
  * Forum kanalı — web forum sayfasının mobil karşılığı: sohbet yerine
@@ -35,22 +43,47 @@ import { usePullRefresh } from "@/lib/use-pull-refresh";
  * ve "Sabitlendi" rozeti taşır; kilitli gönderide "Kilitli" rozeti. "Alt
  * Başlıkları Yönet" izni olan karta uzun basınca sabitle / kilitle (web
  * kartlarındaki düğmelerin karşılığı).
+ *
+ * Sıralama ve görünüm forumun varsayılanıyla açılır (sunucu `sort`'u
+ * uygular); varsayılan tepki kartta tek dokunuşla verilir; etiketleri
+ * gönderinin sahibi ya da moderatör düzenler (web forum-view ile aynı).
  */
 export function ForumView({ serverId, channelId }: { serverId: string; channelId: string }) {
-  const [sort, setSort] = useState<"activity" | "created">("activity");
+  // null → forumun varsayılanı (sunucu uygular, yanıtta `sort` döner).
+  const [sort, setSort] = useState<ForumSort | null>(null);
+  const [layout, setLayout] = useState<ForumLayout | null>(null);
   const [tab, setTab] = useState<"open" | "archived">("open");
   const [tag, setTag] = useState<string | undefined>(undefined);
-  const forum = useForumPosts(serverId, channelId, { sort, tag, archived: tab === "archived" });
+  const forum = useForumFeed(serverId, channelId, { sort, tag, archived: tab === "archived" });
   const pull = usePullRefresh(forum.refetch);
-  const tags = forum.data?.tags ?? [];
+  const myId = useAuth((s) => s.profile?.id);
+  // Yapılandırılmış etiketler (emoji, moderasyonlu); eski sunucu yalnızca ad döner.
+  const tags: ForumTag[] =
+    forum.data?.availableTags ?? (forum.data?.tags ?? []).map((name) => ({ id: name, name, emoji: null, moderated: false }));
+  const tagById = new Map(tags.map((t) => [t.id, t]));
   const canModerate = forum.data?.canModerate === true;
+  const effectiveSort: ForumSort = sort ?? forum.data?.sort ?? "activity";
+  const effectiveLayout: ForumLayout = layout ?? forum.data?.settings?.defaultLayout ?? "list";
+  const gallery = effectiveLayout === "gallery";
   const pin = usePinForumPost(serverId);
   const lock = useLockThread(serverId);
-  const [menuPost, setMenuPost] = useState<ForumPost | null>(null);
+  const postTags = useForumPostTags(serverId, channelId);
+  const reaction = useToggleForumReaction(serverId, channelId);
+  const [menuPost, setMenuPost] = useState<ForumFeedPost | null>(null);
+  const [tagPost, setTagPost] = useState<ForumFeedPost | null>(null);
+  const canEditTags = (post: ForumFeedPost) =>
+    tags.length > 0 && Boolean(forum.data?.availableTags) && (canModerate || (post.profile.id === myId && !post.archivedAt));
 
   const fail = (error: unknown) => showToast(error instanceof ApiError ? error.message : "Gönderi güncellenemedi.", "error");
+  const appliedOf = (post: ForumFeedPost): ForumTag[] =>
+    post.appliedTagIds
+      ? post.appliedTagIds.map((id) => tagById.get(id)).filter((t): t is ForumTag => Boolean(t))
+      : post.appliedTags.map((name) => tags.find((t) => t.name === name) ?? { id: name, name, emoji: null, moderated: false });
   const menuItems: ActionSheetItem[] = menuPost
     ? [
+        ...(canEditTags(menuPost)
+          ? [{ key: "tags", label: "Etiketler", icon: "list" as const, onPress: () => setTagPost(menuPost) }]
+          : []),
         ...(tab === "open"
           ? [
               menuPost.pinned
@@ -73,17 +106,17 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
           ? {
               key: "unlock",
               label: "Kilidi aç",
-              icon: "unlock",
+              icon: "unlock" as const,
               onPress: () => lock.mutate({ threadId: menuPost.id, locked: false }, { onError: fail }),
             }
           : {
               key: "lock",
               label: "Kilitle",
               detail: "Yalnızca alt başlıkları yönetebilenler yazabilir",
-              icon: "lock",
+              icon: "lock" as const,
               onPress: () => lock.mutate({ threadId: menuPost.id, locked: true }, { onError: fail }),
             },
-      ]
+      ].filter((item) => canModerate || item.key === "tags")
     : [];
 
   return (
@@ -103,14 +136,26 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
         contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm }}
       >
         <FilterChip
-          label={sort === "activity" ? "Son hareket" : "Oluşturma"}
+          label={effectiveSort === "activity" ? "Son hareket" : "Oluşturma tarihi"}
           selected={false}
           icon
-          onPress={() => setSort((value) => (value === "activity" ? "created" : "activity"))}
+          onPress={() => setSort(effectiveSort === "activity" ? "created" : "activity")}
+        />
+        <FilterChip
+          label={gallery ? "Galeri" : "Liste"}
+          selected={false}
+          layout
+          onPress={() => setLayout(gallery ? "list" : "gallery")}
         />
         <FilterChip label="Tümü" selected={!tag} onPress={() => setTag(undefined)} />
-        {tags.map((name) => (
-          <FilterChip key={name} label={name} selected={tag === name} onPress={() => setTag(tag === name ? undefined : name)} />
+        {tags.map((item) => (
+          <FilterChip
+            key={item.id}
+            label={forumTagLabel(item)}
+            moderated={item.moderated}
+            selected={tag === item.id}
+            onPress={() => setTag(tag === item.id ? undefined : item.id)}
+          />
         ))}
       </ScrollView>
 
@@ -129,17 +174,33 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
         />
       ) : (
         <FlatList
+          key={gallery ? "gallery" : "list"}
           data={forum.data?.posts}
           keyExtractor={(post) => post.id}
+          numColumns={gallery ? 2 : 1}
+          columnWrapperStyle={gallery ? { gap: spacing.md } : undefined}
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 120 }}
           refreshing={pull.refreshing}
           onRefresh={pull.onRefresh}
           renderItem={({ item }) => (
-            <PostCard
-              post={item}
-              onPress={() => openThread(serverId, channelId, item)}
-              onLongPress={canModerate ? () => setMenuPost(item) : undefined}
-            />
+            <View style={gallery ? { flex: 1 / 2 } : undefined}>
+              <PostCard
+                post={item}
+                gallery={gallery}
+                applied={appliedOf(item)}
+                onPress={() => openThread(serverId, channelId, item)}
+                onLongPress={canModerate || canEditTags(item) ? () => setMenuPost(item) : undefined}
+                onReact={
+                  item.reaction
+                    ? () =>
+                        reaction.mutate(
+                          { emoji: item.reaction!.emoji, messageId: item.reaction!.messageId },
+                          { onError: (error) => showToast(error instanceof ApiError ? error.message : "Tepki verilemedi", "error") }
+                        )
+                    : undefined
+                }
+              />
+            </View>
           )}
         />
       )}
@@ -164,11 +225,54 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
         }
         items={menuItems}
       />
+
+      <ActionSheet
+        visible={tagPost !== null}
+        onClose={() => setTagPost(null)}
+        header={
+          <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
+            Etiketler · {tagPost?.name ?? ""}
+          </Text>
+        }
+        items={tags.slice(0, 10).map((item) => {
+          const ids = tagPost?.appliedTagIds ?? [];
+          const on = ids.includes(item.id);
+          const lockedTag = item.moderated && !canModerate;
+          return {
+            key: item.id,
+            label: forumTagLabel(item),
+            detail: lockedTag ? "Bu etiketi yalnızca moderatörler değiştirebilir" : on ? "Ekli · kaldırmak için dokun" : undefined,
+            icon: on ? ("check" as const) : ("plus" as const),
+            iconColor: on ? colors.brand : undefined,
+            onPress: () => {
+              if (!tagPost || lockedTag || (!on && ids.length >= MAX_APPLIED_TAGS)) return;
+              postTags.mutate(
+                { postId: tagPost.id, tags: on ? ids.filter((x) => x !== item.id) : [...ids, item.id] },
+                { onError: (error) => showToast(error instanceof ApiError ? error.message : "Etiketler kaydedilemedi", "error") }
+              );
+            },
+          };
+        })}
+      />
     </View>
   );
 }
 
-function PostCard({ post, onPress, onLongPress }: { post: ForumPost; onPress: () => void; onLongPress?: () => void }) {
+function PostCard({
+  post,
+  gallery,
+  applied,
+  onPress,
+  onLongPress,
+  onReact,
+}: {
+  post: ForumFeedPost;
+  gallery: boolean;
+  applied: ForumTag[];
+  onPress: () => void;
+  onLongPress?: () => void;
+  onReact?: () => void;
+}) {
   const author = post.profile.name?.trim() || post.profile.username;
   return (
     <Pressable
@@ -186,13 +290,17 @@ function PostCard({ post, onPress, onLongPress }: { post: ForumPost; onPress: ()
         backgroundColor: pressed ? colors.raised : colors.panel,
       })}
     >
-      {post.appliedTags.length > 0 || post.pinned || post.locked ? (
+      {applied.length > 0 || post.pinned || post.locked ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
           {post.pinned ? <PostBadge icon="pin" label="Sabitlendi" tone={colors.brand} background={colors.brandSoft} /> : null}
           {post.locked ? <PostBadge icon="lock" label="Kilitli" tone={colors.danger} background={colors.raised} /> : null}
-          {post.appliedTags.map((tag) => (
-            <View key={tag} style={{ paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.full, backgroundColor: colors.brandSoft }}>
-              <Text style={{ ...typography.caption, fontSize: 11, ...fw(700), color: colors.brand }}>{tag}</Text>
+          {applied.map((tag) => (
+            <View
+              key={tag.id}
+              style={{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.full, backgroundColor: colors.brandSoft }}
+            >
+              <EmojiText style={{ ...typography.caption, fontSize: 11, ...fw(700), color: colors.brand }}>{forumTagLabel(tag)}</EmojiText>
+              {tag.moderated ? <Icon name="shield" size={10} color={colors.brand} /> : null}
             </View>
           ))}
         </View>
@@ -201,7 +309,7 @@ function PostCard({ post, onPress, onLongPress }: { post: ForumPost; onPress: ()
         {post.name}
       </Text>
       {post.topic ? (
-        <Text style={{ ...typography.body, color: colors.muted }} numberOfLines={3}>
+        <Text style={{ ...typography.body, color: colors.muted }} numberOfLines={gallery ? 4 : 3}>
           {post.topic}
         </Text>
       ) : null}
@@ -210,6 +318,34 @@ function PostCard({ post, onPress, onLongPress }: { post: ForumPost; onPress: ()
         <Text style={{ ...typography.caption, color: colors.muted, flex: 1 }} numberOfLines={1}>
           {author} · {formatChatListTime(new Date(post.lastActivityMs).toISOString())}
         </Text>
+        {post.reaction && onReact ? (
+          <Pressable
+            onPress={onReact}
+            haptic="light"
+            noHitSlop
+            accessibilityRole="button"
+            accessibilityState={{ selected: post.reaction.me }}
+            accessibilityLabel={`${post.reaction.emoji} tepkisi, ${post.reaction.count}`}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 2,
+              borderRadius: radii.full,
+              borderWidth: 1,
+              borderColor: post.reaction.me ? colors.brand : colors.bentoBorder,
+              backgroundColor: post.reaction.me ? colors.brandSoft : "transparent",
+            }}
+          >
+            <EmojiText style={{ fontSize: 14, lineHeight: 18 }}>{post.reaction.emoji}</EmojiText>
+            {post.reaction.count > 0 ? (
+              <Text style={{ ...typography.caption, ...fw(700), color: post.reaction.me ? colors.brand : colors.muted, fontVariant: ["tabular-nums"] }}>
+                {post.reaction.count}
+              </Text>
+            ) : null}
+          </Pressable>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -238,12 +374,18 @@ function FilterChip({
   label,
   selected,
   icon,
+  layout,
+  moderated,
   onPress,
 }: {
   label: string;
   selected: boolean;
   /** Sıralama çipi: döngüsel, seçili görünmez. */
   icon?: boolean;
+  /** Görünüm çipi (liste / galeri): döngüsel. */
+  layout?: boolean;
+  /** Moderasyonlu etiket: kalkan simgesi. */
+  moderated?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -253,8 +395,11 @@ function FilterChip({
       noHitSlop
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      accessibilityLabel={icon ? `Sıralama: ${label}` : label}
+      accessibilityLabel={icon ? `Sıralama: ${label}` : layout ? `Görünüm: ${label}` : `${label}${moderated ? ", moderasyonlu" : ""}`}
       style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
         paddingHorizontal: spacing.md,
         paddingVertical: 6,
         borderRadius: radii.full,
@@ -264,8 +409,9 @@ function FilterChip({
       })}
     >
       <Text style={{ ...typography.caption, ...fw(selected ? 700 : 500), color: selected ? colors.brand : colors.text }}>
-        {icon ? `↕ ${label}` : label}
+        {icon ? `↕ ${label}` : layout ? `▦ ${label}` : label}
       </Text>
+      {moderated ? <Icon name="shield" size={11} color={selected ? colors.brand : colors.muted} /> : null}
     </Pressable>
   );
 }
