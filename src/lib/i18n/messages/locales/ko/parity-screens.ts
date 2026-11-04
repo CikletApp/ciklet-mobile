@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "폴더 만들기",
     openSettings: "{name} 폴더 설정",
   },
+  channelInvites: {
+    title: "초대",
+    subtitle: "이 채널로 연결되는 초대 링크",
+    intro: "#{channel} 채널 초대 링크입니다. 참가한 사람은 바로 이 채널로 이동해요.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

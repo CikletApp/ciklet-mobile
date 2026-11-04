@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "Criar pasta",
     openSettings: "Configurações da pasta {name}",
   },
+  channelInvites: {
+    title: "Convites",
+    subtitle: "Links de convite para este canal",
+    intro: "Links de convite para #{channel}. Quem entrar cai direto neste canal.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

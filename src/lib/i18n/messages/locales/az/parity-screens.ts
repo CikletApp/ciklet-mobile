@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "Qovluq yarat",
     openSettings: "{name} qovluq parametrləri",
   },
+  channelInvites: {
+    title: "Dəvətlər",
+    subtitle: "Bu kanala açılan dəvət keçidləri",
+    intro: "#{channel} kanalına açılan dəvət keçidləri. Qoşulan şəxs birbaşa bu kanala düşür.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

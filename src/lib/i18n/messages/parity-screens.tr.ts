@@ -24,4 +24,9 @@ export const parityScreensTr = {
     newFolder: "Klasör oluştur",
     openSettings: "{name} klasör ayarları",
   },
+  channelInvites: {
+    title: "Davetler",
+    subtitle: "Bu kanala açılan davet bağlantıları",
+    intro: "#{channel} kanalına açılan davet bağlantıları. Katılan kişi doğrudan bu kanala düşer.",
+  },
 } as const;

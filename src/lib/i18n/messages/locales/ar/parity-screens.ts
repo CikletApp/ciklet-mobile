@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "إنشاء مجلد",
     openSettings: "إعدادات مجلد {name}",
   },
+  channelInvites: {
+    title: "الدعوات",
+    subtitle: "روابط الدعوة إلى هذه القناة",
+    intro: "روابط الدعوة إلى #{channel}. من ينضم يصل مباشرةً إلى هذه القناة.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

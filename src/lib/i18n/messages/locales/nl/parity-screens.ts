@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "Map maken",
     openSettings: "Mapinstellingen van {name}",
   },
+  channelInvites: {
+    title: "Uitnodigingen",
+    subtitle: "Uitnodigingslinks naar dit kanaal",
+    intro: "Uitnodigingslinks naar #{channel}. Wie lid wordt, komt direct in dit kanaal terecht.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

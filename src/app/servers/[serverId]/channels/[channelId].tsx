@@ -51,6 +51,7 @@ import {
   type VideoQualityMode,
 } from "@/lib/voice-settings";
 import { LEGACY_PERK_FLOOR } from "@/lib/server-boost";
+import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -108,6 +109,7 @@ export default function ChannelSettingsScreen() {
     channelId: string;
     categoryId?: string;
   }>();
+  const t = useT();
   const creating = channelId === "new";
   const channel = useChannel(serverId, creating ? undefined : channelId) as FullChannel | undefined;
   const create = useCreateChannelIn(serverId);
@@ -484,6 +486,18 @@ export default function ChannelSettingsScreen() {
                 subtitle="Rol ve üye bazında kanal izinleri"
                 icon="shield"
                 onPress={() => router.push(`/servers/${serverId}/channel-permissions?channelId=${channelId}`)}
+              />
+              {/* Kanal Ayarları › Davetler (web channel-settings/invites-tab; yetkiyi uç denetler). */}
+              <ListRow
+                title={t("parityScreens.channelInvites.title")}
+                subtitle={t("parityScreens.channelInvites.subtitle")}
+                icon="link"
+                onPress={() =>
+                  router.push({
+                    pathname: "/servers/[serverId]/invites",
+                    params: { serverId, channelId, channelName: channel.name },
+                  })
+                }
               />
             </ListGroup>
           </>

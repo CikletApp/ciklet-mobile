@@ -17,6 +17,7 @@ import {
   useServerInvites,
   type ServerInviteRow,
 } from "@/features/invites/invite-options";
+import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -28,7 +29,15 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  * Yönet; rol veren davet ayrıca hiyerarşi).
  */
 export default function ServerInvitesScreen() {
-  const { serverId } = useLocalSearchParams<{ serverId: string }>();
+  const t = useT();
+  // Kanal Ayarları › Davetler: yalnızca bu kanala bağlı davetler; oluşturulan
+  // davet kanal kimliğiyle yazılır (web channel-settings/invites-tab).
+  const { serverId, channelId, channelName } = useLocalSearchParams<{
+    serverId: string;
+    channelId?: string;
+    channelName?: string;
+  }>();
+  const channelMode = Boolean(channelId);
   const invites = useServerInvites(serverId);
   const { data: me } = useMyPermissions(serverId);
   const { data: roles } = useServerRoleDetails(serverId);
@@ -45,7 +54,7 @@ export default function ServerInvitesScreen() {
 
   const roleChoices = grantableInviteRoles(roles ?? [], me);
   const upcoming = (events ?? []).filter((event) => event.status === "SCHEDULED" || event.status === "ACTIVE");
-  const items = invites.data ?? [];
+  const items = (invites.data ?? []).filter((invite) => !channelMode || invite.channel?.id === channelId);
 
   const toggleRole = (id: string) =>
     setRoleIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= INVITE_MAX_ROLES ? prev : [...prev, id]));
@@ -53,7 +62,9 @@ export default function ServerInvitesScreen() {
   const submit = () => {
     if (create.isPending) return;
     create.mutate(
-      { maxAgeSeconds: maxAge || undefined, maxUses: maxUses || undefined, temporary, roleIds, eventId },
+      channelMode
+        ? { maxAgeSeconds: maxAge || undefined, maxUses: maxUses || undefined, temporary: false, roleIds: [], eventId: null, channelId }
+        : { maxAgeSeconds: maxAge || undefined, maxUses: maxUses || undefined, temporary, roleIds, eventId },
       {
         onSuccess: () => {
           setTemporary(false);
@@ -69,6 +80,11 @@ export default function ServerInvitesScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ title: "Davetler" }} />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
+        {channelMode ? (
+          <Text style={{ ...typography.caption, color: colors.muted, marginHorizontal: spacing.lg, marginTop: spacing.lg }}>
+            {t("parityScreens.channelInvites.intro", { channel: channelName ?? "" })}
+          </Text>
+        ) : null}
         <View
           style={{
             margin: spacing.lg,
@@ -86,7 +102,7 @@ export default function ServerInvitesScreen() {
           <OptionLabel title="MAKS. KULLANIM" />
           <Chips options={INVITE_USE_OPTIONS.map((o) => ({ key: String(o.value), label: o.label }))} selected={[String(maxUses)]} onToggle={(key) => setMaxUses(Number(key))} />
 
-          {upcoming.length > 0 ? (
+          {!channelMode && upcoming.length > 0 ? (
             <>
               <OptionLabel title="ETKİNLİK" />
               <Chips
@@ -97,7 +113,8 @@ export default function ServerInvitesScreen() {
             </>
           ) : null}
 
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          {channelMode ? null : (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ ...typography.bodyStrong, color: colors.bright }}>Geçici üyelik</Text>
               <Text style={{ ...typography.caption, color: colors.muted }}>
@@ -105,9 +122,10 @@ export default function ServerInvitesScreen() {
               </Text>
             </View>
             <Switch value={temporary} onValueChange={setTemporary} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />
-          </View>
+            </View>
+          )}
 
-          {roleChoices.length > 0 ? (
+          {!channelMode && roleChoices.length > 0 ? (
             <View style={{ gap: spacing.sm }}>
               <View style={{ gap: 2 }}>
                 <Text style={{ ...typography.bodyStrong, color: colors.bright }}>Katılınca verilecek roller</Text>

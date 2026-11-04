@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "创建文件夹",
     openSettings: "{name} 文件夹设置",
   },
+  channelInvites: {
+    title: "邀请",
+    subtitle: "指向此频道的邀请链接",
+    intro: "#{channel} 的邀请链接。加入的人会直接进入此频道。",
+  },
 } satisfies Translation<typeof parityScreensTr>;

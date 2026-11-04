@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "Создать папку",
     openSettings: "Настройки папки {name}",
   },
+  channelInvites: {
+    title: "Приглашения",
+    subtitle: "Ссылки-приглашения в этот канал",
+    intro: "Ссылки-приглашения в #{channel}. Присоединившиеся сразу попадают в этот канал.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

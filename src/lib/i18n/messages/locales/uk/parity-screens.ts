@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "Створити теку",
     openSettings: "Налаштування теки {name}",
   },
+  channelInvites: {
+    title: "Запрошення",
+    subtitle: "Посилання-запрошення до цього каналу",
+    intro: "Посилання-запрошення до #{channel}. Ті, хто приєднається, одразу потраплять до цього каналу.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

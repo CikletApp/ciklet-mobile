@@ -27,4 +27,9 @@ export const parityScreensEn = {
     newFolder: "Create folder",
     openSettings: "{name} folder settings",
   },
+  channelInvites: {
+    title: "Invites",
+    subtitle: "Invite links that open this channel",
+    intro: "Invite links to #{channel}. People who join land straight in this channel.",
+  },
 } as const satisfies Widen<typeof parityScreensTr>;

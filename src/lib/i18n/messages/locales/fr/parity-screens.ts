@@ -27,4 +27,9 @@ export const parityScreens = {
     newFolder: "Créer un dossier",
     openSettings: "Paramètres du dossier {name}",
   },
+  channelInvites: {
+    title: "Invitations",
+    subtitle: "Liens d’invitation vers ce salon",
+    intro: "Liens d’invitation vers #{channel}. Les personnes qui rejoignent arrivent directement dans ce salon.",
+  },
 } satisfies Translation<typeof parityScreensTr>;

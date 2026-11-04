@@ -50,6 +50,8 @@ export interface CreateInviteInput {
   temporary: boolean;
   roleIds: string[];
   eventId: string | null;
+  /** Kanala özel davet (web Kanal Ayarları › Davetler): katılan bu kanala düşer. */
+  channelId?: string;
 }
 
 /** Web davet sekmesiyle aynı seçenekler. */
