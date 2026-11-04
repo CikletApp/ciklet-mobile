@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable as RNPressable, ScrollView, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
@@ -7,13 +7,30 @@ import {
   hasServerPermission,
   useMyPermissions,
   useServerDetails,
+  useServerMemberPages,
   useServerRoleDetails,
   useUpdateRole,
   type RoleUpdate,
   type ServerRoleDetails,
 } from "@/api/hooks";
+import { useCreateRole, useDeleteRole, useToggleRoleMember, useUpdateRolePermissions } from "@/api/hooks/use-server-admin";
 import type { MyServerPermissions } from "@/api/types";
-import { Divider, EmptyState, Icon, ListGroup, Pressable, Screen, ScreenLoader, SectionHeader, TextField, showToast } from "@/components/ui";
+import {
+  Avatar,
+  Button,
+  Divider,
+  EmptyState,
+  Icon,
+  ListGroup,
+  Pressable,
+  Screen,
+  ScreenLoader,
+  SectionHeader,
+  TextField,
+  showDialog,
+  showToast,
+} from "@/components/ui";
+import { ROLE_PERMISSIONS, ROLE_PERMISSION_GROUPS, roleHasPermission, toggleRolePermission } from "@/lib/role-permissions";
 import { EmojiPickerPanel } from "@/features/chat/components/emoji-picker";
 import { RoleIconBadge } from "@/features/server/role-icon-badge";
 import { BoostLockedPill } from "@/features/server-boost/boost-ui";
@@ -38,16 +55,22 @@ const iconOf = (role: ServerRoleDetails) =>
 
 /**
  * Sunucu rolleri — web Sunucu Ayarları › Roller sekmesinin mobil karşılığı:
- * ad, renk, ayrı gösterme (hoist), rol simgesi (görsel ya da emoji) ve
- * "Herkesin bu rolden bahsetmesine izin ver". İzin matrisi ve rol üyeleri
- * şimdilik yalnızca webde. Yetki "Rolleri Yönet" — uç ayrıca rol
- * hiyerarşisini denetler.
+ * rol oluşturma (önce ad/renk, sonra "Oluştur"), ad, renk, ayrı gösterme
+ * (hoist), rol simgesi (görsel ya da emoji), "Herkesin bu rolden
+ * bahsetmesine izin ver", izin matrisi, üye atama ve rolü silme. Yetki
+ * "Rolleri Yönet" — uç ayrıca rol hiyerarşisini ve aktörde olmayan izin
+ * bitlerini denetler.
  */
 export default function ServerRolesScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { data: roles, isLoading } = useServerRoleDetails(serverId);
   const { data: actor } = useMyPermissions(serverId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const canManage = hasServerPermission(actor, "MANAGE_ROLES");
+  const create = useCreateRole(serverId);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState<string | null>(null);
 
   const selected = roles?.find((role) => role.id === selectedId) ?? null;
 
@@ -57,10 +80,106 @@ export default function ServerRolesScreen() {
     return <RoleEditor serverId={serverId} role={selected} editable={canEditRole(actor, selected)} onBack={() => setSelectedId(null)} />;
   }
 
+  const cancelCreate = () => {
+    setCreating(false);
+    setNewName("");
+    setNewColor(null);
+  };
+
+  const submitCreate = () => {
+    const name = newName.trim().slice(0, ROLE_NAME_MAX);
+    if (!name || create.isPending) return;
+    create.mutate(
+      { name, color: newColor },
+      {
+        onSuccess: (role) => {
+          cancelCreate();
+          // Oluşturduktan sonra düzenlemeye geç (web ile aynı).
+          if (role?.id) setSelectedId(role.id);
+        },
+        onError: (error) => showToast(error instanceof ApiError ? error.message : "Rol oluşturulamadı.", "error"),
+      }
+    );
+  };
+
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Roller" }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing["3xl"] }}>
+      <Stack.Screen options={{ title: `Roller — ${roles?.length ?? 0}` }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: spacing["3xl"] }} keyboardShouldPersistTaps="handled">
+        {canManage && !creating ? (
+          <View style={{ flexDirection: "row", paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+            <Button label="Rol Oluştur" icon="plus" onPress={() => setCreating(true)} />
+          </View>
+        ) : null}
+        {creating ? (
+          <View
+            style={{
+              marginHorizontal: spacing.lg,
+              marginTop: spacing.md,
+              padding: spacing.lg,
+              gap: spacing.md,
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: colors.brand,
+              backgroundColor: colors.panel,
+            }}
+          >
+            <Text style={{ ...typography.overline, color: colors.muted }}>YENİ ROL</Text>
+            <TextField
+              value={newName}
+              onChangeText={setNewName}
+              onSubmitEditing={submitCreate}
+              maxLength={ROLE_NAME_MAX}
+              placeholder="Rol adı (örn. Moderatör)"
+              autoFocus
+            />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" }}>
+              <Pressable
+                onPress={() => setNewColor(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Renksiz"
+                accessibilityState={{ selected: !newColor }}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  borderWidth: 2,
+                  borderColor: !newColor ? colors.brand : colors.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ ...typography.caption, color: colors.muted }}>—</Text>
+              </Pressable>
+              {SWATCHES.map((color) => (
+                <Pressable
+                  key={color}
+                  onPress={() => setNewColor(color)}
+                  accessibilityRole="button"
+                  accessibilityLabel={color}
+                  accessibilityState={{ selected: newColor === color }}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: color,
+                    borderWidth: 2,
+                    borderColor: newColor === color ? colors.bright : "transparent",
+                  }}
+                />
+              ))}
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }}>
+              <Button label="Vazgeç" variant="ghost" onPress={cancelCreate} />
+              <Button
+                label={create.isPending ? "Oluşturuluyor…" : "Oluştur"}
+               
+                disabled={!newName.trim() || create.isPending}
+                onPress={submitCreate}
+              />
+            </View>
+          </View>
+        ) : null}
         {!roles || roles.length === 0 ? (
           <EmptyState icon="shield" title="Henüz rol yok." />
         ) : (
@@ -115,11 +234,53 @@ function RoleEditor({
   const [name, setName] = useState(role.name);
   const [iconBusy, setIconBusy] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const updatePermissions = useUpdateRolePermissions(serverId);
+  const toggleMember = useToggleRoleMember(serverId);
+  const removeRole = useDeleteRole(serverId);
+  const memberPages = useServerMemberPages(serverId, "");
+  const members = useMemo(() => memberPages.data?.pages.flatMap((page) => page.items) ?? [], [memberPages.data]);
+  /** Yanıt gelene kadar anahtarın yeni hâli (liste tazelenince düşer). */
+  const [assignOverride, setAssignOverride] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(role.name);
   }, [role.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setPermission = (key: keyof typeof ROLE_PERMISSIONS, on: boolean) => {
+    if (!editable) return;
+    updatePermissions.mutate(
+      { roleId: role.id, permissions: toggleRolePermission(role.permissions, key, on) },
+      { onError: (error) => showToast(error instanceof ApiError ? error.message : "İzinler kaydedilemedi.", "error") }
+    );
+  };
+
+  const assign = (memberId: string, assigned: boolean) => {
+    setAssignOverride((map) => ({ ...map, [memberId]: assigned }));
+    toggleMember.mutate(
+      { roleId: role.id, memberId, assigned },
+      {
+        onError: (error) => {
+          setAssignOverride((map) => ({ ...map, [memberId]: !assigned }));
+          showToast(error instanceof ApiError ? error.message : "Rol atanamadı.", "error");
+        },
+      }
+    );
+  };
+
+  const confirmDelete = () =>
+    showDialog(`"${role.name}" rolü silinsin mi?`, "Bu rolü taşıyan üyelerden de kaldırılır.", [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Rolü Sil",
+        style: "destructive",
+        onPress: () =>
+          removeRole.mutate(role.id, {
+            onSuccess: onBack,
+            onError: (error) => showToast(error instanceof ApiError ? error.message : "Rol silinemedi.", "error"),
+          }),
+      },
+    ]);
 
   const patch = (input: RoleUpdate, failure = "Rol kaydedilemedi.") =>
     update.mutateAsync({ roleId: role.id, input }).catch((error: unknown) => {
@@ -264,6 +425,99 @@ function RoleEditor({
             />
           </ListGroup>
         </View>
+
+        {/* İzinler (web roles-tab, lib/role-permissions ROLE_PERMISSION_GROUPS). */}
+        <SectionHeader title="İZİNLER" />
+        <Text style={{ ...typography.caption, color: colors.muted, paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}>
+          Bu rolü taşıyanlara sunucu genelinde eklenen yetkiler. Kanal ayarları bunları kanal bazında kısıtlayabilir. Kendinde olmayan bir izni veremezsin.
+        </Text>
+        {ROLE_PERMISSION_GROUPS.map((group) => (
+          <View key={group.title} style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
+            <Text style={{ ...typography.caption, ...fw(600), color: colors.muted, marginBottom: spacing.xs }}>{group.title}</Text>
+            <ListGroup>
+              {group.keys.map((key, index) => (
+                <View key={key}>
+                  {index > 0 ? <Divider inset={16} /> : null}
+                  <ToggleRow
+                    title={ROLE_PERMISSIONS[key].title}
+                    titleColor={key === "ADMINISTRATOR" ? colors.danger : undefined}
+                    subtitle={ROLE_PERMISSIONS[key].description}
+                    value={roleHasPermission(role.permissions, key)}
+                    disabled={!editable}
+                    onChange={(on) => setPermission(key, on)}
+                  />
+                </View>
+              ))}
+            </ListGroup>
+          </View>
+        ))}
+
+        {/* Üye atama (web: POST /roles/{id}/members). */}
+        <SectionHeader title="ÜYELER" />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          {members.length === 0 && memberPages.isLoading ? (
+            <ActivityIndicator color={colors.muted} style={{ paddingVertical: spacing.lg }} />
+          ) : (
+            <ListGroup>
+              {members.map((member, index) => {
+                const assigned = assignOverride[member.id] ?? member.roles.some((item) => item.id === role.id);
+                const label = member.nickname?.trim() || member.profile.name?.trim() || member.profile.username;
+                return (
+                  <View key={member.id}>
+                    {index > 0 ? <Divider inset={56} /> : null}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: spacing.md,
+                        paddingHorizontal: spacing.lg,
+                        paddingVertical: spacing.sm,
+                        opacity: !editable || role.premiumSubscriber ? 0.6 : 1,
+                      }}
+                    >
+                      <Avatar profileId={member.profile.id} imageUrl={member.profile.imageUrl} fallbackText={member.profile.username} size={28} />
+                      <Text style={{ ...typography.body, color: colors.text, flex: 1 }} numberOfLines={1}>
+                        {label}
+                      </Text>
+                      <Switch
+                        value={assigned}
+                        disabled={!editable || role.premiumSubscriber === true}
+                        onValueChange={(next) => assign(member.id, next)}
+                        trackColor={{ false: colors.border, true: colors.brand }}
+                        thumbColor="#ffffff"
+                      />
+                    </View>
+                  </View>
+                );
+              })}
+            </ListGroup>
+          )}
+          {memberPages.hasNextPage ? (
+            <Pressable
+              onPress={() => void memberPages.fetchNextPage()}
+              disabled={memberPages.isFetchingNextPage}
+              accessibilityRole="button"
+              style={{ alignItems: "center", paddingVertical: spacing.md }}
+            >
+              {memberPages.isFetchingNextPage ? (
+                <ActivityIndicator size="small" color={colors.muted} />
+              ) : (
+                <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }}>Daha fazla üye yükle</Text>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+
+        {editable && !role.premiumSubscriber ? (
+          <Pressable
+            onPress={confirmDelete}
+            accessibilityRole="button"
+            style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.xl }}
+          >
+            <Icon name="trash" size={16} color={colors.danger} />
+            <Text style={{ ...typography.body, ...fw(600), color: colors.danger }}>Rolü Sil</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <Modal visible={emojiOpen} transparent animationType="slide" onRequestClose={() => setEmojiOpen(false)}>
@@ -339,12 +593,14 @@ function ChipButton({
 
 function ToggleRow({
   title,
+  titleColor,
   subtitle,
   value,
   onChange,
   disabled,
 }: {
   title: string;
+  titleColor?: string;
   subtitle?: string;
   value: boolean;
   onChange: (value: boolean) => void;
@@ -353,7 +609,7 @@ function ToggleRow({
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, opacity: disabled ? 0.45 : 1 }}>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ ...typography.body, color: colors.text }}>{title}</Text>
+        <Text style={{ ...typography.body, color: titleColor ?? colors.text }}>{title}</Text>
         {subtitle ? <Text style={{ ...typography.caption, color: colors.muted }}>{subtitle}</Text> : null}
       </View>
       <Switch value={value} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.brand }} thumbColor="#ffffff" />
