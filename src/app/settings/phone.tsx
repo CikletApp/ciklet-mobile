@@ -10,6 +10,7 @@ import { useCurrentProfile } from "@/api/hooks";
 import { Button, Icon, Screen, showToast } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { useT, type MessageKey } from "@/lib/i18n";
 
 /**
  * Ayarlar › Hesap › Telefon doğrulama (web `settings/phone-verify-modal.tsx`).
@@ -20,11 +21,7 @@ import { fw } from "@/theme/fonts";
  */
 
 const POLL_INTERVAL_MS = 3_000;
-const STEPS = [
-  "Aşağıdaki düğmeyle Telegram'ı aç.",
-  "Sohbeti başlat ve numaranı paylaşmayı onayla.",
-  "Doğrulama tamamlanınca bu pencere kendiliğinden güncellenir.",
-];
+const STEPS: MessageKey[] = ["moreScreens.phone.step1", "moreScreens.phone.step2", "moreScreens.phone.step3"];
 const PHONE_TELEGRAM = "/api/phone/telegram";
 
 async function openTelegram(url: string) {
@@ -42,6 +39,7 @@ async function openTelegram(url: string) {
 
 export default function PhoneSettingsScreen() {
   const queryClient = useQueryClient();
+  const t = useT();
   const { data: profile } = useCurrentProfile();
   const verified = Boolean(profile?.isPhoneVerified);
   const [link, setLink] = useState<{ url: string; expiresAt: number } | null>(null);
@@ -53,9 +51,9 @@ export default function PhoneSettingsScreen() {
   // Doğrulandı bildirimi: yoklama sırasında false → true geçişinde bir kez.
   const wasVerified = useRef(verified);
   useEffect(() => {
-    if (verified && !wasVerified.current && link) showToast("Numaran doğrulandı.");
+    if (verified && !wasVerified.current && link) showToast(t("moreScreens.phone.verifiedToast"));
     wasVerified.current = verified;
-  }, [verified, link]);
+  }, [verified, link, t]);
 
   const requestLink = useCallback(async () => {
     setError(null);
@@ -67,12 +65,12 @@ export default function PhoneSettingsScreen() {
       return next;
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) void refresh();
-      else setError(err instanceof ApiError && err.message ? err.message : "Bağlantı alınamadı.");
+      else setError(err instanceof ApiError && err.message ? err.message : t("moreScreens.phone.linkFailed"));
       return null;
     } finally {
       setLoading(false);
     }
-  }, [refresh]);
+  }, [refresh, t]);
 
   // Bağlantı istendiyse doğrulanana kadar profil yoklanır; Telegram'dan dönünce hemen bakılır.
   useEffect(() => {
@@ -94,7 +92,7 @@ export default function PhoneSettingsScreen() {
     try {
       await openTelegram(current.url);
     } catch {
-      setError("Telegram açılamadı.");
+      setError(t("moreScreens.phone.openFailed"));
     }
   };
 
@@ -105,9 +103,9 @@ export default function PhoneSettingsScreen() {
       await api(PHONE_TELEGRAM, { method: "DELETE" });
       await refresh();
       setLink(null);
-      showToast("Numara bağlantısı kaldırıldı.");
+      showToast(t("moreScreens.phone.unlinked"));
     } catch (err) {
-      setError(err instanceof ApiError && err.message ? err.message : "Bir şeyler ters gitti.");
+      setError(err instanceof ApiError && err.message ? err.message : t("moreScreens.phone.genericError"));
     } finally {
       setUnlinking(false);
     }
@@ -115,10 +113,10 @@ export default function PhoneSettingsScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Telefon doğrulama" }} />
+      <Stack.Screen options={{ title: t("moreScreens.phone.title") }} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing["4xl"] }}>
         <Text style={{ ...typography.body, color: colors.muted }}>
-          {verified ? "Telefon numaran başarıyla doğrulandı." : "Hesabının güvenliğini artırmak için telefon numaranı doğrula."}
+          {verified ? t("moreScreens.phone.verifiedBody") : t("moreScreens.phone.intro")}
         </Text>
 
         {verified ? (
@@ -128,12 +126,12 @@ export default function PhoneSettingsScreen() {
                 <Icon name="shield" size={20} color={colors.brand} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ ...typography.bodyStrong, color: colors.success }}>Doğrulandı</Text>
-                <Text style={{ ...typography.caption, color: colors.muted }}>{profile?.phoneMasked ?? "Numaran kayıtlı"}</Text>
+                <Text style={{ ...typography.bodyStrong, color: colors.success }}>{t("moreScreens.phone.verified")}</Text>
+                <Text style={{ ...typography.caption, color: colors.muted }}>{profile?.phoneMasked ?? t("moreScreens.phone.numberSaved")}</Text>
               </View>
             </View>
             <Button
-              label={unlinking ? "Kaldırılıyor..." : "Bağlantıyı kaldır"}
+              label={unlinking ? t("moreScreens.phone.unlinking") : t("moreScreens.phone.unlink")}
               variant="secondary"
               onPress={() => void onUnlink()}
               loading={unlinking}
@@ -147,12 +145,12 @@ export default function PhoneSettingsScreen() {
                 <View style={{ width: 22, height: 22, borderRadius: radii.full, alignItems: "center", justifyContent: "center", backgroundColor: colors.brandSoft }}>
                   <Text style={{ fontSize: 12, ...fw(700), color: colors.brand }}>{index + 1}</Text>
                 </View>
-                <Text style={{ ...typography.body, color: colors.text, flex: 1 }}>{step}</Text>
+                <Text style={{ ...typography.body, color: colors.text, flex: 1 }}>{t(step)}</Text>
               </View>
             ))}
-            <Button label="Telegram'da doğrula" icon="phone" onPress={() => void onVerify()} loading={loading} fullWidth />
+            <Button label={t("moreScreens.phone.verifyTelegram")} icon="phone" onPress={() => void onVerify()} loading={loading} fullWidth />
             {link ? (
-              <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>Doğrulama bekleniyor...</Text>
+              <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>{t("moreScreens.phone.waiting")}</Text>
             ) : null}
           </View>
         )}
@@ -160,7 +158,7 @@ export default function PhoneSettingsScreen() {
         {error ? (
           <View style={{ gap: spacing.sm }}>
             <Text style={{ ...typography.caption, color: colors.danger }}>{error}</Text>
-            {!verified ? <Button label="Yeniden dene" variant="secondary" onPress={() => void requestLink()} fullWidth /> : null}
+            {!verified ? <Button label={t("moreScreens.phone.retry")} variant="secondary" onPress={() => void requestLink()} fullWidth /> : null}
           </View>
         ) : null}
       </ScrollView>

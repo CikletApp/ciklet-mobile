@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { SkuType, formatKurus, useAppSkuCheckout, useAppSkuOffer } from "@/api/hooks";
 import { ApiError } from "@/api/client";
 import { Button, Icon, showToast } from "@/components/ui";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -26,13 +27,11 @@ export const useSkuPurchase = create<SkuPurchaseState>((set) => ({
   close: () => set({ request: null }),
 }));
 
-const KIND_LABEL: Record<number, string> = {
-  [SkuType.DURABLE]: "Kalıcı",
-  [SkuType.CONSUMABLE]: "Tüketilebilir",
-  [SkuType.SUBSCRIPTION]: "Abonelik · 30 gün",
+const KIND_LABEL: Record<number, MessageKey> = {
+  [SkuType.DURABLE]: "moreScreens.sku.durable",
+  [SkuType.CONSUMABLE]: "moreScreens.sku.consumable",
+  [SkuType.SUBSCRIPTION]: "moreScreens.sku.subscription",
 };
-
-export const WEB_PURCHASE_NOTE = "Uygulama içi satın almalar şimdilik yalnızca web'de yapılabiliyor.";
 
 /** Kök düzende bir kez takılır. */
 export function SkuPurchaseHost() {
@@ -45,9 +44,10 @@ export function SkuPurchaseHost() {
 function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId: string | null; onClose: () => void }) {
   const offer = useAppSkuOffer(skuId, guildId);
   const checkout = useAppSkuCheckout();
+  const t = useT();
   const data = offer.data;
   const owned = data ? data.sku.type !== SkuType.SUBSCRIPTION && data.entitlements.length > 0 : false;
-  const disabledReason = !data ? null : !data.purchasesEnabled ? "Satın alma şu anda kapalı" : owned ? "Sahipsin" : data.blocker;
+  const disabledReason = !data ? null : !data.purchasesEnabled ? t("moreScreens.sku.disabled") : owned ? t("moreScreens.sku.owned") : data.blocker;
   const image = data ? (data.sku.image_url ?? data.application.imageUrl) : null;
   const targetGuild = data?.guildRequired ? (guildId && data.eligibleGuilds.some((g) => g.id === guildId) ? guildId : data.eligibleGuilds[0]?.id ?? null) : null;
 
@@ -55,7 +55,7 @@ function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId:
     checkout.mutate(
       { skuId, guildId: targetGuild },
       {
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Ödeme başlatılamadı.", "error"),
+        onError: (error) => showToast(error instanceof ApiError ? error.message : t("moreScreens.sku.checkoutFailed"), "error"),
       },
     );
   };
@@ -66,7 +66,7 @@ function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId:
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Kapat"
+          accessibilityLabel={t("common.close")}
           style={{ position: "absolute", inset: 0, backgroundColor: colors.scrim }}
         />
         <View
@@ -85,8 +85,8 @@ function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId:
             <ActivityIndicator style={{ padding: spacing["3xl"] }} color={colors.muted} />
           ) : !data ? (
             <View style={{ padding: spacing["2xl"], alignItems: "center", gap: spacing.md }}>
-              <Text style={{ ...typography.body, color: colors.muted, textAlign: "center" }}>Ürün bulunamadı ya da satışta değil.</Text>
-              <Button label="Kapat" variant="secondary" onPress={onClose} />
+              <Text style={{ ...typography.body, color: colors.muted, textAlign: "center" }}>{t("moreScreens.sku.notFound")}</Text>
+              <Button label={t("common.close")} variant="secondary" onPress={onClose} />
             </View>
           ) : (
             <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, alignItems: "center" }}>
@@ -100,7 +100,7 @@ function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId:
               <View style={{ alignItems: "center", gap: 2 }}>
                 <Text style={{ ...typography.display, color: colors.bright, textAlign: "center" }}>{data.sku.name}</Text>
                 <Text style={{ ...typography.caption, color: colors.muted }}>
-                  {data.application.name} · {KIND_LABEL[data.sku.type] ?? ""}
+                  {data.application.name} · {KIND_LABEL[data.sku.type] ? t(KIND_LABEL[data.sku.type]) : ""}
                 </Text>
               </View>
               {data.sku.description ? (
@@ -109,18 +109,18 @@ function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId:
               <Text style={{ ...typography.display, color: colors.bright }}>{formatKurus(data.sku.price.amount, data.sku.price.currency)}</Text>
               {data.guildRequired && targetGuild ? (
                 <Text style={{ ...typography.caption, color: colors.muted }}>
-                  {data.eligibleGuilds.find((g) => g.id === targetGuild)?.name} sunucusu için
+                  {t("moreScreens.sku.forServer", { server: data.eligibleGuilds.find((g) => g.id === targetGuild)?.name ?? "" })}
                 </Text>
               ) : null}
               {disabledReason ? (
                 <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>{disabledReason}</Text>
               ) : (
-                <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>{WEB_PURCHASE_NOTE}</Text>
+                <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>{t("moreScreens.sku.webOnly")}</Text>
               )}
               <View style={{ flexDirection: "row", gap: spacing.sm, alignSelf: "stretch" }}>
-                <Button label="Vazgeç" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
+                <Button label={t("common.cancel")} variant="secondary" onPress={onClose} style={{ flex: 1 }} />
                 <Button
-                  label="Web'de Satın Al"
+                  label={t("moreScreens.sku.buyOnWeb")}
                   icon="gem"
                   onPress={buy}
                   loading={checkout.isPending}
@@ -129,7 +129,7 @@ function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId:
                 />
               </View>
               <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>
-                Ödeme Ciklet üzerinden alınır. Ürünü {data.application.name} sağlar; ürünle ilgili destek uygulamanın geliştiricisindedir.
+                {t("moreScreens.sku.footer", { app: data.application.name })}
               </Text>
             </ScrollView>
           )}

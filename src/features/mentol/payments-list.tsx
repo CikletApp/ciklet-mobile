@@ -5,6 +5,7 @@ import { openPaymentPage, useStoreCatalog } from "@/api/hooks/use-store";
 import { Icon, Pressable, SectionHeader, showToast } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { INTL_LOCALES, useLocale, useT, type MessageKey, type Translator } from "@/lib/i18n";
 
 /**
  * Ödeme geçmişi (web `components/mentol/mentol-payments.tsx`): son 50
@@ -30,11 +31,11 @@ interface PaymentRow {
 
 const PLAN_LABEL: Record<"PLUS" | "PRO", string> = { PLUS: "Mentol Plus", PRO: "Mentol Pro" };
 
-const STATUS_LABEL: Record<PaymentRow["status"], string> = {
-  PENDING: "Bekliyor",
-  PAID: "Ödendi",
-  FAILED: "Başarısız",
-  REFUNDED: "İade",
+const STATUS_LABEL: Record<PaymentRow["status"], MessageKey> = {
+  PENDING: "moreScreens.payments.status.PENDING",
+  PAID: "moreScreens.payments.status.PAID",
+  FAILED: "moreScreens.payments.status.FAILED",
+  REFUNDED: "moreScreens.payments.status.REFUNDED",
 };
 
 const STATUS_COLOR: Record<PaymentRow["status"], string> = {
@@ -44,17 +45,20 @@ const STATUS_COLOR: Record<PaymentRow["status"], string> = {
   REFUNDED: colors.muted,
 };
 
-function paymentLabel(p: PaymentRow, itemName: (id: string) => string | undefined): string {
-  if (p.appSkuId) return "Uygulama ürünü";
-  if (p.boostQuantity) return `Sunucu Takviyesi × ${p.boostQuantity} · ${p.period === "yearly" ? "1 yıl" : "1 ay"}`;
-  if (p.serverTierId) return "Sunucu aboneliği · 30 gün";
-  if (p.storeItemId) return `Mağaza · ${itemName(p.storeItemId) ?? p.storeItemId}`;
-  return `${p.plan ? PLAN_LABEL[p.plan] : "Mentol"} · ${p.period === "monthly" ? "1 ay" : "1 yıl"}`;
+function paymentLabel(t: Translator, p: PaymentRow, itemName: (id: string) => string | undefined): string {
+  if (p.appSkuId) return t("moreScreens.payments.appProduct");
+  if (p.boostQuantity) {
+    const period = p.period === "yearly" ? t("moreScreens.payments.oneYear") : t("moreScreens.payments.oneMonth");
+    return t("moreScreens.payments.boost", { count: p.boostQuantity, period });
+  }
+  if (p.serverTierId) return t("moreScreens.payments.serverSubscription");
+  if (p.storeItemId) return t("moreScreens.payments.store", { item: itemName(p.storeItemId) ?? p.storeItemId });
+  return `${p.plan ? PLAN_LABEL[p.plan] : "Mentol"} · ${p.period === "monthly" ? t("moreScreens.payments.oneMonth") : t("moreScreens.payments.oneYear")}`;
 }
 
-function formatPrice(amount: number, currency: PaymentRow["currency"]): string {
+function formatPrice(amount: number, currency: PaymentRow["currency"], locale: string): string {
   try {
-    return new Intl.NumberFormat("tr-TR", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+    return new Intl.NumberFormat(locale, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
   } catch {
     return `${amount.toFixed(2)} ${currency}`;
   }
@@ -63,23 +67,25 @@ function formatPrice(amount: number, currency: PaymentRow["currency"]): string {
 export function MentolPaymentsList() {
   const payments = useMentolPayments<PaymentRow[]>();
   const catalog = useStoreCatalog();
+  const t = useT();
+  const locale = INTL_LOCALES[useLocale()];
   const rows = payments.data ?? [];
   if (rows.length === 0) return null;
   const itemName = (id: string) => catalog.data?.items.find((item) => item.id === id)?.name;
 
   return (
     <>
-      <SectionHeader title="ÖDEME GEÇMİŞİN" />
+      <SectionHeader title={t("moreScreens.payments.title")} />
       <Text style={{ ...typography.caption, color: colors.muted, marginHorizontal: spacing.lg, marginBottom: spacing.sm }}>
-        Makbuz numarası sağlayıcı sipariş kodudur; destek yazışmalarında bunu paylaş.
+        {t("moreScreens.payments.hint")}
       </Text>
       <View style={{ marginHorizontal: spacing.lg, borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel, overflow: "hidden" }}>
         {rows.map((p, index) => (
           <Pressable
             key={p.id}
-            onPress={() => void openPaymentPage(p.id).catch(() => showToast("Ödeme sayfası açılamadı", "error"))}
+            onPress={() => void openPaymentPage(p.id).catch(() => showToast(t("moreScreens.payments.openFailed"), "error"))}
             accessibilityRole="link"
-            accessibilityLabel={`${paymentLabel(p, itemName)}, ${formatPrice(p.amount / 100, p.currency)}, ${STATUS_LABEL[p.status]}`}
+            accessibilityLabel={`${paymentLabel(t, p, itemName)}, ${formatPrice(p.amount / 100, p.currency, locale)}, ${t(STATUS_LABEL[p.status])}`}
             style={({ pressed }) => ({
               padding: spacing.lg,
               gap: 4,
@@ -90,18 +96,18 @@ export function MentolPaymentsList() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <Text style={{ ...typography.bodyStrong, color: colors.bright, flex: 1 }} numberOfLines={2}>
-                {paymentLabel(p, itemName)}
+                {paymentLabel(t, p, itemName)}
               </Text>
-              <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{formatPrice(p.amount / 100, p.currency)}</Text>
+              <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{formatPrice(p.amount / 100, p.currency, locale)}</Text>
             </View>
             {p.recipient ? (
-              <Text style={{ ...typography.caption, color: colors.muted }}>hediye → @{p.recipient.username}</Text>
+              <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.payments.gift", { username: p.recipient.username })}</Text>
             ) : null}
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <Text style={{ ...typography.caption, color: colors.muted }}>
-                {new Date(p.paidAt ?? p.createdAt).toLocaleDateString("tr-TR")}
+                {new Date(p.paidAt ?? p.createdAt).toLocaleDateString(locale)}
               </Text>
-              <Text style={{ ...typography.caption, ...fw(700), color: STATUS_COLOR[p.status] }}>{STATUS_LABEL[p.status]}</Text>
+              <Text style={{ ...typography.caption, ...fw(700), color: STATUS_COLOR[p.status] }}>{t(STATUS_LABEL[p.status])}</Text>
               <View style={{ flex: 1 }} />
               <Icon name="file" size={12} color={colors.muted} />
               <Text style={{ fontSize: 12, fontFamily: "monospace", color: colors.muted }} numberOfLines={1}>

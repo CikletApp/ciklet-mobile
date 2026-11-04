@@ -154,7 +154,7 @@ function GameDetailBody({ data }: { data: GameDetailsResponse }) {
             {data.rank ? (
               <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.full, backgroundColor: colors.brand }}>
                 <Text style={{ fontSize: 11, ...fw(800), color: colors.onBrand }}>
-                  🏆 #{data.rank.rank} · Ciklet&apos;te en çok {isGame ? "oynanan" : "kullanılan"}
+                  {isGame ? t("moreScreens.gameDetail.rankGame", { rank: data.rank.rank }) : t("moreScreens.gameDetail.rankApp", { rank: data.rank.rank })}
                 </Text>
               </View>
             ) : null}
@@ -198,7 +198,7 @@ function GameDetailBody({ data }: { data: GameDetailsResponse }) {
         {data.friends.length > 0 ? <FriendsCard data={data} /> : null}
 
         {data.servers.length > 0 ? (
-          <Card title="Topluluk">
+          <Card title={t("moreScreens.gameDetail.community")}>
             {data.servers.map((s) => {
               const icon = resolveMediaUrl(s.imageUrl);
               return (
@@ -214,11 +214,11 @@ function GameDetailBody({ data }: { data: GameDetailsResponse }) {
                     <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>{s.name}</Text>
                     <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>
                       {s.onlineCount !== null ? `● ${number(s.onlineCount)}  ` : ""}
-                      {number(s.memberCount)} üye
+                      {t("moreScreens.gameDetail.members", { count: number(s.memberCount) })}
                     </Text>
                   </View>
                   <Button
-                    label={s.isMember ? "Görüntüle" : "Katıl"}
+                    label={s.isMember ? t("moreScreens.gameDetail.view") : t("moreScreens.gameDetail.join")}
                     
                     variant={s.isMember ? "secondary" : "primary"}
                     onPress={() => router.push(`/servers/${s.id}`)}
@@ -230,10 +230,10 @@ function GameDetailBody({ data }: { data: GameDetailsResponse }) {
         ) : null}
 
         {hasReviews ? (
-          <Card title="İncelemeler">
+          <Card title={t("moreScreens.gameDetail.reviews")}>
             {ext.reviews ? (
               <View>
-                <Text style={{ ...typography.caption, color: colors.muted }}>Steam kullanıcı incelemeleri</Text>
+                <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.gameDetail.steamReviews")}</Text>
                 <Text
                   style={{
                     ...typography.bodyStrong,
@@ -243,7 +243,7 @@ function GameDetailBody({ data }: { data: GameDetailsResponse }) {
                   {ext.reviews.label}
                 </Text>
                 <Text style={{ ...typography.caption, color: colors.muted }}>
-                  %{ext.reviews.percent} olumlu · {number(ext.reviews.total)} inceleme
+                  {t("moreScreens.gameDetail.reviewSummary", { percent: ext.reviews.percent, total: number(ext.reviews.total) })}
                 </Text>
               </View>
             ) : null}
@@ -276,7 +276,7 @@ function GameDetailBody({ data }: { data: GameDetailsResponse }) {
         {hasDetails ? <DetailsCard data={data} /> : null}
 
         {ext.similar.length > 0 ? (
-          <Strip title="Benzer Oyunlar">
+          <Strip title={t("moreScreens.gameDetail.similar")}>
             {ext.similar.map((game) => {
               const uri = resolveMediaUrl(game.coverUrl);
               return (
@@ -302,7 +302,7 @@ function GameDetailBody({ data }: { data: GameDetailsResponse }) {
         ) : null}
 
         {ext.news.length > 0 ? (
-          <Strip title="Haberler">
+          <Strip title={t("moreScreens.gameDetail.news")}>
             {ext.news.map((item) => {
               const uri = resolveMediaUrl(item.imageUrl ?? ext.headerUrl);
               return (
@@ -371,19 +371,20 @@ function Strip({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function CikletInfoCard({ data }: { data: GameDetailsResponse }) {
+  const t = useT();
   const locale = INTL_LOCALES[useLocale()];
   const ext = data.external;
   const isGame = data.bucket === "game";
   const hours = data.usage ? Math.round(data.usage.totalMs / 3_600_000) : 0;
   const stats = [
-    data.usage && { label: isGame ? "Oynayan" : "Kullanan", value: `${data.usage.players.toLocaleString(locale)} kişi` },
-    data.usage && { label: "Toplam süre", value: hours > 0 ? `${hours.toLocaleString(locale)} sa` : playtimeLabel(data.usage.totalMs) },
-    data.rank && { label: "Ciklet sırası", value: `#${data.rank.rank}` },
+    data.usage && { label: isGame ? t("moreScreens.gameDetail.players") : t("moreScreens.gameDetail.users"), value: t("moreScreens.gameDetail.people", { count: data.usage.players.toLocaleString(locale) }) },
+    data.usage && { label: t("moreScreens.gameDetail.totalTime"), value: hours > 0 ? t("moreScreens.gameDetail.hours", { count: hours.toLocaleString(locale) }) : playtimeLabel(data.usage.totalMs) },
+    data.rank && { label: t("moreScreens.gameDetail.rank"), value: `#${data.rank.rank}` },
   ].filter((s): s is { label: string; value: string } => Boolean(s));
   return (
     <Card>
       <Text style={{ ...typography.caption, color: colors.muted }}>
-        {[ext.genres[0] ?? (isGame ? "Oyun" : "Program"), ext.developers[0]].filter(Boolean).join(" · ")}
+        {[ext.genres[0] ?? (isGame ? t("moreScreens.gameDetail.game") : t("moreScreens.gameDetail.app")), ext.developers[0]].filter(Boolean).join(" · ")}
       </Text>
       {stats.length > 0 ? (
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
@@ -396,14 +397,16 @@ function CikletInfoCard({ data }: { data: GameDetailsResponse }) {
         </View>
       ) : null}
       {!ext.shortDescription && !ext.description ? (
-        <Text style={{ ...typography.caption, color: colors.muted }}>Bu {isGame ? "oyunun" : "programın"} ayrıntıları yakında.</Text>
+        <Text style={{ ...typography.caption, color: colors.muted }}>{isGame ? t("moreScreens.gameDetail.gameSoon") : t("moreScreens.gameDetail.appSoon")}</Text>
       ) : null}
     </Card>
   );
 }
 
 function OwnerCard({ data }: { data: GameDetailsResponse }) {
-  const locale = INTL_LOCALES[useLocale()];
+  const t = useT();
+  const lang = useLocale();
+  const locale = INTL_LOCALES[lang];
   const owner = data.owner!;
   const setHidden = useSetGameHidden();
   const [hidden, setHiddenState] = useState(owner.hidden);
@@ -413,29 +416,29 @@ function OwnerCard({ data }: { data: GameDetailsResponse }) {
       { name: data.name, type: data.type, hidden: !hidden },
       {
         onSuccess: () => {
-          showToast(hidden ? "Profilinde yeniden gösteriliyor" : "Profilinde gizlendi");
+          showToast(hidden ? t("moreScreens.gameDetail.shownAgain") : t("moreScreens.gameDetail.hiddenToast"));
           setHiddenState(!hidden);
         },
-        onError: () => showToast("Değişiklik kaydedilemedi", "error"),
+        onError: () => showToast(t("moreScreens.gameDetail.saveFailed"), "error"),
       }
     );
 
   return (
-    <Card title={owner.isSelf ? "Senin süren" : `${possessiveTr(owner.displayName)} süresi`}>
+    <Card title={owner.isSelf ? t("moreScreens.gameDetail.yourTime") : t("moreScreens.gameDetail.theirTime", { name: lang === "tr" ? possessiveTr(owner.displayName) : owner.displayName })}>
       <Text style={{ fontSize: 22, ...fw(800), color: colors.bright }}>{playtimeLabel(owner.playtimeMs)}</Text>
       <View style={{ flexDirection: "row", gap: spacing.lg }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ ...typography.caption, color: colors.muted }}>Oturum</Text>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.gameDetail.sessions")}</Text>
           <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{owner.sessionCount.toLocaleString(locale)}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ ...typography.caption, color: colors.muted }}>Son oynama</Text>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.gameDetail.lastPlayed")}</Text>
           <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>{relativeTime(owner.lastPlayedAt, locale)}</Text>
         </View>
       </View>
       {owner.isSelf ? (
         <Button
-          label={hidden ? "Profilimde göster" : "Profilimde gösterme"}
+          label={hidden ? t("moreScreens.gameDetail.showOnProfile") : t("moreScreens.gameDetail.hideOnProfile")}
           icon={hidden ? "eye" : "eye-off"}
           variant="secondary"
           
@@ -509,9 +512,10 @@ function Description({ data }: { data: GameDetailsResponse }) {
 }
 
 function FriendsCard({ data }: { data: GameDetailsResponse }) {
+  const t = useT();
   const rest = data.friendsTotal - data.friends.length;
   return (
-    <Card title="Oynayan arkadaşların">
+    <Card title={t("moreScreens.gameDetail.friends")}>
       {data.friends.map((f) => (
         <Pressable
           key={f.id}
@@ -522,12 +526,12 @@ function FriendsCard({ data }: { data: GameDetailsResponse }) {
           <View style={{ flex: 1 }}>
             <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>{f.name || f.username}</Text>
             <Text style={{ ...typography.caption, ...fw(f.playingNow ? 700 : 400), color: f.playingNow ? colors.success : colors.muted }} numberOfLines={1}>
-              {f.playingNow ? "● Şu an oynuyor" : playtimeLabel(f.playtimeMs)}
+              {f.playingNow ? t("moreScreens.gameDetail.playingNow") : playtimeLabel(f.playtimeMs)}
             </Text>
           </View>
         </Pressable>
       ))}
-      {rest > 0 ? <Text style={{ fontSize: 11, color: colors.muted }}>ve {rest} arkadaşın daha</Text> : null}
+      {rest > 0 ? <Text style={{ fontSize: 11, color: colors.muted }}>{t("moreScreens.gameDetail.moreFriends", { count: rest })}</Text> : null}
     </Card>
   );
 }

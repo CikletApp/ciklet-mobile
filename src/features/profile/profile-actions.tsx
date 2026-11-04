@@ -8,6 +8,7 @@ import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import type { ProfileCardResponse } from "@/api/types";
 import { ActionSheet, Button, Icon, Pressable, showDialog, showToast, type ActionSheetItem } from "@/components/ui";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -29,6 +30,7 @@ export function useProfileFriendship(
   meId: string | undefined
 ) {
   const queryClient = useQueryClient();
+  const t = useT();
   const mutation = useMutation({
     mutationFn: (work: () => Promise<unknown>) => work(),
     onSettled: () => {
@@ -42,7 +44,7 @@ export function useProfileFriendship(
     if (mutation.isPending) return;
     mutation.mutate(work, {
       onSuccess: () => showToast(success),
-      onError: (reason) => showToast(errorText(reason, "İşlem yapılamadı."), "error"),
+      onError: (reason) => showToast(errorText(reason, t("moreScreens.profileActions.failed")), "error"),
     });
   };
 
@@ -59,27 +61,27 @@ export function useProfileFriendship(
     add: () =>
       run(
         () => api(endpoints.friends, { method: "POST", body: { targetUsername: target.username } }),
-        "Arkadaşlık isteği gönderildi!"
+        t("moreScreens.profileActions.requestSent")
       ),
     accept: () => {
       if (!friendship) return;
       run(
         () => api(endpoints.friend(friendship.id), { method: "PATCH", body: { action: "ACCEPT" } }),
-        "Arkadaşlık isteği kabul edildi!"
+        t("moreScreens.profileActions.requestAccepted")
       );
     },
     cancel: () => {
       if (!friendship) return;
-      run(() => api(endpoints.friend(friendship.id), { method: "DELETE" }), "İstek iptal edildi.");
+      run(() => api(endpoints.friend(friendship.id), { method: "DELETE" }), t("moreScreens.profileActions.requestCancelled"));
     },
     remove: () => {
       if (!friendship) return;
-      run(() => api(endpoints.friend(friendship.id), { method: "DELETE" }), "Arkadaşlıktan çıkarıldı.");
+      run(() => api(endpoints.friend(friendship.id), { method: "DELETE" }), t("moreScreens.profileActions.removed"));
     },
     block: () =>
-      run(() => api(endpoints.friendBlock, { method: "POST", body: { profileId: target.id } }), "Kullanıcı engellendi."),
+      run(() => api(endpoints.friendBlock, { method: "POST", body: { profileId: target.id } }), t("moreScreens.profileActions.blocked")),
     unblock: () =>
-      run(() => api(endpoints.friendBlock, { method: "DELETE", body: { profileId: target.id } }), "Engel kaldırıldı."),
+      run(() => api(endpoints.friendBlock, { method: "DELETE", body: { profileId: target.id } }), t("moreScreens.profileActions.unblocked")),
   };
 }
 
@@ -87,10 +89,11 @@ export type ProfileFriendship = ReturnType<typeof useProfileFriendship>;
 
 /** Profil başlığındaki arkadaşlık düğmesi — duruma göre tek düğme (web ile aynı). */
 export function ProfileFriendButton({ friendship }: { friendship: ProfileFriendship }) {
+  const t = useT();
   if (friendship.isBlocked) {
     return (
       <Button
-        label={friendship.iBlocked ? "Engeli Kaldır" : "Engellendi"}
+        label={friendship.iBlocked ? t("moreScreens.profileActions.unblock") : t("moreScreens.profileActions.blockedLabel")}
         icon="shield"
         variant="danger"
         disabled={!friendship.iBlocked || friendship.busy}
@@ -99,15 +102,15 @@ export function ProfileFriendButton({ friendship }: { friendship: ProfileFriends
     );
   }
   if (friendship.isFriend) {
-    return <SquareIcon icon="check" label="Arkadaşsınız" />;
+    return <SquareIcon icon="check" label={t("moreScreens.profileActions.friends")} />;
   }
   if (friendship.isReceiver) {
-    return <SquareIcon icon="check" label="İsteği Kabul Et" onPress={friendship.accept} disabled={friendship.busy} />;
+    return <SquareIcon icon="check" label={t("moreScreens.profileActions.accept")} onPress={friendship.accept} disabled={friendship.busy} />;
   }
   if (friendship.isPending) {
-    return <SquareIcon icon="user-plus" label="İstek Gönderildi" onPress={friendship.cancel} disabled={friendship.busy} dim />;
+    return <SquareIcon icon="user-plus" label={t("moreScreens.profileActions.pending")} onPress={friendship.cancel} disabled={friendship.busy} dim />;
   }
-  return <SquareIcon icon="user-plus" label="Arkadaş Ekle" onPress={friendship.add} disabled={friendship.busy} />;
+  return <SquareIcon icon="user-plus" label={t("moreScreens.profileActions.add")} onPress={friendship.add} disabled={friendship.busy} />;
 }
 
 export function SquareIcon({
@@ -169,56 +172,57 @@ export function ProfileMoreSheet({
   onCall: (kind: "audio" | "video") => void;
 }) {
   const [reporting, setReporting] = useState(false);
+  const t = useT();
 
   const copyId = async () => {
     try {
       const Clipboard = await import("expo-clipboard");
       await Clipboard.setStringAsync(profileId);
-      showToast("Kullanıcı kimliği kopyalandı");
+      showToast(t("moreScreens.profileActions.idCopied"));
     } catch {
-      showToast("Kopyalanamadı", "error");
+      showToast(t("moreScreens.profileActions.copyFailed"), "error");
     }
   };
 
   const items: (ActionSheetItem | "separator")[] = [];
   if (isPerson && friendship.isFriend) {
     items.push(
-      { key: "audio", label: "Sesli Arama Başlat", icon: "phone", onPress: () => onCall("audio") },
-      { key: "video", label: "Görüntülü Arama Başlat", icon: "video", onPress: () => onCall("video") },
+      { key: "audio", label: t("moreScreens.profileActions.voiceCall"), icon: "phone", onPress: () => onCall("audio") },
+      { key: "video", label: t("moreScreens.profileActions.videoCall"), icon: "video", onPress: () => onCall("video") },
       "separator"
     );
   }
-  items.push({ key: "copy", label: "Kullanıcı Kimliğini Kopyala", icon: "copy", onPress: () => void copyId() });
+  items.push({ key: "copy", label: t("moreScreens.profileActions.copyId"), icon: "copy", onPress: () => void copyId() });
   if (isPerson) {
     items.push("separator");
     if (friendship.isFriend) {
       items.push({
         key: "remove",
-        label: "Arkadaşlıktan Çıkar",
+        label: t("moreScreens.profileActions.remove"),
         icon: "close",
         onPress: () =>
-          showDialog("Arkadaşlıktan çıkar", `${displayName} arkadaş listenden çıkarılsın mı?`, [
-            { text: "Vazgeç", style: "cancel" },
-            { text: "Arkadaşlıktan Çıkar", style: "destructive", onPress: friendship.remove },
+          showDialog(t("moreScreens.profileActions.removeTitle"), t("moreScreens.profileActions.removeBody", { name: displayName }), [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("moreScreens.profileActions.remove"), style: "destructive", onPress: friendship.remove },
           ]),
       });
     }
     if (!friendship.isBlocked) {
       items.push({
         key: "block",
-        label: "Engelle",
+        label: t("moreScreens.profileActions.block"),
         icon: "shield",
         destructive: true,
         onPress: () =>
-          showDialog("Engelle", `${displayName} engellensin mi? Sana mesaj gönderemez ve seni arayamaz.`, [
-            { text: "Vazgeç", style: "cancel" },
-            { text: "Engelle", style: "destructive", onPress: friendship.block },
+          showDialog(t("moreScreens.profileActions.block"), t("moreScreens.profileActions.blockBody", { name: displayName }), [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("moreScreens.profileActions.block"), style: "destructive", onPress: friendship.block },
           ]),
       });
     }
     items.push({
       key: "report",
-      label: "Kullanıcıyı Bildir",
+      label: t("moreScreens.profileActions.report"),
       icon: "flag",
       destructive: true,
       onPress: () => setReporting(true),
@@ -237,19 +241,19 @@ export function ProfileMoreSheet({
   );
 }
 
-const REASONS: { value: string; label: string }[] = [
-  { value: "SPAM", label: "Spam veya reklam" },
-  { value: "HARASSMENT", label: "Taciz veya zorbalık" },
-  { value: "HATE_SPEECH", label: "Nefret söylemi" },
-  { value: "VIOLENCE", label: "Şiddet veya tehdit" },
-  { value: "SELF_HARM", label: "Kendine zarar / intihar" },
-  { value: "CSAM", label: "Çocuk istismarı" },
-  { value: "ILLEGAL", label: "Yasa dışı içerik" },
-  { value: "IMPERSONATION", label: "Taklit / sahtecilik" },
-  { value: "OTHER", label: "Diğer" },
+const REASONS: { value: string; label: MessageKey }[] = [
+  { value: "SPAM", label: "moreScreens.report.reasons.SPAM" },
+  { value: "HARASSMENT", label: "moreScreens.report.reasons.HARASSMENT" },
+  { value: "HATE_SPEECH", label: "moreScreens.report.reasons.HATE_SPEECH" },
+  { value: "VIOLENCE", label: "moreScreens.report.reasons.VIOLENCE" },
+  { value: "SELF_HARM", label: "moreScreens.report.reasons.SELF_HARM" },
+  { value: "CSAM", label: "moreScreens.report.reasons.CSAM" },
+  { value: "ILLEGAL", label: "moreScreens.report.reasons.ILLEGAL" },
+  { value: "IMPERSONATION", label: "moreScreens.report.reasons.IMPERSONATION" },
+  { value: "OTHER", label: "moreScreens.report.reasons.OTHER" },
 ];
 
-const TYPE_LABEL = { USER: "kullanıcıyı", BOT: "botu" } as const;
+const TYPE_LABEL: Record<"USER" | "BOT", MessageKey> = { USER: "moreScreens.report.titleUser", BOT: "moreScreens.report.titleBot" };
 
 /** Şikayet sayfası — web `components/reports/report-modal.tsx` (USER/BOT). */
 export function ReportSheet({
@@ -265,6 +269,7 @@ export function ReportSheet({
   const [reason, setReason] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   const close = () => {
     onClose();
@@ -286,10 +291,10 @@ export function ReportSheet({
           detail: detail.trim() || null,
         },
       });
-      showToast("Şikayetin alındı. Teşekkürler.");
+      showToast(t("moreScreens.report.sent"));
       close();
     } catch (reason) {
-      showToast(errorText(reason, "Şikayet gönderilemedi."), "error");
+      showToast(errorText(reason, t("moreScreens.report.failed")), "error");
     } finally {
       setBusy(false);
     }
@@ -300,7 +305,7 @@ export function ReportSheet({
       <RNPressable
         onPress={close}
         accessibilityRole="button"
-        accessibilityLabel="Kapat"
+        accessibilityLabel={t("common.close")}
         style={{ flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrim }}
       >
         <RNPressable
@@ -319,7 +324,7 @@ export function ReportSheet({
           }}
         >
           <Text style={{ ...typography.body, ...fw(700), color: colors.bright }}>
-            Bu {TYPE_LABEL[target.type]} şikayet et
+            {t(TYPE_LABEL[target.type])}
           </Text>
           <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: spacing.xs }}>
             {REASONS.map((r) => {
@@ -357,7 +362,7 @@ export function ReportSheet({
                       <View style={{ width: 6, height: 6, borderRadius: radii.full, backgroundColor: colors.brand }} />
                     ) : null}
                   </View>
-                  <Text style={{ ...typography.caption, color: colors.text }}>{r.label}</Text>
+                  <Text style={{ ...typography.caption, color: colors.text }}>{t(r.label)}</Text>
                 </Pressable>
               );
             })}
@@ -365,7 +370,7 @@ export function ReportSheet({
           <TextInput
             value={detail}
             onChangeText={setDetail}
-            placeholder="Eklemek istediğin detay (isteğe bağlı)"
+            placeholder={t("moreScreens.report.detail")}
             placeholderTextColor={colors.muted}
             multiline
             maxLength={1000}
@@ -383,9 +388,9 @@ export function ReportSheet({
             }}
           />
           <View style={{ flexDirection: "row", gap: spacing.sm, justifyContent: "flex-end" }}>
-            <Button label="Vazgeç" variant="ghost" onPress={close} />
+            <Button label={t("common.cancel")} variant="ghost" onPress={close} />
             <Button
-              label={busy ? "Gönderiliyor…" : "Şikayet Et"}
+              label={busy ? t("moreScreens.report.sending") : t("moreScreens.report.submit")}
               variant="danger"
               disabled={!reason || busy}
               onPress={() => void submit()}

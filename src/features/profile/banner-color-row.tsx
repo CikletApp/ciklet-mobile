@@ -3,6 +3,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
 import { ColorPickerSheet } from "@/features/appearance/color-picker-sheet";
+import { useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /** web profile-editor/banner-edit `PRESETS` ile aynı hazır renkler. */
@@ -16,7 +17,7 @@ export function BannerColorRow({
   value,
   onChange,
   disabled,
-  label = "AFİŞ RENGİ",
+  label,
 }: {
   value: string | null | undefined;
   onChange: (color: string) => void;
@@ -24,13 +25,14 @@ export function BannerColorRow({
   label?: string;
 }) {
   const [customOpen, setCustomOpen] = useState(false);
+  const t = useT();
   const current = (value ?? "").toLowerCase();
   const hex = /^#[0-9a-f]{6}$/.test(current) ? current : "#ffb300";
 
   return (
     <View style={{ gap: spacing.sm, opacity: disabled ? 0.6 : 1 }}>
-      <Text style={{ ...typography.overline, color: colors.muted }}>{label}</Text>
-      <Text style={{ ...typography.caption, color: colors.muted }}>Görsel rengin yerine geçer. 960×360 önerilir.</Text>
+      <Text style={{ ...typography.overline, color: colors.muted }}>{label ?? t("moreScreens.banner.label")}</Text>
+      <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.banner.hint")}</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }} accessibilityRole="radiogroup">
         {BANNER_PRESETS.map((preset) => {
           const active = current === preset;
@@ -74,12 +76,12 @@ export function BannerColorRow({
           })}
         >
           <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: value ?? colors.brand }} />
-          <Text style={{ ...typography.caption, color: colors.text }}>Özel renk</Text>
+          <Text style={{ ...typography.caption, color: colors.text }}>{t("moreScreens.banner.custom")}</Text>
         </Pressable>
       </View>
       <ColorPickerSheet
         visible={customOpen}
-        title="Afiş Rengi"
+        title={t("moreScreens.banner.title")}
         value={hex}
         onClose={() => setCustomOpen(false)}
         onApply={(color) => {

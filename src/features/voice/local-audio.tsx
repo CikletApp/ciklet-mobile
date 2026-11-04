@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { useLocalParticipant, useRemoteParticipants } from "@livekit/react-native";
 import { create } from "zustand";
 
+import { useT } from "@/lib/i18n";
 import { usePreferences } from "@/stores/preferences";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -100,6 +101,7 @@ export function LocalAudioSync() {
 
 /** Katılımcı sayfasının başlığı: ad + "Ses Seviyesi" kaydırıcısı (0–200). */
 export function ParticipantVolumeHeader({ identity, name }: { identity: string; name: string }) {
+  const t = useT();
   const volume = useLocalAudio((s) => s.volumes[identity] ?? 100);
   const isMuted = useLocalAudio((s) => s.muted[identity] === true);
   const shown = isMuted ? 0 : volume;
@@ -109,11 +111,11 @@ export function ParticipantVolumeHeader({ identity, name }: { identity: string; 
         {name}
       </Text>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ ...typography.caption, color: colors.muted }}>Ses Seviyesi</Text>
+        <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.localAudio.volume")}</Text>
         <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }}>{shown}%</Text>
       </View>
-      <VolumeSlider value={shown} max={200} onChange={(next) => setParticipantVolume(identity, next)} label={`${name} ses seviyesi`} />
-      <Text style={{ fontSize: 11, color: colors.muted }}>100 normal ses, 200 maksimum boost sağlar.</Text>
+      <VolumeSlider value={shown} max={200} onChange={(next) => setParticipantVolume(identity, next)} label={t("moreScreens.localAudio.volumeOf", { name })} />
+      <Text style={{ fontSize: 11, color: colors.muted }}>{t("moreScreens.localAudio.hint")}</Text>
     </View>
   );
 }

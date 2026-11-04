@@ -8,6 +8,7 @@ import { qk } from "@/api/query-keys";
 import { useAnnotation, useBlockUser, useOpenDirect, useRemoveFriend, useSaveAnnotation, type FriendEntry } from "@/api/hooks";
 import { ActionSheet, showDialog, showToast, type ActionSheetItem } from "@/components/ui";
 import { displayNameOf } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { useCallActions } from "@/realtime/use-call-events";
 
 /**
@@ -38,6 +39,7 @@ export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | nu
   const annotation = useAnnotation(entry?.profile.id);
   const saveAnnotation = useSaveAnnotation(entry?.profile.id ?? "");
   const [inviteFor, setInviteFor] = useState<FriendEntry | null>(null);
+  const t = useT();
   // Kısa ömürlü: katılma/ayrılma ya da rol değişikliği bir dakikada yansısın (web ile aynı).
   const invitable = useQuery({
     queryKey: ["invitable-servers"],
@@ -73,37 +75,37 @@ export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | nu
         body: { content: `https://ciklet.xyz/i/${server.inviteCode}` },
       });
       void queryClient.invalidateQueries({ queryKey: qk.directs });
-      showToast(`${server.name} davetiyesi ${friendName} kişisine gönderildi.`);
+      showToast(t("moreScreens.friendActions.inviteSent", { server: server.name, name: friendName }));
     } catch (reason) {
-      showToast(failText(reason, "Davet gönderilemedi."), "error");
+      showToast(failText(reason, t("moreScreens.friendActions.inviteFailed")), "error");
     }
   };
 
   const items: (ActionSheetItem | "separator")[] = entry
     ? [
-        { key: "profile", label: "Profil", icon: "user", onPress: () => router.push(`/profile/${entry.profile.id}`) },
-        { key: "message", label: "Mesaj Gönder", icon: "message", onPress: () => openChat(entry) },
-        { key: "call", label: "Bir Arama Başlat", icon: "phone", onPress: () => startCall(entry) },
+        { key: "profile", label: t("moreScreens.friendActions.profile"), icon: "user", onPress: () => router.push(`/profile/${entry.profile.id}`) },
+        { key: "message", label: t("moreScreens.friendActions.message"), icon: "message", onPress: () => openChat(entry) },
+        { key: "call", label: t("moreScreens.friendActions.call"), icon: "phone", onPress: () => startCall(entry) },
         "separator",
-        { key: "invite", label: "Sunucuya Davet Et", icon: "user-plus", onPress: () => setInviteFor(entry) },
+        { key: "invite", label: t("moreScreens.friendActions.invite"), icon: "user-plus", onPress: () => setInviteFor(entry) },
         {
           key: "remove",
-          label: "Arkadaşı Çıkar",
+          label: t("moreScreens.friendActions.remove"),
           icon: "close",
           onPress: () =>
             showDialog(
-              `'${name}' Arkadaşlıktan Çıkarılsın mı?`,
-              `${name} adlı kullanıcıyı arkadaşlarından kalıcı olarak çıkarmak istediğine emin misin?`,
+              t("moreScreens.friendActions.removeTitle", { name }),
+              t("moreScreens.friendActions.removeBody", { name }),
               [
-                { text: "Vazgeç", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                  text: "Arkadaşı Çıkar",
+                  text: t("moreScreens.friendActions.remove"),
                   style: "destructive",
                   onPress: () =>
                     removeFriend.mutate(entry.id, {
                       onSuccess: () => {
                         void queryClient.invalidateQueries({ queryKey: qk.profileCard(entry.profile.id) });
-                        showToast(`${name} arkadaşlarından çıkarıldı.`);
+                        showToast(t("moreScreens.friendActions.removed", { name }));
                       },
                     }),
                 },
@@ -112,7 +114,7 @@ export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | nu
         },
         {
           key: "ignore",
-          label: annotation?.ignored ? "Yoksaymayı Bırak" : "Yoksay",
+          label: annotation?.ignored ? t("moreScreens.friendActions.unignore") : t("moreScreens.friendActions.ignore"),
           icon: "eye-off",
           onPress: () => {
             const ignored = !annotation?.ignored;
@@ -122,30 +124,30 @@ export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | nu
                 onSuccess: () =>
                   showToast(
                     ignored
-                      ? `${name} yoksayılıyor. Mesajları daraltılacak ve sana bildirim göndermeyecek.`
-                      : `${name} artık yoksayılmıyor.`
+                      ? t("moreScreens.friendActions.ignored", { name })
+                      : t("moreScreens.friendActions.unignored", { name })
                   ),
-                onError: (reason) => showToast(failText(reason, "İşlem gerçekleştirilemedi."), "error"),
+                onError: (reason) => showToast(failText(reason, t("moreScreens.friendActions.actionFailed")), "error"),
               }
             );
           },
         },
         {
           key: "block",
-          label: "Engelle",
+          label: t("moreScreens.friendActions.block"),
           icon: "shield",
           destructive: true,
           onPress: () =>
             showDialog(
-              `'${name}' Engellensin mi?`,
-              "Engellediğin kişi sana mesaj gönderemez ve seni arayamaz; arkadaşlığınız da sona erer.",
+              t("moreScreens.friendActions.blockTitle", { name }),
+              t("moreScreens.friendActions.blockBody"),
               [
-                { text: "Vazgeç", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                  text: "Engelle",
+                  text: t("moreScreens.friendActions.block"),
                   style: "destructive",
                   onPress: () =>
-                    blockUser.mutate(entry.profile.id, { onSuccess: () => showToast(`${name} engellendi.`) }),
+                    blockUser.mutate(entry.profile.id, { onSuccess: () => showToast(t("moreScreens.friendActions.blocked", { name })) }),
                 },
               ]
             ),
@@ -156,11 +158,11 @@ export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | nu
   const inviteItems: ActionSheetItem[] = !inviteFor
     ? []
     : serversFailed
-      ? [{ key: "failed", label: "Sunucular alınamadı", icon: "close", onPress: () => undefined }]
+      ? [{ key: "failed", label: t("moreScreens.friendActions.serversFailed"), icon: "close", onPress: () => undefined }]
       : !servers
-        ? [{ key: "loading", label: "Yükleniyor…", icon: "clock", onPress: () => undefined }]
+        ? [{ key: "loading", label: t("moreScreens.friendActions.loading"), icon: "clock", onPress: () => undefined }]
         : servers.length === 0
-          ? [{ key: "none", label: "Davet edebileceğin sunucu yok", icon: "close", onPress: () => undefined }]
+          ? [{ key: "none", label: t("moreScreens.friendActions.noServers"), icon: "close", onPress: () => undefined }]
           : servers.map((server) => ({
               key: server.id,
               label: server.name,
@@ -175,7 +177,7 @@ export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | nu
       <ActionSheet
         visible={Boolean(inviteFor)}
         onClose={() => setInviteFor(null)}
-        items={[{ heading: "Sunucuya Davet Et" }, ...inviteItems]}
+        items={[{ heading: t("moreScreens.friendActions.invite") }, ...inviteItems]}
       />
     </>
   );

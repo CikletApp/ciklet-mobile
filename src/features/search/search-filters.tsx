@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/api/client";
 import { Avatar, Button, Icon, Pressable } from "@/components/ui";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -19,13 +20,6 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 export type SearchHasKind = "image" | "video" | "link" | "file" | "embed";
 export const SEARCH_HAS_KINDS: readonly SearchHasKind[] = ["image", "video", "link", "file", "embed"];
-export const SEARCH_HAS_LABELS: Record<SearchHasKind, string> = {
-  image: "görsel",
-  video: "video",
-  link: "bağlantı",
-  file: "dosya",
-  embed: "gömülü",
-};
 
 export type SearchOrder = "newest" | "oldest";
 
@@ -122,6 +116,7 @@ export function SearchFilterBar({
   onClear: () => void;
 }) {
   const count = activeFilterCount(filters);
+  const t = useT();
   const chip = (label: string, active: boolean, onPress: () => void, key: string) => (
     <Pressable
       key={key}
@@ -152,11 +147,11 @@ export function SearchFilterBar({
         paddingVertical: spacing.sm,
       }}
     >
-      {chip(count > 0 ? `Filtreler (${count})` : "Filtreler", count > 0, onOpenFilters, "filters")}
-      {count > 0 ? chip("Temizle", false, onClear, "clear") : null}
+      {chip(count > 0 ? t("moreScreens.search.filtersCount", { count }) : t("moreScreens.search.filters"), count > 0, onOpenFilters, "filters")}
+      {count > 0 ? chip(t("moreScreens.search.clear"), false, onClear, "clear") : null}
       <View style={{ flex: 1 }} />
-      {chip("En yeni", order === "newest", () => onOrderChange("newest"), "newest")}
-      {chip("En eski", order === "oldest", () => onOrderChange("oldest"), "oldest")}
+      {chip(t("moreScreens.search.newest"), order === "newest", () => onOrderChange("newest"), "newest")}
+      {chip(t("moreScreens.search.oldest"), order === "oldest", () => onOrderChange("oldest"), "oldest")}
     </View>
   );
 }
@@ -220,6 +215,7 @@ export function SearchFiltersSheet({
 }) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<SearchFilters>(value);
+  const t = useT();
   // Her açılışta uygulanmış ölçütten başla (render sırasında, efekt turu olmadan).
   const [openedWith, setOpenedWith] = useState<SearchFilters | null>(null);
   if (visible && openedWith !== value) {
@@ -235,7 +231,7 @@ export function SearchFiltersSheet({
       <RNPressable
         onPress={onClose}
         accessibilityRole="button"
-        accessibilityLabel="Kapat"
+        accessibilityLabel={t("common.close")}
         style={{ flex: 1, justifyContent: "flex-end", backgroundColor: colors.scrim }}
       >
         <RNPressable
@@ -253,8 +249,8 @@ export function SearchFiltersSheet({
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.lg, paddingBottom: spacing.sm }}>
-            <Text style={{ ...typography.body, ...fw(700), color: colors.bright, flex: 1 }}>Filtreler</Text>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Kapat" hitSlop={8}>
+            <Text style={{ ...typography.body, ...fw(700), color: colors.bright, flex: 1 }}>{t("moreScreens.search.filters")}</Text>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} hitSlop={8}>
               <Icon name="close" size={18} color={colors.muted} />
             </Pressable>
           </View>
@@ -262,14 +258,14 @@ export function SearchFiltersSheet({
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.lg }}
           >
-            <Section title="Tarafından" description="Seçilen kullanıcılardan herhangi biri tarafından gönderildi">
+            <Section title={t("moreScreens.search.from")} description={t("moreScreens.search.fromHint")}>
               <PeoplePicker
                 source={source}
                 selected={draft.from}
                 onChange={(from) => setDraft((d) => ({ ...d, from }))}
               />
             </Section>
-            <Section title="Şunu içeren" description="Seçilen veri türlerinden herhangi birini içerir">
+            <Section title={t("moreScreens.search.has")} description={t("moreScreens.search.hasHint")}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
                 {SEARCH_HAS_KINDS.map((kind) => {
                   const on = draft.has.includes(kind);
@@ -291,27 +287,27 @@ export function SearchFiltersSheet({
                       }}
                     >
                       <Text style={{ ...typography.caption, ...fw(600), color: on ? colors.brand : colors.text }}>
-                        {SEARCH_HAS_LABELS[kind]}
+                        {t(`moreScreens.search.kinds.${kind}` as MessageKey)}
                       </Text>
                     </Pressable>
                   );
                 })}
               </View>
             </Section>
-            <Section title="Bahsedilmeler" description="Seçilen kullanıcılardan herhangi birinden bahseder">
+            <Section title={t("moreScreens.search.mentions")} description={t("moreScreens.search.mentionsHint")}>
               <PeoplePicker
                 source={source}
                 selected={draft.mentions}
                 onChange={(mentions) => setDraft((d) => ({ ...d, mentions }))}
               />
             </Section>
-            <Section title="Tarih" description="Mesajın gönderildiği gün aralığı; iki uç da dâhil">
+            <Section title={t("moreScreens.search.date")} description={t("moreScreens.search.dateHint")}>
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                <DayField label="Başlangıç" value={draft.after} onChange={(after) => setDraft((d) => ({ ...d, after }))} />
-                <DayField label="Bitiş" value={draft.before} onChange={(before) => setDraft((d) => ({ ...d, before }))} />
+                <DayField label={t("moreScreens.search.start")} value={draft.after} onChange={(after) => setDraft((d) => ({ ...d, after }))} />
+                <DayField label={t("moreScreens.search.end")} value={draft.before} onChange={(before) => setDraft((d) => ({ ...d, before }))} />
               </View>
               {!datesValid ? (
-                <Text style={{ ...typography.caption, color: colors.danger }}>Tarihi YYYY-AA-GG biçiminde yaz.</Text>
+                <Text style={{ ...typography.caption, color: colors.danger }}>{t("moreScreens.search.dateInvalid")}</Text>
               ) : null}
             </Section>
           </ScrollView>
@@ -324,9 +320,9 @@ export function SearchFiltersSheet({
               paddingTop: spacing.sm,
             }}
           >
-            <Button label="Temizle" variant="ghost" onPress={() => setDraft(EMPTY_FILTERS)} />
+            <Button label={t("moreScreens.search.clear")} variant="ghost" onPress={() => setDraft(EMPTY_FILTERS)} />
             <Button
-              label="Uygula"
+              label={t("moreScreens.search.apply")}
               disabled={!datesValid}
               onPress={() => {
                 onApply({ ...draft, after: draft.after.trim(), before: draft.before.trim() });
@@ -353,13 +349,14 @@ function Section({ title, description, children }: { title: string; description:
 }
 
 function DayField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const t = useT();
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={(text) => onChange(text.replace(/[^\d-]/g, "").slice(0, 10))}
-        placeholder="YYYY-AA-GG"
+        placeholder={t("moreScreens.search.datePlaceholder")}
         placeholderTextColor={colors.muted}
         keyboardType="numbers-and-punctuation"
         autoCorrect={false}
@@ -389,6 +386,7 @@ function PeoplePicker({
   onChange: (next: SearchParticipant[]) => void;
 }) {
   const [query, setQuery] = useState("");
+  const t = useT();
   const people = useParticipants(source, query);
   const selectedIds = new Set(selected.map((p) => p.id));
   // Seçilenler her zaman görünür; aramada çıkmasa da kaldırılabilsin.
@@ -396,7 +394,7 @@ function PeoplePicker({
   const showSearch = source.kind === "server" || source.participants.length > 6;
 
   if (rows.length === 0 && !showSearch) {
-    return <Text style={{ ...typography.caption, color: colors.muted }}>Bu sohbette seçilecek kimse yok.</Text>;
+    return <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.search.nobody")}</Text>;
   }
 
   return (
@@ -405,7 +403,7 @@ function PeoplePicker({
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Kullanıcı ara"
+          placeholder={t("moreScreens.search.searchUser")}
           placeholderTextColor={colors.muted}
           autoCorrect={false}
           autoCapitalize="none"

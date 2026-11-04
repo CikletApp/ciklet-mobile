@@ -11,6 +11,7 @@ import { Button, Icon, IconButton, showToast } from "@/components/ui";
 import { GifPicker } from "@/features/chat/components/gif-picker";
 import { friendAnniversary } from "@/lib/friend-anniversary";
 import { useNow } from "@/lib/use-now";
+import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -80,13 +81,14 @@ export function FriendAnniversaryBar({
   const anniversary = friendAnniversary(since, now);
   const [dismissed, dismiss] = useDismissFlag(anniversary ? dismissKey(friendshipId, anniversary.years) : null);
   const [gifOpen, setGifOpen] = useState(false);
+  const t = useT();
 
   if (!anniversary || dismissed !== false) return null;
 
   const headline =
     anniversary.daysAgo === 0
-      ? `Bugün @${friend.username} ile ${anniversary.years}. arkadaşlık yıl dönümünüz!`
-      : `@${friend.username} ile arkadaşlığınız ${anniversary.years} yılı doldurdu!`;
+      ? t("moreScreens.anniversary.today", { username: friend.username, years: anniversary.years })
+      : t("moreScreens.anniversary.recent", { username: friend.username, years: anniversary.years });
 
   return (
     <>
@@ -119,11 +121,11 @@ export function FriendAnniversaryBar({
             {headline}
           </Text>
           <Text numberOfLines={1} style={{ fontSize: 12, lineHeight: 16, color: colors.muted }}>
-            Anı bir GIF ile kutlayın.
+            {t("moreScreens.anniversary.subtitle")}
           </Text>
         </View>
-        <Button label="GIF ile kutla"  onPress={() => setGifOpen(true)} />
-        <IconButton icon="close" label="Kapat" size={32} background="transparent" tint={colors.muted} onPress={dismiss} />
+        <Button label={t("moreScreens.anniversary.celebrate")} onPress={() => setGifOpen(true)} />
+        <IconButton icon="close" label={t("common.close")} size={32} background="transparent" tint={colors.muted} onPress={dismiss} />
       </View>
       <AnniversaryGifSheet
         visible={gifOpen}
@@ -163,6 +165,7 @@ export function AnniversaryGifSheet({
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
+  const t = useT();
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -186,14 +189,14 @@ export function AnniversaryGifSheet({
       const text = message.trim();
       await api(endpoints.sendDirectMessage(targetId), { method: "POST", body: { content: text || gifUrl, fileUrl: gifUrl } });
       void queryClient.invalidateQueries({ queryKey: ["directs"] });
-      showToast(`@${friend.username} ile yıl dönümünüzü kutladın!`);
+      showToast(t("moreScreens.anniversary.sent", { username: friend.username }));
       setSending(false);
       onClose();
       setMessage("");
       setGifUrl(null);
       onSent?.(targetId);
     } catch (error) {
-      showToast(error instanceof ApiError && error.message ? error.message : "Kutlama gönderilemedi.", "error");
+      showToast(error instanceof ApiError && error.message ? error.message : t("moreScreens.anniversary.failed"), "error");
       setSending(false);
     }
   };
@@ -206,12 +209,12 @@ export function AnniversaryGifSheet({
       >
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.sm }}>
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ fontSize: 20, lineHeight: 26, ...fw(700), color: colors.bright }}>Anı bir GIF ile kutla</Text>
+            <Text style={{ fontSize: 20, lineHeight: 26, ...fw(700), color: colors.bright }}>{t("moreScreens.anniversary.sheetTitle")}</Text>
             <Text style={{ ...typography.body, color: colors.muted }}>
-              @{friend.username} ile {years}. arkadaşlık yıl dönümünüz.
+              {t("moreScreens.anniversary.sheetBody", { username: friend.username, years })}
             </Text>
           </View>
-          <IconButton icon="close" label="Kapat" background="transparent" tint={colors.muted} disabled={sending} onPress={close} />
+          <IconButton icon="close" label={t("common.close")} background="transparent" tint={colors.muted} disabled={sending} onPress={close} />
         </View>
         <View style={{ paddingHorizontal: spacing.lg }}>
           <TextInput
@@ -220,8 +223,8 @@ export function AnniversaryGifSheet({
             maxLength={MESSAGE_MAX}
             multiline
             editable={!sending}
-            accessibilityLabel="Mesaj"
-            placeholder={"Eğlenceli bir mesaj gönder: \"Yaşasın! Arkadaşlık yıl dönümümüzü kutlayalım!\""}
+            accessibilityLabel={t("moreScreens.anniversary.message")}
+            placeholder={t("moreScreens.anniversary.placeholder")}
             placeholderTextColor={colors.muted}
             style={{
               minHeight: 72,
@@ -240,7 +243,7 @@ export function AnniversaryGifSheet({
         </View>
         <View style={{ flex: 1, paddingTop: spacing.sm }}>
           <GifPicker
-            initialQuery="Kutlama"
+            initialQuery={t("moreScreens.anniversary.gifQuery")}
             selectedUrl={gifUrl}
             onGif={setGifUrl}
             bottomInset={spacing.md}
@@ -259,8 +262,8 @@ export function AnniversaryGifSheet({
             borderTopColor: colors.border,
           }}
         >
-          <Button label="İptal" variant="ghost" disabled={sending} onPress={close} />
-          <Button label="Gönder" loading={sending} disabled={!gifUrl || sending} onPress={() => void send()} />
+          <Button label={t("common.cancel")} variant="ghost" disabled={sending} onPress={close} />
+          <Button label={t("moreScreens.anniversary.send")} loading={sending} disabled={!gifUrl || sending} onPress={() => void send()} />
         </View>
       </KeyboardAvoidingView>
     </Modal>
