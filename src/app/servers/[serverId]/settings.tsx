@@ -74,8 +74,13 @@ export default function ServerSettingsScreen() {
   const canManageInvites = canManageServer || hasServerPermission(permissions, "MANAGE_CHANNELS");
   const moderationLinks: SettingsLink[] = [
     ...(hasServerPermission(permissions, "MANAGE_ROLES") ? [{ icon: "shield" as const, title: "Roller", href: `/servers/${serverId}/roles` }] : []),
+    ...(hasServerPermission(permissions, "BAN_MEMBERS") ? [{ icon: "lock" as const, title: "Yasaklar", href: `/servers/${serverId}/bans` }] : []),
     ...(canManageServer ? [{ icon: "flag" as const, title: "Moderasyon", href: `/servers/${serverId}/moderation` }] : []),
     ...(hasServerPermission(permissions, "VIEW_AUDIT_LOG") ? [{ icon: "list" as const, title: "Denetim Kaydı", href: `/servers/${serverId}/audit-log` }] : []),
+    // "my-permissions" anahtarları tüm bit adlarını taşır (tip listesi daha dar).
+    ...(permissions && (permissions.isOwner || permissions.keys.includes("VIEW_SERVER_INSIGHTS"))
+      ? [{ icon: "trending-up" as const, title: "İstatistikler", href: `/servers/${serverId}/insights` }]
+      : []),
   ];
   // İfadeler (web Sunucu Ayarları › Emoji): İfade Oluştur ya da İfadeleri Yönet.
   const canSeeEmojis = hasServerPermission(permissions, "MANAGE_EXPRESSIONS") || hasServerPermission(permissions, "CREATE_EXPRESSIONS");
@@ -288,7 +293,13 @@ export default function ServerSettingsScreen() {
           <>
             <SectionHeader title="İFADELER" />
             <View style={{ paddingHorizontal: spacing.lg }}>
-              <SettingsLinks links={[{ icon: "emoji", title: "Emoji", href: `/servers/${serverId}/emojis` }]} />
+              <SettingsLinks
+                links={[
+                  { icon: "emoji", title: "Emoji", href: `/servers/${serverId}/emojis` },
+                  { icon: "image", title: "Çıkartmalar", href: `/servers/${serverId}/stickers` },
+                  { icon: "volume", title: "Soundboard", href: `/servers/${serverId}/soundboard` },
+                ]}
+              />
             </View>
           </>
         ) : null}

@@ -113,7 +113,10 @@ type UploadEndpoint =
   | "serverImage"
   | "serverBanner"
   | "groupImage"
-  | "roleIcon";
+  | "roleIcon"
+  | "serverEmoji"
+  | "serverSticker"
+  | "serverSound";
 
 /**
  * Server Boost yükleme rotası (web lib/upload-endpoints `BOOST_UPLOAD`):
@@ -393,3 +396,66 @@ export async function pickDocuments(limit: number): Promise<PickedAsset[]> {
 /** Grup DM simgesi (görsel, 4 MB, kare) — webdeki `groupImage` rotası. */
 export const pickAndUploadGroupImage = (onProgress?: (progress: number) => void) =>
   pickAndUploadImage("groupImage", [1, 1], onProgress);
+
+/** Emojinin kenarı — web `compressImage` sonrası sunucuda 128 px çizilir. */
+const EMOJI_SIZE = 128;
+
+/**
+ * Sunucu emojisi (web Sunucu Ayarları › Emoji "Emoji Yükle"): kare kırpılır,
+ * 128 px PNG'ye çevrilir; webdeki `serverEmoji` rotası (2 MB). Dosya adı
+ * (uzantısız) emoji adı olarak önerilir.
+ */
+export async function pickAndUploadServerEmoji(): Promise<{ url: string; name: string } | null> {
+  const asset = await pickFromGallery({ aspect: [1, 1] });
+  if (!asset) return null;
+  const context = ImageManipulator.manipulate(asset.uri).resize({ width: EMOJI_SIZE, height: EMOJI_SIZE });
+  const rendered = await context.renderAsync();
+  try {
+    const saved = await rendered.saveAsync({ format: SaveFormat.PNG });
+    const size = new ExpoFile(saved.uri).size ?? 0;
+    const picked: PickedAsset = { uri: saved.uri, name: `emoji-${Date.now()}.png`, mimeType: "image/png", size };
+    const { url } = await uploadPickedFile("serverEmoji", picked);
+    return { url, name: asset.name.replace(/\.[^.]+$/, "") };
+  } finally {
+    rendered.release();
+    context.release();
+  }
+}
+
+/** Çıkartma tavanı — web UploadThing `serverSticker` rotası (512 KB). */
+const STICKER_MAX_BYTES = 512 * 1024;
+
+/**
+ * Çıkartma (web Sunucu Ayarları › Çıkartmalar): dosya seçicisinden, işlenmeden
+ * (APNG/GIF animasyonu korunur). PNG, APNG, GIF ya da WebP; en fazla 512 KB.
+ */
+export async function pickAndUploadServerSticker(): Promise<{ url: string; name: string } | null> {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: ["image/png", "image/apng", "image/gif", "image/webp"],
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (result.canceled || !result.assets?.[0]) return null;
+  const asset = fromDocumentPicker(result.assets[0]);
+  const size = asset.size ?? new ExpoFile(asset.uri).size ?? 0;
+  if (size > STICKER_MAX_BYTES) throw new UserFacingUploadError("Çıkartma en fazla 512 KB olabilir.");
+  const { url } = await uploadPickedFile("serverSticker", { ...asset, size });
+  return { url, name: asset.name.replace(/\.[^.]+$/, "") };
+}
+
+/** Ses efekti tavanı — web UploadThing `serverSound` rotası (1 MB). */
+const SOUND_MAX_BYTES = 1024 * 1024;
+
+/** Ses efekti için dosya seçicisi (MP3, OGG, WAV…); yüklemeden önce süre ölçülür. */
+export async function pickSoundFile(): Promise<PickedAsset | null> {
+  const result = await DocumentPicker.getDocumentAsync({ type: "audio/*", copyToCacheDirectory: true, multiple: false });
+  if (result.canceled || !result.assets?.[0]) return null;
+  return fromDocumentPicker(result.assets[0]);
+}
+
+/** Seçilmiş ses dosyasını webdeki `serverSound` rotasına yükler. */
+export async function uploadServerSound(asset: PickedAsset): Promise<string> {
+  const size = asset.size ?? new ExpoFile(asset.uri).size ?? 0;
+  if (size > SOUND_MAX_BYTES) throw new UserFacingUploadError("Ses en fazla 1 MB olabilir.");
+  return (await uploadPickedFile("serverSound", { ...asset, size })).url;
+}
