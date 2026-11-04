@@ -18,6 +18,9 @@ import {
   showDialog,
 } from "@/components/ui";
 import { useAuth } from "@/stores/auth";
+import { profileExtras } from "@/api/hooks/use-account-privacy";
+import { AccountStatusCard } from "@/features/account/account-status-card";
+import { INTL_LOCALES, useLocale, useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 type TwoFactorStatus = {
@@ -34,6 +37,8 @@ export default function AccountSettingsScreen() {
   const queryClient = useQueryClient();
   const logout = useAuth((s) => s.logout);
   const authProfile = useAuth((s) => s.profile);
+  const t = useT();
+  const locale = useLocale();
 
   const [username, setUsername] = useState(authProfile?.username ?? "");
   const [usernamePassword, setUsernamePassword] = useState("");
@@ -59,10 +64,6 @@ export default function AccountSettingsScreen() {
   const twoFactor = useQuery({
     queryKey: ["account-two-factor"],
     queryFn: () => api<TwoFactorStatus>(endpoints.accountTwoFactor),
-  });
-  const accountStatus = useQuery({
-    queryKey: ["account-status"],
-    queryFn: () => api<{ accountStatus: string; trustScore: number }>(endpoints.accountStatus),
   });
 
   const refreshProfile = () => queryClient.invalidateQueries({ queryKey: qk.currentProfile });
@@ -108,18 +109,19 @@ export default function AccountSettingsScreen() {
   });
 
   const passwordsMatch = newPassword.length >= 6 && newPassword === newPasswordAgain;
-  const statusLabel = ACCOUNT_STATUS_LABELS[accountStatus.data?.accountStatus ?? "GOOD"] ?? "İyi";
+  const passwordChangedAt = profileExtras(profile).passwordChangedAt;
+  const passwordChangedLabel = passwordChangedAt
+    ? t("settingsAccount.tab.passwordLastChanged", {
+        date: new Date(passwordChangedAt).toLocaleDateString(INTL_LOCALES[locale], { day: "numeric", month: "numeric", year: "numeric" }),
+      })
+    : t("settingsAccount.tab.passwordUpdate");
 
   return (
     <Screen>
       <Stack.Screen options={{ title: "Hesap" }} />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
         <SectionHeader title="HESAP DURUMU" />
-        <View style={{ paddingHorizontal: spacing.lg }}>
-          <ListGroup>
-            <ListRow icon="shield" title={statusLabel} subtitle={`Güven puanı: ${accountStatus.data?.trustScore ?? "—"}/100`} chevron={false} />
-          </ListGroup>
-        </View>
+        <AccountStatusCard />
 
         <SectionHeader title="PROFİL" />
         <View style={{ paddingHorizontal: spacing.lg }}>
@@ -190,6 +192,7 @@ export default function AccountSettingsScreen() {
 
         <SectionHeader title="ŞİFRE" />
         <FormCard>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{passwordChangedLabel}</Text>
           <TextField label="MEVCUT ŞİFRE" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
           {twoFactorOn ? <TextField label="DOĞRULAMA KODU" value={passwordTotp} onChangeText={setPasswordTotp} placeholder="6 haneli kod ya da kurtarma kodu" autoCapitalize="characters" maxLength={12} /> : null}
           <TextField label="YENİ ŞİFRE" value={newPassword} onChangeText={setNewPassword} secureTextEntry hint="6-200 karakter" />
@@ -204,11 +207,3 @@ export default function AccountSettingsScreen() {
 function FormCard({ children }: { children: React.ReactNode }) {
   return <View style={{ marginHorizontal: spacing.lg, padding: spacing.lg, gap: spacing.md, borderRadius: radii.xl, borderCurve: "continuous", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border }}>{children}</View>;
 }
-
-const ACCOUNT_STATUS_LABELS: Record<string, string> = {
-  GOOD: "Gayet iyi",
-  LIMITED: "Kısıtlı",
-  AT_RISK: "Risk altında",
-  RESTRICTED: "Sınırlandırılmış",
-  SUSPENDED: "Askıya alınmış",
-};
