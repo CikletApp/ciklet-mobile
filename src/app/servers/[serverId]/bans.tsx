@@ -4,10 +4,21 @@ import { Stack, useLocalSearchParams } from "expo-router";
 
 import { ApiError } from "@/api/client";
 import { hasServerPermission, useMyPermissions } from "@/api/hooks";
-import { banExpiryLabel, useServerBans, useUnban, type ServerBan } from "@/api/hooks/use-server-admin";
+import { useServerBans, useUnban, type ServerBan } from "@/api/hooks/use-server-admin";
 import { Avatar, EmptyState, ErrorState, Icon, ListSkeleton, Pressable, Screen, showToast } from "@/components/ui";
+import { useT, type Translator } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+
+/** web lib/server-bans `banExpiryLabel` (çevrilmiş). */
+function banExpiryText(t: Translator, expiresAt: string | null, now = Date.now()): string {
+  const at = expiresAt ? new Date(expiresAt).getTime() : NaN;
+  if (!Number.isFinite(at)) return t("moreScreens.bans.permanent");
+  if (at <= now) return t("moreScreens.bans.expired");
+  const hours = Math.ceil((at - now) / 3_600_000);
+  if (hours < 24) return t("moreScreens.bans.hoursLeft", { count: hours });
+  return t("moreScreens.bans.daysLeft", { count: Math.ceil(hours / 24) });
+}
 
 /**
  * Sunucu yasaklama listesi — web Sunucu Ayarları › Yasaklar sekmesi:
@@ -21,6 +32,7 @@ export default function ServerBansScreen() {
   const unban = useUnban(serverId);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState("");
+  const t = useT();
 
   const list = useMemo(() => bans.data ?? [], [bans.data]);
   const filtered = useMemo(() => {
@@ -33,17 +45,17 @@ export default function ServerBansScreen() {
     if (busy) return;
     setBusy(ban.userId);
     unban.mutate(ban.userId, {
-      onError: (error) => showToast(error instanceof ApiError ? error.message : "Yasak kaldırılamadı.", "error"),
+      onError: (error) => showToast(error instanceof ApiError ? error.message : t("moreScreens.bans.unbanFailed"), "error"),
       onSettled: () => setBusy(""),
     });
   };
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Yasaklar" }} />
+      <Stack.Screen options={{ title: t("moreScreens.bans.title") }} />
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm }}>
-        <Text style={{ ...typography.overline, color: colors.muted }}>{`SUNUCU YASAKLAMA LİSTESİ — ${list.length}`}</Text>
-        <Text style={{ ...typography.caption, color: colors.muted }}>Yasaklı kullanıcılar davetle bile sunucuya katılamaz.</Text>
+        <Text style={{ ...typography.overline, color: colors.muted }}>{t("moreScreens.bans.listHeader", { count: list.length })}</Text>
+        <Text style={{ ...typography.caption, color: colors.muted }}>{t("moreScreens.bans.hint")}</Text>
         <View
           style={{
             flexDirection: "row",
@@ -58,7 +70,7 @@ export default function ServerBansScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Kullanıcı adıyla ara"
+            placeholder={t("moreScreens.bans.search")}
             placeholderTextColor={colors.muted}
             autoCapitalize="none"
             autoCorrect={false}
@@ -70,9 +82,9 @@ export default function ServerBansScreen() {
       {bans.isLoading ? (
         <ListSkeleton rows={6} />
       ) : bans.isError ? (
-        <ErrorState message="Yasaklar yüklenemedi." onRetry={() => void bans.refetch()} />
+        <ErrorState message={t("moreScreens.bans.loadFailed")} onRetry={() => void bans.refetch()} />
       ) : filtered.length === 0 ? (
-        <EmptyState icon="shield" title="YASAKLAMA YOK" description="Üyeler sekmesinden bir kullanıcıyı yasaklayabilirsin." />
+        <EmptyState icon="shield" title={t("moreScreens.bans.emptyTitle")} description={t("moreScreens.bans.emptyBody")} />
       ) : (
         <FlatList
           data={filtered}
@@ -86,16 +98,16 @@ export default function ServerBansScreen() {
                   {ban.user?.username ?? ban.userId}
                 </Text>
                 {ban.reason ? (
-                  <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{`Sebep: ${ban.reason}`}</Text>
+                  <Text style={{ ...typography.caption, color: colors.muted }} numberOfLines={1}>{t("moreScreens.bans.reason", { reason: ban.reason })}</Text>
                 ) : null}
-                <Text style={{ ...typography.caption, color: colors.muted }}>{banExpiryLabel(ban.expiresAt ?? null)}</Text>
+                <Text style={{ ...typography.caption, color: colors.muted }}>{banExpiryText(t, ban.expiresAt ?? null)}</Text>
               </View>
               {canManage ? (
                 <Pressable
                   onPress={() => lift(ban)}
                   disabled={busy === ban.userId}
                   accessibilityRole="button"
-                  accessibilityLabel="Yasağı Kaldır"
+                  accessibilityLabel={t("moreScreens.bans.unban")}
                   style={{
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm,
@@ -108,7 +120,7 @@ export default function ServerBansScreen() {
                   {busy === ban.userId ? (
                     <ActivityIndicator size="small" color={colors.muted} />
                   ) : (
-                    <Text style={{ ...typography.caption, ...fw(600), color: colors.text }}>Yasağı Kaldır</Text>
+                    <Text style={{ ...typography.caption, ...fw(600), color: colors.text }}>{t("moreScreens.bans.unban")}</Text>
                   )}
                 </Pressable>
               ) : null}

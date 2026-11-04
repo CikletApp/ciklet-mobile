@@ -21,6 +21,7 @@ import { BoostSlotsHint } from "@/features/server-boost/boost-ui";
 import { effectiveServerPerks } from "@/lib/server-boost";
 import { pickSoundFile, uploadServerSound } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
+import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -78,6 +79,7 @@ export default function ServerSoundboardScreen() {
   const { data: server } = useServerDetails(serverId);
   const myId = useAuth((state) => state.profile?.id);
   const max = effectiveServerPerks(server).soundboardSlots;
+  const t = useT();
   const sounds = useServerSoundsAdmin(serverId);
   const create = useCreateSound(serverId);
   const update = useUpdateSound(serverId);
@@ -112,18 +114,18 @@ export default function ServerSoundboardScreen() {
       if (!asset) return;
       const seconds = await measureSeconds(asset.uri);
       if (seconds === null) {
-        showToast("Dosya çözülemedi; MP3, OGG ya da WAV yükle.", "error");
+        showToast(t("moreScreens.soundboard.decodeFailed"), "error");
         return;
       }
       if (seconds > SOUND_MAX_SECONDS) {
-        showToast(`Ses en fazla ${Math.floor(SOUND_MAX_SECONDS)} saniye olabilir (bu dosya ${seconds.toFixed(1)} sn).`, "error");
+        showToast(t("moreScreens.soundboard.tooLong", { max: Math.floor(SOUND_MAX_SECONDS), seconds: seconds.toFixed(1) }), "error");
         return;
       }
       const url = await uploadServerSound(asset);
       await create.mutateAsync({ name: asset.name.replace(/\.[^.]+$/, "").slice(0, SOUND_NAME_MAX), audioUrl: url });
-      showToast("Ses eklendi");
+      showToast(t("moreScreens.soundboard.added"));
     } catch (error) {
-      showToast(errorText(error, "Ses yüklenemedi"), "error");
+      showToast(errorText(error, t("moreScreens.soundboard.uploadFailed")), "error");
     } finally {
       setUploading(false);
     }
@@ -141,7 +143,7 @@ export default function ServerSoundboardScreen() {
       previewRef.current = player;
       player.play();
     } catch {
-      showToast("Ses çalınamadı", "error");
+      showToast(t("moreScreens.soundboard.playFailed"), "error");
     }
   };
 
@@ -158,7 +160,7 @@ export default function ServerSoundboardScreen() {
       update.mutate(
         { id: sound.id, volume },
         {
-          onError: (error) => showToast(errorText(error, "Ses seviyesi kaydedilemedi"), "error"),
+          onError: (error) => showToast(errorText(error, t("moreScreens.soundboard.volumeFailed")), "error"),
           onSettled: () =>
             setPendingVolume((map) => {
               if (map[sound.id] !== volume) return map;
@@ -172,12 +174,12 @@ export default function ServerSoundboardScreen() {
   };
 
   const confirmDelete = (sound: ServerSoundAdmin) =>
-    showDialog(`"${sound.name}" silinsin mi?`, undefined, [
-      { text: "Vazgeç", style: "cancel" },
+    showDialog(t("moreScreens.common.deleteConfirm", { name: sound.name }), undefined, [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Sil",
+        text: t("moreScreens.common.delete"),
         style: "destructive",
-        onPress: () => remove.mutate(sound.id, { onError: (error) => showToast(errorText(error, "Ses silinemedi"), "error") }),
+        onPress: () => remove.mutate(sound.id, { onError: (error) => showToast(errorText(error, t("moreScreens.soundboard.deleteFailed")), "error") }),
       },
     ]);
 
@@ -187,21 +189,21 @@ export default function ServerSoundboardScreen() {
       {sounds.isLoading ? (
         <ListSkeleton rows={5} />
       ) : sounds.isError ? (
-        <ErrorState message="Sesler yüklenemedi." onRetry={() => void sounds.refetch()} />
+        <ErrorState message={t("moreScreens.soundboard.loadFailed")} onRetry={() => void sounds.refetch()} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["4xl"] }}>
-          <Text style={{ ...typography.overline, color: colors.muted }}>{`SOUNDBOARD — ${items.length}/${max}`}</Text>
+          <Text style={{ ...typography.overline, color: colors.muted }}>{t("moreScreens.soundboard.header", { used: items.length, max })}</Text>
           <BoostSlotsHint tier={server?.premiumTier} used={items.length} max={max} />
           <Text style={{ ...typography.caption, color: colors.muted }}>
-            {`Ses kanalında herkesin çalabileceği kısa sesler (en fazla ${Math.floor(SOUND_MAX_SECONDS)} sn, 1 MB). Kontrol çubuğundaki Soundboard düğmesinden çalınır.`}
+            {t("moreScreens.soundboard.hint", { max: Math.floor(SOUND_MAX_SECONDS) })}
           </Text>
           {canUpload ? (
             <View style={{ flexDirection: "row" }}>
-              <Button label="Ses Yükle" icon="volume" loading={uploading} disabled={uploading || items.length >= max} onPress={() => void upload()} />
+              <Button label={t("moreScreens.soundboard.upload")} icon="volume" loading={uploading} disabled={uploading || items.length >= max} onPress={() => void upload()} />
             </View>
           ) : null}
           {items.length === 0 ? (
-            <EmptyState icon="volume" title="SES YOK" description="Bir ses yükleyerek başlayın" />
+            <EmptyState icon="volume" title={t("moreScreens.soundboard.emptyTitle")} description={t("moreScreens.soundboard.emptyBody")} />
           ) : (
             <ListGroup>
               {items.map((sound, index) => {
@@ -213,7 +215,7 @@ export default function ServerSoundboardScreen() {
                       <Pressable
                         onPress={() => preview(sound)}
                         accessibilityRole="button"
-                        accessibilityLabel="Önizle"
+                        accessibilityLabel={t("moreScreens.soundboard.preview")}
                         style={{
                           width: 36,
                           height: 36,
@@ -232,12 +234,12 @@ export default function ServerSoundboardScreen() {
                       </Pressable>
                       {editable ? (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-                          <StepButton icon="chevron-down" label="Sesi kıs" onPress={() => changeVolume(sound, -VOLUME_STEP)} />
+                          <StepButton icon="chevron-down" label={t("moreScreens.soundboard.volumeDown")} onPress={() => changeVolume(sound, -VOLUME_STEP)} />
                           <Text style={{ ...typography.caption, color: colors.muted, width: 40, textAlign: "center", fontVariant: ["tabular-nums"] }}>
                             {`${volumeOf(sound)}%`}
                           </Text>
-                          <StepButton icon="chevron-down" flip label="Sesi aç" onPress={() => changeVolume(sound, VOLUME_STEP)} />
-                          <StepButton icon="trash" label="Sil" danger onPress={() => confirmDelete(sound)} />
+                          <StepButton icon="chevron-down" flip label={t("moreScreens.soundboard.volumeUp")} onPress={() => changeVolume(sound, VOLUME_STEP)} />
+                          <StepButton icon="trash" label={t("moreScreens.common.delete")} danger onPress={() => confirmDelete(sound)} />
                         </View>
                       ) : null}
                     </View>
@@ -250,13 +252,13 @@ export default function ServerSoundboardScreen() {
       )}
       <RenameSheet
         visible={renaming !== null}
-        title="Sesi yeniden adlandır"
+        title={t("moreScreens.soundboard.rename")}
         initialName={renaming?.name ?? ""}
         nameMax={SOUND_NAME_MAX}
         onClose={() => setRenaming(null)}
         onSave={(name) => {
           if (!renaming || name === renaming.name) return;
-          update.mutate({ id: renaming.id, name }, { onError: (error) => showToast(errorText(error, "Ad değiştirilemedi"), "error") });
+          update.mutate({ id: renaming.id, name }, { onError: (error) => showToast(errorText(error, t("moreScreens.soundboard.renameFailed")), "error") });
         }}
       />
     </Screen>

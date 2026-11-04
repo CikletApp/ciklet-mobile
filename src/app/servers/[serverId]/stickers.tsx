@@ -21,6 +21,7 @@ import { BoostSlotsHint } from "@/features/server-boost/boost-ui";
 import { effectiveServerPerks } from "@/lib/server-boost";
 import { pickAndUploadServerSticker } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
+import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -37,6 +38,7 @@ export default function ServerStickersScreen() {
   const { data: server } = useServerDetails(serverId);
   const myId = useAuth((state) => state.profile?.id);
   const max = effectiveServerPerks(server).stickerSlots;
+  const t = useT();
   const stickers = useServerStickersAdmin(serverId);
   const create = useCreateSticker(serverId);
   const update = useUpdateSticker(serverId);
@@ -56,10 +58,10 @@ export default function ServerStickersScreen() {
       const picked = await pickAndUploadServerSticker();
       if (picked) {
         await create.mutateAsync({ name: picked.name.slice(0, STICKER_NAME_MAX), imageUrl: picked.url });
-        showToast("Çıkartma eklendi");
+        showToast(t("moreScreens.stickers.added"));
       }
     } catch (error) {
-      showToast(errorText(error, "Çıkartma yüklenemedi"), "error");
+      showToast(errorText(error, t("moreScreens.stickers.uploadFailed")), "error");
     } finally {
       setUploading(false);
     }
@@ -67,20 +69,20 @@ export default function ServerStickersScreen() {
 
   const menuItems: ActionSheetItem[] = menuFor
     ? [
-        { key: "edit", label: "Düzenle", icon: "pencil", onPress: () => setEditing(menuFor) },
+        { key: "edit", label: t("moreScreens.common.edit"), icon: "pencil", onPress: () => setEditing(menuFor) },
         {
           key: "delete",
-          label: "Sil",
+          label: t("moreScreens.common.delete"),
           icon: "trash",
           destructive: true,
           onPress: () => {
             const target = menuFor;
-            showDialog(`"${target.name}" silinsin mi?`, undefined, [
-              { text: "Vazgeç", style: "cancel" },
+            showDialog(t("moreScreens.common.deleteConfirm", { name: target.name }), undefined, [
+              { text: t("common.cancel"), style: "cancel" },
               {
-                text: "Sil",
+                text: t("moreScreens.common.delete"),
                 style: "destructive",
-                onPress: () => remove.mutate(target.id, { onError: (error) => showToast(errorText(error, "Silinemedi"), "error") }),
+                onPress: () => remove.mutate(target.id, { onError: (error) => showToast(errorText(error, t("moreScreens.common.deleteFailed")), "error") }),
               },
             ]);
           },
@@ -90,25 +92,25 @@ export default function ServerStickersScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Çıkartmalar" }} />
+      <Stack.Screen options={{ title: t("moreScreens.stickers.title") }} />
       {stickers.isLoading ? (
         <ListSkeleton rows={4} />
       ) : stickers.isError ? (
-        <ErrorState message="Çıkartmalar yüklenemedi." onRetry={() => void stickers.refetch()} />
+        <ErrorState message={t("moreScreens.stickers.loadFailed")} onRetry={() => void stickers.refetch()} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["4xl"] }}>
-          <Text style={{ ...typography.overline, color: colors.muted }}>{`ÇIKARTMALAR — ${items.length}/${max}`}</Text>
+          <Text style={{ ...typography.overline, color: colors.muted }}>{t("moreScreens.stickers.header", { used: items.length, max })}</Text>
           <BoostSlotsHint tier={server?.premiumTier} used={items.length} max={max} />
           <Text style={{ ...typography.caption, color: colors.muted }}>
-            Sunucu üyelerinin kanallarda gönderebileceği çıkartmalar. PNG, APNG, GIF ya da WebP; en fazla 512 KB, kare önerilir.
+            {t("moreScreens.stickers.hint")}
           </Text>
           {canUpload ? (
             <View style={{ flexDirection: "row" }}>
-              <Button label="Çıkartma Yükle" icon="image" loading={uploading} disabled={uploading || items.length >= max} onPress={() => void upload()} />
+              <Button label={t("moreScreens.stickers.upload")} icon="image" loading={uploading} disabled={uploading || items.length >= max} onPress={() => void upload()} />
             </View>
           ) : null}
           {items.length === 0 ? (
-            <EmptyState icon="image" title="ÇIKARTMA YOK" />
+            <EmptyState icon="image" title={t("moreScreens.stickers.emptyTitle")} />
           ) : (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
               {items.map((sticker) => (
@@ -153,7 +155,7 @@ export default function ServerStickersScreen() {
       />
       <RenameSheet
         visible={editing !== null}
-        title="Çıkartmayı düzenle"
+        title={t("moreScreens.stickers.edit")}
         initialName={editing?.name ?? ""}
         nameMax={STICKER_NAME_MAX}
         initialDescription={editing ? (editing.description ?? "") : undefined}
@@ -161,7 +163,7 @@ export default function ServerStickersScreen() {
         onClose={() => setEditing(null)}
         onSave={(name, description) => {
           if (!editing) return;
-          update.mutate({ id: editing.id, name, description }, { onError: (error) => showToast(errorText(error, "Kaydedilemedi"), "error") });
+          update.mutate({ id: editing.id, name, description }, { onError: (error) => showToast(errorText(error, t("moreScreens.common.saveFailed")), "error") });
         }}
       />
     </Screen>

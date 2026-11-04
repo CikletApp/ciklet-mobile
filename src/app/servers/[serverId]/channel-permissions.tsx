@@ -27,11 +27,11 @@ import {
 } from "@/components/ui";
 import { Card, CardHeader, ToggleRow } from "@/features/moderation/ui";
 import {
-  CHANNEL_PERMISSION_DETAILS,
   CHANNEL_PERMISSION_GROUPS,
   channelPermissionBit,
   type ChannelPermissionKey,
 } from "@/lib/channel-permissions";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -46,6 +46,17 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
  */
 
 const EVERYONE = "@everyone";
+
+/** Grup başlığı (lib, Türkçe) → sözlük anahtarı. */
+const GROUP_TITLE_KEYS: Record<string, MessageKey> = {
+  "Genel Kanal İzinleri": "moreScreens.channelPermissions.groups.general",
+  "Üyelik İzinleri": "moreScreens.channelPermissions.groups.membership",
+  "Metin Kanalı İzinleri": "moreScreens.channelPermissions.groups.text",
+  "Uygulama İzinleri": "moreScreens.channelPermissions.groups.apps",
+  "Ses Kanalı İzinleri": "moreScreens.channelPermissions.groups.voice",
+};
+const permTitleKey = (key: ChannelPermissionKey) => `moreScreens.channelPermissions.perm.${key}.title` as MessageKey;
+const permDescriptionKey = (key: ChannelPermissionKey) => `moreScreens.channelPermissions.perm.${key}.description` as MessageKey;
 const ZERO = BigInt(0);
 
 type OverwriteMap = Record<string, { allow: bigint; deny: bigint }>;
@@ -106,6 +117,7 @@ export default function ChannelPermissionsScreen() {
   const [profiles, setProfiles] = useState<Record<string, OverwriteProfile>>({});
   const [selected, setSelected] = useState<string>(EVERYONE);
   const [picking, setPicking] = useState(false);
+  const t = useT();
 
   const apply = (data: PermissionsResponse) => {
     const map = toMap(data.overwrites ?? []);
@@ -143,9 +155,9 @@ export default function ChannelPermissionsScreen() {
     save.mutate(isCategory ? { overwrites, syncChannelIds } : { overwrites }, {
       onSuccess: (data) => {
         apply(data);
-        showToast(isCategory ? "Kategori izinleri kaydedildi" : "Kanal izinleri kaydedildi");
+        showToast(isCategory ? t("moreScreens.channelPermissions.categorySaved") : t("moreScreens.channelPermissions.channelSaved"));
       },
-      onError: fail("İzinler kaydedilemedi"),
+      onError: fail(t("moreScreens.channelPermissions.saveFailed")),
     });
   };
 
@@ -155,12 +167,12 @@ export default function ChannelPermissionsScreen() {
     if (isCategory && unsynced.length > 0) {
       const names = unsynced.slice(0, 5).map((c) => c.name).join(", ") + (unsynced.length > 5 ? "…" : "");
       showDialog(
-        "Kanallar eşitlensin mi?",
-        `Bu kategorideki ${unsynced.length} kanalın izinleri kategoriyle eşitlenmemiş: ${names}. Kategoriyle eşitlersen kanalların kendi izinleri silinir ve kategorinin izinlerini kullanırlar.`,
+        t("moreScreens.channelPermissions.syncTitle"),
+        t("moreScreens.channelPermissions.syncBody", { count: unsynced.length, names }),
         [
-          { text: "Vazgeç", style: "cancel" },
-          { text: "Geçerli İzinleri Koru", onPress: () => submit([]) },
-          { text: "Kategoriyle Eşitle", onPress: () => submit(unsynced.map((c) => c.id)) },
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("moreScreens.channelPermissions.keepCurrent"), onPress: () => submit([]) },
+          { text: t("moreScreens.channelPermissions.syncWithCategory"), onPress: () => submit(unsynced.map((c) => c.id)) },
         ]
       );
       return;
@@ -174,9 +186,9 @@ export default function ChannelPermissionsScreen() {
       {
         onSuccess: (data) => {
           apply(data);
-          showToast("Kanal kategoriyle eşitlendi");
+          showToast(t("moreScreens.channelPermissions.synced"));
         },
-        onError: fail("Eşitlenemedi"),
+        onError: fail(t("moreScreens.channelPermissions.syncFailed")),
       }
     );
 
@@ -213,10 +225,10 @@ export default function ChannelPermissionsScreen() {
   });
 
   const selectedLabel = selected.startsWith("p:")
-    ? (profiles[selected.slice(2)]?.name ?? profiles[selected.slice(2)]?.username ?? "Üye")
+    ? (profiles[selected.slice(2)]?.name ?? profiles[selected.slice(2)]?.username ?? t("moreScreens.channelPermissions.member"))
     : (roleTargets.find((item) => item.id === selected)?.name ?? "@everyone");
 
-  const title = isCategory ? "Kategori İzinleri" : "Kanal İzinleri";
+  const title = isCategory ? t("moreScreens.channelPermissions.categoryTitle") : t("moreScreens.channelPermissions.channelTitle");
 
   if (query.isLoading || roles.isLoading) {
     return (
@@ -231,7 +243,7 @@ export default function ChannelPermissionsScreen() {
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <Stack.Screen options={{ title }} />
         <ErrorState
-          message={query.error instanceof ApiError ? query.error.message : "İzinler yüklenemedi"}
+          message={query.error instanceof ApiError ? query.error.message : t("moreScreens.channelPermissions.loadFailed")}
           onRetry={() => void query.refetch()}
         />
       </View>
@@ -244,8 +256,8 @@ export default function ChannelPermissionsScreen() {
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 120 }}>
         <Text style={{ ...typography.caption, color: colors.muted }}>
           {isCategory
-            ? "Kategoriyle eşitli kanallar bu izinleri kullanır. Yöneticiler ve sunucu sahibi bu kısıtlamalardan etkilenmez."
-            : "Bu kanalda kimin ne yapabileceğini rol ya da üye bazında ayarla. Yöneticiler ve sunucu sahibi bu kısıtlamalardan etkilenmez."}
+            ? t("moreScreens.channelPermissions.categoryHint")
+            : t("moreScreens.channelPermissions.channelHint")}
         </Text>
 
         {!isCategory && meta?.category ? (
@@ -253,19 +265,20 @@ export default function ChannelPermissionsScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
             <Icon name="link" size={16} color={colors.brand} />
             <Text style={{ ...typography.caption, color: colors.text, flex: 1 }}>
-              İzinler <Text style={fw(700)}>{meta.category.name}</Text> kategorisiyle{" "}
-              {meta.synced ? "eşitli. Burada değişiklik kaydedersen eşitleme kalkar." : "eşitli değil."}
+              {meta.synced
+                ? t("moreScreens.channelPermissions.syncedWith", { category: meta.category.name })
+                : t("moreScreens.channelPermissions.notSyncedWith", { category: meta.category.name })}
             </Text>
             </View>
             {!meta.synced && canManage ? (
-              <Button label="Kategoriyle Eşitle" disabled={save.isPending || isDirty} onPress={syncWithCategory} />
+              <Button label={t("moreScreens.channelPermissions.syncWithCategory")} disabled={save.isPending || isDirty} onPress={syncWithCategory} />
             ) : null}
           </View>
         ) : null}
 
         {isCategory && (meta?.channels?.length ?? 0) > 0 ? (
           <Card>
-            <CardHeader title="Kanallar" />
+            <CardHeader title={t("moreScreens.channelPermissions.channels")} />
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
               {meta!.channels!.map((c) => (
                 <View
@@ -279,7 +292,7 @@ export default function ChannelPermissionsScreen() {
                     borderRadius: radii.full,
                     backgroundColor: c.permissionsSynced ? colors.brandSoft : colors.raised,
                   }}
-                  accessibilityLabel={`${c.name}, ${c.permissionsSynced ? "kategoriyle eşitli" : "kendi izinleri var"}`}
+                  accessibilityLabel={`${c.name}, ${c.permissionsSynced ? t("moreScreens.channelPermissions.chipSynced") : t("moreScreens.channelPermissions.chipOwn")}`}
                 >
                   {c.permissionsSynced ? <Icon name="link" size={11} color={colors.brand} /> : null}
                   <Text style={{ ...typography.caption, ...fw(600), color: c.permissionsSynced ? colors.brand : colors.muted }}>{c.name}</Text>
@@ -291,8 +304,8 @@ export default function ChannelPermissionsScreen() {
 
         <Card>
           <ToggleRow
-            title={isCategory ? "Özel Kategori" : "Özel Kanal"}
-            hint="Yalnızca seçilen roller ve üyeler görür. Açınca @everyone için “Kanalı Görüntüle” kapanır; görmesi gerekenlere aşağıdaki listeden ✓ ver."
+            title={isCategory ? t("moreScreens.channelPermissions.privateCategory") : t("moreScreens.channelPermissions.privateChannel")}
+            hint={t("moreScreens.channelPermissions.privateHint")}
             value={isPrivate}
             disabled={locked}
             onChange={setPrivate}
@@ -300,7 +313,7 @@ export default function ChannelPermissionsScreen() {
         </Card>
 
         <Card>
-          <CardHeader icon="users" title="Roller" />
+          <CardHeader icon="users" title={t("moreScreens.channelPermissions.roles")} />
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             {roleTargets.map((item) => (
               <TargetChip
@@ -315,17 +328,17 @@ export default function ChannelPermissionsScreen() {
           </View>
           {(roles.data ?? []).length === 0 ? (
             <Text style={{ ...typography.caption, color: colors.muted }}>
-              Henüz rol yok; roller Sunucu Ayarları → Roller sekmesinden oluşturulur.
+              {t("moreScreens.channelPermissions.noRoles")}
             </Text>
           ) : null}
-          <CardHeader icon="user" title="Üyeler" />
+          <CardHeader icon="user" title={t("moreScreens.channelPermissions.members")} />
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             {memberKeys.map((key) => {
               const p = profiles[key.slice(2)];
               return (
                 <TargetChip
                   key={key}
-                  label={p?.name ?? p?.username ?? "Ayrılmış üye"}
+                  label={p?.name ?? p?.username ?? t("moreScreens.channelPermissions.leftMember")}
                   avatar={{ id: key.slice(2), imageUrl: p?.imageUrl ?? null, fallback: p?.username ?? key }}
                   active={selected === key}
                   custom={hasCustom(key)}
@@ -350,21 +363,20 @@ export default function ChannelPermissionsScreen() {
                 })}
               >
                 <Icon name="plus" size={14} color={colors.brand} />
-                <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>Üye ekle</Text>
+                <Text style={{ ...typography.caption, ...fw(700), color: colors.brand }}>{t("moreScreens.channelPermissions.addMember")}</Text>
               </Pressable>
             ) : null}
           </View>
         </Card>
 
         <Text style={{ ...typography.caption, ...fw(600), color: colors.muted }}>
-          Düzenlenen: <Text style={{ color: colors.bright }}>{selectedLabel}</Text>
+          {t("moreScreens.channelPermissions.editing")} <Text style={{ color: colors.bright }}>{selectedLabel}</Text>
         </Text>
 
         {groups.map((group) => (
           <Card key={group.title}>
-            <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{group.title}</Text>
+            <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{GROUP_TITLE_KEYS[group.title] ? t(GROUP_TITLE_KEYS[group.title]) : group.title}</Text>
             {group.keys.map((key, index) => {
-              const detail = CHANNEL_PERMISSION_DETAILS[key];
               return (
                 <View
                   key={key}
@@ -378,13 +390,13 @@ export default function ChannelPermissionsScreen() {
                   }}
                 >
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ ...typography.caption, ...fw(700), color: colors.text }}>{detail.title}</Text>
-                    <Text style={{ ...typography.caption, color: colors.muted }}>{detail.description}</Text>
+                    <Text style={{ ...typography.caption, ...fw(700), color: colors.text }}>{t(permTitleKey(key))}</Text>
+                    <Text style={{ ...typography.caption, color: colors.muted }}>{t(permDescriptionKey(key))}</Text>
                   </View>
                   <TriStateControl
                     value={stateOf(draft[selected], channelPermissionBit(key))}
                     disabled={locked}
-                    label={detail.title}
+                    label={t(permTitleKey(key))}
                     onChange={(next) => setState(selected, key, next)}
                   />
                 </View>
@@ -406,10 +418,10 @@ export default function ChannelPermissionsScreen() {
           }}
         >
           <View style={{ flex: 1 }}>
-            <Button label="Sıfırla" variant="secondary" fullWidth disabled={save.isPending} onPress={() => setDraft(initial)} />
+            <Button label={t("moreScreens.channelPermissions.reset")} variant="secondary" fullWidth disabled={save.isPending} onPress={() => setDraft(initial)} />
           </View>
           <View style={{ flex: 2 }}>
-            <Button label="Değişiklikleri Kaydet" fullWidth loading={save.isPending} onPress={onSave} />
+            <Button label={t("moreScreens.channelPermissions.saveChanges")} fullWidth loading={save.isPending} onPress={onSave} />
           </View>
         </View>
       ) : null}
@@ -445,6 +457,7 @@ function TargetChip({
   onPress: () => void;
   onRemove?: () => void;
 }) {
+  const t = useT();
   return (
     <Pressable
       onPress={onPress}
@@ -452,8 +465,8 @@ function TargetChip({
       haptic="light"
       accessibilityRole="radio"
       accessibilityState={{ selected: active }}
-      accessibilityLabel={`${label}${custom ? ", özelleştirildi" : ""}`}
-      accessibilityHint={onRemove ? "Basılı tutarak listeden kaldır" : undefined}
+      accessibilityLabel={custom ? t("moreScreens.channelPermissions.customized", { label }) : label}
+      accessibilityHint={onRemove ? t("moreScreens.channelPermissions.holdToRemove") : undefined}
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -476,7 +489,7 @@ function TargetChip({
       </Text>
       {custom ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brand }} /> : null}
       {onRemove ? (
-        <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel="Üyeyi listeden kaldır">
+        <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={t("moreScreens.channelPermissions.removeMember")}>
           <Icon name="close" size={12} color={colors.muted} />
         </Pressable>
       ) : null}
@@ -496,10 +509,11 @@ function TriStateControl({
   label: string;
   onChange: (next: TriState) => void;
 }) {
+  const t = useT();
   const options: { id: TriState; text: string; a11y: string; on: string }[] = [
-    { id: "deny", text: "✕", a11y: "Engelle", on: colors.danger },
-    { id: "neutral", text: "／", a11y: "Varsayılan", on: colors.raised },
-    { id: "allow", text: "✓", a11y: "İzin ver", on: colors.success },
+    { id: "deny", text: "✕", a11y: t("moreScreens.channelPermissions.deny"), on: colors.danger },
+    { id: "neutral", text: "／", a11y: t("moreScreens.channelPermissions.neutral"), on: colors.raised },
+    { id: "allow", text: "✓", a11y: t("moreScreens.channelPermissions.allow"), on: colors.success },
   ];
   return (
     <View
@@ -567,6 +581,7 @@ function MemberPickerSheet({
 }) {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
+  const t = useT();
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query), 200);
     return () => clearTimeout(timer);
@@ -598,7 +613,7 @@ function MemberPickerSheet({
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Üye ara"
+            placeholder={t("moreScreens.channelPermissions.searchMember")}
             placeholderTextColor={colors.muted}
             autoCorrect={false}
             autoCapitalize="none"
@@ -619,7 +634,7 @@ function MemberPickerSheet({
           : [
               {
                 key: "empty",
-                label: lookup.isFetching ? "Aranıyor…" : "Üye bulunamadı.",
+                label: lookup.isFetching ? t("moreScreens.channelPermissions.searching") : t("moreScreens.channelPermissions.noMember"),
                 icon: "search" as const,
                 onPress: () => undefined,
               },

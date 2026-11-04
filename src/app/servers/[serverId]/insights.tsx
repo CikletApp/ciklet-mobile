@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams } from "expo-router";
 
 import { useServerInsights, type DayPoint } from "@/api/hooks/use-server-admin";
 import { EmojiText, ErrorState, Icon, ScreenLoader, Screen, type IconName } from "@/components/ui";
+import { INTL_LOCALES, useLocale, useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -13,42 +14,43 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 export default function ServerInsightsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { data, isLoading, isError, refetch } = useServerInsights(serverId);
+  const t = useT();
 
-  if (isLoading) return <ScreenLoader label="İstatistikler yükleniyor…" />;
+  if (isLoading) return <ScreenLoader label={t("moreScreens.insights.loading")} />;
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: "İstatistikler" }} />
+      <Stack.Screen options={{ title: t("moreScreens.insights.title") }} />
       {isError || !data ? (
-        <ErrorState message="İstatistikler yüklenemedi." onRetry={() => void refetch()} />
+        <ErrorState message={t("moreScreens.insights.loadFailed")} onRetry={() => void refetch()} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing["4xl"] }}>
           <Text style={{ ...typography.caption, color: colors.muted }}>
-            Son 30 gün. Silinmiş mesajlar sayılmaz; günler UTC&apos;ye göre.
+            {t("moreScreens.insights.hint")}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-            <Stat icon="users" label="Üye" value={data.memberCount} />
-            <Stat icon="trending-up" label="Katılım" value={data.totals.joins} hint="30 günde" />
-            <Stat icon="arrow-down-left" label="Ayrılma" value={data.totals.leaves} hint="30 günde" />
-            <Stat icon="hash" label="Aktif üye" value={data.totals.activeAuthors7d} hint="son 7 günde yazan" />
+            <Stat icon="users" label={t("moreScreens.insights.members")} value={data.memberCount} />
+            <Stat icon="trending-up" label={t("moreScreens.insights.joins")} value={data.totals.joins} hint={t("moreScreens.insights.in30Days")} />
+            <Stat icon="arrow-down-left" label={t("moreScreens.insights.leaves")} value={data.totals.leaves} hint={t("moreScreens.insights.in30Days")} />
+            <Stat icon="hash" label={t("moreScreens.insights.activeMembers")} value={data.totals.activeAuthors7d} hint={t("moreScreens.insights.activeHint")} />
           </View>
 
-          <Card title={`MESAJLAR / GÜN · TOPLAM ${data.totals.messages}`}>
+          <Card title={t("moreScreens.insights.messagesPerDay", { total: data.totals.messages })}>
             <Bars points={data.messages} color={colors.brand} />
           </Card>
-          <Card title="YAZAN ÜYE / GÜN">
+          <Card title={t("moreScreens.insights.authorsPerDay")}>
             <Bars points={data.activeAuthors} color={colors.success} />
           </Card>
-          <Card title="KATILIM / GÜN">
+          <Card title={t("moreScreens.insights.joinsPerDay")}>
             <Bars points={data.joins} color={colors.success} />
           </Card>
-          <Card title="AYRILMA / GÜN">
+          <Card title={t("moreScreens.insights.leavesPerDay")}>
             <Bars points={data.leaves} color={colors.danger} />
           </Card>
 
-          <Card title="EN HAREKETLİ KANALLAR · 7 GÜN">
+          <Card title={t("moreScreens.insights.topChannels")}>
             {data.topChannels.length === 0 ? (
-              <Text style={{ ...typography.body, color: colors.muted }}>Bu hafta mesaj yok.</Text>
+              <Text style={{ ...typography.body, color: colors.muted }}>{t("moreScreens.insights.noMessages")}</Text>
             ) : (
               <View style={{ gap: spacing.sm }}>
                 {data.topChannels.map((channel) => {
@@ -80,6 +82,7 @@ export default function ServerInsightsScreen() {
 }
 
 function Stat({ icon, label, value, hint }: { icon: IconName; label: string; value: number; hint?: string }) {
+  const locale = useLocale();
   return (
     <View
       style={{
@@ -95,7 +98,7 @@ function Stat({ icon, label, value, hint }: { icon: IconName; label: string; val
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
         <Icon name={icon} size={13} color={colors.muted} />
-        <Text style={{ ...typography.overline, color: colors.muted }}>{label.toLocaleUpperCase("tr-TR")}</Text>
+        <Text style={{ ...typography.overline, color: colors.muted }}>{label.toLocaleUpperCase(INTL_LOCALES[locale])}</Text>
       </View>
       <Text style={{ ...typography.display, ...fw(800), color: colors.bright, marginTop: 2, fontVariant: ["tabular-nums"] }}>{value}</Text>
       {hint ? <Text style={{ ...typography.caption, color: colors.muted }}>{hint}</Text> : null}

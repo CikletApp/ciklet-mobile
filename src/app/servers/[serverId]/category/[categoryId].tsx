@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import { useCategoryMutations, useServerCategories } from "@/api/hooks/use-channel-admin";
 import { Button, KeyboardAvoider, TextField, showDialog, showToast } from "@/components/ui";
 import { CATEGORY_NAME_MAX_LENGTH } from "@/lib/channel-layout";
+import { useT } from "@/lib/i18n";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -20,6 +21,7 @@ export default function CategoryScreen() {
   const category = creating ? undefined : categories?.find((c) => c.id === categoryId);
   const { create, rename, remove } = useCategoryMutations(serverId);
   const [name, setName] = useState("");
+  const t = useT();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -35,23 +37,23 @@ export default function CategoryScreen() {
   const submit = () => {
     if (!trimmed || unchanged) return;
     if (creating) {
-      create.mutate(trimmed, { onSuccess: () => router.back(), onError: fail("Kategori oluşturulamadı") });
+      create.mutate(trimmed, { onSuccess: () => router.back(), onError: fail(t("moreScreens.category.createFailed")) });
     } else {
-      rename.mutate({ categoryId, name: trimmed }, { onSuccess: () => router.back(), onError: fail("Kategori kaydedilemedi") });
+      rename.mutate({ categoryId, name: trimmed }, { onSuccess: () => router.back(), onError: fail(t("moreScreens.category.saveFailed")) });
     }
   };
 
   const confirmDelete = () => {
     if (!category) return;
     showDialog(
-      "Kategoriyi sil?",
-      `${category.name} kategorisini silmek istediğine emin misin? İçindeki kanallar silinmez, kategorisiz olarak listenin üstüne taşınır.`,
+      t("moreScreens.category.deleteTitle"),
+      t("moreScreens.category.deleteBody", { name: category.name }),
       [
-        { text: "Vazgeç", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Kategoriyi Sil",
+          text: t("moreScreens.category.delete"),
           style: "destructive",
-          onPress: () => remove.mutate(category.id, { onSuccess: () => router.back(), onError: fail("Kategori silinemedi") }),
+          onPress: () => remove.mutate(category.id, { onSuccess: () => router.back(), onError: fail(t("moreScreens.category.deleteFailed")) }),
         },
       ]
     );
@@ -59,21 +61,21 @@ export default function CategoryScreen() {
 
   return (
     <KeyboardAvoider style={{ backgroundColor: colors.bg }}>
-      <Stack.Screen options={{ title: creating ? "Kategori Oluştur" : "Kategoriyi Düzenle" }} />
+      <Stack.Screen options={{ title: creating ? t("moreScreens.category.create") : t("moreScreens.category.editTitle") }} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.xl }}>
         <TextField
-          label="KATEGORİ ADI"
+          label={t("moreScreens.category.nameLabel")}
           value={name}
           onChangeText={setName}
           autoFocus={creating}
           maxLength={CATEGORY_NAME_MAX_LENGTH}
-          placeholder="Yeni Kategori"
+          placeholder={t("moreScreens.category.namePlaceholder")}
         />
         <Text style={{ ...typography.caption, color: colors.muted, marginTop: -spacing.md }}>
-          Kategoriler kanalları kenar çubuğunda gruplar. Kanalları kanal ayarlarından kategoriler arasında taşıyabilirsin.
+          {t("moreScreens.category.hint")}
         </Text>
         <Button
-          label={creating ? "Kategori Oluştur" : "Kaydet"}
+          label={creating ? t("moreScreens.category.create") : t("common.save")}
           fullWidth
           size="lg"
           loading={mutation.isPending}
@@ -83,13 +85,13 @@ export default function CategoryScreen() {
         {category ? (
           <>
             <Button
-              label="İzinler"
+              label={t("moreScreens.category.permissions")}
               variant="ghost"
               icon="shield"
               fullWidth
               onPress={() => router.push(`/servers/${serverId}/channel-permissions?categoryId=${category.id}`)}
             />
-            <Button label="Kategoriyi Sil" variant="danger" fullWidth loading={remove.isPending} onPress={confirmDelete} />
+            <Button label={t("moreScreens.category.delete")} variant="danger" fullWidth loading={remove.isPending} onPress={confirmDelete} />
           </>
         ) : null}
       </ScrollView>

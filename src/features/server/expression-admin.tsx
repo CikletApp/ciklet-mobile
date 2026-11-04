@@ -3,6 +3,7 @@ import { Modal, Pressable as RNPressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button, TextField } from "@/components/ui";
+import { useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -34,6 +35,7 @@ export function RenameSheet({
 }) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(initialName);
+  const t = useT();
   const [description, setDescription] = useState(initialDescription ?? "");
 
   useEffect(() => {
@@ -70,7 +72,7 @@ export function RenameSheet({
         >
           <Text style={{ ...typography.bodyStrong, color: colors.bright }}>{title}</Text>
           <TextField
-            label="AD"
+            label={t("moreScreens.expression.name")}
             value={name}
             onChangeText={setName}
             maxLength={nameMax}
@@ -82,17 +84,17 @@ export function RenameSheet({
           />
           {withDescription ? (
             <TextField
-              label="AÇIKLAMA"
+              label={t("moreScreens.expression.descriptionLabel")}
               value={description}
               onChangeText={setDescription}
               maxLength={descriptionMax}
-              placeholder="Açıklama"
+              placeholder={t("moreScreens.expression.description")}
               onSubmitEditing={save}
             />
           ) : null}
           <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }}>
-            <Button label="Vazgeç" variant="ghost" onPress={onClose} />
-            <Button label="Kaydet" disabled={!name.trim()} onPress={save} />
+            <Button label={t("common.cancel")} variant="ghost" onPress={onClose} />
+            <Button label={t("common.save")} disabled={!name.trim()} onPress={save} />
           </View>
         </View>
       </RNPressable>

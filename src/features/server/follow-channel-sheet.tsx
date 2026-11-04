@@ -6,6 +6,7 @@ import { useFollowChannel, useFollowTargets } from "@/api/hooks/use-channel-admi
 import { Button, Icon, showToast } from "@/components/ui";
 import { PillPicker } from "@/features/moderation/ui";
 import { fw } from "@/theme/fonts";
+import { useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
@@ -31,6 +32,7 @@ export function FollowChannelSheet({
   const servers = (targets.data ?? []).filter((s) => s.id !== sourceServerId);
   const [serverPick, setServerPick] = useState<string | null>(null);
   const [channelPick, setChannelPick] = useState<string | null>(null);
+  const t = useT();
   const serverId = serverPick && servers.some((s) => s.id === serverPick) ? serverPick : (servers[0]?.id ?? "");
   const selected = servers.find((s) => s.id === serverId);
   const targetChannelId =
@@ -40,10 +42,10 @@ export function FollowChannelSheet({
     if (!targetChannelId) return;
     follow.mutate(targetChannelId, {
       onSuccess: () => {
-        showToast("Takip edildi; yayınlanan duyurular seçtiğin kanala düşecek.");
+        showToast(t("moreScreens.follow.followed"));
         onClose();
       },
-      onError: (error) => showToast(error instanceof ApiError ? error.message : "Takip edilemedi", "error"),
+      onError: (error) => showToast(error instanceof ApiError ? error.message : t("moreScreens.follow.failed"), "error"),
     });
   };
 
@@ -66,21 +68,21 @@ export function FollowChannelSheet({
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <Icon name="megaphone" size={20} color={colors.brand} />
-            <Text style={{ ...typography.title, ...fw(800), color: colors.bright }}>Kanalı takip et</Text>
+            <Text style={{ ...typography.title, ...fw(800), color: colors.bright }}>{t("moreScreens.follow.title")}</Text>
           </View>
           <Text style={{ ...typography.caption, color: colors.muted }}>
-            #{channelName} kanalında yayınlanan duyurular seçtiğin kanala gelsin.
+            {t("moreScreens.follow.hint", { channel: channelName })}
           </Text>
 
           {targets.isLoading ? (
             <ActivityIndicator color={colors.muted} style={{ paddingVertical: spacing.xl }} />
           ) : servers.length === 0 ? (
             <Text style={{ ...typography.body, color: colors.muted, paddingVertical: spacing.md }}>
-              Yöneticisi olduğun başka bir sunucu yok.
+              {t("moreScreens.follow.noServers")}
             </Text>
           ) : (
             <ScrollView contentContainerStyle={{ gap: spacing.md }}>
-              <Text style={{ ...typography.overline, color: colors.muted }}>SUNUCU</Text>
+              <Text style={{ ...typography.overline, color: colors.muted }}>{t("moreScreens.follow.server")}</Text>
               <PillPicker
                 items={servers.map((s) => ({ id: s.id, label: s.name }))}
                 selected={[serverId]}
@@ -91,7 +93,7 @@ export function FollowChannelSheet({
                   setChannelPick(null);
                 }}
               />
-              <Text style={{ ...typography.overline, color: colors.muted }}>KANAL</Text>
+              <Text style={{ ...typography.overline, color: colors.muted }}>{t("moreScreens.follow.channel")}</Text>
               <PillPicker
                 items={(selected?.channels ?? []).map((c) => ({ id: c.id, label: `#${c.name}` }))}
                 selected={[targetChannelId]}
@@ -104,11 +106,11 @@ export function FollowChannelSheet({
 
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <Button label="Vazgeç" variant="ghost" fullWidth onPress={onClose} />
+              <Button label={t("common.cancel")} variant="ghost" fullWidth onPress={onClose} />
             </View>
             <View style={{ flex: 1 }}>
               <Button
-                label="Takip et"
+                label={t("moreScreens.follow.follow")}
                 icon="check"
                 fullWidth
                 loading={follow.isPending}
