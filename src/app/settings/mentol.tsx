@@ -9,6 +9,7 @@ import { useCheckout, useMentolPlan } from "@/api/hooks";
 import { Button, Pressable, Screen, SectionHeader, TextField, showDialog } from "@/components/ui";
 import { MentolIapCard } from "@/features/mentol/iap-card";
 import { RewardedCard } from "@/features/mentol/rewarded-card";
+import { MentolPaymentsList } from "@/features/mentol/payments-list";
 import { formatTime } from "@/lib/format";
 import { IAP_ENABLED, PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -97,6 +98,8 @@ export default function MentolSettingsScreen() {
             </View>
           </>
         ) : null}
+
+        <MentolPaymentsList />
       </ScrollView>
     </Screen>
   );
