@@ -168,4 +168,8 @@ export const parityScreens = {
     openProfile: "Открыть профиль {name}",
     mutualServers: "Общих серверов: {count}",
   },
+  cameraPin: {
+    pin: "Закрепить",
+    unpin: "Открепить",
+  },
 } satisfies Translation<typeof parityScreensTr>;

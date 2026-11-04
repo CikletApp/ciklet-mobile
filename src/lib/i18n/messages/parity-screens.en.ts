@@ -168,4 +168,8 @@ export const parityScreensEn = {
     openProfile: "Open {name}'s profile",
     mutualServers: "Mutual servers: {count}",
   },
+  cameraPin: {
+    pin: "Pin",
+    unpin: "Unpin",
+  },
 } as const satisfies Widen<typeof parityScreensTr>;

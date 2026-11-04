@@ -168,4 +168,8 @@ export const parityScreens = {
     openProfile: "打开 {name} 的个人资料",
     mutualServers: "共同服务器：{count}",
   },
+  cameraPin: {
+    pin: "置顶",
+    unpin: "取消置顶",
+  },
 } satisfies Translation<typeof parityScreensTr>;

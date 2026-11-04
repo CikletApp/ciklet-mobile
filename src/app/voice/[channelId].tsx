@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import {
   isTrackReference,
@@ -10,6 +10,7 @@ import {
   useRoomContext,
   useTracks,
   VideoTrack,
+  type TrackReference,
 } from "@livekit/react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import { Track } from "livekit-client";
@@ -47,6 +48,7 @@ import { useLiveVoiceSettings } from "@/features/voice/live-voice-settings";
 import { useCallStreamQuality } from "@/features/voice/stream-quality";
 import { LIVEKIT_URL, roomOptionsFor, type VoiceModerationState } from "@/lib/livekit";
 import { usePreferences } from "@/stores/preferences";
+import { useT } from "@/lib/i18n";
 import { useVoice, type ActiveVoice } from "@/stores/voice";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useOngoingCallService } from "@/features/call/use-ongoing-call-service";
@@ -299,6 +301,10 @@ function VoiceRoomBody({
     [livekitParticipants]
   );
   const cameraTracks = useTracks([Track.Source.Camera]).filter(isTrackReference);
+  // Kamera döşemesini sabitleme (web custom-participant-tile: tıkla → odak,
+  // yeniden tıkla → bırak). Sabitlenen kamera kapanınca sabitleme düşer.
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null);
+  const pinnedTrack = (pinnedKey && cameraTracks.find((trackRef) => tileKey(trackRef) === pinnedKey)) || null;
   // Ekran paylaşımı: başkalarınınki büyük karoda; kendininki çizilmez.
   const screenShare = useScreenShare();
   const remoteShares = useRemoteScreenShares();
@@ -333,6 +339,7 @@ function VoiceRoomBody({
 
         <View style={{ flex: remoteShares.length > 0 ? 2 : 1, overflow: "hidden" }}>
           {isVideo && cameraTracks.length > 0 ? (
+            <>
             <View
               style={{
                 flex: 1,
@@ -343,44 +350,33 @@ function VoiceRoomBody({
                 alignContent: "center",
               }}
             >
-              {cameraTracks.map((trackRef) => (
-                <View
-                  key={`${trackRef.participant.identity}-${trackRef.source}`}
-                  style={{
-                    width: cameraTracks.length === 1 ? "100%" : "48%",
-                    aspectRatio: cameraTracks.length === 1 ? 3 / 4 : 1,
-                    maxHeight: "100%",
-                    overflow: "hidden",
-                    borderRadius: radii.xl,
-                    backgroundColor: colors.panel,
-                    borderWidth: trackRef.participant.isSpeaking ? 2 : 0,
-                    borderColor: colors.success,
-                  }}
-                >
-                  <VideoTrack
-                    trackRef={trackRef}
-                    style={{ flex: 1 }}
-                    objectFit="cover"
-                    mirror={trackRef.participant.isLocal}
-                  />
-                  <Text
-                    style={{
-                      ...typography.caption,
-                      color: colors.bright,
-                      position: "absolute",
-                      left: spacing.sm,
-                      bottom: spacing.sm,
-                      backgroundColor: colors.scrim,
-                      paddingHorizontal: spacing.sm,
-                      paddingVertical: 3,
-                      borderRadius: radii.full,
-                    }}
-                  >
-                    {trackRef.participant.name || trackRef.participant.identity}
-                  </Text>
-                </View>
+              {(pinnedTrack ? [pinnedTrack] : cameraTracks).map((trackRef) => (
+                <CameraTile
+                  key={tileKey(trackRef)}
+                  trackRef={trackRef}
+                  single={pinnedTrack !== null || cameraTracks.length === 1}
+                  pinned={pinnedTrack !== null}
+                  onPress={() => setPinnedKey((current) => (current === tileKey(trackRef) ? null : tileKey(trackRef)))}
+                />
               ))}
             </View>
+            {/* Sabitlenen döşemenin altında kalanlar küçük şeritte (web odak düzeni). */}
+            {pinnedTrack && cameraTracks.length > 1 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: spacing.sm }} contentContainerStyle={{ gap: spacing.sm }}>
+                {cameraTracks
+                  .filter((trackRef) => tileKey(trackRef) !== pinnedKey)
+                  .map((trackRef) => (
+                    <CameraTile
+                      key={tileKey(trackRef)}
+                      trackRef={trackRef}
+                      thumb
+                      pinned={false}
+                      onPress={() => setPinnedKey(tileKey(trackRef))}
+                    />
+                  ))}
+              </ScrollView>
+            ) : null}
+            </>
           ) : (
             <View
               style={{
@@ -549,5 +545,78 @@ function VoiceRoomBody({
         onPlay={(sound) => void soundboard.play(sound)}
       />
     </Screen>
+  );
+}
+
+const tileKey = (trackRef: TrackReference) => `${trackRef.participant.identity}-${trackRef.source}`;
+
+/** Kamera döşemesi; dokununca sabitlenir / bırakılır. `thumb`: odak altındaki şerit. */
+function CameraTile({
+  trackRef,
+  single,
+  thumb,
+  pinned,
+  onPress,
+}: {
+  trackRef: TrackReference;
+  single?: boolean;
+  thumb?: boolean;
+  pinned: boolean;
+  onPress: () => void;
+}) {
+  const t = useT();
+  const name = trackRef.participant.name || trackRef.participant.identity;
+  return (
+    <Pressable
+      onPress={onPress}
+      noHitSlop
+      accessibilityRole="button"
+      accessibilityState={{ selected: pinned }}
+      accessibilityLabel={`${name}, ${pinned ? t("parityScreens.cameraPin.unpin") : t("parityScreens.cameraPin.pin")}`}
+      style={{
+        width: thumb ? 96 : single ? "100%" : "48%",
+        height: thumb ? 96 : undefined,
+        aspectRatio: thumb ? undefined : single ? 3 / 4 : 1,
+        maxHeight: "100%",
+        overflow: "hidden",
+        borderRadius: thumb ? radii.lg : radii.xl,
+        backgroundColor: colors.panel,
+        borderWidth: trackRef.participant.isSpeaking ? 2 : 0,
+        borderColor: colors.success,
+      }}
+    >
+      <VideoTrack trackRef={trackRef} style={{ flex: 1 }} objectFit="cover" mirror={trackRef.participant.isLocal} />
+      {thumb ? null : (
+        <Text
+          style={{
+            ...typography.caption,
+            color: colors.bright,
+            position: "absolute",
+            left: spacing.sm,
+            bottom: spacing.sm,
+            backgroundColor: colors.scrim,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: 3,
+            borderRadius: radii.full,
+          }}
+        >
+          {name}
+        </Text>
+      )}
+      {pinned ? (
+        <View
+          style={{
+            position: "absolute",
+            top: spacing.sm,
+            right: spacing.sm,
+            padding: 6,
+            borderRadius: radii.full,
+            backgroundColor: colors.scrim,
+          }}
+        >
+          <Icon name="pin" size={14} color={colors.bright} />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }

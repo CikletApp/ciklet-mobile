@@ -168,4 +168,8 @@ export const parityScreens = {
     openProfile: "{name}님의 프로필 열기",
     mutualServers: "같이 있는 서버 {count}개",
   },
+  cameraPin: {
+    pin: "고정",
+    unpin: "고정 해제",
+  },
 } satisfies Translation<typeof parityScreensTr>;

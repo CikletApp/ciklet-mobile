@@ -165,4 +165,8 @@ export const parityScreensTr = {
     openProfile: "{name} profilini aç",
     mutualServers: "{count} ortak sunucu",
   },
+  cameraPin: {
+    pin: "Sabitle",
+    unpin: "Sabitlemeyi kaldır",
+  },
 } as const;
