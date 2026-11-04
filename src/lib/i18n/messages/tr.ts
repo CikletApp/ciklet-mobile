@@ -7,6 +7,11 @@ import { serverBoostTr } from "./server-boost.tr";
 import { accountSwitcherTr } from "./account-switcher.tr";
 import { familyCenterTr } from "./family-center.tr";
 import { gameStatsTr } from "./game-stats.tr";
+import { complianceTr } from "./compliance.tr";
+import { questsTr } from "./quests.tr";
+import { settingsAccountTr } from "./settings-account.tr";
+import { settingsGeneralTr } from "./settings-general.tr";
+import { settingsMediaTr } from "./settings-media.tr";
 import { liveCaptionsTr, translationTr } from "./live-language.tr";
 
 /**
@@ -235,6 +240,11 @@ export const tr = {
   /** Hesap değiştirici (web ile aynı anahtarlar) — account-switcher.tr.ts. */
   accountSwitcher: accountSwitcherTr,
   gameStats: gameStatsTr,
+  compliance: complianceTr,
+  quests: questsTr,
+  settingsAccount: settingsAccountTr,
+  settingsGeneral: settingsGeneralTr,
+  settingsMedia: settingsMediaTr,
   /** Aile Merkezi (web ile aynı anahtarlar) — family-center.tr.ts. */
   familyCenter: familyCenterTr,
   translation: translationTr,

@@ -23,6 +23,15 @@ import { formatDate } from "@/lib/format";
 import { getDeviceId } from "@/lib/device";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { GameStatsPrivacySection } from "@/features/profile/game-stats-privacy";
+import { profileExtras, useRevokeOtherSessions } from "@/api/hooks/use-account-privacy";
+import {
+  AgeSafetySection,
+  ConsentsSection,
+  DataRightsSection,
+  KvkkRequestSection,
+  LegalLinksSection,
+} from "@/features/account/privacy-compliance";
+import { useT } from "@/lib/i18n";
 
 type DmPermission = NonNullable<CurrentProfile["dmPermission"]>;
 type SpamFilter = NonNullable<CurrentProfile["spamFilter"]>;
@@ -50,6 +59,12 @@ export default function PrivacySettingsScreen() {
   const [friendReqEveryone, setFriendReqEveryone] = useState(true);
   const [friendReqFriendsOfFriends, setFriendReqFriendsOfFriends] = useState(true);
   const [friendReqServerMembers, setFriendReqServerMembers] = useState(true);
+  const [blurSensitive, setBlurSensitive] = useState(true);
+  const [groupDmFromServerMembers, setGroupDmFromServerMembers] = useState(false);
+  const t = useT();
+  const revokeOthers = useRevokeOtherSessions();
+  const extras = profileExtras(profile);
+  const teenSafe = extras.age?.teenSafe === true;
 
   useEffect(() => {
     void getDeviceId().then(setDeviceToken);
@@ -64,6 +79,8 @@ export default function PrivacySettingsScreen() {
     setFriendReqEveryone(profile.friendReqEveryone ?? true);
     setFriendReqFriendsOfFriends(profile.friendReqFriendsOfFriends ?? true);
     setFriendReqServerMembers(profile.friendReqServerMembers ?? true);
+    setBlurSensitive(profileExtras(profile).blurSensitiveMedia ?? true);
+    setGroupDmFromServerMembers(profileExtras(profile).groupDmFromServerMembers ?? false);
   }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dirty = Boolean(
@@ -72,18 +89,24 @@ export default function PrivacySettingsScreen() {
         spamFilter !== (profile.spamFilter ?? "NON_FRIENDS") ||
         friendReqEveryone !== (profile.friendReqEveryone ?? true) ||
         friendReqFriendsOfFriends !== (profile.friendReqFriendsOfFriends ?? true) ||
-        friendReqServerMembers !== (profile.friendReqServerMembers ?? true))
+        friendReqServerMembers !== (profile.friendReqServerMembers ?? true) ||
+        blurSensitive !== (extras.blurSensitiveMedia ?? true) ||
+        groupDmFromServerMembers !== (extras.groupDmFromServerMembers ?? false))
   );
 
   const save = () => {
     if (!dirty || update.isPending) return;
-    update.mutate({
+    // blurSensitiveMedia / groupDmFromServerMembers: web `PATCH /api/current-profile` alanları.
+    const input = {
       dmPermission,
       spamFilter,
       friendReqEveryone,
       friendReqFriendsOfFriends,
       friendReqServerMembers,
-    });
+      blurSensitiveMedia: blurSensitive,
+      groupDmFromServerMembers,
+    };
+    update.mutate(input);
   };
 
   return (
@@ -110,6 +133,8 @@ export default function PrivacySettingsScreen() {
         }}
       />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing["4xl"] }}>
+        <AgeSafetySection />
+
         <SectionHeader title="SANA KİM MESAJ GÖNDEREBİLİR?" />
         <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
           <RadioOption
@@ -144,9 +169,43 @@ export default function PrivacySettingsScreen() {
               title={title}
               description={description}
               selected={spamFilter === value}
+              disabled={teenSafe && value === "NONE"}
               onPress={() => setSpamFilter(value)}
             />
           ))}
+          {teenSafe ? <Text style={{ ...typography.caption, color: colors.muted }}>{t("compliance.age.spamLocked")}</Text> : null}
+        </View>
+
+        <SectionHeader title={t("settingsGeneral.privacy.sensitive.title").toLocaleUpperCase()} />
+        <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{t("settingsGeneral.privacy.sensitive.desc")}</Text>
+          <RadioOption
+            title={t("settingsGeneral.privacy.sensitive.blur.label")}
+            description={t("settingsGeneral.privacy.sensitive.blur.desc")}
+            selected={blurSensitive}
+            onPress={() => setBlurSensitive(true)}
+          />
+          <RadioOption
+            title={t("settingsGeneral.privacy.sensitive.show.label")}
+            description={t("settingsGeneral.privacy.sensitive.show.desc")}
+            selected={!blurSensitive}
+            disabled={teenSafe}
+            onPress={() => setBlurSensitive(false)}
+          />
+          {teenSafe ? <Text style={{ ...typography.caption, color: colors.muted }}>{t("compliance.age.sensitiveLocked")}</Text> : null}
+        </View>
+
+        <SectionHeader title={t("settingsGeneral.privacy.groupDm.title").toLocaleUpperCase()} />
+        <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+          <Text style={{ ...typography.caption, color: colors.muted }}>{t("settingsGeneral.privacy.groupDm.desc")}</Text>
+          <ListGroup>
+            <ToggleRow
+              title={t("settingsGeneral.privacy.groupDm.label")}
+              description={t("settingsGeneral.privacy.groupDm.labelDesc")}
+              value={groupDmFromServerMembers}
+              onChange={setGroupDmFromServerMembers}
+            />
+          </ListGroup>
         </View>
 
         <SectionHeader title="ARKADAŞLIK İSTEKLERİ" />
@@ -156,13 +215,15 @@ export default function PrivacySettingsScreen() {
             <Divider inset={16} />
             <ToggleRow
               title="Arkadaşların arkadaşları"
-              value={friendReqFriendsOfFriends}
+              disabled={friendReqEveryone}
+              value={friendReqEveryone || friendReqFriendsOfFriends}
               onChange={setFriendReqFriendsOfFriends}
             />
             <Divider inset={16} />
             <ToggleRow
               title="Aynı sunucudaki üyeler"
-              value={friendReqServerMembers}
+              disabled={friendReqEveryone}
+              value={friendReqEveryone || friendReqServerMembers}
               onChange={setFriendReqServerMembers}
             />
           </ListGroup>
@@ -314,7 +375,35 @@ export default function PrivacySettingsScreen() {
           ) : (
             <EmptyState icon="shield" title="Etkin cihaz yok" description="Oturum listesi alınamadı." />
           )}
+          {(sessions?.length ?? 0) > 1 ? (
+            <Button
+              label={revokeOthers.isPending ? t("settingsAccount.sessions.revokingOthers") : t("settingsAccount.sessions.revokeOthers")}
+              variant="danger"
+              fullWidth
+              loading={revokeOthers.isPending}
+              style={{ marginTop: spacing.sm }}
+              onPress={() =>
+                showDialog(t("settingsAccount.sessions.revokeOthers"), "", [
+                  { text: "Vazgeç", style: "cancel" },
+                  {
+                    text: t("settingsAccount.sessions.revokeOthers"),
+                    style: "destructive",
+                    onPress: () =>
+                      revokeOthers.mutate(undefined, {
+                        onSuccess: () => showToast(t("settingsAccount.sessions.revokeOthersDone")),
+                        onError: () => showToast(t("settingsAccount.sessions.revokeOthersFailed"), "error"),
+                      }),
+                  },
+                ])
+              }
+            />
+          ) : null}
         </View>
+
+        <ConsentsSection />
+        <DataRightsSection />
+        <KvkkRequestSection />
+        <LegalLinksSection />
       </ScrollView>
     </Screen>
   );
@@ -324,19 +413,23 @@ function RadioOption({
   title,
   description,
   selected,
+  disabled,
   onPress,
 }: {
   title: string;
   description: string;
   selected: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
       style={({ pressed }) => ({
+        opacity: disabled ? 0.5 : 1,
         flexDirection: "row",
         alignItems: "center",
         gap: spacing.md,
@@ -371,12 +464,28 @@ function RadioOption({
   );
 }
 
-function ToggleRow({ title, value, onChange }: { title: string; value: boolean; onChange: (value: boolean) => void }) {
+function ToggleRow({
+  title,
+  description,
+  value,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  description?: string;
+  value: boolean;
+  disabled?: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", minHeight: 54, paddingHorizontal: spacing.lg }}>
-      <Text style={{ ...typography.body, color: colors.text, flex: 1 }}>{title}</Text>
+    <View style={{ flexDirection: "row", alignItems: "center", minHeight: 54, paddingHorizontal: spacing.lg, gap: spacing.md, opacity: disabled ? 0.5 : 1 }}>
+      <View style={{ flex: 1, paddingVertical: spacing.sm }}>
+        <Text style={{ ...typography.body, color: colors.text }}>{title}</Text>
+        {description ? <Text style={{ ...typography.caption, color: colors.muted }}>{description}</Text> : null}
+      </View>
       <Switch
         value={value}
+        disabled={disabled}
         onValueChange={onChange}
         trackColor={{ false: colors.border, true: colors.brand }}
         thumbColor="#ffffff"

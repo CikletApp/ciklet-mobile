@@ -147,3 +147,34 @@ export async function downloadAttachment({ url, name, mimeType }: DownloadReques
   }
   return "folder";
 }
+
+/**
+ * Uygulamanın kendi ürettiği/indirdiği yerel dosyayı (ör. KVKK veri arşivi)
+ * ekler gibi kaydeder: Android'de İndirilenler/Ciklet, diğerlerinde seçilen
+ * klasör. Kaynak dosya her durumda silinir.
+ */
+export async function saveLocalFile(source: File, name: string, mimeType: string): Promise<DownloadResult> {
+  try {
+    if (CikletDownloads?.isSupported()) {
+      await CikletDownloads.saveToDownloads(source.uri, name, mimeType);
+      return "downloads";
+    }
+    let directory = (await savedDirectory()) ?? (await pickDirectory());
+    if (!directory) return "cancelled";
+    const bytes = await source.bytes();
+    try {
+      directory.createFile(name, mimeType).write(bytes);
+    } catch {
+      directory = await pickDirectory();
+      if (!directory) return "cancelled";
+      directory.createFile(name, mimeType).write(bytes);
+    }
+    return "folder";
+  } finally {
+    try {
+      source.delete();
+    } catch {
+      /* Önbellek sistem tarafından da temizlenir. */
+    }
+  }
+}

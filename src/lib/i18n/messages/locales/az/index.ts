@@ -7,6 +7,11 @@ import { serverBoost } from "./server-boost";
 import { accountSwitcher } from "./account-switcher";
 import { familyCenter } from "./family-center";
 import { gameStats } from "./game-stats";
+import { compliance } from "./compliance";
+import { quests } from "./quests";
+import { settingsAccount } from "./settings-account";
+import { settingsGeneral } from "./settings-general";
+import { settingsMedia } from "./settings-media";
 import { liveCaptions, translation } from "./live-language";
 import type { Messages } from "../../tr";
 import type { Translation } from "../../translation";
@@ -222,6 +227,11 @@ export const messages = {
   /** Aile Merkezi (web ile aynı anahtarlar) — family-center.en.ts. */
   familyCenter: familyCenter,
   gameStats: gameStats,
+  compliance: compliance,
+  quests: quests,
+  settingsAccount: settingsAccount,
+  settingsGeneral: settingsGeneral,
+  settingsMedia: settingsMedia,
   translation: translation,
   liveCaptions: liveCaptions,
 } satisfies Translation<Messages>;
