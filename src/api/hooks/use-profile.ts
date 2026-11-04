@@ -153,3 +153,32 @@ export function useSetFavoriteGame() {
     },
   });
 }
+
+/**
+ * Koleksiyonda tek oyunu profilde gizler / gösterir (`PATCH /api/profile/games`
+ * `{ name, type, hidden }`, web Oyun Koleksiyonu düzenleyicisi). İyimser yazılır.
+ */
+export function useSetGameHidden() {
+  const queryClient = useQueryClient();
+  const myId = useAuth((s) => s.profile?.id);
+
+  return useMutation({
+    mutationFn: (input: { name: string; type: string; hidden: boolean }) =>
+      api(endpoints.profileGames, { method: "PATCH", body: input }),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: qk.profileGames });
+      const previous = queryClient.getQueryData<OwnProfileGame[]>(qk.profileGames);
+      queryClient.setQueryData<OwnProfileGame[]>(qk.profileGames, (rows) =>
+        rows?.map((row) => (row.name === input.name && row.type === input.type ? { ...row, hidden: input.hidden } : row))
+      );
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(qk.profileGames, context.previous);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.profileGames });
+      if (myId) void queryClient.invalidateQueries({ queryKey: qk.profileCard(myId) });
+    },
+  });
+}

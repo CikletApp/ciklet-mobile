@@ -33,6 +33,7 @@ import { ActionSheet } from "@/components/ui/action-sheet";
 import { favoriteCandidates, favoriteGameTagLabel } from "@/lib/favorite-game";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { useT } from "@/lib/i18n";
 
 /**
  * Profil düzenleme — iki sekme:
@@ -61,6 +62,7 @@ function nameStyleSummary(raw: unknown): string {
 }
 
 export default function EditProfileScreen() {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("user");
   const { data: profile, isLoading } = useCurrentProfile();
   const updateProfile = useUpdateProfile();
@@ -443,6 +445,14 @@ export default function EditProfileScreen() {
                 subtitle={favoriteGame ? favoriteGameTagLabel(favoriteGame.favoriteTag) ?? undefined : undefined}
                 detail={favoriteGame?.name ?? "Yok"}
                 onPress={() => setFavoritePicker(true)}
+              />
+              <Divider inset={52} />
+              {/* Web Oyun Koleksiyonu düzenleyicisi: tek tek gizle/göster, favori etiketi. */}
+              <ListRow
+                icon="list"
+                title={t("parityScreens.games.manage")}
+                subtitle={t("parityScreens.games.manageHint")}
+                onPress={() => router.push("/profile/games")}
               />
             </ListGroup>
           </View>
