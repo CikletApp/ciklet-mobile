@@ -534,7 +534,7 @@ export default function ProfileScreen() {
 
               {games.length > 0 ? (
                 <Card title={isSelf ? "OYUNLARIN" : "SEVDİĞİ OYUNLAR"}>
-                  <CollectionGrid items={games} />
+                  <CollectionGrid items={games} profileId={profile.id} />
                 </Card>
               ) : null}
 
@@ -546,7 +546,7 @@ export default function ProfileScreen() {
 
               {programs.length > 0 ? (
                 <Card title={isSelf ? "PROGRAMLARIN" : "KULLANDIĞI PROGRAMLAR"}>
-                  <CollectionGrid items={programs} />
+                  <CollectionGrid items={programs} profileId={profile.id} />
                 </Card>
               ) : null}
 

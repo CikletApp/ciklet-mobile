@@ -116,7 +116,7 @@ export function BadgeRow({ badges }: { badges: ProfileBadge[] }) {
  * Dikey kapak ızgarası (2:3). Web dört sütun; dar ekranda kapaklar
  * okunmaz hale gelmesin diye sütun sayısı genişlikten türetilir (en az 3).
  */
-export function CollectionGrid({ items }: { items: ProfileGameView[] }) {
+export function CollectionGrid({ items, profileId }: { items: ProfileGameView[]; profileId?: string }) {
   const { width } = useWindowDimensions();
   // Ekran kenar boşluğu + kart iç boşluğu (2 × lg her biri).
   const inner = width - spacing.lg * 4;
@@ -132,9 +132,15 @@ export function CollectionGrid({ items }: { items: ProfileGameView[] }) {
         return (
           <Pressable
             key={`${game.type}:${game.name}`}
-            onPress={() => showToast(`${game.name} · ${playtimeLabel(game.playtimeMs)}`)}
+            // Web: kapağa tıklayınca oyun detayı (game-detail-dialog).
+            onPress={() =>
+              router.push({
+                pathname: "/games/details",
+                params: { name: game.name, type: game.type, ...(profileId ? { profileId } : {}) },
+              })
+            }
             noHitSlop
-            accessibilityRole="text"
+            accessibilityRole="button"
             accessibilityLabel={`${game.name}, ${playtimeLabel(game.playtimeMs)}`}
             style={{ width: tile, gap: 4 }}
           >
