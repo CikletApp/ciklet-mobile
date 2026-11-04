@@ -162,4 +162,10 @@ export const parityScreens = {
     },
     search: "상점 검색",
   },
+  directBanner: {
+    show: "프로필 배너 표시",
+    hide: "프로필 배너 숨기기",
+    openProfile: "{name}님의 프로필 열기",
+    mutualServers: "같이 있는 서버 {count}개",
+  },
 } satisfies Translation<typeof parityScreensTr>;

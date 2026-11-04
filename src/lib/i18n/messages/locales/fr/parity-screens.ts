@@ -162,4 +162,10 @@ export const parityScreens = {
     },
     search: "Rechercher dans la boutique",
   },
+  directBanner: {
+    show: "Afficher la bannière du profil",
+    hide: "Masquer la bannière du profil",
+    openProfile: "Ouvrir le profil de {name}",
+    mutualServers: "Serveurs en commun : {count}",
+  },
 } satisfies Translation<typeof parityScreensTr>;

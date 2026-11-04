@@ -162,4 +162,10 @@ export const parityScreens = {
     },
     search: "搜索商店",
   },
+  directBanner: {
+    show: "显示个人资料横幅",
+    hide: "隐藏个人资料横幅",
+    openProfile: "打开 {name} 的个人资料",
+    mutualServers: "共同服务器：{count}",
+  },
 } satisfies Translation<typeof parityScreensTr>;

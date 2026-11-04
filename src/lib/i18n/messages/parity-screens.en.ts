@@ -162,4 +162,10 @@ export const parityScreensEn = {
     },
     search: "Search the shop",
   },
+  directBanner: {
+    show: "Show profile banner",
+    hide: "Hide profile banner",
+    openProfile: "Open {name}'s profile",
+    mutualServers: "Mutual servers: {count}",
+  },
 } as const satisfies Widen<typeof parityScreensTr>;

@@ -162,4 +162,10 @@ export const parityScreens = {
     },
     search: "Пошук у магазині",
   },
+  directBanner: {
+    show: "Показати банер профілю",
+    hide: "Приховати банер профілю",
+    openProfile: "Відкрити профіль {name}",
+    mutualServers: "Спільних серверів: {count}",
+  },
 } satisfies Translation<typeof parityScreensTr>;

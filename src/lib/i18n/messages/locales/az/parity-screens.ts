@@ -162,4 +162,10 @@ export const parityScreens = {
     },
     search: "Mağazada axtar",
   },
+  directBanner: {
+    show: "Profil bannerini göstər",
+    hide: "Profil bannerini gizlət",
+    openProfile: "{name} profilini aç",
+    mutualServers: "{count} ortaq server",
+  },
 } satisfies Translation<typeof parityScreensTr>;

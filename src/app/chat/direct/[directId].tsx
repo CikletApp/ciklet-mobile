@@ -9,12 +9,14 @@ import { OngoingCallBanner } from "@/features/call/ongoing-call-banner";
 import { ChatView } from "@/features/chat/chat-view";
 import { ChatHeaderTitle } from "@/features/chat/components/chat-header-title";
 import { ChatWelcome } from "@/features/chat/components/chat-welcome";
+import { DirectProfileBanner, useDirectProfileBanner } from "@/features/directs/direct-profile-banner";
 import { DirectExpirySheet } from "@/features/chat/components/direct-expiry-button";
 import { FriendAnniversaryBar } from "@/features/social/friend-anniversary";
 import { formatActivity, formatPresenceStatus } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { useCallActions } from "@/realtime/use-call-events";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
+import { useT } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
 import { colors, spacing } from "@/theme/tokens";
@@ -30,6 +32,7 @@ import { colors, spacing } from "@/theme/tokens";
  * seyrek kullanılan eylemlerin menüsü (sohbette ara, süreli mesajlar).
  */
 export default function DirectChatScreen() {
+  const t = useT();
   const { directId, m: focusMessageId } = useLocalSearchParams<{ directId: string; m?: string }>();
   const { data: direct, isListed } = useDirect(directId);
   const display = useDirectDisplay(direct);
@@ -79,13 +82,23 @@ export default function DirectChatScreen() {
     else if (peer && !isNotes) router.push({ pathname: "/profile/[profileId]", params: { profileId: peer.id, chatId: directId } });
   };
 
+  const bannerOpen = useDirectProfileBanner((s) => s.open);
+  const toggleBanner = useDirectProfileBanner((s) => s.toggle);
   const menu: MenuItem[] = [
     { label: "Sohbette ara", icon: "search", onPress: () => router.push(`/directs/${directId}/search`) },
     ...(canExpire ? [{ label: "Süreli mesajlar", icon: "timer" as const, onPress: () => setExpiryOpen(true) }] : []),
     ...(isGroup
       ? [{ label: "Grup bilgisi", icon: "users" as const, onPress: openDetails }]
       : peer && !isNotes
-        ? [{ label: "Profili görüntüle", icon: "user" as const, onPress: openDetails }]
+        ? [
+            { label: "Profili görüntüle", icon: "user" as const, onPress: openDetails },
+            // Web sohbet başlığındaki "Profil panelini aç/kapat" (direct-banner-row).
+            {
+              label: bannerOpen ? t("parityScreens.directBanner.hide") : t("parityScreens.directBanner.show"),
+              icon: (bannerOpen ? "eye-off" : "eye") as "eye" | "eye-off",
+              onPress: toggleBanner,
+            },
+          ]
         : []),
   ];
 
@@ -188,6 +201,8 @@ export default function DirectChatScreen() {
       {friendship?.since && peer ? (
         <FriendAnniversaryBar friendshipId={friendship.id} since={friendship.since} friend={peer} directId={directId} />
       ) : null}
+      {/* Profil afişi + etkinlik afişi (web DirectFriendBanner + DirectActivityBanner). */}
+      {!isGroup && !isNotes && !isOfficial && peer ? <DirectProfileBanner profileId={peer.id} /> : null}
       <ChatView
         kind="direct"
         chatId={directId}

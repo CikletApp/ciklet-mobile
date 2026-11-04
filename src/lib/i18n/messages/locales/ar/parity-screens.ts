@@ -162,4 +162,10 @@ export const parityScreens = {
     },
     search: "البحث في المتجر",
   },
+  directBanner: {
+    show: "إظهار لافتة الملف الشخصي",
+    hide: "إخفاء لافتة الملف الشخصي",
+    openProfile: "فتح ملف {name} الشخصي",
+    mutualServers: "الخوادم المشتركة: {count}",
+  },
 } satisfies Translation<typeof parityScreensTr>;

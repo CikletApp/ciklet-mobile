@@ -159,4 +159,10 @@ export const parityScreensTr = {
     },
     search: "Mağazada ara",
   },
+  directBanner: {
+    show: "Profil afişini göster",
+    hide: "Profil afişini gizle",
+    openProfile: "{name} profilini aç",
+    mutualServers: "{count} ortak sunucu",
+  },
 } as const;
