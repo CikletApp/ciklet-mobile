@@ -1,3 +1,5 @@
+import { parityScreensTr } from "./parity-screens.tr";
+import { moreScreensTr } from "./more-screens.tr";
 import { automodTr, streamingTr } from "./automod.tr";
 import { safetyTr } from "./safety.tr";
 import { voiceE2eeTr } from "./voice-e2ee.tr";
@@ -251,6 +253,8 @@ export const tr = {
   familyCenter: familyCenterTr,
   translation: translationTr,
   liveCaptions: liveCaptionsTr,
+  moreScreens: moreScreensTr,
+  parityScreens: parityScreensTr,
 } as const;
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

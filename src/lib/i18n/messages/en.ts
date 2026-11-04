@@ -1,3 +1,5 @@
+import { parityScreensEn } from "./parity-screens.en";
+import { moreScreensEn } from "./more-screens.en";
 import { automodEn, streamingEn } from "./automod.en";
 import { safetyEn } from "./safety.en";
 import { voiceE2eeEn } from "./voice-e2ee.en";
@@ -235,4 +237,6 @@ export const en = {
   familyCenter: familyCenterEn,
   translation: translationEn,
   liveCaptions: liveCaptionsEn,
+  moreScreens: moreScreensEn,
+  parityScreens: parityScreensEn,
 } satisfies Messages;

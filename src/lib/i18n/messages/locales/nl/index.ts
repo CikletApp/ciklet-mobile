@@ -14,6 +14,8 @@ import { settingsAccount } from "./settings-account";
 import { settingsGeneral } from "./settings-general";
 import { settingsMedia } from "./settings-media";
 import { liveCaptions, translation } from "./live-language";
+import { moreScreens } from "./more-screens";
+import { parityScreens } from "./parity-screens";
 import type { Messages } from "../../tr";
 import type { Translation } from "../../translation";
 
@@ -236,4 +238,6 @@ export const messages = {
   settingsMedia: settingsMedia,
   translation: translation,
   liveCaptions: liveCaptions,
+  moreScreens: moreScreens,
+  parityScreens: parityScreens,
 } satisfies Translation<Messages>;
