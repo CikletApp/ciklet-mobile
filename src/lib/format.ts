@@ -220,9 +220,18 @@ export function formatDirectPreview(
   return authorName ? `${authorName}: ${preview}` : preview;
 }
 
+/**
+ * İlk kod noktası — UTF-16 vekil çiftini (emoji) BÖLMEZ. `charAt(0)` "🎮 Oyun"
+ * için yarım vekil verip bozuk karakter çizdiriyordu (web lib/initials ile
+ * aynı kural; web'de bu ayrıca hidrasyon uyuşmazlığıydı).
+ */
+function firstChar(text: string): string {
+  return Array.from(text)[0] ?? "";
+}
+
 /** Türkçe'ye uygun baş harf — "istanbul" → "İ". */
 export function initialOf(text: string): string {
-  return text.charAt(0).toLocaleUpperCase("tr");
+  return firstChar(text).toLocaleUpperCase("tr");
 }
 
 /**
@@ -234,7 +243,7 @@ export function initialsOf(text: string): string {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((word) => word.charAt(0).toLocaleUpperCase("tr"))
+    .map((word) => firstChar(word).toLocaleUpperCase("tr"))
     .join("");
 }
 
