@@ -12,6 +12,7 @@ import { useDirects } from "@/api/hooks";
 import { Avatar, IconButton, Pressable, showToast } from "@/components/ui";
 import { useCurrentAudioRoute } from "@/features/voice/audio-route";
 import { CallControls } from "@/features/voice/call-controls";
+import { LocalAudioSync } from "@/features/voice/local-audio";
 import { useVoiceToken } from "@/features/voice/use-voice-token";
 import { LiveVoiceSettingsBridge } from "@/features/voice/live-voice-settings";
 import { useVoiceE2EERoom, VoiceE2EEPill, VoiceE2EEProvider } from "@/features/call/voice-e2ee";
@@ -325,6 +326,7 @@ function ConnectedCall({
       <LiveVoiceSettingsBridge />
       <CallPresenceBridge directId={directId} kind={initialKind} />
       <CallKitMuteSync />
+      <LocalAudioSync />
       <LiveCaptionsController e2eeMode={e2ee.mode} keyring={e2ee.captionKeys} />
       <CallSurface visible={!minimized} onRequestClose={minimize}>
         <View style={{ flex: 1, backgroundColor: background }}>
@@ -492,7 +494,7 @@ function CallStage({
       <LiveCaptionsOverlay />
 
       <View style={{ paddingBottom: insets.bottom + spacing["2xl"] }}>
-        <CallControls onHangUp={onHangUp} />
+        <CallControls onHangUp={onHangUp} showDeafen />
       </View>
     </View>
   );

@@ -8,6 +8,7 @@ import { playSound } from "@/lib/sounds";
 import { useCall } from "@/stores/call";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { showSystemRoutePicker, useAudioRoute, type AudioRoute } from "./audio-route";
+import { useSelfDeafen } from "./local-audio";
 
 const DEFAULT_HANG_UP_LABEL = "Görüşmeyi bitir";
 
@@ -35,6 +36,7 @@ export function CallControls({
   showMic = true,
   serverMuted = false,
   serverDeafened = false,
+  showDeafen = false,
   onInteract,
 }: {
   onHangUp: () => void;
@@ -56,6 +58,11 @@ export function CallControls({
   serverMuted?: boolean;
   /** Sunucuda sağırlaştırıldın: hoparlör kapalı gösterilir, ses gelmez. */
   serverDeafened?: boolean;
+  /**
+   * "Sağırlaştır" düğmesi (web kontrol çubuğu): kimseyi duymazsın, mikrofon
+   * da kapanır; yalnızca bu cihazda.
+   */
+  showDeafen?: boolean;
   /** Herhangi bir düğmeye basıldı — görüntülü sahne gizleme sayacını sıfırlar. */
   onInteract?: () => void;
 }) {
@@ -63,6 +70,7 @@ export function CallControls({
   const audio = useAudioRoute();
   const [busy, setBusy] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
+  const deafen = useSelfDeafen();
 
   const choices = allowEarpiece ? audio.choices : audio.choices.filter((id) => id !== "earpiece");
   // Kulaklık çıkarılınca liste kapanır; yeniden takılınca kendiliğinden
@@ -88,13 +96,18 @@ export function CallControls({
     setBusy(true);
     try {
       const next = !isMicrophoneEnabled;
+      // Sağırken mikrofonu açmak sağırlaştırmayı da kaldırır (web ile aynı).
+      if (next && deafen.deafened) {
+        await deafen.toggle();
+        if (localParticipant.isMicrophoneEnabled) return;
+      }
       await localParticipant.setMicrophoneEnabled(next);
       // Kendi eyleminin geri bildirimi (web sound-bus micOn / micOff).
       void playSound(next ? "micOn" : "micOff");
     } finally {
       setBusy(false);
     }
-  }, [localParticipant, isMicrophoneEnabled, busy, serverMuted]);
+  }, [localParticipant, isMicrophoneEnabled, busy, serverMuted, deafen]);
 
   const facing = useCall((s) => s.cameraFacing);
   const setFacing = useCall((s) => s.setCameraFacing);
@@ -227,6 +240,20 @@ export function CallControls({
             onPress={() => void flipCamera()}
             background={idleBackground}
             tint={idleTint}
+          />
+        ) : null}
+
+        {/* Kamera açıkken satıra "Çevir" girer; dar ekrana altı düğme sığmadığı
+            için Sağırlaştır o sırada gizlenir. */}
+        {showDeafen && !serverDeafened && !(showCamera && isCameraEnabled) ? (
+          <ControlButton
+            icon={deafen.deafened ? "bell-off" : "headphones"}
+            label={deafen.deafened ? "Sesi aç" : "Sesi kapat (Sağırlaştır)"}
+            caption={deafen.deafened ? "Sağır" : "Ses"}
+            captionColor={captionColor}
+            onPress={() => void deafen.toggle()}
+            background={deafen.deafened ? colors.dangerSolid : idleBackground}
+            tint={deafen.deafened ? "#ffffff" : idleTint}
           />
         ) : null}
 

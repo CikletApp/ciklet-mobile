@@ -13,6 +13,7 @@ import {
   type VoiceModerationAction,
 } from "@/api/hooks";
 import { ActionSheet, showToast, type ActionSheetItem } from "@/components/ui";
+import { ParticipantVolumeHeader, toggleParticipantMuted, useLocalAudio } from "./local-audio";
 import { ServerEvent } from "@/realtime/events";
 import { onGatewayEvent } from "@/realtime/gateway";
 import { useAuth } from "@/stores/auth";
@@ -89,10 +90,21 @@ export function useVoiceModerationMenu({
     );
   };
 
+  const localMuted = useLocalAudio((s) =>
+    target ? s.muted[target.participant.username] === true || s.volumes[target.participant.username] === 0 : false
+  );
+
   const items: ActionSheetItem[] = [];
   if (target) {
     const { participant, muted } = target;
-    if (canMute) {
+    // Yerel susturma: yalnızca bu cihazda (web katılımcı karosu menüsü).
+    items.push({
+      key: "local-mute",
+      label: localMuted ? "Sesi Aç" : "Sustur",
+      icon: localMuted ? "volume" : "bell-off",
+      onPress: () => toggleParticipantMuted(participant.username),
+    });
+    if (canModerate(participant) && canMute) {
       items.push(
         muted
           ? { key: "unmute", label: "Susturmayı kaldır", icon: "mic", onPress: () => run(participant, "unmute") }
@@ -105,7 +117,7 @@ export function useVoiceModerationMenu({
             }
       );
     }
-    if (canMove) {
+    if (canModerate(participant) && canMove) {
       items.push(
         { key: "move", label: "Başka kanala taşı", icon: "forward", onPress: () => setMoveTarget(participant) },
         {
@@ -137,9 +149,10 @@ export function useVoiceModerationMenu({
         onClose={() => setTarget(null)}
         header={
           target ? (
-            <Text style={{ ...typography.bodyStrong, color: colors.bright }} numberOfLines={1}>
-              {target.participant.name?.trim() || target.participant.username}
-            </Text>
+            <ParticipantVolumeHeader
+              identity={target.participant.username}
+              name={target.participant.name?.trim() || target.participant.username}
+            />
           ) : undefined
         }
         items={items}
@@ -157,6 +170,8 @@ export function useVoiceModerationMenu({
 
   return {
     canModerate,
+    /** Katılımcı sayfası açılabilir mi: kendin hariç herkes (ses seviyesi herkese). */
+    canOpen: (participant: VoiceParticipant) => participant.id !== myId,
     open: (participant: VoiceParticipant, muted: boolean) => setTarget({ participant, muted }),
     sheets,
   };

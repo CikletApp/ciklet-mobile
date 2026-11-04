@@ -33,6 +33,7 @@ import {
 } from "@/features/screen-share/screen-share-view";
 import { useScreenShare } from "@/features/screen-share/use-screen-share";
 import { CallControls } from "@/features/voice/call-controls";
+import { LocalAudioSync } from "@/features/voice/local-audio";
 import { PushToTalkButton } from "@/features/voice/push-to-talk";
 import { SoundboardSheet, useSoundboard } from "@/features/voice/soundboard";
 import { StagePanel } from "@/features/voice/stage-panel";
@@ -198,6 +199,8 @@ export default function VoiceChannelScreen() {
       <VoiceE2EEProvider mode={e2ee.mode} session={e2ee.session}>
       {/* Canlı altyazı: kendi konuşmanı cihazında yazıya çevirip odaya yollar (web ile aynı). */}
       <LiveCaptionsController e2eeMode={e2ee.mode} keyring={e2ee.captionKeys} />
+      {/* Sağırlaştırma ve kişi başı ses (yalnızca bu cihazda). */}
+      <LocalAudioSync />
       <VoiceRoomBody
         title={channel?.name ?? "Ses kanalı"}
         subtitle={isStage ? `${server?.name ?? "Sunucu"} · Sahne` : (extras?.voiceStatus?.trim() || server?.name)}
@@ -390,7 +393,7 @@ function VoiceRoomBody({
           ) : (
             participants.map((participant) => {
               const serverMuted = isServerMuted(livekitByIdentity.get(participant.username));
-              const moderatable = serverId ? moderation.canModerate(participant) : false;
+              const moderatable = moderation.canOpen(participant);
               return (
               <Pressable
                 key={participant.id}
@@ -399,7 +402,7 @@ function VoiceRoomBody({
                 noHitSlop
                 accessibilityRole={moderatable ? "button" : "text"}
                 accessibilityLabel={`${participant.name?.trim() || participant.username}${serverMuted ? ", sunucuda susturuldu" : ""}`}
-                accessibilityHint={moderatable ? "Moderasyon için basılı tut" : undefined}
+                accessibilityHint={moderatable ? "Ses ve moderasyon için basılı tut" : undefined}
                 style={{ alignItems: "center", gap: spacing.sm, width: 96 }}
               >
                 <View
@@ -515,6 +518,7 @@ function VoiceRoomBody({
             showMic={!pushToTalk && (!isStage || canPublish)}
             serverMuted={selfMuted}
             serverDeafened={selfDeafened}
+            showDeafen
           />
         </View>
       </View>
