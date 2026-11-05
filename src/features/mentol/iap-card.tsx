@@ -144,10 +144,10 @@ export function MentolIapCard({ plan }: { plan: MentolPlan | undefined }) {
       </Text>
       <View style={{ flexDirection: "row", gap: spacing.lg }}>
         <Pressable onPress={() => openPage(`${API_BASE_URL}/terms`)} accessibilityRole="link">
-          <Text style={{ ...typography.caption, color: colors.brand }}>Kullanım Koşulları</Text>
+          <Text style={{ ...typography.caption, color: colors.brand }}>Hizmet Koşulları</Text>
         </Pressable>
         <Pressable onPress={() => openPage(`${API_BASE_URL}/privacy`)} accessibilityRole="link">
-          <Text style={{ ...typography.caption, color: colors.brand }}>Gizlilik</Text>
+          <Text style={{ ...typography.caption, color: colors.brand }}>Gizlilik Politikası</Text>
         </Pressable>
       </View>
     </View>

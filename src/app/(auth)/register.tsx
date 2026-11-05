@@ -84,7 +84,7 @@ export default function RegisterScreen() {
           : message === "Invalid email" ? "Geçerli bir e-posta gir."
           : message === "Invalid date of birth" ? "Lütfen geçerli bir doğum tarihi gir."
           : /at least \d+ years old/.test(message) ? "Ciklet'e kaydolmak için en az 13 yaşında olmalısın."
-          : message === "Legal consent required" ? "Devam etmek için sözleşmeyi ve aydınlatma metnini onayla."
+          : message === "Legal consent required" ? "Devam etmek için Hizmet Koşulları'nı, Topluluk Kuralları'nı ve aydınlatma metnini onayla."
           : /captcha/i.test(message) ? "Doğrulama tamamlanamadı. Tekrar dene."
           : message
       );
@@ -101,8 +101,10 @@ export default function RegisterScreen() {
       <AuthField ref={passwordRef} label="ŞİFRE" value={password} onChangeText={setPassword} placeholder="En az 6 karakter" secureTextEntry autoComplete="new-password" returnKeyType="done" onSubmitEditing={submit} />
       <BirthDateField value={birth} onChange={setBirth} error={birthDate.error} />
       <ConsentRow checked={legalAccepted} onToggle={() => setLegalAccepted((v) => !v)}>
-        <Text style={{ color: authBrand.lime, ...fw(600) }} onPress={() => openLegal("/terms")}>Kullanıcı Sözleşmesi</Text>
-        {"'ni ve "}
+        <Text style={{ color: authBrand.lime, ...fw(600) }} onPress={() => openLegal("/terms")}>Hizmet Koşulları</Text>
+        {"'nı, "}
+        <Text style={{ color: authBrand.lime, ...fw(600) }} onPress={() => openLegal("/guidelines")}>Topluluk Kuralları</Text>
+        {"'nı ve "}
         <Text style={{ color: authBrand.lime, ...fw(600) }} onPress={() => openLegal("/yasal/kvkk-aydinlatma-metni")}>KVKK Aydınlatma Metni</Text>
         {"'ni okudum, kabul ediyorum."}
       </ConsentRow>

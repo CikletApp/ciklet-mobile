@@ -1,31 +1,41 @@
 import { useRef, useState } from "react";
 import { ScrollView, Text, View, type NativeScrollEvent } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
 
 import { Button, CikletLogo } from "@/components/ui";
 import { AuthBackdrop } from "@/features/auth/auth-shell";
+import { API_BASE_URL } from "@/lib/config";
 import { useAuth } from "@/stores/auth";
 import { fw } from "@/theme/fonts";
 import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
- * Son Kullanıcı Sözleşmesi adımı — ciklet-web `components/landing/eula-modal.tsx`.
+ * Topluluk Kuralları adımı (eski adı "Son Kullanıcı Sözleşmesi") — ciklet-web
+ * `components/landing/eula-modal.tsx`. "Kabul Et", Hizmet Koşulları ile
+ * Topluluk Kuralları'nın birlikte kabulüdür; kayıt POST /api/eula →
+ * Profile.eulaAccepted (değişmedi).
  *
  * Web girişten sonra `/redirect`'te, telefon doğrulamasından ÖNCE gösteriyor;
  * mobilde bu adım hiç yoktu ve uygulamadan kaydolan kullanıcı sözleşmeyi
  * görmeden içeri giriyordu. Metin web'deki DOSTANE metnin birebir kopyası;
- * orası değişirse burası da değişmeli (resmi metin /eula sayfasında).
+ * orası değişirse burası da değişmeli (resmi metin /guidelines ve /terms).
  *
  * Kurallar web'le aynı: "Kabul Et" metnin sonuna gelindiğinde açılır ve bir
  * kez açıldıktan sonra geri kaydırmak onu kapatmaz; "Reddet" onay ister ve
  * oturumu kapatır.
  */
 
+/** Bağlayıcı metinler uygulama içi tarayıcıda (kayıt ekranıyla aynı). */
+function openLegal(path: string) {
+  void WebBrowser.openBrowserAsync(`${API_BASE_URL}${path}`, { toolbarColor: colors.bg, showTitle: true }).catch(() => {});
+}
+
 /** Sona bu kadar kala "okundu" sayılır. */
 const END_THRESHOLD_PX = 40;
 
 const RULES = [
-  { title: "Çocuklarla İlgili Hassas Konular", desc: "Bu, sözleşmedeki en önemli kuraldır ve istisnası yoktur. Çocukları tehlikeye atan, onlara zarar veren, çocukların uygunsuz veya cinsel içeriklerini barındıran HER TÜRLÜ paylaşım anında hesap kapatma ve yetkili mercilere şikayet sebebidir." },
+  { title: "Çocuklarla İlgili Hassas Konular", desc: "Bu, kurallarımızın en önemlisidir ve istisnası yoktur. Çocukları tehlikeye atan, onlara zarar veren, çocukların uygunsuz veya cinsel içeriklerini barındıran HER TÜRLÜ paylaşım anında hesap kapatma ve yetkili mercilere şikayet sebebidir." },
   { title: "Milletin Bilgilerini Çalma (Panelcilik, Kredi Kartı)", desc: "'Kanka şu panelden senin TC numaranı bulayım mı?' demek veya başkalarının kişisel bilgilerini, çalıntı kredi kartlarını ifşa etmek, alıp satmak yasaktır. Veri hırsızlarına burada yer yok." },
   { title: "Suça ve Şiddete Teşvik", desc: "Silahlar, yasa dışı maddeler, terör örgütü propagandası yapmak, şiddeti övmek veya birilerini suça teşvik etmek yasaktır. Gerçek hayatta suç olan şey, Ciklet'te de suçtur." },
   { title: "Siber Zorbalık, Taciz ve Şantaj", desc: "Kimseye musallat olamazsın. İnsanların özel fotoğraflarını sızdırmakla tehdit edemez, onlara şantaj yapamaz, sürekli küfür edip onları rahatsız edemezsin. Biraz nazik olalım lütfen." },
@@ -101,9 +111,9 @@ export default function EulaScreen() {
       <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.xs }}>
         <CikletLogo height={22} color={colors.bright} />
         <Text style={{ ...typography.overline, letterSpacing: 1.6, color: authBrand.lime, marginTop: spacing.md }}>YASAL BELGE</Text>
-        <Text style={{ ...typography.display, color: colors.bright }}>Son Kullanıcı Sözleşmesi</Text>
+        <Text style={{ ...typography.display, color: colors.bright }}>Topluluk Kuralları</Text>
         <Text style={{ ...typography.caption, color: colors.muted }}>
-          Ciklet&apos;i kullanmaya devam edebilmek için sözleşmeyi <Strong>sonuna kadar oku</Strong> ve kabul et.
+          Ciklet&apos;i kullanmaya devam edebilmek için kuralları <Strong>sonuna kadar oku</Strong> ve kabul et.
         </Text>
       </View>
 
@@ -126,7 +136,7 @@ export default function EulaScreen() {
         <View style={{ gap: spacing.sm }}>
           <Heading>1. Merhaba, Ciklet&apos;e Hoş Geldin! (Taraflar ve Kabul)</Heading>
           <Body>
-            Selam! Burası <Strong>Ciklet</Strong>. Eğlenmek, sohbet etmek, takılmak ve yayın yapmak için buradasın, değil mi? Harika! Ancak bu platformun güvenli ve herkes için huzurlu kalması adına bazı kurallarımız var. Bu sözleşmeyi &quot;Ciklet&apos;in ev kuralları&quot; olarak düşünebilirsin. Buraya kayıt olduğun an, bu kurallara uymayı söz vermiş oluyorsun. Kuralları biz (Ciklet Yönetimi) koyuyoruz, sen de (Kullanıcı) bunlara uyuyorsun. Uymayanları evimizden (uygulamamızdan) dışarı alıyoruz. Anlaştık mı? O zaman okumaya devam!
+            Selam! Burası <Strong>Ciklet</Strong>. Eğlenmek, sohbet etmek, takılmak ve yayın yapmak için buradasın, değil mi? Harika! Ancak bu platformun güvenli ve herkes için huzurlu kalması adına bazı kurallarımız var. Bunları &quot;Ciklet&apos;in ev kuralları&quot; olarak düşünebilirsin. Buraya kayıt olduğun an, bu kurallara uymayı söz vermiş oluyorsun. Kuralları biz (Ciklet Yönetimi) koyuyoruz, sen de (Kullanıcı) bunlara uyuyorsun. Uymayanları evimizden (uygulamamızdan) dışarı alıyoruz. Anlaştık mı? O zaman okumaya devam!
           </Body>
         </View>
 
@@ -151,7 +161,7 @@ export default function EulaScreen() {
         <View style={{ gap: spacing.sm }}>
           <Heading>4. Bizim Gücümüz (Moderasyon Haklarımız)</Heading>
           <Body>
-            Ciklet bir kamu alanı (park bahçe) değil, bizim yönettiğimiz özel bir platformdur (bir kafe gibi düşün). Bu kafenin kurallarını biz koyarız. Eğer kuralları çiğnersen, başka kullanıcıları rahatsız edersen veya sistemi bozmaya çalışırsan seni uyarmadan kapı dışarı edebiliriz (hesabını banlarız). Yazdığın uygunsuz mesajları silebiliriz, oluşturduğun sunucuları tamamen kapatabiliriz. Bunun için sana bir açıklama yapmak veya hesap vermek zorunda değiliz. Lütfen düzgün bir kullanıcı ol ve bizi bunları yapmak zorunda bırakma.
+            Ciklet bir kamu alanı (park bahçe) değil, bizim yönettiğimiz özel bir platformdur (bir kafe gibi düşün). Bu kafenin kurallarını biz koyarız. Eğer kuralları çiğnersen, başka kullanıcıları rahatsız edersen veya sistemi bozmaya çalışırsan seni uyarmadan kapı dışarı edebiliriz (hesabını banlarız). Yazdığın uygunsuz mesajları silebiliriz, oluşturduğun sunucuları tamamen kapatabiliriz. Yasaklandığında nedenini ve varsa itiraz yolunu sana gösteririz. Lütfen düzgün bir kullanıcı ol ve bizi bunları yapmak zorunda bırakma.
           </Body>
         </View>
 
@@ -166,6 +176,12 @@ export default function EulaScreen() {
               Kötü bir şey yapma, kimseyi rahatsız etme, yasak olan şeyleri paylaşma. Aksi halde hesabını kapatırız, yetkili merciler sorarsa da bilgilerini veririz. Anlaştıysak, aşağı kadar kaydırıp &quot;Kabul Et&quot; butonuna basabilirsin.
             </Text>
           </View>
+          <Body>
+            Bu, kuralların kısa ve samimi hâli. Bağlayıcı metinler:{" "}
+            <Text style={{ color: authBrand.lime, ...fw(600) }} onPress={() => openLegal("/terms")}>Hizmet Koşulları</Text>,{" "}
+            <Text style={{ color: authBrand.lime, ...fw(600) }} onPress={() => openLegal("/guidelines")}>Topluluk Kuralları</Text> ve{" "}
+            <Text style={{ color: authBrand.lime, ...fw(600) }} onPress={() => openLegal("/privacy")}>Gizlilik Politikası</Text>.
+          </Body>
         </View>
       </ScrollView>
 
@@ -205,9 +221,12 @@ export default function EulaScreen() {
           <>
             {!reachedEnd ? (
               <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>
-                &quot;Kabul Et&quot; sözleşmenin sonuna geldiğinde açılır.
+                &quot;Kabul Et&quot; metnin sonuna geldiğinde açılır.
               </Text>
             ) : null}
+            <Text style={{ ...typography.caption, color: colors.muted, textAlign: "center" }}>
+              &quot;Kabul Et&quot; = Hizmet Koşulları&apos;nı ve Topluluk Kuralları&apos;nı okudum, kabul ediyorum.
+            </Text>
             <View style={{ flexDirection: "row", gap: spacing.md }}>
               <Button label="Reddet" variant="secondary" fullWidth style={{ flex: 1 }} onPress={() => setDeclineConfirm(true)} />
               <Button label="Kabul Et" variant="lime" fullWidth style={{ flex: 1 }} loading={accepting} disabled={!reachedEnd} onPress={accept} />

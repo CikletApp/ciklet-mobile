@@ -71,6 +71,8 @@ export const compliance = {
   signup: {
     termsBefore: "لقد قرأت ",
     termsLink: "شروط الخدمة",
+    termsMiddle: " و",
+    guidelinesLink: "إرشادات المجتمع",
     termsAfter: " وأوافق عليها.",
     kvkkLink: "إشعار الخصوصية وفق KVKK",
     kvkkAfter: " — لقد قرأته وفهمته.",
@@ -80,7 +82,7 @@ export const compliance = {
     consentRequired: "حدّد المربعات المطلوبة للمتابعة.",
     dobHint: "لا يظهر تاريخ ميلادك في ملفك الشخصي؛ ويُستخدم فقط لحد العمر وحماية المراهقين.",
     footerBefore: "يمكنك الاطلاع على كيفية معالجة بياناتك الشخصية في ",
-    privacyLink: "إشعار الخصوصية",
+    privacyLink: "سياسة الخصوصية",
     footerAfter: ".",
   },
   privacy: {
@@ -92,8 +94,9 @@ export const compliance = {
       cookies: "سياسة ملفات تعريف الارتباط",
       provider: "معلومات مزوّد الاستضافة",
       transparency: "تقرير الشفافية",
-      privacy: "إشعار الخصوصية",
+      privacy: "سياسة الخصوصية",
       terms: "شروط الخدمة",
+      guidelines: "إرشادات المجتمع",
     },
     consents: {
       title: "موافقاتي",
@@ -170,7 +173,7 @@ export const compliance = {
     updated: "آخر تحديث: {date}",
     toc: "المحتويات",
     back: "العودة إلى الصفحة الرئيسية",
-    indexTitle: "المستندات القانونية",
+    indexTitle: "مركز السياسات",
     indexLede: "الاتفاقيات السارية عند استخدامك Ciklet، ونصوص حماية البيانات الشخصية، والمعلومات بموجب القانون رقم 5651.",
     bindingNote: "هذه ترجمة مقدَّمة للتيسير. في حال وجود أي تعارض، تسري النسخة التركية.",
     placeholderNote: "يجب ملء الحقول المميزة قبل النشر.",

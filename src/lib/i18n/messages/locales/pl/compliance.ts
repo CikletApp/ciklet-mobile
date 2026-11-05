@@ -71,6 +71,8 @@ export const compliance = {
   signup: {
     termsBefore: "Przeczytałem(-am) i akceptuję ",
     termsLink: "Warunki korzystania z usługi",
+    termsMiddle: " oraz ",
+    guidelinesLink: "Zasady społeczności",
     termsAfter: ".",
     kvkkLink: "Klauzulę informacyjną KVKK",
     kvkkAfter: " — zapoznałem(-am) się z nią i ją rozumiem.",
@@ -80,7 +82,7 @@ export const compliance = {
     consentRequired: "Zaznacz wymagane pola, aby kontynuować.",
     dobHint: "Twoja data urodzenia nie jest widoczna w profilu; służy wyłącznie do limitu wieku i zabezpieczeń dla nastolatków.",
     footerBefore: "Informacje o tym, jak przetwarzamy twoje dane osobowe, znajdziesz w naszej ",
-    privacyLink: "Informacji o prywatności",
+    privacyLink: "Polityce prywatności",
     footerAfter: ".",
   },
   privacy: {
@@ -92,8 +94,9 @@ export const compliance = {
       cookies: "Polityka plików cookie",
       provider: "Informacje o dostawcy hostingu",
       transparency: "Raport przejrzystości",
-      privacy: "Informacja o prywatności",
+      privacy: "Polityka prywatności",
       terms: "Warunki korzystania z usługi",
+      guidelines: "Zasady społeczności",
     },
     consents: {
       title: "Moje zgody",
@@ -170,7 +173,7 @@ export const compliance = {
     updated: "Ostatnia aktualizacja: {date}",
     toc: "SPIS TREŚCI",
     back: "Wróć na stronę główną",
-    indexTitle: "Dokumenty prawne",
+    indexTitle: "Centrum zasad",
     indexLede: "Umowy obowiązujące podczas korzystania z Ciklet, teksty dotyczące ochrony danych osobowych oraz informacje wymagane ustawą nr 5651.",
     bindingNote: "To tłumaczenie udostępniamy dla wygody. W razie rozbieżności rozstrzygająca jest wersja turecka.",
     placeholderNote: "Wyróżnione pola muszą zostać uzupełnione przed publikacją.",

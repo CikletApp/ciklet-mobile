@@ -116,11 +116,13 @@ export default function HelpScreen() {
         </ListGroup>
 
         <ListGroup>
-          <ListRow icon="file" title="Kullanıcı Sözleşmesi" onPress={() => openPage(`${API_BASE_URL}/terms`)} />
+          <ListRow icon="file" title="Hizmet Koşulları" onPress={() => openPage(`${API_BASE_URL}/terms`)} />
           <Divider inset={52} />
-          <ListRow icon="shield" title="Gizlilik Bildirimi" onPress={() => openPage(`${API_BASE_URL}/privacy`)} />
+          <ListRow icon="flag" title="Topluluk Kuralları" onPress={() => openPage(`${API_BASE_URL}/guidelines`)} />
           <Divider inset={52} />
-          <ListRow icon="flag" title="Son Kullanıcı Sözleşmesi" onPress={() => openPage(`${API_BASE_URL}/eula`)} />
+          <ListRow icon="shield" title="Gizlilik Politikası" onPress={() => openPage(`${API_BASE_URL}/privacy`)} />
+          <Divider inset={52} />
+          <ListRow icon="file" title="Politika Merkezi" subtitle="KVKK, çerezler, şeffaflık ve diğer metinler" onPress={() => openPage(`${API_BASE_URL}/yasal`)} />
         </ListGroup>
 
         <ListGroup>

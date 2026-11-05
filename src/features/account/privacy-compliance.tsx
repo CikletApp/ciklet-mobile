@@ -574,6 +574,7 @@ const LEGAL_PAGES = {
   hostingProvider: "/yasal/yer-saglayici-bilgileri",
   transparency: "/yasal/seffaflik-raporu",
   terms: "/terms",
+  guidelines: "/guidelines",
   privacy: "/privacy",
 } as const;
 
@@ -585,6 +586,7 @@ export function LegalLinksSection() {
     { href: LEGAL_PAGES.cookies, label: t("compliance.privacy.legal.cookies") },
     { href: LEGAL_PAGES.privacy, label: t("compliance.privacy.legal.privacy") },
     { href: LEGAL_PAGES.terms, label: t("compliance.privacy.legal.terms") },
+    { href: LEGAL_PAGES.guidelines, label: t("compliance.privacy.legal.guidelines") },
     { href: LEGAL_PAGES.hostingProvider, label: t("compliance.privacy.legal.provider") },
     { href: LEGAL_PAGES.transparency, label: t("compliance.privacy.legal.transparency") },
   ];
