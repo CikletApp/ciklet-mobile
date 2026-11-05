@@ -71,6 +71,8 @@ export const compliance = {
   signup: {
     termsBefore: "我已阅读并同意",
     termsLink: "服务条款",
+    termsMiddle: "和",
+    guidelinesLink: "社区准则",
     termsAfter: "。",
     kvkkLink: "KVKK 隐私告知书",
     kvkkAfter: "——我已阅读并理解。",
@@ -80,7 +82,7 @@ export const compliance = {
     consentRequired: "请勾选必选项以继续。",
     dobHint: "你的出生日期不会显示在个人资料上，仅用于年龄限制和青少年保护。",
     footerBefore: "你可以在我们的",
-    privacyLink: "隐私告知书",
+    privacyLink: "隐私政策",
     footerAfter: "中了解你的个人数据如何被处理。",
   },
   privacy: {
@@ -92,8 +94,9 @@ export const compliance = {
       cookies: "Cookie 政策",
       provider: "托管服务商信息",
       transparency: "透明度报告",
-      privacy: "隐私告知书",
+      privacy: "隐私政策",
       terms: "服务条款",
+      guidelines: "社区准则",
     },
     consents: {
       title: "我的同意",
@@ -170,7 +173,7 @@ export const compliance = {
     updated: "最后更新：{date}",
     toc: "目录",
     back: "返回主页",
-    indexTitle: "法律文件",
+    indexTitle: "政策中心",
     indexLede: "使用 Ciklet 时适用的协议、有关个人数据保护的文本，以及依据第 5651 号法律提供的信息。",
     bindingNote: "本译文仅为方便阅读而提供。如有任何歧义，以土耳其语版本为准。",
     placeholderNote: "高亮字段必须在发布前填写。",

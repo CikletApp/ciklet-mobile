@@ -71,6 +71,8 @@ export const compliance = {
   signup: {
     termsBefore: "",
     termsLink: "서비스 이용약관",
+    termsMiddle: " 및 ",
+    guidelinesLink: "커뮤니티 가이드라인",
     termsAfter: "을 읽었으며 이에 동의합니다.",
     kvkkLink: "KVKK 개인정보 처리 고지",
     kvkkAfter: " — 읽고 이해했습니다.",
@@ -94,6 +96,7 @@ export const compliance = {
       transparency: "투명성 보고서",
       privacy: "개인정보 처리방침",
       terms: "서비스 이용약관",
+      guidelines: "커뮤니티 가이드라인",
     },
     consents: {
       title: "내 동의 항목",
@@ -170,7 +173,7 @@ export const compliance = {
     updated: "마지막 업데이트: {date}",
     toc: "목차",
     back: "홈으로 돌아가기",
-    indexTitle: "법적 문서",
+    indexTitle: "정책 허브",
     indexLede: "Ciklet 이용 시 적용되는 약관, 개인정보 보호에 관한 문서, 법률 제5651호에 따른 정보예요.",
     bindingNote: "이 문서는 편의를 위해 제공되는 번역본이에요. 내용이 서로 다를 경우 터키어 원문이 우선해요.",
     placeholderNote: "강조 표시된 항목은 게시 전에 채워야 해요.",

@@ -41,7 +41,7 @@ export const endpoints = {
   accountTwoFactor: "/api/account/two-factor",
   changePassword: "/api/auth/change-password",
   accountStatus: "/api/account-status",
-  /** Son Kullanıcı Sözleşmesi onayı (POST). */
+  /** Hizmet Koşulları + Topluluk Kuralları onayı (POST; alan adı eulaAccepted). */
   eula: "/api/eula",
   /** Telegram doğrulama botuna tek kullanımlık bağlantı (kısıtlı oturumla da açık). */
   phoneTelegramStart: "/api/phone/telegram/start",

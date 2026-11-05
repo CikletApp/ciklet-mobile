@@ -71,6 +71,8 @@ export const compliance = {
   signup: {
     termsBefore: "Ho letto e accetto i ",
     termsLink: "Termini di servizio",
+    termsMiddle: " e le ",
+    guidelinesLink: "Linee guida della community",
     termsAfter: ".",
     kvkkLink: "Informativa sulla privacy KVKK",
     kvkkAfter: " — L'ho letta e compresa.",
@@ -94,6 +96,7 @@ export const compliance = {
       transparency: "Rapporto sulla trasparenza",
       privacy: "Informativa sulla privacy",
       terms: "Termini di servizio",
+      guidelines: "Linee guida della community",
     },
     consents: {
       title: "I miei consensi",
@@ -170,7 +173,7 @@ export const compliance = {
     updated: "Ultimo aggiornamento: {date}",
     toc: "INDICE",
     back: "Torna alla home",
-    indexTitle: "Documenti legali",
+    indexTitle: "Centro norme",
     indexLede: "Gli accordi che si applicano quando usi Ciklet, i testi sulla protezione dei dati personali e le informazioni ai sensi della Legge n. 5651.",
     bindingNote: "Questa è una traduzione italiana fornita per comodità. In caso di discrepanze, prevale la versione turca.",
     placeholderNote: "I campi evidenziati devono essere compilati prima della pubblicazione.",

@@ -22,7 +22,7 @@ import { clearNameStyles } from "@/stores/name-styles";
  * `status` şu değerlerden birini alır:
  *  - `loading`      açılışta güvenli depo okunuyor (splash görünür)
  *  - `signedOut`    giriş ekranı
- *  - `eulaPending`  giriş yapıldı ama Son Kullanıcı Sözleşmesi kabul
+ *  - `eulaPending`  giriş yapıldı ama Topluluk Kuralları adımı kabul
  *                   edilmedi: yalnızca sözleşme ekranı
  *  - `phonePending` giriş yapıldı ama telefon doğrulanmadı: yalnızca
  *                   doğrulama ekranı (sunucu da kısıtlı token veriyor)

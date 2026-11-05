@@ -71,6 +71,8 @@ export const compliance = {
   signup: {
     termsBefore: "「",
     termsLink: "利用規約",
+    termsMiddle: "」と「",
+    guidelinesLink: "コミュニティガイドライン",
     termsAfter: "」を読み、同意します。",
     kvkkLink: "KVKK個人情報保護に関する通知",
     kvkkAfter: " — 読んで理解しました。",
@@ -80,7 +82,7 @@ export const compliance = {
     consentRequired: "続行するには必須の項目にチェックを入れてください。",
     dobHint: "生年月日はプロフィールに表示されません。年齢制限と10代向けの保護機能にのみ使用されます。",
     footerBefore: "個人データの取り扱いについては、",
-    privacyLink: "プライバシー通知",
+    privacyLink: "プライバシーポリシー",
     footerAfter: "をご覧ください。",
   },
   privacy: {
@@ -92,8 +94,9 @@ export const compliance = {
       cookies: "Cookieポリシー",
       provider: "ホスティング事業者情報",
       transparency: "透明性レポート",
-      privacy: "プライバシー通知",
+      privacy: "プライバシーポリシー",
       terms: "利用規約",
+      guidelines: "コミュニティガイドライン",
     },
     consents: {
       title: "同意事項",
@@ -170,7 +173,7 @@ export const compliance = {
     updated: "最終更新日: {date}",
     toc: "目次",
     back: "ホームに戻る",
-    indexTitle: "法的文書",
+    indexTitle: "ポリシーハブ",
     indexLede: "Cikletをご利用の際に適用される規約、個人データの保護に関する文書、および法律第5651号に基づく情報。",
     bindingNote: "この翻訳は便宜のために提供されています。内容に相違がある場合は、トルコ語版が優先されます。",
     placeholderNote: "強調表示された項目は公開前に記入する必要があります。",
