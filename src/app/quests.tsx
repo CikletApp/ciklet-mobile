@@ -3,12 +3,12 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
 
-import { ApiError } from "@/api/client";
 import { useQuestAction, useQuests, type QuestEntry, type QuestKind } from "@/api/hooks/use-account-privacy";
 import { useStoreCatalog } from "@/api/hooks";
 import { Icon, Screen, showToast, type IconName } from "@/components/ui";
 import { INTL_LOCALES, useLocale, useT, type Translator } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Görevler ve Ödüller — web `components/quests/quests-view.tsx` (/gorevler).
@@ -290,7 +290,7 @@ export default function QuestsScreen() {
           else showToast(t("quests.toast.claimed"));
         },
         onError: (error) =>
-          showToast(error instanceof ApiError && error.message ? error.message : t("quests.toast.failed"), "error"),
+          showToast(userErrorMessage(error, t("quests.toast.failed")), "error"),
         onSettled: () => setBusy(null),
       }
     );

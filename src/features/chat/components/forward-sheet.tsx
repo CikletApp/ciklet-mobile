@@ -26,6 +26,7 @@ import {
   FORWARD_NOTE_MAX,
   MAX_FORWARD_TARGETS,
 } from "../forward";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Mesajı İlet — hedef seçici (web `forward-message-modal.tsx` karşılığı).
@@ -186,7 +187,7 @@ export function ForwardSheet({
         touchedChats.push(chatId);
       } catch (reason) {
         failures.push(
-          `${target.label}: ${reason instanceof Error ? reason.message : "gönderilemedi"}`
+          `${target.label}: ${userErrorMessage(reason, "gönderilemedi")}`
         );
       }
     }

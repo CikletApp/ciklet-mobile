@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   MAX_GROUP_MEMBERS,
   MAX_GROUP_NAME_LENGTH,
@@ -30,6 +29,7 @@ import { isOfficialProfile } from "@/lib/official";
 import { pickAndUploadGroupImage } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Grup bilgisi — ad, üyeler, ayrılma.
@@ -106,7 +106,7 @@ export default function GroupInfoScreen() {
         onError: (error) =>
           showDialog(
             "Güncellenemedi",
-            error instanceof ApiError ? error.message : "Beklenmeyen bir hata oldu."
+            userErrorMessage(error, "Beklenmeyen bir hata oldu.")
           ),
       }
     );
@@ -122,7 +122,7 @@ export default function GroupInfoScreen() {
         onError: (error) =>
           showDialog(
             "Ad değiştirilemedi",
-            error instanceof ApiError ? error.message : "Beklenmeyen bir hata oldu."
+            userErrorMessage(error, "Beklenmeyen bir hata oldu.")
           ),
       }
     );
@@ -136,7 +136,7 @@ export default function GroupInfoScreen() {
       const imageUrl = await pickAndUploadGroupImage();
       if (imageUrl) await updateGroup.mutateAsync({ imageUrl });
     } catch (reason) {
-      showDialog("Simge değiştirilemedi", reason instanceof Error ? reason.message : "Beklenmeyen bir hata oldu.");
+      showDialog("Simge değiştirilemedi", userErrorMessage(reason, "Beklenmeyen bir hata oldu."));
     } finally {
       setImageBusy(false);
     }

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import {
   useAccountStanding,
   useAppealViolation,
@@ -11,6 +10,7 @@ import {
 import { Button, Icon, showToast } from "@/components/ui";
 import { INTL_LOCALES, useLocale, useT, type MessageKey } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * "Hesabının durumu" — web `settings/account-status-card.tsx`: beş kademeli
@@ -286,7 +286,7 @@ function AppealArea({ violation }: { violation: StandingViolation }) {
                   setOpen(false);
                 },
                 onError: (error) =>
-                  showToast(error instanceof ApiError && error.message ? error.message : t("settingsAccount.status.appeal.failed"), "error"),
+                  showToast(userErrorMessage(error, t("settingsAccount.status.appeal.failed")), "error"),
               }
             )
           }

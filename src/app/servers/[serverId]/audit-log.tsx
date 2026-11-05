@@ -3,7 +3,6 @@ import { ActivityIndicator, FlatList, Modal, Pressable as RNPressable, Text, Vie
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ApiError } from "@/api/client";
 import { useAuditLogActors, useAuditLogs } from "@/api/hooks";
 import type { AuditLogEntry } from "@/api/types";
 import { Avatar, EmptyState, ErrorState, Icon, ListSkeleton, Pressable, Screen } from "@/components/ui";
@@ -17,6 +16,7 @@ import {
 import { formatDate, formatTime } from "@/lib/format";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu denetim kaydı — web Ayarlar › Denetim Kaydı sekmesinin mobil
@@ -61,7 +61,7 @@ export default function AuditLogScreen() {
         <ListSkeleton rows={8} />
       ) : logs.error ? (
         <ErrorState
-          message={logs.error instanceof ApiError ? logs.error.message : "Denetim kaydı yüklenemedi."}
+          message={userErrorMessage(logs.error, "Denetim kaydı yüklenemedi.")}
           onRetry={() => void logs.refetch()}
         />
       ) : entries.length === 0 ? (

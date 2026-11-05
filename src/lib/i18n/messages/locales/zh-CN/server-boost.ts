@@ -79,7 +79,7 @@ export const serverBoost = {
     applyToServer: "用于某个服务器",
     perMonth: "{price} / 月",
     storeLimit: "通过商店只能购买一次额外助力，而你已经有一次了。",
-    moreOnWeb: "你可以在 ciklet.xyz 上购买更多助力。",
+    moreOnWeb: "你可以在 {site} 上购买更多助力。",
     storeCancelHint: "要取消此助力，请前往 App Store / Google Play 的订阅设置。",
     manageStore: "管理订阅",
     pending: "付款待处理。批准后助力会自动添加。",

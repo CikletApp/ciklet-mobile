@@ -34,6 +34,9 @@ export const tr = {
     system: "Sistem",
     on: "Açık",
     off: "Kapalı",
+    errorTitle: "Bir şeyler ters gitti",
+    errorBody: "Bu ekran açılırken beklenmeyen bir sorun oluştu. Tekrar deneyebilirsin.",
+    retry: "Tekrar dene",
   },
   tabs: {
     chats: "Sohbetler",

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useCheckout, useServerSummary, useServerTiers } from "@/api/hooks";
 import { useServerRoleDetails } from "@/api/hooks/use-roles";
 import {
@@ -22,6 +21,7 @@ import { formatPriceTry } from "@/lib/profile-extras";
 import { PURCHASES_ENABLED } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu abonelikleri (web: sunucu menüsü → Abonelikler).
@@ -50,7 +50,7 @@ export default function ServerSubscriptionsScreen() {
   const list = data?.tiers ?? [];
   const mine = data?.mine ?? null;
   const money = (minor: number) => formatPriceTry(minor / 100);
-  const failed = (error: unknown, fallback: string) => showToast(error instanceof ApiError ? error.message : fallback, "error");
+  const failed = (error: unknown, fallback: string) => showToast(userErrorMessage(error, fallback), "error");
   const confirmRemove = (tier: { id: string; name: string }) =>
     showDialog("Kademeyi sil", `"${tier.name}" kademesi silinsin mi?`, [
       { text: "Vazgeç", style: "cancel" },
@@ -60,7 +60,7 @@ export default function ServerSubscriptionsScreen() {
   const subscribe = (tierId: string) =>
     checkout.mutate(
       { kind: "tier", serverId, tierId },
-      { onError: (error) => showDialog("Ödeme başlatılamadı", error instanceof ApiError ? error.message : "Tekrar dene.") }
+      { onError: (error) => showDialog("Ödeme başlatılamadı", userErrorMessage(error, "Tekrar dene.")) }
     );
 
   return (
@@ -215,7 +215,7 @@ function NewTierForm({ serverId }: { serverId: string }) {
           setForm({ name: "", price: "49", description: "", roleId: "" });
           showToast("Kademe oluşturuldu");
         },
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Kademe oluşturulamadı", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "Kademe oluşturulamadı"), "error"),
       }
     );
 

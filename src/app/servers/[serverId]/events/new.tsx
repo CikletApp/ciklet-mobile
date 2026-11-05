@@ -4,7 +4,6 @@ import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import { useCreateServerEvent, useServerChannels, useServerEvents, useUpdateServerEvent } from "@/api/hooks";
 import type { RecurrencePresetId } from "@/api/types";
 import { Button, Icon, KeyboardAvoider, Pressable, SegmentedTabs, TextField, showToast } from "@/components/ui";
@@ -12,6 +11,7 @@ import { presetIdOf, recurrencePresets } from "@/lib/event-recurrence";
 import { pickAndUploadEventCover } from "@/lib/uploads";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Etkinlik oluştur (moderatör+). Tarih seçici bağımlılığı eklememek için
@@ -149,7 +149,7 @@ export default function NewServerEventScreen() {
       const url = await pickAndUploadEventCover();
       if (url) setCoverImageUrl(url);
     } catch (reason) {
-      showToast(reason instanceof Error ? reason.message : "Görsel yüklenemedi.", "error");
+      showToast(userErrorMessage(reason, "Görsel yüklenemedi."), "error");
     } finally {
       setCoverUploading(false);
     }
@@ -183,7 +183,7 @@ export default function NewServerEventScreen() {
             showToast("Etkinlik güncellendi.");
             router.back();
           },
-          onError: (reason) => setError(reason instanceof ApiError ? reason.message : "Etkinlik güncellenemedi."),
+          onError: (reason) => setError(userErrorMessage(reason, "Etkinlik güncellenemedi.")),
         }
       );
       return;
@@ -201,7 +201,7 @@ export default function NewServerEventScreen() {
       },
       {
         onSuccess: () => router.back(),
-        onError: (reason) => setError(reason instanceof ApiError ? reason.message : "Etkinlik oluşturulamadı."),
+        onError: (reason) => setError(userErrorMessage(reason, "Etkinlik oluşturulamadı.")),
       }
     );
   };

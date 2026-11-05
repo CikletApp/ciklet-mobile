@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import { usePendingApplications, useReviewApplication } from "@/api/hooks";
 import { ActionSheet, Avatar, Button, type IconName, showToast, TextField } from "@/components/ui";
 import { useLocale, useT } from "@/lib/i18n";
@@ -19,6 +18,7 @@ import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 import { Card, CardHeader, SelectRow, SubTitle, Toggle, ToggleRow } from "./ui";
+import { userErrorMessage } from "@/lib/user-error";
 
 function QuestionEditor({ question, disabled, onChange, onRemove }: {
   question: JoinQuestion;
@@ -98,7 +98,7 @@ function ApplicationQueue({ serverId, canReview }: { serverId: string; canReview
           setReason("");
           showToast(action === "approve" ? t("safety.application.approved") : t("safety.application.rejected"));
         },
-        onError: (e) => showToast(e instanceof ApiError ? e.message : t("safety.security.failed"), "error"),
+        onError: (e) => showToast(userErrorMessage(e, t("safety.security.failed")), "error"),
       }
     );
 

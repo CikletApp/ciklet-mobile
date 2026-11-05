@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ApiError } from "@/api/client";
 import {
   formatScheduleTime,
   quickScheduleOptions,
@@ -14,6 +13,7 @@ import {
 import { Button, Icon, IconButton, KeyboardAvoider, Pressable, TextField, showToast } from "@/components/ui";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Zamanlanmış mesajlar — web `schedule-message-dialog` ve
@@ -35,7 +35,7 @@ function startOfDay(base: Date, offset: number): Date {
 }
 
 function apiMessage(reason: unknown, fallback: string) {
-  return reason instanceof ApiError && reason.message ? reason.message : fallback;
+  return userErrorMessage(reason, fallback);
 }
 
 /** "Mesajı Zamanla" alt sayfası. `content` açılış anında donmuş metin. */

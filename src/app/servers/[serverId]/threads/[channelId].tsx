@@ -2,7 +2,6 @@ import { useState } from "react";
 import { FlatList, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useChannel, useChannelThreads, useCreateThread } from "@/api/hooks";
 import {
   Button,
@@ -21,6 +20,7 @@ import { formatChatListTime } from "@/lib/format";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Bir kanalın alt başlıkları — web kanal başlığındaki "Alt başlıklar"
@@ -65,7 +65,7 @@ export default function ChannelThreadsScreen() {
           openThread(serverId, channelId, thread);
         },
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Alt başlık açılamadı.", "error"),
+          showToast(userErrorMessage(error, "Alt başlık açılamadı."), "error"),
       }
     );
   };
@@ -151,7 +151,7 @@ export default function ChannelThreadsScreen() {
         <ListSkeleton rows={5} />
       ) : threads.error ? (
         <ErrorState
-          message={threads.error instanceof ApiError ? threads.error.message : "Alt başlıklar yüklenemedi."}
+          message={userErrorMessage(threads.error, "Alt başlıklar yüklenemedi.")}
           onRetry={() => void threads.refetch()}
         />
       ) : (threads.data ?? []).length === 0 ? (

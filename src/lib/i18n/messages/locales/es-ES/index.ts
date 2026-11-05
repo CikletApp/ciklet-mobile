@@ -29,6 +29,9 @@ export const messages = {
     system: "Sistema",
     on: "Activado",
     off: "Desactivado",
+    errorTitle: "Algo salió mal",
+    errorBody: "Ha ocurrido un problema inesperado al abrir esta pantalla. Puedes volver a intentarlo.",
+    retry: "Reintentar",
   },
   tabs: {
     chats: "Chats",

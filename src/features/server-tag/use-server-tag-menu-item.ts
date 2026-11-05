@@ -1,7 +1,7 @@
-import { ApiError } from "@/api/client";
 import { useMyServerTag, useSetMyServerTag } from "@/api/hooks";
 import { showToast, type ActionSheetItem } from "@/components/ui";
 import { useT } from "@/lib/i18n";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu menüsündeki "Etiketi Kullan" / "Etiketi Bırak" (Discord "Adopt
@@ -25,7 +25,7 @@ export function useServerTagMenuItem(serverId: string, open: boolean): ActionShe
       setTag.mutate(using ? null : serverId, {
         onSuccess: () => showToast(using ? t("serverTag.profile.removed") : t("serverTag.profile.updated")),
         onError: (error) =>
-          showToast(error instanceof ApiError && error.message ? error.message : t("serverTag.profile.failed"), "error"),
+          showToast(userErrorMessage(error, t("serverTag.profile.failed")), "error"),
       }),
   };
 }

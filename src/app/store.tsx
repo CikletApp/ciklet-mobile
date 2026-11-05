@@ -3,7 +3,6 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { ApiError } from "@/api/client";
 import { qk } from "@/api/query-keys";
 import {
   useCheckout,
@@ -48,6 +47,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { useBuyWithPoints } from "@/api/hooks/use-account-privacy";
 import { INTL_LOCALES, useLocale, useT, type MessageKey } from "@/lib/i18n";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Mağaza (web `/magaza`) — avatar süsleri, isim plakaları, profil efektleri.
@@ -361,7 +361,7 @@ function StoreCard({
           void queryClient.invalidateQueries({ queryKey: qk.store });
           void queryClient.invalidateQueries({ queryKey: ["profile-card"] });
         },
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Değiştirilemedi.", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "Değiştirilemedi."), "error"),
       }
     );
   };
@@ -369,7 +369,7 @@ function StoreCard({
   const claimFree = () =>
     claim.mutate(item.id, {
       onSuccess: () => showToast(`${item.name} artık senin!`),
-      onError: (error) => showToast(error instanceof ApiError ? error.message : "Ürün alınamadı.", "error"),
+      onError: (error) => showToast(userErrorMessage(error, "Ürün alınamadı."), "error"),
     });
 
   const buy = (request: CheckoutRequest) =>
@@ -378,7 +378,7 @@ function StoreCard({
         setGiftOpen(false);
         setGiftTo("");
       },
-      onError: (error) => showToast(error instanceof ApiError ? error.message : "Ödeme başlatılamadı.", "error"),
+      onError: (error) => showToast(userErrorMessage(error, "Ödeme başlatılamadı."), "error"),
     });
 
   return (
@@ -462,7 +462,7 @@ function StoreCard({
             onPress={() =>
               buyPoints.mutate(item.id, {
                 onSuccess: () => showToast(t("quests.store.bought", { name: item.name })),
-                onError: (error) => showToast(error instanceof ApiError ? error.message : t("quests.toast.failed"), "error"),
+                onError: (error) => showToast(userErrorMessage(error, t("quests.toast.failed")), "error"),
               })
             }
           />

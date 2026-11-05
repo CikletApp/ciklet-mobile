@@ -12,6 +12,7 @@ import {
   releaseAudioRoute,
   type BuiltInRoute,
 } from "./audio-route";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * LiveKit oda token'ı + ses oturumu kurulumu.
@@ -139,8 +140,8 @@ function describeError(err: unknown): string {
   if (err instanceof ApiError) {
     // Kullanıcı sınırı dolu (web api/livekit `channel_full`) ya da uçtan uca
     // şifreleme zorunlu ve bu sürüm eski (`e2ee_required`): sunucunun metni.
-    if (err.code === CHANNEL_FULL_CODE || err.code === "e2ee_required") return err.message;
-    return err.status === 403 ? "Bu görüşmeye katılma yetkin yok." : err.message;
+    if (err.code === CHANNEL_FULL_CODE || err.code === "e2ee_required") return userErrorMessage(err, "Ses bağlantısı kurulamadı.");
+    return err.status === 403 ? "Bu görüşmeye katılma yetkin yok." : userErrorMessage(err, "Ses bağlantısı kurulamadı.");
   }
   return "Ses bağlantısı kurulamadı.";
 }

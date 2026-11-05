@@ -9,6 +9,7 @@ import { useT } from "@/lib/i18n";
 import { answerMax } from "@/lib/join-application";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Katılım başvurusu formu (Discord "Apply to Join") — web
@@ -48,7 +49,7 @@ function ApplicationForm({ serverId, code, onClose }: { serverId: string; code: 
 
   useEffect(() => {
     if (!form.error) return;
-    showToast(form.error instanceof ApiError ? form.error.message : t("safety.security.failed"), "error");
+    showToast(userErrorMessage(form.error, t("safety.security.failed")), "error");
     onClose();
   }, [form.error, onClose, t]);
 
@@ -67,7 +68,7 @@ function ApplicationForm({ serverId, code, onClose }: { serverId: string; code: 
           setSubmitted(true);
           setReapply(false);
         },
-        onError: (e) => showToast(e instanceof ApiError ? e.message : t("safety.security.failed"), "error"),
+        onError: (e) => showToast(userErrorMessage(e, t("safety.security.failed")), "error"),
       }
     );
 

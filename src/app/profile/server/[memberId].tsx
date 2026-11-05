@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useMyMemberships, useUpdateMemberProfile } from "@/api/hooks";
 import { Avatar, EmptyState, Icon, ScreenLoader } from "@/components/ui";
-import { UserFacingUploadError, pickAndUploadProfileImage } from "@/lib/uploads";
+import { pickAndUploadProfileImage } from "@/lib/uploads";
 import { BannerColorRow } from "@/features/profile/banner-color-row";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 export default function ServerProfileEditScreen() {
   const { memberId } = useLocalSearchParams<{ memberId: string }>();
@@ -73,9 +73,7 @@ export default function ServerProfileEditScreen() {
       if (serverImageUrl) await update.mutateAsync({ serverImageUrl });
     } catch (reason) {
       setAvatarError(
-        reason instanceof UserFacingUploadError || reason instanceof ApiError
-          ? reason.message
-          : "Sunucu avatarı değiştirilemedi. Tekrar dene."
+        userErrorMessage(reason, "Sunucu avatarı değiştirilemedi. Tekrar dene.")
       );
     } finally {
       setAvatarBusy(false);
@@ -203,9 +201,7 @@ export default function ServerProfileEditScreen() {
 
         {update.isError ? (
           <Text style={{ ...typography.caption, color: colors.danger }}>
-            {update.error instanceof ApiError
-              ? update.error.message
-              : "Sunucu profili kaydedilemedi."}
+            {userErrorMessage(update.error, "Sunucu profili kaydedilemedi.")}
           </Text>
         ) : null}
       </ScrollView>

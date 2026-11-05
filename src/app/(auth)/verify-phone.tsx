@@ -9,6 +9,7 @@ import { AuthShell } from "@/features/auth/auth-shell";
 import { useAuth } from "@/stores/auth";
 import { fw } from "@/theme/fonts";
 import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kayıt akışının telefon doğrulama adımı — ciklet-web
@@ -88,7 +89,7 @@ export default function VerifyPhoneScreen() {
       } else if (err instanceof ApiError && err.isNetwork) {
         setError("Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.");
       } else {
-        setError(err instanceof ApiError && err.message ? err.message : "Bağlantı alınamadı.");
+        setError(userErrorMessage(err, "Bağlantı alınamadı."));
       }
       return null;
     } finally {

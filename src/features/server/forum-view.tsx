@@ -2,7 +2,6 @@ import { useState } from "react";
 import { FlatList, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useLockThread, usePinForumPost } from "@/api/hooks";
 import {
   useForumFeed,
@@ -31,6 +30,7 @@ import { openThread } from "./thread-nav";
 import { usePullRefresh } from "@/lib/use-pull-refresh";
 import { MAX_APPLIED_TAGS, forumTagLabel, type ForumLayout, type ForumSort, type ForumTag } from "@/lib/forum";
 import { useAuth } from "@/stores/auth";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Forum kanalı — web forum sayfasının mobil karşılığı: sohbet yerine
@@ -74,7 +74,7 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
   const canEditTags = (post: ForumFeedPost) =>
     tags.length > 0 && Boolean(forum.data?.availableTags) && (canModerate || (post.profile.id === myId && !post.archivedAt));
 
-  const fail = (error: unknown) => showToast(error instanceof ApiError ? error.message : "Gönderi güncellenemedi.", "error");
+  const fail = (error: unknown) => showToast(userErrorMessage(error, "Gönderi güncellenemedi."), "error");
   const appliedOf = (post: ForumFeedPost): ForumTag[] =>
     post.appliedTagIds
       ? post.appliedTagIds.map((id) => tagById.get(id)).filter((t): t is ForumTag => Boolean(t))
@@ -163,7 +163,7 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
         <ListSkeleton rows={5} />
       ) : forum.error ? (
         <ErrorState
-          message={forum.error instanceof ApiError ? forum.error.message : "Gönderiler yüklenemedi."}
+          message={userErrorMessage(forum.error, "Gönderiler yüklenemedi.")}
           onRetry={() => void forum.refetch()}
         />
       ) : (forum.data?.posts ?? []).length === 0 ? (
@@ -195,7 +195,7 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
                     ? () =>
                         reaction.mutate(
                           { emoji: item.reaction!.emoji, messageId: item.reaction!.messageId },
-                          { onError: (error) => showToast(error instanceof ApiError ? error.message : "Tepki verilemedi", "error") }
+                          { onError: (error) => showToast(userErrorMessage(error, "Tepki verilemedi"), "error") }
                         )
                     : undefined
                 }
@@ -248,7 +248,7 @@ export function ForumView({ serverId, channelId }: { serverId: string; channelId
               if (!tagPost || lockedTag || (!on && ids.length >= MAX_APPLIED_TAGS)) return;
               postTags.mutate(
                 { postId: tagPost.id, tags: on ? ids.filter((x) => x !== item.id) : [...ids, item.id] },
-                { onError: (error) => showToast(error instanceof ApiError ? error.message : "Etiketler kaydedilemedi", "error") }
+                { onError: (error) => showToast(userErrorMessage(error, "Etiketler kaydedilemedi"), "error") }
               );
             },
           };

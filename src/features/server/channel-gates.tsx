@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { ApiError } from "@/api/client";
 import { isTimedOut, timeoutRemainingLabel, useAcceptRules, useServerRules } from "@/api/hooks";
 import { Button, Icon, showToast, type IconName } from "@/components/ui";
 import { nsfwAckKey } from "@/lib/nsfw-ack";
@@ -10,6 +9,7 @@ import { useNow } from "@/lib/use-now";
 import { useAuth } from "@/stores/auth";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kanal açılışındaki kapılar — web `nsfw-curtain`, `rules-curtain` ve
@@ -101,7 +101,7 @@ export function RulesCurtain({ serverId }: { serverId: string }) {
           accept.mutate(undefined, {
             onSuccess: () => showToast("Kurallar kabul edildi. Hoş geldin!"),
             onError: (error) =>
-              showToast(error instanceof ApiError ? error.message : "Kabul kaydedilemedi.", "error"),
+              showToast(userErrorMessage(error, "Kabul kaydedilemedi."), "error"),
           })
         }
       />

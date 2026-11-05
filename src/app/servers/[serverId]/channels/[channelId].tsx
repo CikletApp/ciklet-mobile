@@ -3,7 +3,6 @@ import { Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-n
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import { useChannel, useDeleteChannel, useServerBoost } from "@/api/hooks";
 import {
   useCreateChannelIn,
@@ -54,6 +53,7 @@ import { LEGACY_PERK_FLOOR } from "@/lib/server-boost";
 import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kanal Oluştur / Kanal Ayarları — web `create-channel-modal.tsx` ve
@@ -167,7 +167,7 @@ export default function ChannelSettingsScreen() {
   const currentCategoryId = channel?.categoryId ?? NO_CATEGORY;
   const categoryList = categories ?? [];
   const fail = (fallback: string) => (error: unknown) =>
-    showToast(error instanceof ApiError ? error.message : fallback, "error");
+    showToast(userErrorMessage(error, fallback), "error");
 
   const buildPatch = (): ChannelPatch => {
     if (!channel) return {};

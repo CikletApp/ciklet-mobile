@@ -8,6 +8,7 @@ import { IAP_ENABLED, PURCHASES_ENABLED } from "@/lib/purchases";
 import { boostSku } from "@/features/mentol/iap-products";
 import { colors, spacing, typography } from "@/theme/tokens";
 import { useBoostIap } from "./use-boost-iap";
+import { siteHost } from "@/lib/config";
 
 /**
  * "Takviye Satın Al" — mobilde YALNIZCA mağaza içi satın alma (App Store /
@@ -34,7 +35,7 @@ export function BoostBuySection({
     return PURCHASES_ENABLED ? <Hint text={t("serverBoost.actions.comingSoon")} /> : null;
   }
   if (hasStoreSlot) {
-    return <Hint text={PURCHASES_ENABLED ? `${t("serverBoost.mobile.storeLimit")} ${t("serverBoost.mobile.moreOnWeb")}` : t("serverBoost.mobile.storeLimit")} />;
+    return <Hint text={PURCHASES_ENABLED ? `${t("serverBoost.mobile.storeLimit")} ${t("serverBoost.mobile.moreOnWeb", { site: siteHost() })}` : t("serverBoost.mobile.storeLimit")} />;
   }
   return <StoreBuyButton variant={variant} onVerified={onVerified} />;
 }

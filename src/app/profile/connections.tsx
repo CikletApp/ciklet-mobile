@@ -35,6 +35,7 @@ import { CONNECTION_PROVIDERS, providerLabel, readConnectionResults, type Connec
 import { useT, type MessageKey } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Profil → Bağlantılar (web: Ayarlar → Profil → Bağlantılar).
@@ -100,7 +101,7 @@ export default function ConnectionsScreen() {
         error instanceof ApiError
           ? error.status === 404
             ? t("parityScreens.connections.linkUnavailable")
-            : error.message || t("parityScreens.connections.saveFailed")
+            : userErrorMessage(error, t("parityScreens.connections.saveFailed"))
           : t("parityScreens.connections.openFailed"),
         "error"
       );

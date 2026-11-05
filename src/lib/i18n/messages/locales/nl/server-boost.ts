@@ -79,7 +79,7 @@ export const serverBoost = {
     applyToServer: "Toepassen op een server",
     perMonth: "{price} / maand",
     storeLimit: "Via de winkel kan maar één extra boost worden gekocht, en die heb je al.",
-    moreOnWeb: "Je kunt meer boosts kopen op ciklet.xyz.",
+    moreOnWeb: "Je kunt meer boosts kopen op {site}.",
     storeCancelHint: "Gebruik de abonnementsinstellingen van App Store / Google Play om deze boost te annuleren.",
     manageStore: "Abonnement beheren",
     pending: "De betaling is in behandeling. De boost wordt automatisch toegevoegd zodra hij is goedgekeurd.",

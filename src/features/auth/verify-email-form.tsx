@@ -6,6 +6,7 @@ import { Button } from "@/components/ui";
 import { fw } from "@/theme/fonts";
 import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
 import { OtpField } from "./otp-field";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * E-posta doğrulama kodu — ciklet-web `components/auth/verify-email-form.tsx`
@@ -67,8 +68,8 @@ export function VerifyEmailForm({
         setInvalid(true);
         setCode("");
         setError(
-          err instanceof ApiError && !err.isNetwork && err.message
-            ? err.message
+          err instanceof ApiError && !err.isNetwork
+            ? userErrorMessage(err, "Kod doğrulanamadı. Bağlantını kontrol edip tekrar dene.")
             : "Kod doğrulanamadı. Bağlantını kontrol edip tekrar dene."
         );
         setSubmitting(false);

@@ -3,7 +3,7 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 
-import { api, ApiError } from "@/api/client";
+import { api } from "@/api/client";
 import { Button, Icon } from "@/components/ui";
 import { AuthField, AuthShell } from "@/features/auth/auth-shell";
 import { BirthDateField, EMPTY_BIRTH_DATE, resolveBirthDate } from "@/features/auth/birth-date-field";
@@ -11,6 +11,7 @@ import { TURNSTILE_FIELD, useTurnstile } from "@/features/auth/turnstile-sheet";
 import { API_BASE_URL } from "@/lib/config";
 import { fw } from "@/theme/fonts";
 import { authBrand, colors, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 interface RegisterResponse { ok: true; username: string; email: string }
 
@@ -76,7 +77,7 @@ export default function RegisterScreen() {
       });
       router.replace({ pathname: "/(auth)/verify-email", params: { username: result.username, email: result.email } });
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Hesap oluşturulamadı.";
+      const message = userErrorMessage(err, "Hesap oluşturulamadı.");
       setError(
         message === "Username already exists" ? "Bu kullanıcı adı kullanılıyor."
           : message === "Email already in use" ? "Bu e-posta zaten kullanılıyor."

@@ -1,7 +1,6 @@
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useApplyBoost, useMyBoosts, useServerBoost, useServerSummary, type BoostSlot } from "@/api/hooks";
 import { Avatar, Button, ErrorState, Icon, Screen, ScreenLoader, showToast } from "@/components/ui";
 import { BoostBuySection } from "@/features/server-boost/boost-buy";
@@ -11,6 +10,7 @@ import { useT } from "@/lib/i18n";
 import { BOOST_PINK, BOOST_TIER_THRESHOLDS, perkRows, type PremiumTier } from "@/lib/server-boost";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 const PERK_LEVELS: readonly PremiumTier[] = [1, 2, 3];
 
@@ -36,7 +36,7 @@ export default function ServerBoostScreen() {
       { serverId, ...input },
       {
         onSuccess: () => showToast(t("serverBoost.actions.applied")),
-        onError: (error) => showToast(error instanceof ApiError && error.message ? error.message : t("serverBoost.actions.failed"), "error"),
+        onError: (error) => showToast(userErrorMessage(error, t("serverBoost.actions.failed")), "error"),
       }
     );
 

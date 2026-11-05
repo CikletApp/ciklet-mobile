@@ -29,6 +29,9 @@ export const messages = {
     system: "System",
     on: "An",
     off: "Aus",
+    errorTitle: "Etwas ist schiefgelaufen",
+    errorBody: "Beim Öffnen dieses Bildschirms ist ein unerwartetes Problem aufgetreten. Du kannst es erneut versuchen.",
+    retry: "Erneut versuchen",
   },
   tabs: {
     chats: "Chats",

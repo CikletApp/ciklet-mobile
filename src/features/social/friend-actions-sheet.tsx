@@ -2,7 +2,7 @@ import { useState } from "react";
 import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, ApiError } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import { useAnnotation, useBlockUser, useOpenDirect, useRemoveFriend, useSaveAnnotation, type FriendEntry } from "@/api/hooks";
@@ -10,6 +10,8 @@ import { ActionSheet, showDialog, showToast, type ActionSheetItem } from "@/comp
 import { displayNameOf } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { useCallActions } from "@/realtime/use-call-events";
+import { userErrorMessage } from "@/lib/user-error";
+import { siteOrigin } from "@/lib/config";
 
 /**
  * Arkadaş satırına basılı tutunca açılan menü — web
@@ -27,7 +29,7 @@ interface InvitableServer {
 const INVITABLE_SERVERS = "/api/servers/invitable";
 
 function failText(reason: unknown, fallback: string) {
-  return reason instanceof ApiError && reason.message ? reason.message : fallback;
+  return userErrorMessage(reason, fallback);
 }
 
 export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | null; onClose: () => void }) {
@@ -72,7 +74,7 @@ export function FriendActionsSheet({ entry, onClose }: { entry: FriendEntry | nu
       });
       await api(endpoints.sendDirectMessage(direct.id), {
         method: "POST",
-        body: { content: `https://ciklet.xyz/i/${server.inviteCode}` },
+        body: { content: `${siteOrigin()}/i/${server.inviteCode}` },
       });
       void queryClient.invalidateQueries({ queryKey: qk.directs });
       showToast(t("moreScreens.friendActions.inviteSent", { server: server.name, name: friendName }));

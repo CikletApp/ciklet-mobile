@@ -9,6 +9,7 @@ import { ReducedMotionConfig } from "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { persistOptions, queryClient } from "@/api/query-client";
+import { AppErrorBoundary } from "@/components/app-error-boundary";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { InAppNoticeHost } from "@/components/in-app-notice";
 import { DialogHost, ToastHost } from "@/components/ui";
@@ -25,6 +26,7 @@ import { startVoicePrefetch } from "@/features/chat/voice-prefetch";
 import { NotificationSettingsHost } from "@/features/notifications/notification-sheet";
 import { reanimatedMotionMode, useReducedMotion } from "@/lib/accessibility";
 import { useScreenTracking } from "@/lib/analytics";
+import { refreshDomainDiscovery } from "@/lib/domain-discovery";
 import { loadDokimorjiManifest } from "@/lib/emoji";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { setupLiveKit } from "@/lib/livekit";
@@ -54,6 +56,9 @@ import {
  * gelindiğinde yığının altında sekmeler olsun: aksi hâlde ekranda geri
  * düğmesi çıkmıyor ve kullanıcı sohbette mahsur kalıyordu.
  */
+/** Beklenmeyen çizim hatasında ham hata yerine Ciklet ekranı (bkz. app-error-boundary). */
+export { AppErrorBoundary as ErrorBoundary };
+
 export const unstable_settings = {
   initialRouteName: "(tabs)",
 };
@@ -125,6 +130,7 @@ export default function RootLayout() {
     void hydratePreferences();
     void bootstrap();
     void loadDokimorjiManifest();
+    void refreshDomainDiscovery();
   }, [bootstrap, hydratePreferences, hydrateTheme]);
 
   // Yerel splash ile JS açılış ekranı aynı görüntü (BrandSplash); yerel olan,

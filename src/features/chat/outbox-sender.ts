@@ -17,6 +17,7 @@ import { allOutbox, useOutbox, type OutboxMessage, type OutboxPayload, type Outb
 import { MAX_SERVER_ATTEMPTS, backoffMs, nextSendable, nextWakeAt } from "@/stores/outbox-logic";
 import { mergeNewestPage } from "./message-sync";
 import type { MessageCache } from "./reaction-cache";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Gönderim motoru — kalıcı kuyruğu (stores/outbox) sırayla boşaltır.
@@ -202,7 +203,7 @@ async function deliver(entry: OutboxMessage): Promise<void> {
       current = { ...current, ...patch };
     } catch (err) {
       store.setProgress(entry.id, null);
-      const message = err instanceof Error ? err.message : "Dosya yüklenemedi.";
+      const message = userErrorMessage(err, "Dosya yüklenemedi.");
       if (/büyük/i.test(message)) {
         store.update(entry.id, { status: "failed", error: message });
         return;
@@ -257,14 +258,14 @@ async function deliver(entry: OutboxMessage): Promise<void> {
     if (err.status === 429 || err.status >= 500) {
       const attempts = (current.attempts ?? 0) + 1;
       if (attempts >= MAX_SERVER_ATTEMPTS) {
-        store.update(entry.id, { status: "failed", attempts, error: err.message || "Gönderilemedi" });
+        store.update(entry.id, { status: "failed", attempts, error: userErrorMessage(err, "Gönderilemedi") });
       } else {
         retryLater(current, { attempts }, attempts);
       }
       return;
     }
     // 4xx: yeniden denemenin anlamı yok (izin, doğrulama…).
-    store.update(entry.id, { status: "failed", uncertain: false, error: err.message || "Gönderilemedi" });
+    store.update(entry.id, { status: "failed", uncertain: false, error: userErrorMessage(err, "Gönderilemedi") });
   }
 }
 

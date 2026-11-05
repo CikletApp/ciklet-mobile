@@ -4,7 +4,6 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import { hasServerPermission, useMyPermissions, useSaveGuide, useServerChannels, useServerGuide, useServerSummary } from "@/api/hooks";
 import type { ChannelExtras } from "@/api/types";
 import { ErrorState, Icon, Pressable, Screen, ScreenLoader, TextField, showToast } from "@/components/ui";
@@ -38,6 +37,7 @@ import {
 import { pickAndUploadServerBanner } from "@/lib/uploads";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 type ListKey = "tasks" | "resources";
 
@@ -99,7 +99,7 @@ export default function GuideSettingsScreen() {
         setSaved(next);
         showToast(t("serverGuide.settings.saved"));
       },
-      onError: (error) => showToast(error instanceof ApiError ? error.message : t("serverGuide.settings.saveFailed"), "error"),
+      onError: (error) => showToast(userErrorMessage(error, t("serverGuide.settings.saveFailed")), "error"),
     });
   };
 
@@ -110,7 +110,7 @@ export default function GuideSettingsScreen() {
       const url = await pickAndUploadServerBanner();
       if (url) patch({ bannerUrl: url });
     } catch (error) {
-      showToast(error instanceof Error ? error.message : t("serverGuide.errors.bannerInvalid"), "error");
+      showToast(userErrorMessage(error, t("serverGuide.errors.bannerInvalid")), "error");
     } finally {
       setUploading(false);
     }

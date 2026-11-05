@@ -30,6 +30,7 @@ import { API_BASE_URL } from "@/lib/config";
 import { saveLocalFile } from "@/lib/downloads";
 import { INTL_LOCALES, useLocale, useT, type MessageKey } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Ayarlar → Gizlilik: yaş güvenliği ve KVKK bölümleri (web
@@ -77,7 +78,7 @@ function Desc({ children }: { children: string }) {
 }
 
 function errorText(error: unknown, fallback: string) {
-  return error instanceof ApiError && error.message ? error.message : fallback;
+  return userErrorMessage(error, fallback);
 }
 
 function useDates() {

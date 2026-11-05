@@ -2,12 +2,12 @@ import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { router, Stack } from "expo-router";
 
 import { PURCHASES_ENABLED } from "@/lib/purchases";
-import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMentolPlan, useStoreCatalog, useUpdateProfile } from "@/api/hooks";
 import { Avatar, Button, Icon, Pressable, Screen, ScreenLoader, showToast } from "@/components/ui";
 import { AVATAR_DECORATIONS, type AvatarDecoration } from "@/lib/avatar-decorations";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Avatar süsü seçici (web: Ayarlar → Profil → Avatar Süsü).
@@ -51,7 +51,7 @@ export default function DecorationPickerScreen() {
       { avatarDecorationId: deco?.id ?? null },
       {
         onSuccess: () => showToast(deco ? `${deco.name} takıldı.` : "Süs kaldırıldı."),
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Süs değiştirilemedi.", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "Süs değiştirilemedi."), "error"),
       }
     );
   };

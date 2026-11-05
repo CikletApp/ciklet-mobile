@@ -4,7 +4,6 @@ import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ChannelType, type Channel } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import { useCompleteOnboarding, useServerOnboarding, useServerRules } from "@/api/hooks";
 import { Avatar, Button, EmojiText, Icon, Pressable, showToast } from "@/components/ui";
 import { RulesCurtain } from "@/features/server/channel-gates";
@@ -13,6 +12,7 @@ import type { WelcomeChannelView, WelcomeScreenView } from "@/lib/welcome-screen
 import { useAuth } from "@/stores/auth";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucuya katılım akışının mobil karşılıkları:
@@ -113,7 +113,7 @@ export function OnboardingCurtain({
         const first = channelIds[0];
         if (first) openServerChannel(serverId, first, channels);
       },
-      onError: (error) => showToast(error instanceof ApiError ? error.message : "Yanıtlar kaydedilemedi", "error"),
+      onError: (error) => showToast(userErrorMessage(error, "Yanıtlar kaydedilemedi"), "error"),
     });
 
   return (

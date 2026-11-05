@@ -7,17 +7,19 @@ import { useDirect, useDirectDisplay } from "@/api/hooks";
 import { showToast } from "@/components/ui/toast";
 import { useAuth } from "@/stores/auth";
 import { useChatScope } from "./chat-scope";
+import { siteOrigin } from "@/lib/config";
 
 /**
  * "Mesaj Bağlantısını Kopyala" — web `message-context-menu` ile aynı adres:
  * sohbetin web adresi + `?m=<id>`. Web'de açılınca da, uygulamada açılınca
  * da (bkz. `openMessageLink`) mesaja kaydırılır.
  *
- *   kanal:  https://ciklet.xyz/servers/<sunucu>/channels/<kanal>?m=<id>
- *   birebir: https://ciklet.xyz/direct/<karşı taraf profil>?m=<id>
- *   grup:   https://ciklet.xyz/direct/group/<sohbet>?m=<id>
+ *   kanal:  <site>/servers/<sunucu>/channels/<kanal>?m=<id>
+ *   birebir: <site>/direct/<karşı taraf profil>?m=<id>
+ *   grup:   <site>/direct/group/<sohbet>?m=<id>
+ *
+ * <site>: lib/config `siteOrigin()` (alan adı keşfiyle değişebilir).
  */
-export const WEB_ORIGIN = "https://ciklet.xyz";
 
 export function messageLink(
   scope: { kind: "channel" | "direct"; chatId: string; serverId?: string },
@@ -26,10 +28,10 @@ export function messageLink(
 ): string | null {
   const m = `?m=${encodeURIComponent(messageId)}`;
   if (scope.kind === "channel") {
-    return scope.serverId ? `${WEB_ORIGIN}/servers/${scope.serverId}/channels/${scope.chatId}${m}` : null;
+    return scope.serverId ? `${siteOrigin()}/servers/${scope.serverId}/channels/${scope.chatId}${m}` : null;
   }
-  if (direct?.isGroup) return `${WEB_ORIGIN}/direct/group/${scope.chatId}${m}`;
-  return direct?.peerId ? `${WEB_ORIGIN}/direct/${direct.peerId}${m}` : null;
+  if (direct?.isGroup) return `${siteOrigin()}/direct/group/${scope.chatId}${m}`;
+  return direct?.peerId ? `${siteOrigin()}/direct/${direct.peerId}${m}` : null;
 }
 
 /** Açık sohbetin mesaj bağlantısı üreticisi (bağlam menüsü için). */

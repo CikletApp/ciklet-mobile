@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable as RNPressable, Switch, Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import { useUpdateServerTag } from "@/api/hooks";
 import type { ServerDetails } from "@/api/types";
 import { Button, Icon, ListGroup, Pressable, SectionHeader, TextField, emojify, showToast } from "@/components/ui";
@@ -10,6 +9,7 @@ import { ServerTagPill } from "@/features/server-tag/server-tag-pill";
 import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /** web lib/server-tag `parseServerTag` ile aynı kural (istemci ipucu; asıl doğrulama uçta). */
 function tagLooksValid(tag: string): boolean {
@@ -57,7 +57,7 @@ export function ServerTagSection({ server }: { server: ServerDetails }) {
       {
         onSuccess: () => showToast(t("serverTag.settings.saved")),
         onError: (error) =>
-          showToast(error instanceof ApiError && error.message ? error.message : t("serverTag.settings.saveFailed"), "error"),
+          showToast(userErrorMessage(error, t("serverTag.settings.saveFailed")), "error"),
       }
     );
   };

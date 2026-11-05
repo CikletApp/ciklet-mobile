@@ -1,7 +1,6 @@
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { router, Stack } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useMessageRequests, useRespondMessageRequest } from "@/api/hooks";
 import type { MessageRequestEntry } from "@/api/types";
 import {
@@ -18,6 +17,7 @@ import { displayNameOf } from "@/lib/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { usePullRefresh } from "@/lib/use-pull-refresh";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Mesaj İstekleri (web `/requests`) — arkadaş listende olmayanlardan gelen
@@ -40,7 +40,7 @@ export default function MessageRequestsScreen() {
           showToast(action === "accept" ? "İstek kabul edildi." : action === "ignore" ? "İstek yok sayıldı." : "Kullanıcı engellendi.");
           if (action === "accept") router.replace(`/chat/direct/${entry.directId}`);
         },
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "İşlem başarısız.", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "İşlem başarısız."), "error"),
       }
     );
 

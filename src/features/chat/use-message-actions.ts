@@ -18,6 +18,7 @@ import {
   setSuperReactionQuota,
   type SuperReactionQuota,
 } from "./super-reactions";
+import { userErrorMessage } from "@/lib/user-error";
 
 export type ReportReason = "SPAM" | "HARASSMENT" | "HATE_SPEECH" | "VIOLENCE" | "SELF_HARM" | "CSAM" | "ILLEGAL" | "IMPERSONATION" | "OTHER";
 
@@ -37,7 +38,7 @@ export function useMessageActions(
       await operation();
       return true;
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "İşlem tamamlanamadı.");
+      setError(userErrorMessage(reason, "İşlem tamamlanamadı."));
       return false;
     } finally {
       setPending(false);
@@ -120,7 +121,7 @@ export function useMessageActions(
             // Hak bitti / plan yok: sayaç tazelenir, hata menüde de görünür.
             if (reason instanceof ApiError && (reason.code === "super_reaction_quota" || reason.code === "super_reaction_plan")) {
               void queryClient.invalidateQueries({ queryKey: SUPER_REACTION_QUERY_KEY });
-              showToast(reason.message, "error");
+              showToast(userErrorMessage(reason, "Süper tepki verilemedi."), "error");
             }
             throw reason;
           })

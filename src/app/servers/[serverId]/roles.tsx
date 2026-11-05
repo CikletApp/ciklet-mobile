@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable as RNPressable, ScrollView, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyPermissions,
@@ -38,6 +37,7 @@ import { BOOST_PINK, effectiveServerPerks, requiredTier } from "@/lib/server-boo
 import { pickAndUploadRoleIcon } from "@/lib/uploads";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /** Web Roller sekmesindeki renk örnekleri — aynı sıra. */
 const SWATCHES = ["#e67e22", "#e91e63", "#e74c3c", "#f39c12", "#f1c40f", "#9b59b6", "#3498db", "#1abc9c", "#2ecc71", "#95a5a6"];
@@ -97,7 +97,7 @@ export default function ServerRolesScreen() {
           // Oluşturduktan sonra düzenlemeye geç (web ile aynı).
           if (role?.id) setSelectedId(role.id);
         },
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Rol oluşturulamadı.", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "Rol oluşturulamadı."), "error"),
       }
     );
   };
@@ -251,7 +251,7 @@ function RoleEditor({
     if (!editable) return;
     updatePermissions.mutate(
       { roleId: role.id, permissions: toggleRolePermission(role.permissions, key, on) },
-      { onError: (error) => showToast(error instanceof ApiError ? error.message : "İzinler kaydedilemedi.", "error") }
+      { onError: (error) => showToast(userErrorMessage(error, "İzinler kaydedilemedi."), "error") }
     );
   };
 
@@ -262,7 +262,7 @@ function RoleEditor({
       {
         onError: (error) => {
           setAssignOverride((map) => ({ ...map, [memberId]: !assigned }));
-          showToast(error instanceof ApiError ? error.message : "Rol atanamadı.", "error");
+          showToast(userErrorMessage(error, "Rol atanamadı."), "error");
         },
       }
     );
@@ -277,14 +277,14 @@ function RoleEditor({
         onPress: () =>
           removeRole.mutate(role.id, {
             onSuccess: onBack,
-            onError: (error) => showToast(error instanceof ApiError ? error.message : "Rol silinemedi.", "error"),
+            onError: (error) => showToast(userErrorMessage(error, "Rol silinemedi."), "error"),
           }),
       },
     ]);
 
   const patch = (input: RoleUpdate, failure = "Rol kaydedilemedi.") =>
     update.mutateAsync({ roleId: role.id, input }).catch((error: unknown) => {
-      showToast(error instanceof ApiError ? error.message : failure, "error");
+      showToast(userErrorMessage(error, failure), "error");
     });
 
   const saveName = () => {
@@ -300,7 +300,7 @@ function RoleEditor({
       const url = await pickAndUploadRoleIcon();
       if (url) await patch({ iconUrl: url, iconEmoji: null }, "Rol simgesi kaydedilemedi.");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Rol simgesi yüklenemedi.", "error");
+      showToast(userErrorMessage(error, "Rol simgesi yüklenemedi."), "error");
     } finally {
       setIconBusy(false);
     }

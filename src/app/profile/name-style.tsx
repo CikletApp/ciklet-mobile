@@ -2,7 +2,6 @@ import { useState, type ReactNode } from "react";
 import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { router, Stack } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMentolPlan, useStoreCatalog, useUpdateProfile } from "@/api/hooks";
 import { Avatar, Button, Icon, NameStyleText, Pressable, Screen, ScreenLoader, showToast } from "@/components/ui";
 import {
@@ -21,6 +20,7 @@ import {
 import { PURCHASES_ENABLED } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Ad stili seçici (web: Profili Düzenle → Ad Stili). Yazı tipi + efekt +
@@ -75,7 +75,7 @@ export default function NameStyleScreen() {
           setDraft(undefined);
           showToast(shown ? "Ad stili kaydedildi." : "Ad stili kaldırıldı.");
         },
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Ad stili kaydedilemedi.", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "Ad stili kaydedilemedi."), "error"),
       }
     );
   };

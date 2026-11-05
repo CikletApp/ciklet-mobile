@@ -1,12 +1,12 @@
 import { ScrollView, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { hasServerPermission, useMyPermissions, useServerWidget, useUpdateServerWidget } from "@/api/hooks";
 import { Divider, ErrorState, IconButton, ListGroup, ListRow, ListSkeleton, SectionHeader, showToast } from "@/components/ui";
 import { openGuardedLink } from "@/lib/external-link";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu Ayarları › Widget — web `server-settings/widget-tab` ile aynı
@@ -155,5 +155,5 @@ async function copyText(value: string, label: string) {
 }
 
 function apiMessage(reason: unknown, fallback: string) {
-  return reason instanceof ApiError && reason.message ? reason.message : fallback;
+  return userErrorMessage(reason, fallback);
 }

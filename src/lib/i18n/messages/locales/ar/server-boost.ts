@@ -79,7 +79,7 @@ export const serverBoost = {
     applyToServer: "تطبيق على خادم",
     perMonth: "{price} / شهريًا",
     storeLimit: "لا يمكن شراء سوى تعزيز إضافي واحد عبر المتجر، ولديك واحد بالفعل.",
-    moreOnWeb: "يمكنك شراء المزيد من التعزيزات على ciklet.xyz.",
+    moreOnWeb: "يمكنك شراء المزيد من التعزيزات على {site}.",
     storeCancelHint: "لإلغاء هذا التعزيز، استخدم إعدادات الاشتراك في App Store / Google Play.",
     manageStore: "إدارة الاشتراك",
     pending: "الدفع معلّق. يُضاف التعزيز تلقائيًا فور الموافقة عليه.",

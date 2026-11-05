@@ -28,6 +28,7 @@ import {
 } from "@/components/ui";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Keşfet — herkese açık sunucular ve listelenmiş uygulama/botlar.
@@ -110,7 +111,7 @@ function discoverError(error: unknown): { title: string; description: string } {
   }
   return {
     title: "Yüklenemedi",
-    description: error instanceof ApiError ? error.message : "Liste alınamadı.",
+    description: userErrorMessage(error, "Liste alınamadı."),
   };
 }
 
@@ -136,7 +137,7 @@ function ServerList({ query }: { query: string }) {
       if (openApplicationIfRequired(reason, serverId)) return;
       showDialog(
         "Katılınamadı",
-        reason instanceof ApiError ? reason.message : "Sunucuya katılınamadı."
+        userErrorMessage(reason, "Sunucuya katılınamadı.")
       );
     },
   });

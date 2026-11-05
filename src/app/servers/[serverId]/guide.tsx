@@ -1,12 +1,12 @@
 import { ScrollView, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useMarkGuideSeen, useServerChannels, useServerGuide, useServerSummary } from "@/api/hooks";
 import { Button, EmptyState, ErrorState, Screen, ScreenLoader } from "@/components/ui";
 import { ServerGuideBody } from "@/features/server/guide-view";
 import { ServerJoinGate, openServerChannel } from "@/features/server/join-flow";
 import { useT } from "@/lib/i18n";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu Rehberi sayfası — web `servers/[serverId]/guide` karşılığı. Kanal
@@ -30,7 +30,7 @@ export default function ServerGuideScreen() {
         <ScreenLoader />
       ) : error ? (
         <ErrorState
-          message={error instanceof ApiError ? error.message : t("serverGuide.settings.loadFailed")}
+          message={userErrorMessage(error, t("serverGuide.settings.loadFailed"))}
           onRetry={() => void refetch()}
         />
       ) : !guide ? (

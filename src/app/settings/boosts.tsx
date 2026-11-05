@@ -2,7 +2,6 @@ import { useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useApplyBoost, useCancelBoost, useMyBoosts, useTransferBoost, type BoostSlot, type BoostSource } from "@/api/hooks";
 import { Avatar, Button, ErrorState, Icon, Screen, ScreenLoader, showToast } from "@/components/ui";
 import { BoostBuySection, openStoreBoostSubscription } from "@/features/server-boost/boost-buy";
@@ -13,6 +12,7 @@ import { IAP_ENABLED, PURCHASES_ENABLED } from "@/lib/purchases";
 import { BOOST_PINK, boosterTenureLabel } from "@/lib/server-boost";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 const SOURCE_KEY: Record<BoostSource, MessageKey> = {
   MENTOL: "serverBoost.mine.sourceMentol",
@@ -41,7 +41,7 @@ export default function MyBoostsScreen() {
   const [picking, setPicking] = useState<BoostSlot | null>(null);
 
   const failed = (error: unknown) =>
-    showToast(error instanceof ApiError && error.message ? error.message : t("serverBoost.actions.failed"), "error");
+    showToast(userErrorMessage(error, t("serverBoost.actions.failed")), "error");
 
   const onPick = (slot: BoostSlot, serverId: string) => {
     if (slot.server) {

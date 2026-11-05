@@ -14,6 +14,7 @@ import { pickFromGallery } from "@/lib/uploads";
 import { usePreferences } from "@/stores/preferences";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /** Arka plan görseli bu klasörde yaşar; galeri adresi kalıcı olmadığı için kopyalanır. */
 const BACKGROUND_DIR = "chat-background";
@@ -97,7 +98,7 @@ function ChatBackgroundSection() {
       setPreference("chatBackgroundUri", target.uri);
       if (previous) removeFile(previous);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Görsel alınamadı.");
+      setError(userErrorMessage(reason, "Görsel alınamadı."));
     } finally {
       setBusy(false);
     }

@@ -30,6 +30,7 @@ import { effectiveServerPerks } from "@/lib/server-boost";
 import { pickAndUploadServerEmoji } from "@/lib/uploads";
 import { useAuth } from "@/stores/auth";
 import { colors, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu emojileri — web Sunucu Ayarları › Emoji sekmesi: yükleme (İfade
@@ -53,7 +54,7 @@ const EMOJI_NAME_MAX = 32;
 
 const adminKey = (serverId: string) => ["server-emojis-admin", serverId] as const;
 
-const errorText = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
+const errorText = (error: unknown, fallback: string) => (userErrorMessage(error, fallback));
 
 export default function ServerEmojisScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();

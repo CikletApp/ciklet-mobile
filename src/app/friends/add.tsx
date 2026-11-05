@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import { useSendFriendRequest } from "@/api/hooks";
 import { Button, Icon, KeyboardAvoider, TextField } from "@/components/ui";
 import { colors, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kullanıcı adıyla arkadaş ekleme.
@@ -53,7 +53,7 @@ export default function AddFriendScreen() {
         returnKeyType="send"
         onSubmitEditing={onSubmit}
         error={
-          sendRequest.error instanceof ApiError ? sendRequest.error.message : null
+          sendRequest.error ? userErrorMessage(sendRequest.error, "İstek gönderilemedi.") : null
         }
       />
 

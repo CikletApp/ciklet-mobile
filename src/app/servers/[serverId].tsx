@@ -7,7 +7,6 @@ import {
   type Channel,
 } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyMembership,
@@ -60,6 +59,8 @@ import { usePresenceStore } from "@/stores/presence";
 import { EmptyState, ListSkeleton, Screen } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
+import { siteOrigin } from "@/lib/config";
 
 /**
  * Sunucunun kanal listesi.
@@ -298,7 +299,7 @@ export default function ServerChannelsScreen() {
                   style: "destructive",
                   onPress: () =>
                     categoryMutations.remove.mutate(category.id, {
-                      onError: (error) => showToast(error instanceof ApiError ? error.message : "Kategori silinemedi", "error"),
+                      onError: (error) => showToast(userErrorMessage(error, "Kategori silinemedi"), "error"),
                     }),
                 },
               ]
@@ -567,7 +568,7 @@ function ServerHero({
           <HeroAction
             icon="user-plus"
             label="Davet et"
-            onPress={() => void Share.share({ message: `https://ciklet.xyz/i/${inviteCode}` })}
+            onPress={() => void Share.share({ message: `${siteOrigin()}/i/${inviteCode}` })}
           />
         ) : null}
         <HeroAction

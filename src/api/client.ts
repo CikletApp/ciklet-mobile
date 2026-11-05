@@ -73,7 +73,7 @@ async function toApiError(res: Response): Promise<ApiError> {
     }
   }
 
-  return new ApiError(res.status, res.statusText || `HTTP ${res.status}`);
+  return new ApiError(res.status, `HTTP ${res.status}`);
 }
 
 // ── Oturum önbelleği ────────────────────────────────────────────────

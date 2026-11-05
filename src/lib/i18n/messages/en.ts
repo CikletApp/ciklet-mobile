@@ -28,6 +28,9 @@ export const en = {
     system: "System",
     on: "On",
     off: "Off",
+    errorTitle: "Something went wrong",
+    errorBody: "Something unexpected happened while opening this screen. You can try again.",
+    retry: "Try again",
   },
   tabs: {
     chats: "Chats",

@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 
-import { api, ApiError } from "@/api/client";
+import { api } from "@/api/client";
 import { Button } from "@/components/ui";
 import { AuthField, AuthShell } from "@/features/auth/auth-shell";
 import { OtpField } from "@/features/auth/otp-field";
 import { fw } from "@/theme/fonts";
 import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 type Step = "identity" | "verify";
 
@@ -36,7 +37,7 @@ export default function ForgotPasswordScreen() {
       setStep("verify");
       setCooldown(60);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kod gönderilemedi.");
+      setError(userErrorMessage(err, "Kod gönderilemedi."));
     } finally {
       setBusy(false);
     }
@@ -50,7 +51,7 @@ export default function ForgotPasswordScreen() {
       await api("/api/auth/reset-password", { method: "POST", skipAuth: true, body: { username: username.trim(), email: email.trim(), code, newPassword } });
       router.replace({ pathname: "/(auth)/login", params: { username: username.trim(), reset: "1" } });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Şifre güncellenemedi.");
+      setError(userErrorMessage(err, "Şifre güncellenemedi."));
       setCodeInvalid(true);
       setCode("");
     } finally {

@@ -79,7 +79,7 @@ export const serverBoost = {
     applyToServer: "サーバーに適用",
     perMonth: "{price} / 月",
     storeLimit: "ストアで購入できる追加ブーストは1つだけで、すでに1つ持っています。",
-    moreOnWeb: "さらにブーストを購入するにはciklet.xyzをご利用ください。",
+    moreOnWeb: "さらにブーストを購入するには{site}をご利用ください。",
     storeCancelHint: "このブーストをキャンセルするには、App Store / Google Playのサブスクリプション設定を使用してください。",
     manageStore: "サブスクリプションを管理",
     pending: "支払いを処理中です。承認されると自動でブーストが追加されます。",

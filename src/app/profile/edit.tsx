@@ -12,7 +12,6 @@ import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
 
 import { STORE_TITLE } from "@/lib/purchases";
-import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMyGames, useMyMemberships, useUpdateProfile } from "@/api/hooks";
 import { Avatar } from "@/components/ui/avatar";
 import { StyledName } from "@/components/ui/styled-name";
@@ -24,7 +23,7 @@ import { findNameEffect, findNameFont, parseNameStyle } from "@/lib/name-style";
 import { findProfileEffect } from "@/lib/profile-effects";
 import { activeCustomStatus, formatCustomStatus } from "@/lib/custom-status";
 import { GAMES_VISIBILITY_OPTIONS } from "@/lib/profile-extras";
-import { UserFacingUploadError, pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
+import { pickAndUploadProfileBanner, pickAndUploadProfileImage } from "@/lib/uploads";
 import { FavoriteGameSheet } from "@/features/profile/favorite-game-sheet";
 import { ServerTagPicker } from "@/features/server-tag/server-tag-picker";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
@@ -34,6 +33,7 @@ import { favoriteCandidates, favoriteGameTagLabel } from "@/lib/favorite-game";
 import { ScreenLoader } from "@/components/ui/screen";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { useT } from "@/lib/i18n";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Profil düzenleme — iki sekme:
@@ -50,8 +50,7 @@ type Tab = "user" | "servers";
  * da sunucu yanıtı); kütüphane/yerel modül iletileri genel cümleye döner.
  */
 function friendlyError(reason: unknown, fallback: string): string {
-  if (reason instanceof UserFacingUploadError || reason instanceof ApiError) return reason.message;
-  return fallback;
+  return userErrorMessage(reason, fallback);
 }
 
 /** "Gotik · Gradyan" — profil öğeleri satırının özeti. */
@@ -463,9 +462,7 @@ export default function EditProfileScreen() {
 
           {updateProfile.isError ? (
             <Text style={{ ...typography.caption, color: colors.danger }}>
-              {updateProfile.error instanceof ApiError
-                ? updateProfile.error.message
-                : "Profil kaydedilemedi."}
+              {userErrorMessage(updateProfile.error, "Profil kaydedilemedi.")}
             </Text>
           ) : null}
         </ScrollView>

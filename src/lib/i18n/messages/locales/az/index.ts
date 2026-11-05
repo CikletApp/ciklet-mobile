@@ -29,6 +29,9 @@ export const messages = {
     system: "Sistem",
     on: "Aktiv",
     off: "Deaktiv",
+    errorTitle: "Nəsə səhv getdi",
+    errorBody: "Bu ekran açılarkən gözlənilməz problem yarandı. Yenidən cəhd edə bilərsən.",
+    retry: "Yenidən cəhd et",
   },
   tabs: {
     chats: "Söhbətlər",

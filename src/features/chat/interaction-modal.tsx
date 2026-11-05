@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 import Animated, { SlideInDown } from "react-native-reanimated";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { Button, Icon, KeyboardAvoider, Pressable, TextField, showToast } from "@/components/ui";
 import { formatFileSize } from "@/lib/attachments";
@@ -27,6 +27,7 @@ import {
   type UploadedFile,
 } from "./interaction-modal-store";
 import { waitForAck } from "./interactions";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Bot etkileşim modalı — web `lib/modals` + `components/modals/interaction-modal`.
@@ -111,7 +112,7 @@ function InteractionModalForm({ open }: { open: OpenModal }) {
         return { ...prev, [f.custom_id]: list };
       });
     } catch (reason) {
-      showToast(reason instanceof Error && reason.message ? reason.message : t("messageComponents.uploadFailed"), "error");
+      showToast(userErrorMessage(reason, t("messageComponents.uploadFailed")), "error");
     } finally {
       setUploading((u) => ({ ...u, [f.custom_id]: false }));
     }
@@ -168,7 +169,7 @@ function InteractionModalForm({ open }: { open: OpenModal }) {
         if (silent) showToast(t("messageComponents.formNoResponse"));
       });
     } catch (error) {
-      showToast(error instanceof ApiError && error.message ? error.message : t("messageComponents.formFailed"), "error");
+      showToast(userErrorMessage(error, t("messageComponents.formFailed")), "error");
     } finally {
       setBusy(false);
     }

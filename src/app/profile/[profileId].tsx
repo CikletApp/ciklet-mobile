@@ -62,6 +62,7 @@ import { useCallActions } from "@/realtime/use-call-events";
 import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kullanıcı profili — web'deki üye kartının mobil karşılığı.
@@ -617,7 +618,7 @@ function AnnotationCard({ profileId }: { profileId: string }) {
       onError: (reason) =>
         showDialog(
           "Kaydedilemedi",
-          reason instanceof ApiError ? reason.message : "Kayıt kaydedilemedi."
+          userErrorMessage(reason, "Kayıt kaydedilemedi.")
         ),
     });
 

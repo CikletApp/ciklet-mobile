@@ -6,14 +6,14 @@ import * as WebBrowser from "expo-web-browser";
 
 import { Divider, ListGroup, ListRow, showToast } from "@/components/ui";
 import { BrandMark } from "@/features/auth/auth-shell";
-import { API_BASE_URL } from "@/lib/config";
+import { API_BASE_URL, siteHost } from "@/lib/config";
 import { CLIENT_COMMIT } from "@/lib/device";
 import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
 
 /**
  * Yardım — uygulama sürümü, destek, geri bildirim ve hukuki metinler.
  *
- * Web'de kullanıcıya yönelik bir yardım merkezi henüz yok; `docs.ciklet.xyz`
+ * Web'de kullanıcıya yönelik bir yardım merkezi henüz yok; `docs.<site>`
  * GELİŞTİRİCİ belgeleri (bot, aktivite, OAuth2). Bu yüzden "Yardım Merkezi"
  * diye oraya göndermiyoruz; ayrı ve adıyla duruyor.
  *
@@ -21,7 +21,7 @@ import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
  * SFSafariViewController): kullanıcı kapatınca doğrudan buraya döner.
  */
 
-const DEVELOPER_DOCS_URL = "https://docs.ciklet.xyz/";
+const DEVELOPER_DOCS_URL = `https://docs.${siteHost()}/`;
 const SUPPORT_ADDRESS = "destek@ciklet.app";
 
 const version = Application.nativeApplicationVersion ?? "0.0.0-dev";

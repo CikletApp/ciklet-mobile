@@ -4,7 +4,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { MessageWithMember } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import { Avatar, EmptyState, ErrorState, Icon, Pressable, Screen, SegmentedTabs } from "@/components/ui";
@@ -22,6 +22,7 @@ import {
   type SearchFilters,
   type SearchOrder,
 } from "@/features/search/search-filters";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu içi mesaj arama — web kanal başlığındaki arama kutusunun mobil
@@ -152,7 +153,7 @@ export default function ServerSearchScreen() {
         <ActivityIndicator color={colors.muted} style={{ marginTop: spacing["2xl"] }} />
       ) : search.error ? (
         <ErrorState
-          message={search.error instanceof ApiError ? search.error.message : "Arama yapılamadı."}
+          message={userErrorMessage(search.error, "Arama yapılamadı.")}
           onRetry={() => void search.refetch()}
         />
       ) : items.length === 0 ? (

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { hasServerPermission, useMyPermissions } from "@/api/hooks";
 import { Icon, Pressable, emojify, showToast } from "@/components/ui";
@@ -13,6 +13,7 @@ import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 import { useChatScope } from "../chat-scope";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Anket gövdesi (ciklet-web POLL) — normal mesaj balonunun İÇİNDE çizilir;
@@ -71,7 +72,7 @@ export function PollCard({ message, poll: parsed }: { message: ChatMessagePayloa
       if (confirmed) setLocal({ base, poll: confirmed });
       setNow(Date.now());
     } catch (error) {
-      showToast(error instanceof ApiError ? error.message : "Anket bitirilemedi.", "error");
+      showToast(userErrorMessage(error, "Anket bitirilemedi."), "error");
     } finally {
       setBusy(false);
       setConfirmEnd(false);

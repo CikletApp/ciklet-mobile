@@ -3,7 +3,6 @@ import { Text } from "react-native";
 import type { Participant } from "livekit-client";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyPermissions,
@@ -20,6 +19,7 @@ import { useAuth } from "@/stores/auth";
 import { AFK_MOVED_MESSAGE } from "@/lib/voice-settings";
 import type { VoiceParticipant } from "@/stores/voice";
 import { colors, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu tarafı ses moderasyonu (web: kenar çubuğunda katılımcı sağ tık
@@ -85,7 +85,7 @@ export function useVoiceModerationMenu({
                   : `${name} taşındı.`
           ),
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Ses moderasyonu yapılamadı.", "error"),
+          showToast(userErrorMessage(error, "Ses moderasyonu yapılamadı."), "error"),
       }
     );
   };

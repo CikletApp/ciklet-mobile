@@ -15,7 +15,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useActivities } from "@/api/hooks";
 import type { ActivitySummary } from "@/api/types";
@@ -60,6 +60,7 @@ import { useActivitySession, type ActivitySession } from "@/stores/activity";
 import { useAuth } from "@/stores/auth";
 import { useTheme } from "@/stores/theme";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Aktivite katmanı — web host'un (components/activities-room +
@@ -471,7 +472,7 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
             const code = await requestAuthCode(scope);
             send(rpcResponse(cmd, nonce, { code }));
           } catch (err) {
-            send(rpcError(cmd, nonce, 4001, err instanceof ApiError ? err.message : "Authorization failed"));
+            send(rpcError(cmd, nonce, 4001, userErrorMessage(err, "Authorization failed")));
           }
           return;
         }
@@ -1122,7 +1123,7 @@ function ActivitySessionView({ session }: { session: ActivitySession }) {
                 status={status.data}
                 activity={activity}
                 granting={grant.isPending}
-                grantError={grant.isError ? (grant.error instanceof ApiError ? grant.error.message : "İzin verilemedi.") : null}
+                grantError={grant.isError ? (userErrorMessage(grant.error, "İzin verilemedi.")) : null}
                 onGrant={() => grant.mutate()}
                 onCancel={leave}
               />

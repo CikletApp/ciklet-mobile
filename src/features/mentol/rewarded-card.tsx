@@ -9,6 +9,7 @@ import { formatDate, formatTime, isSameDay } from "@/lib/format";
 import { showRewardedAd } from "@/lib/rewarded-ads";
 import { useAuth } from "@/stores/auth";
 import { authBrand, colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * "Reklam izle, Plus kazan" — Mentol almayan kullanıcı için isteğe bağlı.
@@ -116,7 +117,7 @@ export function RewardedCard() {
         );
       }
     } catch (err) {
-      showToast(err instanceof ApiError && err.message ? err.message : "Reklam başlatılamadı.", "error");
+      showToast(userErrorMessage(err, "Reklam başlatılamadı."), "error");
     } finally {
       setBusy(false);
       void queryClient.invalidateQueries({ queryKey: REWARDED_KEY });

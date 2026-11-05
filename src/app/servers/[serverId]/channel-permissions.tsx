@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useChannel } from "@/api/hooks";
 import { useServerRoleDetails } from "@/api/hooks/use-roles";
 import {
@@ -34,6 +33,7 @@ import {
 import { useT, type MessageKey } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kanal / Kategori İzinleri — web `channel-settings/permissions-tab.tsx`.
@@ -146,7 +146,7 @@ export default function ChannelPermissionsScreen() {
     setDraft((prev) => ({ ...prev, [key]: withState(prev[key], channelPermissionBit(permission), next) }));
 
   const fail = (fallback: string) => (error: unknown) =>
-    showToast(error instanceof ApiError ? error.message : fallback, "error");
+    showToast(userErrorMessage(error, fallback), "error");
 
   const submit = (syncChannelIds: string[] = []) => {
     const overwrites: OverwriteWire[] = Object.entries(draft)
@@ -243,7 +243,7 @@ export default function ChannelPermissionsScreen() {
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <Stack.Screen options={{ title }} />
         <ErrorState
-          message={query.error instanceof ApiError ? query.error.message : t("moreScreens.channelPermissions.loadFailed")}
+          message={userErrorMessage(query.error, t("moreScreens.channelPermissions.loadFailed"))}
           onRetry={() => void query.refetch()}
         />
       </View>

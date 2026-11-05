@@ -3,7 +3,6 @@ import { Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType, MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import {
   useArchiveThread,
   useChannel,
@@ -47,6 +46,7 @@ import { FollowChannelSheet } from "@/features/server/follow-channel-sheet";
 import { MediaGallery } from "@/features/server/media-gallery";
 import { typingLabel, useTyping } from "@/realtime/use-typing";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kanal sohbeti. `serverId` sorgu parametresi olarak taşınır: mesaj
@@ -157,7 +157,7 @@ export default function ChannelChatScreen() {
       {
         onSuccess: () => showToast(archived ? "Alt başlık arşivlendi." : "Alt başlık yeniden açıldı."),
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Alt başlık güncellenemedi.", "error"),
+          showToast(userErrorMessage(error, "Alt başlık güncellenemedi."), "error"),
       }
     );
   };
@@ -169,7 +169,7 @@ export default function ChannelChatScreen() {
       {
         onSuccess: () => showToast(locked ? "Alt başlık kilitlendi." : "Alt başlığın kilidi açıldı."),
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Alt başlık güncellenemedi.", "error"),
+          showToast(userErrorMessage(error, "Alt başlık güncellenemedi."), "error"),
       }
     );
   };
@@ -185,7 +185,7 @@ export default function ChannelChatScreen() {
           if (!join && threadPrivate && !canManageThreads) router.replace(`/chat/channel/${parentId}?serverId=${serverId}`);
         },
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Alt başlık güncellenemedi.", "error"),
+          showToast(userErrorMessage(error, "Alt başlık güncellenemedi."), "error"),
       }
     );
   };
@@ -197,7 +197,7 @@ export default function ChannelChatScreen() {
       {
         onSuccess: () => showToast(pinned ? "Gönderi sabitlendi." : "Gönderinin sabiti kaldırıldı."),
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Gönderi güncellenemedi.", "error"),
+          showToast(userErrorMessage(error, "Gönderi güncellenemedi."), "error"),
       }
     );
   };

@@ -1,6 +1,5 @@
 import { Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import { useSafetyAlertAction } from "@/api/hooks";
 import { Button, Icon, showToast } from "@/components/ui";
 import { formatTime } from "@/lib/format";
@@ -8,6 +7,7 @@ import { useT } from "@/lib/i18n";
 import type { SafetyAlertAction, SafetyAlertMeta } from "@/lib/safety";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 const ACTIONS: SafetyAlertAction[] = ["pause_invites", "pause_dms", "lockdown"];
 
@@ -29,7 +29,7 @@ export function SafetyAlertCard({ serverId, messageId, alert, createdAt }: { ser
       { messageId, action: a },
       {
         onSuccess: () => showToast(t("safety.alert.done")),
-        onError: (e) => showToast(e instanceof ApiError ? e.message : t("safety.security.failed"), "error"),
+        onError: (e) => showToast(userErrorMessage(e, t("safety.security.failed")), "error"),
       }
     );
   };

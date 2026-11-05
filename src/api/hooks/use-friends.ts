@@ -12,6 +12,7 @@ import { api, ApiError } from "../client";
 import { endpoints } from "../endpoints";
 import { qk } from "../query-keys";
 import { showToast } from "@/components/ui/toast";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Arkadaşlık kayıtları. Sunucu tek listede üç durumu birden döner
@@ -159,8 +160,8 @@ export function useBlockUser() {
     },
     onError: (error) =>
       showToast(
-        error instanceof ApiError && error.status === 403 && error.message
-          ? error.message
+        error instanceof ApiError && error.status === 403
+          ? userErrorMessage(error, "Engellenemedi. Tekrar dene.")
           : "Engellenemedi. Tekrar dene.",
         "error"
       ),

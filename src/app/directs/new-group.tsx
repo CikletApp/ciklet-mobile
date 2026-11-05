@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { router } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   MAX_GROUP_MEMBERS,
   MAX_GROUP_NAME_LENGTH,
@@ -24,6 +23,7 @@ import { displayNameOf } from "@/lib/format";
 import { isOfficialProfile } from "@/lib/official";
 import { pickAndUploadGroupImage } from "@/lib/uploads";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Yeni grup sohbeti.
@@ -55,7 +55,7 @@ export default function NewGroupScreen() {
       const url = await pickAndUploadGroupImage();
       if (url) setImageUrl(url);
     } catch (reason) {
-      showDialog("Simge yüklenemedi", reason instanceof Error ? reason.message : "Tekrar dene.");
+      showDialog("Simge yüklenemedi", userErrorMessage(reason, "Tekrar dene."));
     } finally {
       setImageBusy(false);
     }
@@ -91,9 +91,7 @@ export default function NewGroupScreen() {
         onError: (error) =>
           showDialog(
             "Grup kurulamadı",
-            error instanceof ApiError
-              ? error.message
-              : "Beklenmeyen bir hata oldu."
+            userErrorMessage(error, "Beklenmeyen bir hata oldu.")
           ),
       }
     );

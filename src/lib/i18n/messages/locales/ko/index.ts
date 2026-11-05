@@ -29,6 +29,9 @@ export const messages = {
     system: "시스템",
     on: "켜기",
     off: "끄기",
+    errorTitle: "문제가 발생했어요",
+    errorBody: "이 화면을 여는 중 예기치 않은 문제가 발생했어요. 다시 시도해 주세요.",
+    retry: "다시 시도",
   },
   tabs: {
     chats: "채팅",

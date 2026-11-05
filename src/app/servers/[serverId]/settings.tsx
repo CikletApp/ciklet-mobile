@@ -4,7 +4,6 @@ import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
 import { Image } from "expo-image";
 import { ChannelType, MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useDeleteServer,
@@ -32,6 +31,8 @@ import { ServerTagSection } from "@/features/server-tag/server-tag-section";
 import { BoostLockedPill } from "@/features/server-boost/boost-ui";
 import { useT } from "@/lib/i18n";
 import { BOOST_PINK, effectiveServerPerks, requiredTier } from "@/lib/server-boost";
+import { userErrorMessage } from "@/lib/user-error";
+import { siteHost, siteOrigin } from "@/lib/config";
 
 export default function ServerSettingsScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -189,7 +190,7 @@ export default function ServerSettingsScreen() {
       if (url && kind === "splash") await overview.mutateAsync({ inviteSplashUrl: url });
       else if (url) await update.mutateAsync(kind === "image" ? { imageUrl: url } : { bannerUrl: url });
     } catch (reason) {
-      setMediaError(reason instanceof Error ? reason.message : "Görsel değiştirilemedi.");
+      setMediaError(userErrorMessage(reason, "Görsel değiştirilemedi."));
     } finally {
       setMediaBusy(null);
     }
@@ -262,7 +263,7 @@ export default function ServerSettingsScreen() {
                 Akılda kalır bir bağlantı: harf, rakam ve tire; 3-32 karakter. Yalnızca sunucu sahibi değiştirebilir.
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, opacity: vanityDisabled ? 0.5 : 1 }}>
-                <Text style={{ ...typography.body, color: colors.muted }}>ciklet.xyz/i/</Text>
+                <Text style={{ ...typography.body, color: colors.muted }}>{`${siteHost()}/i/`}</Text>
                 <View style={{ flex: 1 }}>
                   <TextField
                     value={vanityCode}
@@ -471,8 +472,8 @@ export default function ServerSettingsScreen() {
             <ListRow
               icon="link"
               title="Davet bağlantısını paylaş"
-              subtitle={`https://ciklet.xyz/i/${server.inviteCode}`}
-              onPress={() => void Share.share({ message: `https://ciklet.xyz/i/${server.inviteCode}` })}
+              subtitle={`${siteOrigin()}/i/${server.inviteCode}`}
+              onPress={() => void Share.share({ message: `${siteOrigin()}/i/${server.inviteCode}` })}
             />
             {canManageInvites ? (
               <>
@@ -511,7 +512,7 @@ export default function ServerSettingsScreen() {
 
         {update.isError || overview.isError ? (
           <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>
-            {(update.error ?? overview.error) instanceof ApiError ? (update.error ?? overview.error)!.message : "Sunucu kaydedilemedi."}
+            {userErrorMessage(update.error ?? overview.error, "Sunucu kaydedilemedi.")}
           </Text>
         ) : null}
       </ScrollView>

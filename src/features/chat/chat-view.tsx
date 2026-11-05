@@ -16,7 +16,6 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MemberRole } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import { hasServerPermission, useChannel, useChatMessages, useIgnoredIds, useMentolPlan, useMyMembership, useMyPermissions, type ChatKind } from "@/api/hooks";
 import { publishMessage } from "@/api/hooks/use-channel-admin";
 import type { ChannelExtras } from "@/api/types";
@@ -87,6 +86,7 @@ import { authorIdOf, useChatItems, type ChatItem } from "./use-chat-items";
 import { useMessageActions } from "./use-message-actions";
 import { SelectableRow, SelectionBar, selectionBlock, useMessageSelection } from "./message-selection";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 /** Atlanacak mesaj bulunana kadar en çok bu kadar eski sayfa çekilir. */
 const MAX_JUMP_PAGES = 15;
@@ -683,7 +683,7 @@ export function ChatView({
         await sendLocalFile(asset, replyId, { metadata: { voice: meta }, label: "🎤 Sesli mesaj" });
         setReplyingTo(null);
       } catch (reason) {
-        setUploadError(reason instanceof Error ? reason.message : "Sesli mesaj kaydedilemedi.");
+        setUploadError(userErrorMessage(reason, "Sesli mesaj kaydedilemedi."));
       }
     },
     [replyingTo?.id, sendLocalFile]
@@ -766,7 +766,7 @@ export function ChatView({
       }
     } catch (reason) {
       setUploadError(
-        reason instanceof Error ? reason.message : "Dosya yüklenemedi."
+        userErrorMessage(reason, "Dosya yüklenemedi.")
       );
     } finally {
       uploadingRef.current = false;
@@ -892,7 +892,7 @@ export function ChatView({
   if (error) {
     return (
       <ErrorState
-        message={error instanceof ApiError ? error.message : "Mesajlar yüklenemedi."}
+        message={userErrorMessage(error, "Mesajlar yüklenemedi.")}
         onRetry={() => void refetch()}
       />
     );
@@ -1178,7 +1178,7 @@ export function ChatView({
                   void publishMessage(chatId, target).then(
                     (res) =>
                       showToast(res.followers === 0 ? "Yayınlandı (henüz takipçi yok)." : `${res.delivered} kanala yayınlandı.`),
-                    (error: unknown) => showToast(error instanceof ApiError ? error.message : "Yayınlanamadı", "error")
+                    (error: unknown) => showToast(userErrorMessage(error, "Yayınlanamadı"), "error")
                   );
                 }
               : undefined

@@ -29,6 +29,9 @@ export const messages = {
     system: "Systemowy",
     on: "Wł.",
     off: "Wył.",
+    errorTitle: "Coś poszło nie tak",
+    errorBody: "Podczas otwierania tego ekranu wystąpił nieoczekiwany problem. Możesz spróbować ponownie.",
+    retry: "Spróbuj ponownie",
   },
   tabs: {
     chats: "Czaty",

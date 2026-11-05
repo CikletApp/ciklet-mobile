@@ -20,6 +20,8 @@ import {
 } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { InviteEventCard, TEMPORARY_INVITE_NOTICE, parseInviteInput, type InviteEventCardData } from "@/features/invites/invite-options";
+import { userErrorMessage } from "@/lib/user-error";
+import { siteHost } from "@/lib/config";
 
 /**
  * Sunucu oluştur veya davetle katıl.
@@ -91,7 +93,7 @@ function CreateServer() {
         maxLength={60}
         autoFocus
         error={
-          createServer.error instanceof ApiError ? createServer.error.message : null
+          createServer.error ? userErrorMessage(createServer.error, "Sunucu oluşturulamadı.") : null
         }
       />
 
@@ -204,7 +206,7 @@ function JoinServer() {
           setCode(text);
           setPreview(null);
         }}
-        placeholder="ciklet.xyz/i/abc123 veya abc123"
+        placeholder={`${siteHost()}/i/abc123 veya abc123`}
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus
@@ -212,7 +214,7 @@ function JoinServer() {
           lookupError
             ? lookupError.status === 404
               ? "Böyle bir davet bulunamadı. Bağlantının süresi dolmuş olabilir."
-              : lookupError.message
+              : userErrorMessage(lookupError, "Davet açılamadı. Tekrar dene.")
             : null
         }
       />
@@ -258,7 +260,7 @@ function JoinServer() {
             <Text style={{ ...typography.caption, color: colors.danger }}>
               {joinError.status === 404
                 ? "Sunucu bulunamadı veya davet artık geçerli değil."
-                : joinError.message}
+                : userErrorMessage(joinError, "Sunucuya katılınamadı.")}
             </Text>
           ) : null}
         </View>

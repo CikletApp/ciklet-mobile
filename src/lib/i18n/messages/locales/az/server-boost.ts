@@ -79,7 +79,7 @@ export const serverBoost = {
     applyToServer: "Serverə Tətbiq Et",
     perMonth: "{price} / ay",
     storeLimit: "Mağaza vasitəsilə yalnız bir əlavə boost almaq olar və artıq birin var.",
-    moreOnWeb: "Daha çox boostu ciklet.xyz saytında ala bilərsən.",
+    moreOnWeb: "Daha çox boostu {site} saytında ala bilərsən.",
     storeCancelHint: "Bu boostu ləğv etmək üçün App Store / Google Play abunəlik ayarlarından istifadə et.",
     manageStore: "Abunəliyi İdarə Et",
     pending: "Ödəniş gözləyir. Təsdiqləndikdən sonra boost avtomatik əlavə olunacaq.",

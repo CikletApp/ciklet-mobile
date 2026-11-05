@@ -10,7 +10,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { DirectMessageWithProfile } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import { Avatar, EmptyState, ErrorState, Icon, Pressable, Screen } from "@/components/ui";
@@ -31,6 +31,7 @@ import {
   type SearchOrder,
   type SearchParticipant,
 } from "@/features/search/search-filters";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * DM sohbetinin İÇİNDE arama — web'deki süzgeçli arama panelinin mobil
@@ -165,7 +166,7 @@ export default function DirectSearchScreen() {
       ) : search.error ? (
         <ErrorState
           message={
-            search.error instanceof ApiError ? search.error.message : "Arama yapılamadı."
+            userErrorMessage(search.error, "Arama yapılamadı.")
           }
           onRetry={() => void search.refetch()}
         />

@@ -3,12 +3,12 @@ import { ScrollView, Text, View } from "react-native";
 import { useLocalParticipant, useRemoteParticipants, useRoomContext } from "@livekit/react-native";
 import { RoomEvent, type Participant } from "livekit-client";
 
-import { ApiError } from "@/api/client";
 import { useStageAction, type StageAction } from "@/api/hooks";
 import { Avatar, Button, Icon, Pressable, showToast } from "@/components/ui";
 import { useVoice } from "@/stores/voice";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sahne paneli — web `components/stage/stage-panel` karşılığı.
@@ -75,7 +75,7 @@ export function StagePanel({
       { action, identity },
       {
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Sahne işlemi yapılamadı.", "error"),
+          showToast(userErrorMessage(error, "Sahne işlemi yapılamadı."), "error"),
       }
     );
 
@@ -87,7 +87,7 @@ export function StagePanel({
       {
         onError: (error) =>
           showToast(
-            error instanceof ApiError ? error.message : meHand ? "El indirilemedi." : "El kaldırılamadı.",
+            userErrorMessage(error, meHand ? "El indirilemedi." : "El kaldırılamadı."),
             "error"
           ),
       }

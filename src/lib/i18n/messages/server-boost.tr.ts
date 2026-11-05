@@ -81,7 +81,7 @@ export const serverBoostTr = {
     applyToServer: "Sunucuya Uygula",
     perMonth: "{price} / ay",
     storeLimit: "Mağaza üzerinden en fazla bir ek takviye alınabilir; zaten bir mağaza takviyen var.",
-    moreOnWeb: "Daha fazla takviyeyi ciklet.xyz üzerinden alabilirsin.",
+    moreOnWeb: "Daha fazla takviyeyi {site} üzerinden alabilirsin.",
     storeCancelHint: "Bu takviyeyi iptal etmek için App Store / Google Play abonelik ayarlarını kullan.",
     manageStore: "Aboneliği Yönet",
     pending: "Ödeme onay bekliyor. Onaylandığında takviye kendiliğinden eklenir.",

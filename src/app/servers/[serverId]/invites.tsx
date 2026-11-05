@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Share, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useMyPermissions, useServerEvents, useServerRoleDetails } from "@/api/hooks";
 import { Button, ErrorState, IconButton, ListSkeleton, SectionHeader, showToast } from "@/components/ui";
 import {
@@ -20,6 +19,8 @@ import {
 import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
+import { siteOrigin } from "@/lib/config";
 
 /**
  * Sunucu Ayarları › Davetler — web `server-settings/invites-tab` ile aynı:
@@ -285,7 +286,7 @@ function InviteCard({
 }
 
 async function copyLink(code: string) {
-  const url = `https://ciklet.xyz/i/${code}`;
+  const url = `${siteOrigin()}/i/${code}`;
   try {
     const Clipboard = await import("expo-clipboard");
     await Clipboard.setStringAsync(url);
@@ -296,5 +297,5 @@ async function copyLink(code: string) {
 }
 
 function apiMessage(reason: unknown, fallback: string) {
-  return reason instanceof ApiError && reason.message ? reason.message : fallback;
+  return userErrorMessage(reason, fallback);
 }

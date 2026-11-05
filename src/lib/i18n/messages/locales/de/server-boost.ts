@@ -79,7 +79,7 @@ export const serverBoost = {
     applyToServer: "Auf einen Server anwenden",
     perMonth: "{price} / Monat",
     storeLimit: "Über den Store kann nur ein zusätzlicher Boost gekauft werden, und du hast bereits einen.",
-    moreOnWeb: "Weitere Boosts kannst du auf ciklet.xyz kaufen.",
+    moreOnWeb: "Weitere Boosts kannst du auf {site} kaufen.",
     storeCancelHint: "Um diesen Boost zu kündigen, nutze deine Abo-Einstellungen im App Store / bei Google Play.",
     manageStore: "Abo verwalten",
     pending: "Die Zahlung steht noch aus. Der Boost wird automatisch hinzugefügt, sobald sie bestätigt ist.",

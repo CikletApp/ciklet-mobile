@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 
-import { api, ApiError } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { Button, Icon, IconButton, showToast } from "@/components/ui";
 import { GifPicker } from "@/features/chat/components/gif-picker";
@@ -14,6 +14,7 @@ import { useNow } from "@/lib/use-now";
 import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Arkadaşlık yıl dönümü — web `components/directs/friend-anniversary-bar.tsx`
@@ -196,7 +197,7 @@ export function AnniversaryGifSheet({
       setGifUrl(null);
       onSent?.(targetId);
     } catch (error) {
-      showToast(error instanceof ApiError && error.message ? error.message : t("moreScreens.anniversary.failed"), "error");
+      showToast(userErrorMessage(error, t("moreScreens.anniversary.failed")), "error");
       setSending(false);
     }
   };

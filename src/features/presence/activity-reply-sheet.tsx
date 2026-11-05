@@ -21,6 +21,7 @@ import { displayNameOf, formatActivityTitle } from "@/lib/format";
 import { useOutbox } from "@/stores/outbox";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Etkinliğe yanıt / tepki — alttan açılan sayfa (web
@@ -92,7 +93,7 @@ function SheetBody({ target, onClose }: { target: ActivityReplyTarget; onClose: 
       showToast(`${displayName} kişisine gönderildi.`);
       onClose();
     } catch (reason) {
-      showToast(reason instanceof Error && reason.message ? reason.message : "Yanıt gönderilemedi.", "error");
+      showToast(userErrorMessage(reason, "Yanıt gönderilemedi."), "error");
       setSending(false);
     }
   };

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
 import { router, Stack } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useCurrentProfile, useUpdateProfile } from "@/api/hooks";
 import { Button, Pressable, Screen, ScreenLoader, SectionHeader, showToast } from "@/components/ui";
 import {
@@ -14,6 +13,7 @@ import {
 } from "@/lib/custom-status";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Özel durum — emoji + metin + süre (web `CustomStatusDialog`).
@@ -53,7 +53,7 @@ function CustomStatusForm({ initial }: { initial: ReturnType<typeof activeCustom
           router.back();
         },
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : "Özel durum kaydedilemedi.", "error"),
+          showToast(userErrorMessage(error, "Özel durum kaydedilemedi."), "error"),
       }
     );
   };

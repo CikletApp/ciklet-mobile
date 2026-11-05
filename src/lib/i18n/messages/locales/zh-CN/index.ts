@@ -29,6 +29,9 @@ export const messages = {
     system: "系统",
     on: "开启",
     off: "关闭",
+    errorTitle: "出了点问题",
+    errorBody: "打开此页面时发生意外问题。你可以重试。",
+    retry: "重试",
   },
   tabs: {
     chats: "聊天",

@@ -4,7 +4,6 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PresenceStatus } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import {
   BULK_BAN_MAX,
   canActOnMember,
@@ -55,6 +54,7 @@ import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu üyeleri — web üye sağ tık menüsünün mobil karşılığı.
@@ -137,7 +137,7 @@ export default function ServerMembersScreen() {
   };
 
   const fail = (error: unknown, fallback: string) =>
-    showToast(error instanceof ApiError ? error.message : fallback, "error");
+    showToast(userErrorMessage(error, fallback), "error");
 
   // Kanal bağlamı yoksa sunucunun sistem kanalı, o da yoksa ilk metin kanalı
   // (web'de üye listesi hep açık kanalın yanında; mobilde bu ekran sunucu düzeyinde).
@@ -325,7 +325,7 @@ export default function ServerMembersScreen() {
         <ListSkeleton rows={8} />
       ) : pages.error ? (
         <ErrorState
-          message={pages.error instanceof ApiError ? pages.error.message : "Üyeler yüklenemedi."}
+          message={userErrorMessage(pages.error, "Üyeler yüklenemedi.")}
           onRetry={() => void pages.refetch()}
         />
       ) : members.length === 0 ? (

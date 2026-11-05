@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import { useFollowChannel, useFollowTargets } from "@/api/hooks/use-channel-admin";
 import { Button, Icon, showToast } from "@/components/ui";
 import { PillPicker } from "@/features/moderation/ui";
 import { fw } from "@/theme/fonts";
 import { useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Duyuru kanalını takip et — web `chat/follow-channel-dialog.tsx`:
@@ -45,7 +45,7 @@ export function FollowChannelSheet({
         showToast(t("moreScreens.follow.followed"));
         onClose();
       },
-      onError: (error) => showToast(error instanceof ApiError ? error.message : t("moreScreens.follow.failed"), "error"),
+      onError: (error) => showToast(userErrorMessage(error, t("moreScreens.follow.failed")), "error"),
     });
   };
 

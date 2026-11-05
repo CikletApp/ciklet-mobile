@@ -32,6 +32,7 @@ import {
   type SlashCommandEntry,
 } from "./interactions";
 import { useServerRoles } from "./server-assets";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Yazı kutusunun "komut kipi" (Discord gibi; web chat-input ile aynı akış).
@@ -235,7 +236,7 @@ export function useCommandMode({ chatId, onExit }: { chatId: string; onExit?: ()
       });
     } catch (reason) {
       patch((field) => ({ ...field, uploading: false, text: "" }));
-      showToast(reason instanceof Error ? reason.message : "Dosya yüklenemedi.", "error");
+      showToast(userErrorMessage(reason, "Dosya yüklenemedi."), "error");
     }
   }, [state?.focus]);
 

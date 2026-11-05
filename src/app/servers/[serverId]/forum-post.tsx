@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useChannel, useCreateForumPost } from "@/api/hooks";
 import { useForumFeed } from "@/api/hooks/use-channel-admin";
 import { Button, EmojiText, Icon, KeyboardAvoider, Pressable, TextField } from "@/components/ui";
@@ -10,6 +9,7 @@ import { MAX_APPLIED_TAGS, forumTagLabel, type ForumTag } from "@/lib/forum";
 import { openThread } from "@/features/server/thread-nav";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Yeni forum gönderisi — başlık + içerik + etiket (web "Yeni gönderi").
@@ -49,7 +49,7 @@ export default function ForumPostScreen() {
       {
         onSuccess: ({ id }) =>
           openThread(serverId, channelId, { id, name: title.trim() || content.trim().slice(0, 60) }, { replace: true }),
-        onError: (reason) => setError(reason instanceof ApiError ? reason.message : "Gönderi açılamadı."),
+        onError: (reason) => setError(userErrorMessage(reason, "Gönderi açılamadı.")),
       }
     );
   };

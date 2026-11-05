@@ -3,7 +3,6 @@ import { FlatList, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   canManageEvents,
   formatEventWhen,
@@ -33,6 +32,7 @@ import { describeRecurrence, RECURRENCE_SCOPE_TEXT, type RecurrenceScope } from 
 import { useNow } from "@/lib/use-now";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /** Tekrarlayan etkinlikte "Bu etkinlik / Tüm seri" sorulan eylem. */
 type ScopedAction = "complete" | "cancel" | "delete";
@@ -57,7 +57,7 @@ export default function ServerEventsScreen() {
   const [scopeAsk, setScopeAsk] = useState<{ event: ServerEventItem; action: ScopedAction } | null>(null);
 
   const fail = (error: unknown, fallback: string) =>
-    showToast(error instanceof ApiError ? error.message : fallback, "error");
+    showToast(userErrorMessage(error, fallback), "error");
 
   const changeStatus = (event: ServerEventItem, status: ServerEventStatus, done: string, scope?: RecurrenceScope) =>
     setStatus.mutate(
@@ -180,7 +180,7 @@ export default function ServerEventsScreen() {
         <ListSkeleton rows={4} />
       ) : events.error ? (
         <ErrorState
-          message={events.error instanceof ApiError ? events.error.message : "Etkinlikler yüklenemedi."}
+          message={userErrorMessage(events.error, "Etkinlikler yüklenemedi.")}
           onRetry={() => void events.refetch()}
         />
       ) : (events.data ?? []).length === 0 ? (

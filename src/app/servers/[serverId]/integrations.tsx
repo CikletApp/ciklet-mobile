@@ -2,7 +2,6 @@ import { useState, type ReactNode } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   MAX_WEBHOOKS_PER_SERVER,
   PLATFORM_COLORS,
@@ -45,6 +44,7 @@ import { useT } from "@/lib/i18n";
 import { pickAndUploadServerImage } from "@/lib/uploads";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu Ayarları › Entegrasyonlar — web `integrations-tab.tsx` +
@@ -218,7 +218,7 @@ function WebhooksSection({ serverId }: { serverId: string }) {
           setName("");
           void copyUrl(res.url);
         },
-        onError: (e) => showToast(e instanceof ApiError ? e.message : "Webhook oluşturulamadı", "error"),
+        onError: (e) => showToast(userErrorMessage(e, "Webhook oluşturulamadı"), "error"),
       }
     );
   };
@@ -229,7 +229,7 @@ function WebhooksSection({ serverId }: { serverId: string }) {
         setRevealed({ id, url: res.url });
         void copyUrl(res.url);
       },
-      onError: (e) => showToast(e instanceof ApiError ? e.message : "Token yenilenemedi", "error"),
+      onError: (e) => showToast(userErrorMessage(e, "Token yenilenemedi"), "error"),
     });
 
   const onRemove = (id: string) =>
@@ -238,7 +238,7 @@ function WebhooksSection({ serverId }: { serverId: string }) {
         if (revealed?.id === id) setRevealed(null);
         if (editingId === id) setEditingId(null);
       },
-      onError: (e) => showToast(e instanceof ApiError ? e.message : "Webhook silinemedi", "error"),
+      onError: (e) => showToast(userErrorMessage(e, "Webhook silinemedi"), "error"),
     });
 
   return (
@@ -351,7 +351,7 @@ function WebhookEditor({
       const url = await pickAndUploadServerImage();
       if (url) setAvatarUrl(url);
     } catch (reason) {
-      showToast(reason instanceof Error ? reason.message : "Görsel yüklenemedi.", "error");
+      showToast(userErrorMessage(reason, "Görsel yüklenemedi."), "error");
     } finally {
       setUploading(false);
     }
@@ -370,7 +370,7 @@ function WebhookEditor({
       },
       {
         onSuccess: onDone,
-        onError: (e) => showToast(e instanceof ApiError ? e.message : "Webhook kaydedilemedi", "error"),
+        onError: (e) => showToast(userErrorMessage(e, "Webhook kaydedilemedi"), "error"),
       }
     );
   };

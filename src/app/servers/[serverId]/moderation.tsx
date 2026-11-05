@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable as RNPressable, ScrollView, Text, View } f
 import { Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyPermissions,
@@ -54,6 +53,7 @@ import { Card, CardHeader, PillPicker, SelectRow, SubTitle, Toggle, Warning } fr
 import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Düzenleme taslağı (web moderation-tab `AutomodDraft`): sayı alanları
@@ -215,7 +215,7 @@ export default function ServerModerationScreen() {
     return (
       <Screen>
         <Stack.Screen options={{ title: "Moderasyon" }} />
-        <EmptyState icon="shield" title={error instanceof ApiError ? error.message : "Moderasyon ayarları yüklenemedi."} />
+        <EmptyState icon="shield" title={userErrorMessage(error, "Moderasyon ayarları yüklenemedi.")} />
       </Screen>
     );
   }
@@ -282,7 +282,7 @@ export default function ServerModerationScreen() {
           setEditorVersion((v) => v + 1);
           showToast("Moderasyon ayarları kaydedildi.");
         },
-        onError: (reason) => showToast(reason instanceof ApiError ? reason.message : "Kaydedilemedi.", "error"),
+        onError: (reason) => showToast(userErrorMessage(reason, "Kaydedilemedi."), "error"),
       }
     );
   };
@@ -297,7 +297,7 @@ export default function ServerModerationScreen() {
       { clearRaidLock: true },
       {
         onSuccess: () => showToast("Baskın kilidi kaldırıldı."),
-        onError: (reason) => showToast(reason instanceof ApiError ? reason.message : "Kilit kaldırılamadı.", "error"),
+        onError: (reason) => showToast(userErrorMessage(reason, "Kilit kaldırılamadı."), "error"),
       }
     );
   };

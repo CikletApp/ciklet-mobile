@@ -29,6 +29,9 @@ export const messages = {
     system: "システム",
     on: "オン",
     off: "オフ",
+    errorTitle: "問題が発生しました",
+    errorBody: "この画面を開く際に予期しない問題が発生しました。もう一度お試しください。",
+    retry: "再試行",
   },
   tabs: {
     chats: "チャット",

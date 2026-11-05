@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { ApiError } from "@/api/client";
 import { useMyPendingApplications, useWithdrawJoinApplication, type MyPendingApplication } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { ActionSheet, Avatar, Icon, Pressable, showToast } from "@/components/ui";
 import { useLocale, useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucular sekmesindeki bekleyen katılım başvuruları (Discord: başvurulan
@@ -47,7 +47,7 @@ export function PendingApplicationRows() {
       onSuccess: () => showToast(t("safety.application.withdrawn")),
       onError: (error) => {
         withdrawnIds.current.delete(item.id);
-        showToast(error instanceof ApiError ? error.message : t("safety.security.failed"), "error");
+        showToast(userErrorMessage(error, t("safety.security.failed")), "error");
       },
     });
   };

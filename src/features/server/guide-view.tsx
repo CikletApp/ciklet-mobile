@@ -2,7 +2,6 @@ import { Text, View } from "react-native";
 import { Image } from "expo-image";
 import Svg, { Circle } from "react-native-svg";
 
-import { ApiError } from "@/api/client";
 import { useToggleGuideTask } from "@/api/hooks";
 import { Avatar, EmojiText, Icon, Pressable, showToast, type IconName } from "@/components/ui";
 import { useT } from "@/lib/i18n";
@@ -10,6 +9,7 @@ import { withAlpha } from "@/theme/palette";
 import type { GuideItemView, GuideView } from "@/lib/server-guide";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu Rehberi gövdesi — web `server-guide-view.tsx` karşılığı: afişli
@@ -68,7 +68,7 @@ export function ServerGuideBody({
     if (preview || toggleTask.isPending) return;
     toggleTask.mutate(
       { taskId, done: !completed.includes(taskId) },
-      { onError: (error) => showToast(error instanceof ApiError ? error.message : t("serverGuide.page.saveFailed"), "error") }
+      { onError: (error) => showToast(userErrorMessage(error, t("serverGuide.page.saveFailed")), "error") }
     );
   };
 

@@ -1,11 +1,11 @@
 import { ActivityIndicator, Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import { useMyServerTag, useSetMyServerTag } from "@/api/hooks";
 import { Avatar, Divider, ListGroup, ListRow, showToast } from "@/components/ui";
 import { ServerTagPill } from "@/features/server-tag/server-tag-pill";
 import { useT } from "@/lib/i18n";
 import { colors, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Profil › Sunucu Etiketi (Discord "Server Tag") — web
@@ -25,7 +25,7 @@ export function ServerTagPicker() {
     setTag.mutate(serverId, {
       onSuccess: () => showToast(serverId ? t("serverTag.profile.updated") : t("serverTag.profile.removed")),
       onError: (error) =>
-        showToast(error instanceof ApiError && error.message ? error.message : t("serverTag.profile.failed"), "error"),
+        showToast(userErrorMessage(error, t("serverTag.profile.failed")), "error"),
     });
   };
 

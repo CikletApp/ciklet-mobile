@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { useCheckout, useMentolPlan } from "@/api/hooks";
 import { Button, Pressable, Screen, SectionHeader, TextField, showDialog } from "@/components/ui";
@@ -14,6 +14,7 @@ import { formatTime } from "@/lib/format";
 import { IAP_ENABLED, PURCHASES_ENABLED, STORE_TITLE } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 export default function MentolSettingsScreen() {
   const [code, setCode] = useState("");
@@ -22,7 +23,7 @@ export default function MentolSettingsScreen() {
   const redeem = useMutation({
     mutationFn: () => api<{ plan: string; expiresAt: string | null }>(endpoints.mentolRedeem, { method: "POST", body: { code } }),
     onSuccess: () => { setCode(""); void queryClient.invalidateQueries({ queryKey: ["mentol-plan"] }); showDialog("Mentol etkin", "Kod hesabına uygulandı."); },
-    onError: (error) => showDialog("Kod kullanılamadı", error instanceof ApiError ? error.message : "Tekrar dene."),
+    onError: (error) => showDialog("Kod kullanılamadı", userErrorMessage(error, "Tekrar dene.")),
   });
 
   return (
@@ -120,7 +121,7 @@ function MentolGiftCard({ giftOnly = false }: { giftOnly?: boolean }) {
   const submit = () =>
     checkout.mutate(
       { kind: "mentol", plan, period, giftTo: giftTo || undefined },
-      { onError: (error) => showDialog("Ödeme başlatılamadı", error instanceof ApiError ? error.message : "Tekrar dene.") }
+      { onError: (error) => showDialog("Ödeme başlatılamadı", userErrorMessage(error, "Tekrar dene.")) }
     );
 
   return (

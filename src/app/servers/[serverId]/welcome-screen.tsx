@@ -3,7 +3,6 @@ import { ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { ChannelType } from "@ciklet/embedded-activities-sdk/types";
 
-import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyPermissions,
@@ -35,6 +34,7 @@ import {
 } from "@/lib/welcome-screen";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 interface Row {
   /** Yalnızca React anahtarı; kaydedilmez. */
@@ -128,7 +128,7 @@ export default function WelcomeScreenSettingsScreen() {
       },
       {
         onSuccess: apply,
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Karşılama ekranı kaydedilemedi.", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "Karşılama ekranı kaydedilemedi."), "error"),
       }
     );
   };

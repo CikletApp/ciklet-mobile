@@ -4,7 +4,7 @@ import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import { useCurrentProfile } from "@/api/hooks";
@@ -22,6 +22,7 @@ import { profileExtras } from "@/api/hooks/use-account-privacy";
 import { AccountStatusCard } from "@/features/account/account-status-card";
 import { INTL_LOCALES, useLocale, useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 type TwoFactorStatus = {
   enabled: boolean;
@@ -69,7 +70,7 @@ export default function AccountSettingsScreen() {
 
   const refreshProfile = () => queryClient.invalidateQueries({ queryKey: qk.currentProfile });
   const showError = (error: unknown) =>
-    showDialog("İşlem tamamlanamadı", error instanceof ApiError ? error.message : "Tekrar dene.");
+    showDialog("İşlem tamamlanamadı", userErrorMessage(error, "Tekrar dene."));
 
   const changeUsername = useMutation({
     mutationFn: () => api(endpoints.accountUsername, { method: "POST", body: { username, password: usernamePassword } }),

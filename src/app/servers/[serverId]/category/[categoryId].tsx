@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { ScrollView, Text } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useCategoryMutations, useServerCategories } from "@/api/hooks/use-channel-admin";
 import { Button, KeyboardAvoider, TextField, showDialog, showToast } from "@/components/ui";
 import { CATEGORY_NAME_MAX_LENGTH } from "@/lib/channel-layout";
 import { useT } from "@/lib/i18n";
 import { colors, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Kategori Oluştur / Kategoriyi Düzenle — web `modals/category-modal.tsx`.
@@ -32,7 +32,7 @@ export default function CategoryScreen() {
   const unchanged = !creating && trimmed === category?.name;
   const mutation = creating ? create : rename;
   const fail = (fallback: string) => (error: unknown) =>
-    showToast(error instanceof ApiError ? error.message : fallback, "error");
+    showToast(userErrorMessage(error, fallback), "error");
 
   const submit = () => {
     if (!trimmed || unchanged) return;

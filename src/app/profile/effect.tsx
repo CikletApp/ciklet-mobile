@@ -1,7 +1,6 @@
 import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { router, Stack } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useCurrentProfile, useMentolPlan, useStoreCatalog, useUpdateProfile } from "@/api/hooks";
 import { Button, Icon, Pressable, Screen, ScreenLoader, showToast } from "@/components/ui";
 import { ProfileEffectOverlay } from "@/features/profile/profile-effect";
@@ -9,6 +8,7 @@ import { PROFILE_EFFECTS, findProfileEffect, type ProfileEffect } from "@/lib/pr
 import { PURCHASES_ENABLED } from "@/lib/purchases";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Profil efekti seçici (web: Ayarlar → Profil → Profil Efekti). Avatar süsü
@@ -48,7 +48,7 @@ export default function EffectPickerScreen() {
       { profileEffectId: effect?.id ?? null },
       {
         onSuccess: () => showToast(effect ? `${effect.name} takıldı.` : "Efekt kaldırıldı."),
-        onError: (error) => showToast(error instanceof ApiError ? error.message : "Efekt değiştirilemedi.", "error"),
+        onError: (error) => showToast(userErrorMessage(error, "Efekt değiştirilemedi."), "error"),
       }
     );
   };

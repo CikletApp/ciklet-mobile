@@ -2,13 +2,13 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Text, TextInput, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { hasServerPermission, useMyPermissions } from "@/api/hooks";
 import { useServerBans, useUnban, type ServerBan } from "@/api/hooks/use-server-admin";
 import { Avatar, EmptyState, ErrorState, Icon, ListSkeleton, Pressable, Screen, showToast } from "@/components/ui";
 import { useT, type Translator } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /** web lib/server-bans `banExpiryLabel` (çevrilmiş). */
 function banExpiryText(t: Translator, expiresAt: string | null, now = Date.now()): string {
@@ -45,7 +45,7 @@ export default function ServerBansScreen() {
     if (busy) return;
     setBusy(ban.userId);
     unban.mutate(ban.userId, {
-      onError: (error) => showToast(error instanceof ApiError ? error.message : t("moreScreens.bans.unbanFailed"), "error"),
+      onError: (error) => showToast(userErrorMessage(error, t("moreScreens.bans.unbanFailed")), "error"),
       onSettled: () => setBusy(""),
     });
   };

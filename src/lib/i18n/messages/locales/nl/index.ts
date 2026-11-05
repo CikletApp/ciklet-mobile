@@ -29,6 +29,9 @@ export const messages = {
     system: "Systeem",
     on: "Aan",
     off: "Uit",
+    errorTitle: "Er ging iets mis",
+    errorBody: "Er is een onverwacht probleem opgetreden bij het openen van dit scherm. Je kunt het opnieuw proberen.",
+    retry: "Opnieuw proberen",
   },
   tabs: {
     chats: "Chats",

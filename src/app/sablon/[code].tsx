@@ -2,16 +2,16 @@ import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import { useCreateServerFromTemplate, useTemplatePreview, type TemplateView } from "@/api/hooks";
 import { Avatar, Button, EmojiText, Icon, KeyboardAvoider, ScreenLoader, TextField, showToast } from "@/components/ui";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * /sablon/[kod] — şablon önizlemesi ve "Bu şablonla sunucu kur" (web
  * `components/server/template-landing` ile aynı). `ciklet://sablon/KOD`
- * ve sohbette tıklanan `https://ciklet.xyz/sablon/KOD` bağlantıları buraya
+ * ve sohbette tıklanan `<site>/sablon/KOD` bağlantıları buraya
  * gelir (lib/external-link). Şablon yoksa ana sayfaya döner (web gibi).
  */
 export default function TemplateLandingScreen() {
@@ -36,7 +36,7 @@ export default function TemplateLandingScreen() {
         router.replace(`/servers/${id}`);
       },
       onError: (reason) =>
-        showToast(reason instanceof ApiError && reason.message ? reason.message : "Sunucu kurulamadı", "error"),
+        showToast(userErrorMessage(reason, "Sunucu kurulamadı"), "error"),
     });
   };
 

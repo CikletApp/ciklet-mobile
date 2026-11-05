@@ -11,6 +11,7 @@ import { Button, Icon, Screen, showToast } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { fw } from "@/theme/fonts";
 import { useT, type MessageKey } from "@/lib/i18n";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Ayarlar › Hesap › Telefon doğrulama (web `settings/phone-verify-modal.tsx`).
@@ -65,7 +66,7 @@ export default function PhoneSettingsScreen() {
       return next;
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) void refresh();
-      else setError(err instanceof ApiError && err.message ? err.message : t("moreScreens.phone.linkFailed"));
+      else setError(userErrorMessage(err, t("moreScreens.phone.linkFailed")));
       return null;
     } finally {
       setLoading(false);
@@ -105,7 +106,7 @@ export default function PhoneSettingsScreen() {
       setLink(null);
       showToast(t("moreScreens.phone.unlinked"));
     } catch (err) {
-      setError(err instanceof ApiError && err.message ? err.message : t("moreScreens.phone.genericError"));
+      setError(userErrorMessage(err, t("moreScreens.phone.genericError")));
     } finally {
       setUnlinking(false);
     }

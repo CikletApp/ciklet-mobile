@@ -24,8 +24,9 @@ import { useAuth } from "@/stores/auth";
 import { useT } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
-const errorText = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
+const errorText = (error: unknown, fallback: string) => (userErrorMessage(error, fallback));
 
 /**
  * Sunucu Ayarları › Çıkartmalar (web stickers-tab): yükleme (İfade Oluştur /

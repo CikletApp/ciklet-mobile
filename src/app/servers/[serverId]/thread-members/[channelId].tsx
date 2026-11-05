@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ScrollView, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   useMemberSearch,
   useSetThreadInvitable,
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Alt başlık üyeleri — web `thread-members-popover` ile aynı: liste, üye
@@ -54,7 +54,7 @@ export default function ThreadMembersScreen() {
           void members.refetch();
         },
         onError: (error) =>
-          showToast(error instanceof ApiError ? error.message : add ? "Eklenemedi." : "Çıkarılamadı.", "error"),
+          showToast(userErrorMessage(error, add ? "Eklenemedi." : "Çıkarılamadı."), "error"),
       }
     );
 
@@ -65,7 +65,7 @@ export default function ThreadMembersScreen() {
         <ListSkeleton rows={5} />
       ) : members.error || !state ? (
         <ErrorState
-          message={members.error instanceof ApiError ? members.error.message : "Üyeler yüklenemedi."}
+          message={userErrorMessage(members.error, "Üyeler yüklenemedi.")}
           onRetry={() => void members.refetch()}
         />
       ) : (
@@ -140,7 +140,7 @@ export default function ThreadMembersScreen() {
                 onValueChange={(value) =>
                   invitable.mutate(value, {
                     onError: (error) =>
-                      showToast(error instanceof ApiError ? error.message : "Değiştirilemedi.", "error"),
+                      showToast(userErrorMessage(error, "Değiştirilemedi."), "error"),
                   })
                 }
                 trackColor={{ false: colors.border, true: colors.brand }}

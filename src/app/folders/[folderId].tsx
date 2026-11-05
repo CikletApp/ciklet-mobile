@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   FOLDER_COLOR_RE,
   FOLDER_NAME_MAX_LENGTH,
@@ -15,6 +14,7 @@ import { Avatar, Button, Icon, KeyboardAvoider, Pressable, SectionHeader, TextFi
 import { ColorPickerSheet } from "@/features/appearance/color-picker-sheet";
 import { useT } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Klasör Ayarları / Klasör Oluştur — web `modals/folder-settings-modal.tsx`
@@ -67,7 +67,7 @@ export default function FolderScreen() {
   const candidates = useMemo(() => all.filter((m) => !m.folderId), [all]);
 
   const fail = (fallback: string) => (error: unknown) =>
-    showToast(error instanceof ApiError ? error.message : fallback, "error");
+    showToast(userErrorMessage(error, fallback), "error");
 
   const togglePick = (serverId: string) =>
     setPicked((current) => {

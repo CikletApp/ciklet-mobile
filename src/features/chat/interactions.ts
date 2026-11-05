@@ -10,6 +10,7 @@ import {
   type InvocationOptionInput,
 } from "./app-commands";
 import { openInteractionModal } from "./interaction-modal-store";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Uygulama komutları ve bot etkileşimleri — ciklet-web
@@ -159,7 +160,7 @@ export function matchSlashCommand(text: string, bots: SlashBot[]): { entry: Slas
 }
 
 function errorText(reason: unknown, fallback: string): string {
-  return reason instanceof ApiError && reason.message ? reason.message : fallback;
+  return userErrorMessage(reason, fallback);
 }
 
 async function postInteraction(chatId: string, body: Record<string, unknown>, fallback: string): Promise<RunResult> {

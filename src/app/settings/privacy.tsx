@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
-import { ApiError, api } from "@/api/client";
+import { api } from "@/api/client";
 import {
   useBlockedUsers,
   useAccountSessions,
@@ -32,6 +32,7 @@ import {
   LegalLinksSection,
 } from "@/features/account/privacy-compliance";
 import { useT } from "@/lib/i18n";
+import { userErrorMessage } from "@/lib/user-error";
 
 type DmPermission = NonNullable<CurrentProfile["dmPermission"]>;
 type SpamFilter = NonNullable<CurrentProfile["spamFilter"]>;
@@ -231,7 +232,7 @@ export default function PrivacySettingsScreen() {
 
         {update.isError ? (
           <Text style={{ ...typography.caption, color: colors.danger, padding: spacing.lg }}>
-            {update.error instanceof ApiError ? update.error.message : "Ayarlar kaydedilemedi."}
+            {userErrorMessage(update.error, "Ayarlar kaydedilemedi.")}
           </Text>
         ) : null}
 

@@ -10,6 +10,8 @@ import { useT } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
 import { fw } from "@/theme/fonts";
 import { authBrand, colors, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
+import { siteHost } from "@/lib/config";
 
 /**
  * Giriş — ciklet-web `components/auth/login-form.tsx` ile aynı akış.
@@ -34,13 +36,13 @@ function loginErrorMessage(err: unknown): string {
   if (!(err instanceof ApiError)) return "Giriş yapılamadı.";
   if (err.code === "phone_verification_required") {
     // Yalnızca kısıtlı oturum veremeyen (güncellenmemiş) sunucuda gelir.
-    return "Hesabını kullanmaya başlamadan önce telefon numaranı doğrulaman gerekiyor. Bunu ciklet.xyz üzerinden yapabilirsin.";
+    return `Hesabını kullanmaya başlamadan önce telefon numaranı doğrulaman gerekiyor. Bunu ${siteHost()} üzerinden yapabilirsin.`;
   }
   if (err.isUnauthorized) return "Kullanıcı adı veya şifre hatalı.";
   if (err.status === 429) return "Çok fazla deneme yaptın. Lütfen bir süre sonra tekrar dene.";
   if (err.status >= 500) return "Sunucuda geçici bir sorun var. Biraz sonra tekrar dene.";
   if (err.isNetwork) return "Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.";
-  return err.message;
+  return userErrorMessage(err, "Giriş yapılamadı.");
 }
 
 export default function LoginScreen() {

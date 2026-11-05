@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Switch, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   hasServerPermission,
   useMyPermissions,
@@ -30,6 +29,7 @@ import {
 } from "@/lib/server-onboarding";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 const blankOption = (): OnboardingOption => ({ id: newEditorId("o"), label: "", description: null, emoji: null, roleIds: [], channelIds: [] });
 const blankQuestion = (): OnboardingQuestion => ({
@@ -80,7 +80,7 @@ export default function OnboardingSettingsScreen() {
         setSaved(next);
         showToast("Katılım soruları kaydedildi.");
       },
-      onError: (error) => showToast(error instanceof ApiError ? error.message : "Katılım soruları kaydedilemedi.", "error"),
+      onError: (error) => showToast(userErrorMessage(error, "Katılım soruları kaydedilemedi."), "error"),
     });
 
   const updateQuestion = (qid: string, patch: Partial<OnboardingQuestion>) =>

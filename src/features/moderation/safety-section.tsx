@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import { useLiftQuarantine, useQuarantinedMembers, useServerSafety, useSetServerPauses } from "@/api/hooks";
 import { ActionSheet, Avatar, Button, Icon, type IconName, showToast } from "@/components/ui";
 import { useLocale, useT } from "@/lib/i18n";
@@ -10,6 +9,7 @@ import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 import { Card, CardHeader, SelectRow, SubTitle } from "./ui";
+import { userErrorMessage } from "@/lib/user-error";
 
 function PauseRow({ icon, title, hint, until, disabled, onPause, onResume }: {
   icon: IconName;
@@ -91,7 +91,7 @@ export function SafetySection({ serverId, canManage, channels, alertsChannelId, 
   const pause = (body: { invitesHours?: number; dmsHours?: number }, resumed: boolean) =>
     setPauses.mutate(body, {
       onSuccess: () => showToast(resumed ? t("safety.security.resumed") : t("safety.security.paused")),
-      onError: (e) => showToast(e instanceof ApiError ? e.message : t("safety.security.failed"), "error"),
+      onError: (e) => showToast(userErrorMessage(e, t("safety.security.failed")), "error"),
     });
 
   return (
@@ -142,7 +142,7 @@ export function SafetySection({ serverId, canManage, channels, alertsChannelId, 
                     onPress={() =>
                       lift.mutate(m.memberId, {
                         onSuccess: () => showToast(t("safety.quarantine.lifted")),
-                        onError: (e) => showToast(e instanceof ApiError ? e.message : t("safety.security.failed"), "error"),
+                        onError: (e) => showToast(userErrorMessage(e, t("safety.security.failed")), "error"),
                       })
                     }
                   />

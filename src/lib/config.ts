@@ -1,4 +1,12 @@
 import { DEFAULT_API_BASE_URL } from "@ciklet/embedded-activities-sdk/types";
+import * as SecureStore from "expo-secure-store";
+
+import {
+  hostOfOrigin,
+  sanitizeStoredConfig,
+  swapHost,
+  type DiscoveredConfig,
+} from "./domain-discovery-verify";
 
 /**
  * Çalışma zamanı yapılandırması.
@@ -26,9 +34,52 @@ function clean(raw: string | undefined): string | undefined {
  * NOT: `process.env.EXPO_PUBLIC_*` erişimleri Metro tarafından derleme anında
  * sabitle değiştirilir; dinamik indeksleme (`process.env[key]`) çalışmaz.
  */
-export const API_BASE_URL = normalizeBase(
+export const BUILD_API_BASE_URL = normalizeBase(
   clean(process.env.EXPO_PUBLIC_API_URL) ?? DEFAULT_API_BASE_URL
 );
+
+/**
+ * Alan adı keşfi (lib/domain-discovery): site imzalı
+ * `/.well-known/ciklet.json` ile yeni kökü bildirirse doğrulanmış kayıt
+ * güvenli depoya yazılır ve BİR SONRAKİ açılışta buradan okunur — oturum
+ * ortasında kök değişmez (açık soket, önbellek, çerez adı aynı kökte kalır).
+ * Kapatmak: `EXPO_PUBLIC_DOMAIN_DISCOVERY=0` (derleme bayrağı).
+ */
+export const DOMAIN_DISCOVERY_ENABLED = clean(process.env.EXPO_PUBLIC_DOMAIN_DISCOVERY) !== "0";
+export const DOMAIN_CONFIG_STORAGE_KEY = "ciklet.domainConfig";
+
+function readStoredDomainConfig(): DiscoveredConfig | null {
+  // Yalnızca derlemedeki kök gerçek bir https alanıysa (geliştirmedeki LAN
+  // adresi keşifle ezilmesin).
+  if (!DOMAIN_DISCOVERY_ENABLED || !BUILD_API_BASE_URL.startsWith("https://")) return null;
+  try {
+    const raw = SecureStore.getItem(DOMAIN_CONFIG_STORAGE_KEY);
+    return raw ? sanitizeStoredConfig(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Bu açılışta etkin keşif kaydı (yoksa derlemedeki adresler). */
+export const ACTIVE_DOMAIN_CONFIG = readStoredDomainConfig();
+
+export const API_BASE_URL = ACTIVE_DOMAIN_CONFIG?.site ?? BUILD_API_BASE_URL;
+
+/** Site kökü (`https://ciklet.xyz`) — davet, paylaşım, yardım bağlantıları buradan. */
+export function siteOrigin(): string {
+  return API_BASE_URL;
+}
+
+/** Site alan adı (`ciklet.xyz`) — metinde gösterilen adresler için. */
+export function siteHost(): string {
+  return hostOfOrigin(API_BASE_URL);
+}
+
+/** Derlemedeki adres site ile aynı alandaysa keşfedilen alana taşınır. */
+function onActiveSite(url: string): string {
+  if (!ACTIVE_DOMAIN_CONFIG) return url;
+  return swapHost(url, hostOfOrigin(BUILD_API_BASE_URL), hostOfOrigin(ACTIVE_DOMAIN_CONFIG.site));
+}
 
 /**
  * Sunucunun verdiği görsel adresini <Image>'ın açabileceği hale getirir.
@@ -57,18 +108,19 @@ export function resolveMediaUrl(url: string | null | undefined): string | undefi
  * location'ı istemcinin eklediği yolu yakalayıp SFU'ya iletir; medya ayrı
  * portlardan (UDP 7882 / TCP 7881) doğrudan akar.
  */
-export const LIVEKIT_URL =
-  clean(process.env.EXPO_PUBLIC_LIVEKIT_URL) ??
-  API_BASE_URL.replace(/^http/, "ws");
+export const LIVEKIT_URL = onActiveSite(
+  clean(process.env.EXPO_PUBLIC_LIVEKIT_URL) ?? BUILD_API_BASE_URL.replace(/^http/, "ws")
+);
 
 /**
  * Gerçek zamanlı ağ geçidi (ADR-0012). Üretimde nginx `/gateway/ws`'i
  * Rust sürecine iletiyor; yerelde nginx yok ve ağ geçidi doğrudan
  * `:4000/ws`'de dinliyor, bu yüzden `.env` ayrıca yazar.
  */
-export const GATEWAY_URL =
-  clean(process.env.EXPO_PUBLIC_GATEWAY_URL) ??
-  `${API_BASE_URL.replace(/^http/, "ws")}/gateway/ws`;
+export const BUILD_GATEWAY_URL =
+  clean(process.env.EXPO_PUBLIC_GATEWAY_URL) ?? `${BUILD_API_BASE_URL.replace(/^http/, "ws")}/gateway/ws`;
+
+export const GATEWAY_URL = ACTIVE_DOMAIN_CONFIG?.gateway ?? onActiveSite(BUILD_GATEWAY_URL);
 
 /** Tek bir HTTP isteğinin üst sınırı. Askıda kalan istek arayüzü kilitler. */
 export const REQUEST_TIMEOUT_MS = 15_000;

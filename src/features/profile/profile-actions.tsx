@@ -3,7 +3,7 @@ import { Modal, Pressable as RNPressable, ScrollView, Text, TextInput, View } fr
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { api, ApiError } from "@/api/client";
+import { api } from "@/api/client";
 import { endpoints } from "@/api/endpoints";
 import { qk } from "@/api/query-keys";
 import type { ProfileCardResponse } from "@/api/types";
@@ -11,6 +11,7 @@ import { ActionSheet, Button, Icon, Pressable, showDialog, showToast, type Actio
 import { useT, type MessageKey } from "@/lib/i18n";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Başkasının profilindeki arkadaşlık / engel / bildir eylemleri — web
@@ -21,7 +22,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 type Friendship = ProfileCardResponse["friendship"];
 
 function errorText(reason: unknown, fallback: string) {
-  return reason instanceof ApiError && reason.message ? reason.message : fallback;
+  return userErrorMessage(reason, fallback);
 }
 
 export function useProfileFriendship(

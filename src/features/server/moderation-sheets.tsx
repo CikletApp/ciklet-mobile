@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Modal, Pressable as RNPressable, ScrollView, Text, View } from "react-native";
 
-import { ApiError } from "@/api/client";
 import {
   AUDIT_REASON_MAX,
   BAN_DURATIONS,
@@ -15,6 +14,7 @@ import {
 } from "@/api/hooks";
 import { Button, KeyboardAvoider, SegmentedTabs, TextField, showToast } from "@/components/ui";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Moderasyon sayfaları — web `ban-dialog`, üye temizleme ve toplu silme
@@ -28,7 +28,7 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 const sheetLabel = (text: string) => text.toLocaleUpperCase("tr");
 
 function errorText(error: unknown, fallback: string): string {
-  return error instanceof ApiError && error.message ? error.message : fallback;
+  return userErrorMessage(error, fallback);
 }
 
 /** Alttan açılan form sayfası: başlık, açıklama, alanlar ve İptal / onay. */

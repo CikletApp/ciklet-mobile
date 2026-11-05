@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
-import { ApiError } from "@/api/client";
 import {
   MAX_TEMPLATES_PER_SERVER,
   TEMPLATE_DESCRIPTION_MAX,
@@ -20,6 +19,7 @@ import { Button, ErrorState, IconButton, KeyboardAvoider, ListSkeleton, SectionH
 import { formatDate } from "@/lib/format";
 import { fw } from "@/theme/fonts";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Sunucu Ayarları › Şablonlar — web `server-settings/templates-tab` ile aynı:
@@ -204,5 +204,5 @@ async function copyLink(url: string) {
 }
 
 function apiMessage(reason: unknown, fallback: string) {
-  return reason instanceof ApiError && reason.message ? reason.message : fallback;
+  return userErrorMessage(reason, fallback);
 }

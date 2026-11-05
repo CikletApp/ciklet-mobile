@@ -79,7 +79,7 @@ export const serverBoost = {
     applyToServer: "서버에 적용하기",
     perMonth: "월 {price}",
     storeLimit: "스토어에서는 추가 부스트를 하나만 구매할 수 있는데, 이미 하나를 가지고 있어요.",
-    moreOnWeb: "ciklet.xyz에서 부스트를 더 구매할 수 있어요.",
+    moreOnWeb: "{site}에서 부스트를 더 구매할 수 있어요.",
     storeCancelHint: "이 부스트를 취소하려면 App Store / Google Play 구독 설정을 이용하세요.",
     manageStore: "구독 관리",
     pending: "결제가 대기 중이에요. 승인되면 부스트가 자동으로 추가돼요.",

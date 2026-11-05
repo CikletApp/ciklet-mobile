@@ -2,10 +2,10 @@ import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, View } fr
 import { create } from "zustand";
 
 import { SkuType, formatKurus, useAppSkuCheckout, useAppSkuOffer } from "@/api/hooks";
-import { ApiError } from "@/api/client";
 import { Button, Icon, showToast } from "@/components/ui";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Uygulama ürünü satın alma sayfası — premium buton (Discord button style 6)
@@ -55,7 +55,7 @@ function SkuPurchaseSheet({ skuId, guildId, onClose }: { skuId: string; guildId:
     checkout.mutate(
       { skuId, guildId: targetGuild },
       {
-        onError: (error) => showToast(error instanceof ApiError ? error.message : t("moreScreens.sku.checkoutFailed"), "error"),
+        onError: (error) => showToast(userErrorMessage(error, t("moreScreens.sku.checkoutFailed")), "error"),
       },
     );
   };

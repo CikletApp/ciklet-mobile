@@ -2,13 +2,13 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ApiError } from "@/api/client";
 import { BULK_DELETE_MAX, BULK_DELETE_MAX_AGE_MS, useBulkDeleteMessages } from "@/api/hooks";
 import { Button, Icon, Pressable, showToast } from "@/components/ui";
 import { BulkDeleteSheet } from "@/features/server/moderation-sheets";
 import type { ChatMessagePayload } from "@/realtime/events";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 import { canBePinned } from "./pins";
+import { userErrorMessage } from "@/lib/user-error";
 
 /**
  * Mesaj seçimi ve toplu silme (web sohbetindeki "Mesajları Seç").
@@ -109,9 +109,7 @@ export function useMessageSelection(chatId: string, serverId: string | undefined
         pending={bulkDelete.isPending}
         error={
           bulkDelete.error
-            ? bulkDelete.error instanceof ApiError && bulkDelete.error.message
-              ? bulkDelete.error.message
-              : "Mesajlar silinemedi."
+            ? userErrorMessage(bulkDelete.error, "Mesajlar silinemedi.")
             : null
         }
         onClose={() => {
