@@ -134,6 +134,12 @@ export default function HelpScreen() {
           />
           <Divider inset={52} />
           <ListRow
+            icon="sparkles"
+            title="Blog"
+            subtitle="Yenilikler, güvenlik notları ve rehberler"
+            onPress={() => openPage(`${API_BASE_URL}/blog`)}
+          />          <Divider inset={52} />
+          <ListRow
             icon="link"
             title="Geliştirici belgeleri"
             subtitle="Botlar, aktiviteler ve OAuth2"
