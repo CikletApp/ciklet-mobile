@@ -246,7 +246,7 @@ function WebhooksSection({ serverId }: { serverId: string }) {
       <SectionTitle
         icon="link"
         title={`Gelen Webhook'lar — ${items.length}/${MAX_WEBHOOKS_PER_SERVER}`}
-        description="Bir URL ile dış servislerden (GitHub, Jira, izleme araçları) kanala mesaj düşürür. Gövde Discord webhook biçimiyle aynıdır; URL'yi bilen herkes mesaj yazabilir, gizli tutun."
+        description="Bir URL ile dış servislerden (GitHub, Jira, izleme araçları) kanala mesaj düşürür. Gövde yaygın webhook biçimiyle (content, embeds) uyumludur; URL'yi bilen herkes mesaj yazabilir, gizli tutun."
       />
 
       <View style={{ gap: spacing.sm }}>
